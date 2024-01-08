@@ -1,2 +1,2 @@
 # basket-manager
-Repository for the smart contracts pertaining to the Bakset Manager
+Repository for the smart contractsof Basket Manager
