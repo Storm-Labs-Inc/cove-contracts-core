@@ -18,10 +18,10 @@
     "func-param-name-mixedcase": "error",
     "modifier-name-mixedcase": "error",
     "private-vars-leading-underscore": "error",
-    "var-name-mixedcase": "error",
+    "var-name-mixedcase": "off",
     "imports-on-top": "error",
     "const-name-snakecase": "error",
-    "contract-name-camelcase": "error",
+    "contract-name-camelcase": "off",
     "no-unused-vars": "error",
     "no-unused-import": "error",
     "immutable-vars-naming": [
