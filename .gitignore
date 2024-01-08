@@ -12,3 +12,46 @@ docs/
 
 # Dotenv file
 .env
+
+# VS code
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+# coverage
+lcov.info
+
+# directories
+**/cache
+**/node_modules
+**/out
+
+# files
+*.env
+*.log
+.DS_Store
+.pnp.*
+
+# venv
+.venv
+# forge-deploy
+/generated
+/deployments/localhost
+/deployments/31337
+/deployments/1-fork
+
+
+# forge-deploy cli binary
+/forge-deploy
+
+.python-version
