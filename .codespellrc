@@ -1,2 +1,2 @@
 [codespell]
-skip = ./out,./lib,./src/deps,./src/interfaces/deps,*.yaml
+skip = ./out,./lib,*.yaml,package-lock.json
