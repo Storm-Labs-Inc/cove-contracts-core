@@ -57,7 +57,8 @@ jobs:
           fail-on: none
           ignore-compile: true
           node-version: ${{ env.NODE_VERSION }}
-          slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
+          slither-args:
+            --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
           slither-config: slither.config.json
 
       - name: Create/update checklist as PR comment
