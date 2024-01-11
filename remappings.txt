@@ -3,3 +3,5 @@ forge-deploy/=node_modules/forge-deploy/contracts/
 script/=script/
 src/=src/
 test/=test/
+@openzeppelin/=lib/openzeppelin-contracts/
+@openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
