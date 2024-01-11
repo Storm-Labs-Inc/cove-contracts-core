@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import { BaseTest } from "./utils/BaseTest.t.sol";
 import { OracleRegistry } from "src/OracleRegistry.sol";
 import { Errors } from "src/libraries/Errors.sol";
-import { console2 } from "forge-std/Console2.sol";
 
 contract OracleRegistry_Test is BaseTest {
     OracleRegistry public oracleRegistry;
