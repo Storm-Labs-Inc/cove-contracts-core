@@ -35,13 +35,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@commitlint/cli": "^17.8.0",
-    "@commitlint/config-conventional": "^17.8.0",
-    "@types/node": "^20.8.7",
+    "@commitlint/cli": "^18.4.4",
+    "@commitlint/config-conventional": "^18.4.4",
+    "@types/node": "^20.10.8",
     "forge-deploy": "^0.2.0",
     "husky": "^8.0.3",
-    "lint-staged": "^15.0.1",
-    "prettier": "^3.0.3",
-    "solhint": "^4.0.0"
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "solhint": "^4.1.1"
   }
 }
