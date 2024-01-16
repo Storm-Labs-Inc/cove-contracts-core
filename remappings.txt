@@ -1,4 +1,7 @@
 forge-std/=lib/forge-std/src/
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+permit2/=lib/permit2/
 forge-deploy/=node_modules/forge-deploy/contracts/
 script/=script/
 src/=src/
