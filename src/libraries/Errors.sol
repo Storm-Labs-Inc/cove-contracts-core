@@ -4,6 +4,7 @@ pragma solidity >=0.8.20;
 /// @title Errors
 /// @notice Library containing all custom errors the protocol may revert with.
 library Errors {
+    // solhint-disable var-name-mixedcase
     //// Oracle REGISTRY ////
     /// @notice Thrown when the Oracle name given is empty.
     error NameEmpty();
