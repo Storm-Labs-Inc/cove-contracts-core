@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 // import safetrasnfer from openzeppelin
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { console2 as console } from "forge-std/Console2.sol";
 
 // THIS VAULT IS AN UNOPTIMIZED, POTENTIALLY UNSECURE REFERENCE EXAMPLE AND IN NO WAY MEANT TO BE USED IN PRODUCTION
 
@@ -197,8 +196,6 @@ contract ERC7540AsyncDepositExample is ERC4626 {
     function withdraw(uint256 assets, address receiver, address operator) public override returns (uint256 shares) {
         require(msg.sender == operator, "Sender must be operator");
         // The maxWithdraw call checks that assets are claimable
-        console.log("shares", shares);
-        console.log("maxRedeem", maxRedeem(operator));
         require(assets != 0, "0 assets");
         require(assets != 0 && assets == maxWithdraw(operator), "Must claim nonzero maximum withdraw");
         uint256 id = _getPendingRedemptionId(operator);
@@ -215,8 +212,6 @@ contract ERC7540AsyncDepositExample is ERC4626 {
     function redeem(uint256 shares, address receiver, address operator) public override returns (uint256 assets) {
         require(msg.sender == operator, "Sender must be operator");
         // The maxWithdraw call checks that assets are claimable
-        console.log("shares", shares);
-        console.log("maxRedeem", maxRedeem(operator));
         require(shares != 0 && shares == maxRedeem(operator), "Must claim nonzero maximum redeem");
 
         uint256 id = _getPendingRedemptionId(operator);
