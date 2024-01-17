@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 // import safetrasnfer from openzeppelin
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-// THIS VAULT IS AN UNOPTIMIZED, POTENTIALLY UNSECURE REFERENCE EXAMPLE AND IN NO WAY MEANT TO BE USED IN PRODUCTION
+// THIS VAULT IS AN UNOPTIMIZED, POTENTIALLY INSECURE REFERENCE EXAMPLE AND IN NO WAY MEANT TO BE USED IN PRODUCTION
 
 /**
  * @notice ERC7540 Implementing Controlled Async Deposits
@@ -225,7 +225,7 @@ contract ERC7540AsyncDepositExample is ERC4626 {
         emit Withdraw(msg.sender, receiver, operator, assets, shares);
     }
 
-    // The max functions return the outstanding quanitity if if the redeem delay window has passed
+    // The max functions return the outstanding quantity if if the redeem delay window has passed
 
     function maxWithdraw(address operator) public view override returns (uint256) {
         uint256 id = _getPendingRedemptionId(operator);

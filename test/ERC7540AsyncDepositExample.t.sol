@@ -19,7 +19,7 @@ contract ERC7540AsyncDepositExample_Test is BaseTest {
         alice = users["alice"];
         owner = users["owner"];
         // create dummy asset
-        dummyAsset = new DummyERC20("Dummy", "DUM");
+        dummyAsset = new DummyERC20("Dummy", "DUMB");
         vm.label(address(dummyAsset), "dummyAsset");
         // mint alice some dummy asset
         dummyAsset.mint(users["alice"], 1e22);
