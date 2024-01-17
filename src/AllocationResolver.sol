@@ -10,11 +10,17 @@ contract AllocationResolver is AccessControl {
     mapping(address => uint256) public allocationLastUpdated;
     mapping(address => address) public basketAllocationResolver;
 
+    modifier onlyBasketResolver(address basket) {
+        require(msg.sender == basketAllocationResolver[basket], "NOT_BASKET_RESOLVER");
+        _;
+    }
+
     constructor() {
         grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function setAllocation(address basket, uint256[] memory newAllocation) public {
+    function setAllocation(address basket, uint256[] memory newAllocation) public onlyBasketResolver(basket) {
+        require(newAllocation.length == allocations[basket].length, "INVALID_ALLOCATION_LENGTH");
         allocations[basket] = newAllocation;
         allocationLastUpdated[basket] = block.timestamp;
     }
