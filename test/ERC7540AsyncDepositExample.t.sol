@@ -6,7 +6,7 @@ import { ERC7540AsyncDepositExample } from "src/ERC7540AsyncDepositExample.sol";
 // import { Errors } from "src/libraries/Errors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { DummyERC20 } from "./utils/mocks/DummyERC20.sol";
-import { console2 as console } from "forge-std/Console2.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 contract ERC7540AsyncDepositExample_Test is BaseTest {
     ERC7540AsyncDepositExample public vault;
