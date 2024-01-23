@@ -2,14 +2,13 @@
 pragma solidity ^0.8.20;
 
 import { BaseTest } from "./utils/BaseTest.t.sol";
-import { ERC7540AsyncDepositExample } from "src/ERC7540AsyncDepositExample.sol";
+import { ERC7540AsyncExample } from "src/ERC7540AsyncExample.sol";
 // import { Errors } from "src/libraries/Errors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { DummyERC20 } from "./utils/mocks/DummyERC20.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
-contract ERC7540AsyncDepositExample_Test is BaseTest {
-    ERC7540AsyncDepositExample public vault;
+contract ERC7540AsyncExample_Test is BaseTest {
+    ERC7540AsyncExample public vault;
     DummyERC20 public dummyAsset;
     address public alice;
     address public owner;
@@ -24,7 +23,7 @@ contract ERC7540AsyncDepositExample_Test is BaseTest {
         // mint alice some dummy asset
         dummyAsset.mint(users["alice"], 1e22);
         vm.prank(owner);
-        vault = new ERC7540AsyncDepositExample(ERC20(dummyAsset), "Test", "TEST");
+        vault = new ERC7540AsyncExample(ERC20(dummyAsset), "Test", "TEST");
         vm.label(address(vault), "vault");
         // approve alice for spending asset in vault
         vm.prank(users["alice"]);
@@ -47,7 +46,6 @@ contract ERC7540AsyncDepositExample_Test is BaseTest {
         vault.requestDeposit(amount, alice);
         vm.prank(owner);
         vault.fulfillDeposit(alice);
-        console.log("vault balance of shares", vault.balanceOf(address(vault)));
         vm.prank(alice);
         vault.deposit(amount, alice);
         assertEq(vault.totalAssets(), amount);
@@ -72,7 +70,7 @@ contract ERC7540AsyncDepositExample_Test is BaseTest {
         assertEq(vault.pendingRedeemRequest(id), shares);
     }
 
-    function test_withdraw() public {
+    function test_withdraw_buh() public {
         uint256 amount = 1e18;
         vm.prank(alice);
         vault.requestDeposit(amount, alice);
@@ -87,7 +85,7 @@ contract ERC7540AsyncDepositExample_Test is BaseTest {
         vm.prank(alice);
         uint256 id = vault.requestRedeem(shares, alice, alice);
         assertEq(vault.pendingRedeemRequest(id), shares);
-        vm.warp(3 days + 1);
+        vm.warp(3 days + 2);
         uint256 maxWithdraw = vault.maxWithdraw(alice);
         uint256 aliceBalanceBefore = dummyAsset.balanceOf(alice);
         vm.prank(alice);

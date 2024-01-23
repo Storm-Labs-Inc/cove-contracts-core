@@ -17,7 +17,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *         To allow partial claims, the deposit and mint functions would need to allow for pro rata claims.
  *         Conversions between claimable assets/shares should be checked for rounding safety.
  */
-contract ERC7540AsyncDepositExample is ERC4626 {
+contract ERC7540AsyncExample is ERC4626 {
     using SafeERC20 for ERC20;
 
     mapping(address => PendingDeposit) internal _pendingDeposit;
@@ -52,6 +52,7 @@ contract ERC7540AsyncDepositExample is ERC4626 {
     }
 
     event DepositRequest(address indexed sender, address indexed operator, uint256 assets);
+    event ManagerDepositRequest(uint256 assets);
     event RedeemRequest(address indexed sender, address indexed operator, address indexed owner, uint256 shares);
 
     constructor(IERC20 _asset, string memory name_, string memory symbol_) ERC4626(_asset) ERC20(name_, symbol_) {
@@ -69,6 +70,7 @@ contract ERC7540AsyncDepositExample is ERC4626 {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice this deposit request is added to any pending deposit request
+    /// @dev will be removed in favor of requestDepositFromManager
     function requestDeposit(uint256 assets, address operator) public {
         require(assets != 0, "ZERO_ASSETS");
 
@@ -82,6 +84,22 @@ contract ERC7540AsyncDepositExample is ERC4626 {
         emit DepositRequest(msg.sender, operator, assets);
     }
 
+    // @notice function to only be used by the basketManager, requests a deposit while holding the funds in the manager
+    // contract
+    function requestDepositFromManager(uint256 assets, address operator) public {
+        require(assets != 0, "ZERO_ASSETS");
+
+        // the transfer of assets is omitted here as the assets are held within the basketManager
+        // all other operations are the same for share accounting
+
+        uint256 currentPendingAssets = _pendingDeposit[operator].assets;
+        _pendingDeposit[operator] = PendingDeposit(assets + currentPendingAssets);
+
+        _totalPendingAssets += assets;
+
+        emit ManagerDepositRequest(assets);
+    }
+
     function pendingDepositRequest(address operator) public view returns (uint256 assets) {
         assets = _pendingDeposit[operator].assets;
     }
@@ -90,27 +108,26 @@ contract ERC7540AsyncDepositExample is ERC4626 {
     /// increments any outstanding request
     /// NOTE: if there is an outstanding claimable request, users benefit from claiming before requesting again
     function requestRedeem(uint256 shares, address operator, address requestOwner) public returns (uint256 id) {
-        if (msg.sender != requestOwner) {
+        if (msg.sender != requestOwner && msg.sender != owner) {
             revert("NOT_OWNER");
-            // TODO: removed this for testing
-            // uint256 allowed = allowance[requestOwner][msg.sender]; // Saves gas for limited approvals.
-
-            // if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
-        uint256 assets;
-        require((assets = convertToAssets(shares)) != 0, "ZERO_ASSETS");
+        // TODO: okay to ignore for 1:1 ratio?
+        // uint256 assets;
+        // require((assets = convertToAssets(shares)) != 0, "ZERO_ASSETS");
 
         // TODO changed below from owner to operator, check if correct
         _burn(operator, shares);
 
         id = ids++;
 
+        // NOTE assets changed to shares
         _pendingRedemption[id] =
-            RedemptionRequest(operator, assets, shares, uint32(block.timestamp) + REDEEM_DELAY_SECONDS);
+            RedemptionRequest(operator, shares, shares, uint32(block.timestamp) + REDEEM_DELAY_SECONDS);
         _pendingRedemptionIds[operator] = id;
 
-        _totalPendingAssets += assets;
+        // NOTE assets changed to shares
+        _totalPendingAssets += shares;
 
         emit RedeemRequest(msg.sender, operator, owner, shares);
     }
@@ -147,9 +164,11 @@ contract ERC7540AsyncDepositExample is ERC4626 {
 
         require(request.assets != 0, "ZERO_ASSETS");
 
-        shares = convertToShares(request.assets);
-        // TODO: check that below change is correct
-        _mint(operator, shares);
+        // TODO: below fails with underflow on 4626.balanceOf(asset()) call
+        // shares = convertToShares(request.assets);
+        // instead we force 1:1 conversion
+        shares = request.assets;
+        _mint(operator, request.assets);
 
         uint256 currentClaimableAssets = _claimableDeposit[operator].assets;
         uint256 currentClaimableShares = _claimableDeposit[operator].shares;
@@ -190,11 +209,31 @@ contract ERC7540AsyncDepositExample is ERC4626 {
     }
 
     function _getPendingRedemptionId(address operator) internal view returns (uint256) {
+        // TODO: this will not work in practice as an operator can have multiple pending redemptions
         return _pendingRedemptionIds[operator];
     }
 
     function withdraw(uint256 assets, address receiver, address operator) public override returns (uint256 shares) {
-        require(msg.sender == operator, "Sender must be operator");
+        // TODO: removing this check for now, in the future will check for basketManager as the sender
+        // require(msg.sender == operator, "Sender must be operator");
+        // The maxWithdraw call checks that assets are claimable
+        require(assets != 0, "0 assets");
+        require(assets != 0 && assets == maxWithdraw(operator), "Must claim nonzero maximum withdraw");
+        uint256 id = _getPendingRedemptionId(operator);
+        shares = _pendingRedemption[id].shares;
+        delete _pendingRedemption[id];
+
+        _totalPendingAssets -= shares;
+
+        require(ERC20(asset()).transfer(receiver, assets), "TRANSFER_FAILED");
+
+        emit Withdraw(msg.sender, receiver, operator, assets, shares);
+    }
+
+    // TODO: probably remove original withdraw in favor of this
+    function withdrawFromManager(uint256 assets, address receiver, address operator) public returns (uint256 shares) {
+        // TODO: removing this check for now, in the future will check for basketManager as the sender
+        // require(msg.sender == operator, "Sender must be operator");
         // The maxWithdraw call checks that assets are claimable
         require(assets != 0, "0 assets");
         require(assets != 0 && assets == maxWithdraw(operator), "Must claim nonzero maximum withdraw");
@@ -204,7 +243,8 @@ contract ERC7540AsyncDepositExample is ERC4626 {
 
         _totalPendingAssets -= assets;
 
-        require(ERC20(asset()).transfer(receiver, assets), "TRANSFER_FAILED");
+        // NOTE remove transfer here and instead transfer from basketManager
+        // require(ERC20(asset()).transfer(receiver, assets), "TRANSFER_FAILED");
 
         emit Withdraw(msg.sender, receiver, operator, assets, shares);
     }
@@ -255,6 +295,11 @@ contract ERC7540AsyncDepositExample is ERC4626 {
     function maxMint(address operator) public view override returns (uint256) {
         ClaimableDeposit memory claimable = _claimableDeposit[operator];
         return claimable.shares;
+    }
+
+    function getPendingDeposits(address operator) public view returns (uint256 amount) {
+        PendingDeposit memory request = _pendingDeposit[operator];
+        return request.assets;
     }
 
     // Preview functions always revert for async flows
