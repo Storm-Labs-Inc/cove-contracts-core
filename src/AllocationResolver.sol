@@ -6,7 +6,7 @@ pragma solidity ^0.8.20;
 
 contract AllocationResolver is AccessControl {
     // mapping of basket address to allocation
-    mapping(address => uint256[]) public allocations;
+    mapping(address => bytes32[]) public allocations;
     mapping(address => uint256) public allocationLastUpdated;
     mapping(address => address) public basketAllocationResolver;
 
@@ -16,16 +16,22 @@ contract AllocationResolver is AccessControl {
     }
 
     constructor() {
-        grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function setAllocation(address basket, uint256[] memory newAllocation) public onlyBasketResolver(basket) {
+    function setAllocation(address basket, bytes32[] memory newAllocation) public onlyBasketResolver(basket) {
         require(newAllocation.length == allocations[basket].length, "INVALID_ALLOCATION_LENGTH");
         allocations[basket] = newAllocation;
         allocationLastUpdated[basket] = block.timestamp;
+        // ensure that all allocations sum to 1
+        uint256 sum = 0;
+        for (uint256 i = 0; i < newAllocation.length; i++) {
+            sum += uint256(newAllocation[i]);
+        }
+        require(sum == 1e18, "INVALID_ALLOCATION_SUM");
     }
 
-    function getAllocation(address basket) public view returns (uint256[] memory) {
+    function getTargetWeight(address basket) public view returns (bytes32[] memory) {
         return allocations[basket];
     }
 
@@ -33,11 +39,24 @@ contract AllocationResolver is AccessControl {
         return allocations[basket].length;
     }
 
-    function getAllocationElement(address basket, uint256 index) public view returns (uint256) {
+    function getAllocationElement(address basket, uint256 index) public view returns (bytes32) {
         return allocations[basket][index];
     }
 
     function setBasketResolver(address basket, address resolver) public onlyRole(DEFAULT_ADMIN_ROLE) {
         basketAllocationResolver[basket] = resolver;
+    }
+
+    function enroll(address basket, address resolver, uint256 selectionsLength) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        basketAllocationResolver[basket] = resolver;
+        allocations[basket] = new bytes32[](selectionsLength);
+    }
+
+    function isEnrolled(address basket) public view returns (bool) {
+        return basketAllocationResolver[basket] != address(0);
+    }
+
+    function isSubscribed(address basket, address proposer) public view returns (bool) {
+        return basketAllocationResolver[basket] == proposer;
     }
 }
