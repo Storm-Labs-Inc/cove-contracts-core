@@ -27,6 +27,7 @@ contract ERC7540AsyncExample is ERC4626 {
     uint256 internal _totalPendingAssets;
 
     address public owner;
+    address public basketManager;
     uint256 public ids;
     uint32 public constant REDEEM_DELAY_SECONDS = 3 days;
 
@@ -57,12 +58,19 @@ contract ERC7540AsyncExample is ERC4626 {
 
     constructor(IERC20 _asset, string memory name_, string memory symbol_) ERC4626(_asset) ERC20(name_, symbol_) {
         owner = msg.sender;
+        // NOTE: basketManager is set to this address for testing purposes
+        basketManager = address(this);
+    }
+
+    function setBasketManager(address _basketManager) external {
+        basketManager = _basketManager;
     }
 
     function totalAssets() public view override returns (uint256) {
         // total assets pending redemption must be removed from the reported total assets
         // otherwise pending assets would be treated as yield for outstanding shares
-        return ERC20(asset()).balanceOf(address(this)) - _totalPendingAssets;
+        // NOTE: changed below to use basketManager instead of address(this)
+        return ERC20(asset()).balanceOf(basketManager) - _totalPendingAssets;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -112,22 +120,19 @@ contract ERC7540AsyncExample is ERC4626 {
             revert("NOT_OWNER");
         }
 
-        // TODO: okay to ignore for 1:1 ratio?
-        // uint256 assets;
-        // require((assets = convertToAssets(shares)) != 0, "ZERO_ASSETS");
+        uint256 assets;
+        require((assets = convertToAssets(shares)) != 0, "ZERO_ASSETS");
 
         // TODO changed below from owner to operator, check if correct
         _burn(operator, shares);
 
         id = ids++;
 
-        // NOTE assets changed to shares
         _pendingRedemption[id] =
-            RedemptionRequest(operator, shares, shares, uint32(block.timestamp) + REDEEM_DELAY_SECONDS);
+            RedemptionRequest(operator, assets, shares, uint32(block.timestamp) + REDEEM_DELAY_SECONDS);
         _pendingRedemptionIds[operator] = id;
 
-        // NOTE assets changed to shares
-        _totalPendingAssets += shares;
+        _totalPendingAssets += assets;
 
         emit RedeemRequest(msg.sender, operator, owner, shares);
     }
@@ -164,11 +169,8 @@ contract ERC7540AsyncExample is ERC4626 {
 
         require(request.assets != 0, "ZERO_ASSETS");
 
-        // TODO: below fails with underflow on 4626.balanceOf(asset()) call
-        // shares = convertToShares(request.assets);
-        // instead we force 1:1 conversion
-        shares = request.assets;
-        _mint(operator, request.assets);
+        shares = convertToShares(request.assets);
+        _mint(operator, shares);
 
         uint256 currentClaimableAssets = _claimableDeposit[operator].assets;
         uint256 currentClaimableShares = _claimableDeposit[operator].shares;

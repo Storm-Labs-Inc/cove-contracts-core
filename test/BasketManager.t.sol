@@ -31,7 +31,8 @@ contract BasketManagerTest is BaseTest {
         vm.label(address(basketManager), "basketManager");
         basketManager.initialize(vault, address(0)); // Assuming oracleRegistry is not used in this context
         basketToken = ERC7540AsyncExample(basketManager.createNewBasket("TestBasket", "TBKT", 1, address(0))); // Assuming
-            // allocationResolver is not used in this context
+        basketToken.setBasketManager(address(basketManager));
+        // allocationResolver is not used in this context
         vm.label(address(basketToken), "basketToken");
         vm.prank(alice);
         dummyAsset.approve(address(basketManager), 1e22);
@@ -53,8 +54,7 @@ contract BasketManagerTest is BaseTest {
             "BasketManager should have a pending deposit request for the amount"
         );
         assertEq(basketToken.maxDeposit(alice), 0, "BasketManager should not have a max deposit for the user");
-        // TODO: why does totalAssets() cause an underflow?
-        // assertEq(basketToken.totalAssets(), 0, "Basket should not report any assets yet");
+        assertEq(basketToken.totalAssets(), 0, "Basket should not report any assets yet");
         assertEq(basketToken.balanceOf(alice), 0, "Alice should not have any shares yet");
     }
 
@@ -68,6 +68,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.rebalance(baskets);
         assertEq(basketToken.totalSupply(), amount, "Basket should report the new shares");
         assertEq(basketToken.balanceOf(alice), amount, "Alice should have the deposited amount of shares");
+        assertEq(basketToken.totalAssets(), amount, "Basket should report the new assets");
     }
 
     function test_requestRedeem() public {

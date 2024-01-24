@@ -70,7 +70,7 @@ contract ERC7540AsyncExample_Test is BaseTest {
         assertEq(vault.pendingRedeemRequest(id), shares);
     }
 
-    function test_withdraw_buh() public {
+    function test_withdraw() public {
         uint256 amount = 1e18;
         vm.prank(alice);
         vault.requestDeposit(amount, alice);

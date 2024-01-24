@@ -9,6 +9,8 @@ interface IERC7540AsyncExample {
     // Functions
     function totalAssets() external view returns (uint256);
 
+    function setBasketManager(address _basketManager) external;
+
     function requestDeposit(uint256 assets, address operator) external;
     function requestDepositFromManager(uint256 assets, address operator) external;
     function pendingDepositRequest(address operator) external view returns (uint256 assets);
