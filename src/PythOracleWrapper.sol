@@ -6,7 +6,7 @@ import { IPyth } from "src/interfaces/deps/IPyth.sol";
 contract PythOracleWrapper {
     constructor(address pythContract) { }
 
-    function getPrice(
+    function updateFeeGetPrice(
         address pythContract,
         bytes32 priceId,
         bytes[] calldata priceUpdateData
