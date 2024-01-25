@@ -19,6 +19,8 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
     mapping(bytes32 => address[]) private _oracleMap;
     //slither-disable-next-line uninitialized-state
     mapping(address => ReverseRegistryData) private _reverseRegistry;
+    mapping(address => bytes32) public tokenToPythPriceId;
+    mapping(address => address) public tokenToChainlinkPriceFeed;
 
     /**
      * @notice Add a new oracle entry to the master list.
@@ -35,13 +37,18 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
      */
     event UpdateOracle(bytes32 indexed name, address oracleAddress, uint256 version);
 
+    event AddPythPriceId(address indexed token, bytes32 indexed priceId);
+    event UpdatePythPriceId(address indexed token, bytes32 indexed priceId);
+    event AddChainlinkPriceFeed(address indexed token, address indexed priceFeed);
+    event UpdateChainlinkPriceFeed(address indexed token, address indexed priceFeed);
+
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, msg.sender);
     }
 
     /// @inheritdoc IOracleRegistry
-    function addOracle(bytes32 oracleName, address oracleAddress) external override onlyRole(_MANAGER_ROLE) {
+    function addOracle(bytes32 oracleName, address oracleAddress) external onlyRole(_MANAGER_ROLE) {
         // Check for empty values.
         if (oracleName == 0) revert Errors.NameEmpty();
         if (oracleAddress == address(0)) revert Errors.AddressEmpty();
@@ -61,7 +68,7 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
     }
 
     /// @inheritdoc IOracleRegistry
-    function updateOracle(bytes32 oracleName, address oracleAddress) external override onlyRole(_MANAGER_ROLE) {
+    function updateOracle(bytes32 oracleName, address oracleAddress) external onlyRole(_MANAGER_ROLE) {
         // Check for empty values.
         if (oracleName == 0) revert Errors.NameEmpty();
         if (oracleAddress == address(0)) revert Errors.AddressEmpty();
@@ -81,8 +88,28 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
         emit UpdateOracle(oracleName, oracleAddress, version);
     }
 
+    function addPythPriceId(address token, bytes32 priceId) external onlyRole(_MANAGER_ROLE) {
+        tokenToPythPriceId[token] = priceId;
+        emit AddPythPriceId(token, priceId);
+    }
+
+    function updatePythPriceId(address token, bytes32 priceId) external onlyRole(_MANAGER_ROLE) {
+        tokenToPythPriceId[token] = priceId;
+        emit UpdatePythPriceId(token, priceId);
+    }
+
+    function addChainlinkPriceFeed(address token, address priceFeed) external onlyRole(_MANAGER_ROLE) {
+        tokenToChainlinkPriceFeed[token] = priceFeed;
+        emit AddChainlinkPriceFeed(token, priceFeed);
+    }
+
+    function updateChainlinkPriceFeed(address token, address priceFeed) external onlyRole(_MANAGER_ROLE) {
+        tokenToChainlinkPriceFeed[token] = priceFeed;
+        emit UpdateChainlinkPriceFeed(token, priceFeed);
+    }
+
     /// @inheritdoc IOracleRegistry
-    function resolveNameToLatestAddress(bytes32 oracleName) external view override returns (address) {
+    function resolveNameToLatestAddress(bytes32 oracleName) external view returns (address) {
         address[] storage registry = _oracleMap[oracleName];
         uint256 length = registry.length;
         if (length == 0) revert Errors.OracleNameNotFound(oracleName);
@@ -90,22 +117,14 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
     }
 
     /// @inheritdoc IOracleRegistry
-    function resolveNameAndVersionToAddress(
-        bytes32 oracleName,
-        uint256 version
-    )
-        external
-        view
-        override
-        returns (address)
-    {
+    function resolveNameAndVersionToAddress(bytes32 oracleName, uint256 version) external view returns (address) {
         address[] storage registry = _oracleMap[oracleName];
         if (version >= registry.length) revert Errors.OracleNameVersionNotFound(oracleName, version);
         return registry[version];
     }
 
     /// @inheritdoc IOracleRegistry
-    function resolveNameToAllAddresses(bytes32 oracleName) external view override returns (address[] memory) {
+    function resolveNameToAllAddresses(bytes32 oracleName) external view returns (address[] memory) {
         address[] storage registry = _oracleMap[oracleName];
         if (registry.length == 0) revert Errors.OracleNameNotFound(oracleName);
         return registry;
@@ -115,7 +134,6 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
     function resolveAddressToOracleData(address oracleAddress)
         external
         view
-        override
         returns (bytes32 oracleName, uint256 version, bool isLatest)
     {
         ReverseRegistryData memory data = _reverseRegistry[oracleAddress];
