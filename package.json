@@ -4,24 +4,35 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "prepare": "husky install",
-    "clean": "rm -rf cache out",
-    "build": "forge-deploy gen-deployer && forge build --sizes",
+    "prepare": "husky install && pnpm run forge-deploy:build",
+    "clean": "rm -rf cache out crytic-export generated && forge clean",
+    "build": "./forge-deploy gen-deployer && forge build --sizes",
     "test": "forge test -vvv --gas-report",
     "coverage": "forge coverage --report lcov",
     "slither": "forge clean && forge build --skip test script --build-info && slither . --ignore-compile",
-    "deployLocal": "DEPLOYMENT_CONTEXT=1-fork forge script script/Deployments.s.sol --rpc-url http://localhost:8545 --broadcast --private-key ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 -vvv && forge-deploy sync;",
+    "slither-upgradeability": "for f in $(grep -l -r \"openzeppelin-upgradeable\" src); do c=$(echo \"${f##*/}\" | cut -f 1 -d \".\"); echo \"$c\"; slither-check-upgradeability $f $c; echo; done",
+    "semgrep": "semgrep --config p/smart-contracts --exclude deps/ src/",
+    "deployLocal": "DEPLOYMENT_CONTEXT=1-fork forge script script/Deployments.s.sol --rpc-url http://localhost:8545 --broadcast --private-key ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 -vvv && ./forge-deploy sync;",
+    "forge-deploy:clean": "rm -rf deployments/1-fork/*",
+    "forge-deploy:build": "cd lib/forge-deploy && cargo build --release && cp target/release/forge-deploy ../../forge-deploy",
     "lint": "pnpm run lint:sol && pnpm run prettier:check",
-    "lint:fix": "pnpm lint:sol:fix && pnpm run prettier:write",
-    "lint:sol": "forge fmt --check && npx solhint \"{script,src}/**/*.sol\" --ignore-path .solhintignore && npx solhint \"{test}/**/*.sol\" --config .solhint.test.json --ignore-path .solhintignore",
-    "lint:sol:fix": "forge fmt && npx solhint --fix \"{script,src}/**/*.sol\" --ignore-path .solhintignore && npx solhint --fix \"{test}/**/*.sol\" --config .solhint.test.json --ignore-path .solhintignore",
+    "lint:fix": "pnpm lint:fix:sol && pnpm run prettier:write",
+    "lint:fix:sol": "forge fmt && pnpm run solhint:src --fix && pnpm run solhint:script --fix && pnpm run solhint:test --fix",
+    "lint:sol": "forge fmt --check && pnpm run solhint:src && pnpm run solhint:script && pnpm run solhint:test",
+    "solhint:src": "npx solhint --noPrompt --config .solhint.json --ignore-path .solhintignore \"{src}/**/*.sol\"",
+    "solhint:script": "npx solhint --noPrompt --config .solhint.script.json --ignore-path .solhintignore \"{script}/**/*.sol\"",
+    "solhint:test": "npx solhint --noPrompt --config .solhint.test.json --ignore-path .solhintignore \"test/**/*.sol\"",
     "prettier:check": "npx prettier --check \"**/*.{json,md,yml,yaml}\"",
     "prettier:write": "npx prettier --write \"**/*.{json,md,yml,yaml}\""
   },
   "lint-staged": {
-    "{script,src}/**/*.sol": [
+    "src/!(deps/**/*|interfaces/deps/**/*)/**/*.sol": [
       "forge fmt",
       "npx solhint --fix --noPrompt --config .solhint.json --ignore-path .solhintignore"
+    ],
+    "script/**/*.sol": [
+      "forge fmt",
+      "npx solhint --fix --noPrompt --config .solhint.script.json --ignore-path .solhintignore"
     ],
     "test/**/*.sol": [
       "forge fmt",
@@ -35,13 +46,12 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@commitlint/cli": "^18.4.4",
-    "@commitlint/config-conventional": "^18.4.4",
-    "@types/node": "^20.10.8",
-    "forge-deploy": "^0.2.0",
-    "husky": "^8.0.3",
-    "lint-staged": "^15.2.0",
-    "prettier": "^3.1.1",
-    "solhint": "^4.1.1"
+    "@commitlint/cli": "^18.6.0",
+    "@commitlint/config-conventional": "^18.6.0",
+    "@types/node": "^20.11.14",
+    "husky": "^9.0.7",
+    "lint-staged": "^15.2.1",
+    "prettier": "^3.2.4",
+    "solhint": "^4.5.2"
   }
 }
