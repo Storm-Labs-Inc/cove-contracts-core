@@ -12,9 +12,9 @@ contract AllocationResolverTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
-        owner = users["owner"];
+        owner = createUser("owner");
         basket = address(1);
-        resolver = users["alice"];
+        resolver = createUser("alice");
         vm.prank(owner);
         allocationResolver = new AllocationResolver();
         vm.label(address(allocationResolver), "allocationResolver");

@@ -24,12 +24,7 @@ abstract contract BaseTest is Test {
     ERC20 internal _dai;
 
     //// SETUP FUNCTION ////
-    function setUp() public virtual {
-        createUser("alice");
-        vm.label(users["alice"], "alice");
-        createUser("owner");
-        vm.label(users["owner"], "owner");
-    }
+    function setUp() public virtual { }
 
     //// HELPERS ////
 

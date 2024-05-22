@@ -15,8 +15,8 @@ contract ERC7540AsyncExample_Test is BaseTest {
 
     function setUp() public override {
         super.setUp();
-        alice = users["alice"];
-        owner = users["owner"];
+        alice = createUser("alice");
+        owner = createUser("owner");
         // create dummy asset
         dummyAsset = new DummyERC20("Dummy", "DUMB");
         vm.label(address(dummyAsset), "dummyAsset");
