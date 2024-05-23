@@ -2,12 +2,14 @@
 pragma solidity 0.8.18;
 
 import { BaseTest } from "../utils/BaseTest.t.sol";
-import { BasketManager } from "src/BasketManager.sol";
-import { AllocationResolver } from "src/AllocationResolver.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { BasketToken } from "src/BasketToken.sol";
-import { console2 as console } from "forge-std/console2.sol";
+
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/ERC20Mock.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { console2 as console } from "forge-std/console2.sol";
+import { AllocationResolver } from "src/AllocationResolver.sol";
+import { BasketManager } from "src/BasketManager.sol";
+
+import { BasketToken } from "src/BasketToken.sol";
 
 contract BasketManagerTest is BaseTest {
     BasketManager public basketManager;

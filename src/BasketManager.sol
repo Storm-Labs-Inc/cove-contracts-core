@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.18;
 
-import { BasketToken } from "src/BasketToken.sol";
-import { AllocationResolver } from "src/AllocationResolver.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { AllocationResolver } from "src/AllocationResolver.sol";
+import { BasketToken } from "src/BasketToken.sol";
 
 /**
  * @title BasketManager
@@ -21,7 +21,9 @@ contract BasketManager {
     /**
      * Constants
      */
+    /// @notice Maximum number of basket tokens allowed to be created.
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
+    /// @notice Address of the root asset to be used for the baskets.
     address public immutable ROOT_ASSET;
 
     /**
@@ -121,9 +123,8 @@ contract BasketManager {
         basket = Clones.clone(basketTokenImplementation);
         basketTokens.push(basket);
         basketIdToAddress[basketId] = basket;
-        // unchecked usage is safe here since `basketTokensLength` is guaranteed to be less than
-        // `MAX_NUM_OF_BASKET_TOKENS`
         unchecked {
+            // Overflow not possible: basketTokensLength is less than the constant MAX_NUM_OF_BASKET_TOKENS
             _basketTokenToIndexPlusOne[basket] = basketTokensLength + 1;
         }
         // Interactions
@@ -141,8 +142,8 @@ contract BasketManager {
         if (index == 0) {
             revert BasketTokenNotFound();
         }
-        // unchecked usage is safe here since `index` is guaranteed to be greater than 0
         unchecked {
+            // Overflow not possible: index is not 0
             return index - 1;
         }
     }
