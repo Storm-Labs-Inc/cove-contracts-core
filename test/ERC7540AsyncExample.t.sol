@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.18;
 
 import { BaseTest } from "./utils/BaseTest.t.sol";
 import { ERC7540AsyncExample } from "src/ERC7540AsyncExample.sol";

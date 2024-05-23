@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.18;
 
 import { BasketToken } from "src/BasketToken.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
