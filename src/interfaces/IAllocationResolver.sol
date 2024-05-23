@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.0;
 
 interface IAllocationResolver {
     function setAllocation(address basket, bytes32[] calldata newAllocation) external;

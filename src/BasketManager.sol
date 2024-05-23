@@ -1,112 +1,158 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.18;
 
-import { ERC7540AsyncExample } from "src/ERC7540AsyncExample.sol";
-import { IERC7540AsyncExample } from "src/interfaces/IERC7540AsyncExample.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { AllocationResolver } from "src/AllocationResolver.sol";
+import { BasketToken } from "src/BasketToken.sol";
 
+/**
+ * @title BasketManager
+ * @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
+ * here.
+ */
 contract BasketManager {
+    /**
+     * Libraries
+     */
     using SafeERC20 for IERC20;
 
-    uint256 public constant MAX_NUM_OF_VAULTS = 256;
-    address[] public vaults;
+    /**
+     * Constants
+     */
+    /// @notice Maximum number of basket tokens allowed to be created.
+    uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
+    /// @notice Address of the root asset to be used for the baskets.
+    address public immutable ROOT_ASSET;
+
+    /**
+     * State variables
+     */
+    /// @notice Array of all basket tokens
     address[] public basketTokens;
-    mapping(uint256 => address) public bitFlagToVault;
-    mapping(address => uint256) public vaultToIndexPlusOne;
-    mapping(address => address) public basketToAllocationResolver;
+    /// @notice Mapping of basketId to basket address
+    mapping(bytes32 basketId => address basketToken) public basketIdToAddress;
+    /// @notice Mapping of basket token to index plus one. 0 means the basket token does not exist.
+    mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
 
-    address public basketImplementation;
-    address public rootAsset;
+    /// @notice Address of the BasketToken implementation
+    address public basketTokenImplementation;
+    /// @notice Address of the OracleRegistry contract used to fetch oracle values for assets
     address public oracleRegistry;
-    uint8 public rootAssetDecimals;
-    uint256 public lastUpdateTimestamp;
+    /// @notice Address of the AllocationResolver contract used to resolve allocations
+    AllocationResolver public allocationResolver;
 
-    // TODO: why do I have to use internal here?
-    mapping(address => RebalanceInfo) internal _rebalanceInfos;
+    /**
+     * Events
+     */
 
-    struct RebalanceInfo {
-        address[] pendingDepositors;
-        address[] pendingWithdrawers;
-    }
+    /**
+     * Errors
+     */
+    error ZeroAddress();
+    error BasketTokenNotFound();
+    error BasketTokenAlreadyExists();
+    error BasketTokenMaxExceeded();
+    error AllocationResolverDoesNotSupportStrategy();
 
-    constructor() { }
+    /**
+     * Structs
+     */
 
-    function initialize(address _basketImplementation, address _oracleRegistry) public {
-        basketImplementation = _basketImplementation;
-        rootAsset = IERC7540AsyncExample(basketImplementation).asset();
-        // rootAssetDecimals = IERC20(rootAsset).decimals();
-        rootAssetDecimals = 18;
+    /**
+     * @notice Initializes the contract with the given parameters.
+     * @param rootAsset_ Address of the root asset to be used for the baskets.
+     * @param _basketTokenImplementation Address of the basket token implementation.
+     * @param _oracleRegistry Address of the oracle registry.
+     * @param _allocationResolver Address of the allocation resolver.
+     */
+    constructor(
+        address rootAsset_,
+        address _basketTokenImplementation,
+        address _oracleRegistry,
+        address _allocationResolver
+    ) {
+        // Checks
+        if (rootAsset_ == address(0)) revert ZeroAddress();
+        if (_basketTokenImplementation == address(0)) revert ZeroAddress();
+        if (_oracleRegistry == address(0)) revert ZeroAddress();
+        if (_allocationResolver == address(0)) revert ZeroAddress();
+
+        // Effects
+        ROOT_ASSET = rootAsset_;
+        basketTokenImplementation = _basketTokenImplementation;
         oracleRegistry = _oracleRegistry;
+        allocationResolver = AllocationResolver(_allocationResolver);
     }
 
-    // Creates basket with given selection bitFlag and type
+    /**
+     * Public functions
+     */
+
+    /**
+     * @notice Creates a new basket token with the given parameters.
+     * @param basketName Name of the basket.
+     * @param symbol Symbol of the basket.
+     * @param bitFlag Asset selection bitFlag for the basket.
+     * @param strategyId Strategy id for the basket.
+     */
     function createNewBasket(
         string memory basketName,
         string memory symbol,
         uint256 bitFlag,
-        address allocationResolver
+        uint256 strategyId
     )
         public
+        payable
         returns (address basket)
     {
-        basket = address(new ERC7540AsyncExample(IERC20(rootAsset), basketName, symbol));
+        // Checks
+        uint256 basketTokensLength = basketTokens.length;
+        if (basketTokensLength >= MAX_NUM_OF_BASKET_TOKENS) {
+            revert BasketTokenMaxExceeded();
+        }
+        bytes32 basketId = keccak256(abi.encodePacked(bitFlag, strategyId));
+        if (basketIdToAddress[basketId] != address(0)) {
+            revert BasketTokenAlreadyExists();
+        }
+        if (!allocationResolver.supportsStrategy(bitFlag, strategyId)) {
+            revert AllocationResolverDoesNotSupportStrategy();
+        }
+        // Effects
+        basket = Clones.clone(basketTokenImplementation);
         basketTokens.push(basket);
-        bitFlagToVault[bitFlag] = basket;
-        basketToAllocationResolver[basket] = allocationResolver;
+        basketIdToAddress[basketId] = basket;
+        unchecked {
+            // Overflow not possible: basketTokensLength is less than the constant MAX_NUM_OF_BASKET_TOKENS
+            _basketTokenToIndexPlusOne[basket] = basketTokensLength + 1;
+        }
+        // Interactions
+        BasketToken(basket).initialize(IERC20(ROOT_ASSET), basketName, symbol, bitFlag, strategyId);
     }
 
-    // solhint-disable-next-line no-unused-vars
-    function requestDeposit(address basket, uint256 assetAmount, address to) external {
-        IERC20(rootAsset).safeTransferFrom(msg.sender, address(this), assetAmount);
-        IERC7540AsyncExample(basket).requestDepositFromManager(assetAmount, msg.sender);
-        _rebalanceInfos[basket].pendingDepositors.push(msg.sender);
-    }
-
-    // TODO: only for testing remove later
-    function fulfillDeposit(address basket, address operator) external {
-        IERC7540AsyncExample(basket).fulfillDeposit(operator);
-    }
-
-    function _fulfillDeposit(address basket, address operator) internal {
-        IERC7540AsyncExample(basket).fulfillDeposit(operator);
-    }
-
-    // solhint-disable-next-line no-unused-vars
-    function requestRedeem(address basket, uint256 basketTokenAmount, address to) public {
-        IERC7540AsyncExample(basket).requestRedeem(basketTokenAmount, msg.sender, msg.sender);
-        _rebalanceInfos[basket].pendingWithdrawers.push(msg.sender);
-    }
-
-    function rebalance(address[] memory baskets) public {
-        for (uint256 basketIndex = 0; basketIndex < baskets.length; basketIndex++) {
-            address basket = baskets[basketIndex];
-            // Call fulfill deposit for all pending depositors
-            for (uint256 i = 0; i < _rebalanceInfos[basket].pendingDepositors.length; i++) {
-                _fulfillDeposit(basket, _rebalanceInfos[basket].pendingDepositors[i]);
-            }
-            delete _rebalanceInfos[basket].pendingDepositors;
-
-            // Call withdraw for all pending withdrawers
-            for (uint256 i = 0; i < _rebalanceInfos[basket].pendingWithdrawers.length; i++) {
-                uint256 amount = IERC7540AsyncExample(basket).maxWithdraw(_rebalanceInfos[basket].pendingWithdrawers[i]);
-                IERC7540AsyncExample(basket).withdrawFromManager(
-                    amount, _rebalanceInfos[basket].pendingWithdrawers[i], _rebalanceInfos[basket].pendingWithdrawers[i]
-                );
-                // TODO: batch these transfers in the future
-                require(
-                    IERC20(rootAsset).transfer(_rebalanceInfos[basket].pendingWithdrawers[i], amount), "Transfer failed"
-                );
-            }
-            delete _rebalanceInfos[basket].pendingWithdrawers;
+    /**
+     * @notice Returns the index of the basket token in the basketTokens array.
+     * @dev Reverts if the basket token does not exist.
+     * @param basketToken Address of the basket token.
+     * @return index Index of the basket token.
+     */
+    function basketTokenToIndex(address basketToken) public view returns (uint256 index) {
+        index = _basketTokenToIndexPlusOne[basketToken];
+        if (index == 0) {
+            revert BasketTokenNotFound();
+        }
+        unchecked {
+            // Overflow not possible: index is not 0
+            return index - 1;
         }
     }
 
-    function getPendingDepositors(address basket) public view returns (address[] memory) {
-        return _rebalanceInfos[basket].pendingDepositors;
-    }
-
-    function getPendingWithdrawers(address basket) public view returns (address[] memory) {
-        return _rebalanceInfos[basket].pendingWithdrawers;
+    /**
+     * @notice Returns the number of basket tokens.
+     * @return Number of basket tokens.
+     */
+    function numOfBasketTokens() public view returns (uint256) {
+        return basketTokens.length;
     }
 }

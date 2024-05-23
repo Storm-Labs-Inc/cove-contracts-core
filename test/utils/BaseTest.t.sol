@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.18;
 
-import { Test, console2 } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Errors } from "src/libraries/Errors.sol";
+
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { Errors } from "src/libraries/Errors.sol";
 
 abstract contract BaseTest is Test {
     //// VARIABLES ////
@@ -24,12 +25,7 @@ abstract contract BaseTest is Test {
     ERC20 internal _dai;
 
     //// SETUP FUNCTION ////
-    function setUp() public virtual {
-        createUser("alice");
-        vm.label(users["alice"], "alice");
-        createUser("owner");
-        vm.label(users["owner"], "owner");
-    }
+    function setUp() public virtual { }
 
     //// HELPERS ////
 

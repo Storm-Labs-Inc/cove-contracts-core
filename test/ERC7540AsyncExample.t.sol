@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.18;
 
 import { BaseTest } from "./utils/BaseTest.t.sol";
 import { ERC7540AsyncExample } from "src/ERC7540AsyncExample.sol";
 // import { Errors } from "src/libraries/Errors.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
 import { DummyERC20 } from "./utils/mocks/DummyERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract ERC7540AsyncExample_Test is BaseTest {
     ERC7540AsyncExample public vault;
@@ -15,8 +16,8 @@ contract ERC7540AsyncExample_Test is BaseTest {
 
     function setUp() public override {
         super.setUp();
-        alice = users["alice"];
-        owner = users["owner"];
+        alice = createUser("alice");
+        owner = createUser("owner");
         // create dummy asset
         dummyAsset = new DummyERC20("Dummy", "DUMB");
         vm.label(address(dummyAsset), "dummyAsset");
