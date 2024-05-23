@@ -121,6 +121,8 @@ contract BasketManager {
         basket = Clones.clone(basketTokenImplementation);
         basketTokens.push(basket);
         basketIdToAddress[basketId] = basket;
+        // unchecked usage is safe here since `basketTokensLength` is guaranteed to be less than
+        // `MAX_NUM_OF_BASKET_TOKENS`
         unchecked {
             _basketTokenToIndexPlusOne[basket] = basketTokensLength + 1;
         }
@@ -139,6 +141,7 @@ contract BasketManager {
         if (index == 0) {
             revert BasketTokenNotFound();
         }
+        // unchecked usage is safe here since `index` is guaranteed to be greater than 0
         unchecked {
             return index - 1;
         }
