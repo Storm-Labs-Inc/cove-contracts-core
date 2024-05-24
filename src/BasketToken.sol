@@ -44,4 +44,31 @@ contract BasketToken is ERC4626Upgradeable {
         __ERC4626_init(IERC20Upgradeable(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("cb", symbol_));
     }
+
+    /**
+     * @notice Returns the total pending deposits from the current epoch.
+     * @return Total amount of assets pending deposit.
+     */
+    function totalPendingDeposit() public view returns (uint256) {
+        // TODO: Return currently pending deposits
+        return 0;
+    }
+
+    /**
+     * @notice Returns the total pending redeems from the current epoch.
+     * @return Total number of shares pending redemption.
+     */
+    function totalPendingRedeem() public view returns (uint256) {
+        // TODO: Return currently pending redeems
+        return 0;
+    }
+
+    /**
+     * @notice Fulfills the deposit for the given shares.
+     * @param shares Number of shares to fulfill.
+     * @dev This function should be called by the BasketManager contract.
+     */
+    function fulfillDeposit(uint256 shares) public {
+        // TODO: Fulfill the deposit
+    }
 }

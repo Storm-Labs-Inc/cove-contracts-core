@@ -4,8 +4,12 @@ pragma solidity 0.8.18;
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
+import { MathUtils } from "src/libraries/MathUtils.sol";
 
 /**
  * @title BasketManager
@@ -17,6 +21,24 @@ contract BasketManager {
      * Libraries
      */
     using SafeERC20 for IERC20;
+
+    /**
+     * Structs
+     */
+    /**
+     * @notice Enum representing the status of a rebalance.
+     */
+    enum Status {
+        NOT_STARTED,
+        REBALANCE_PROPOSED,
+        TOKEN_SWAP_PROPOSED,
+        TOKEN_SWAP_EXECUTED
+    }
+
+    struct RebalanceStatus {
+        uint40 timestamp;
+        Status status;
+    }
 
     /**
      * Constants
@@ -31,10 +53,15 @@ contract BasketManager {
      */
     /// @notice Array of all basket tokens
     address[] public basketTokens;
+    /// @notice Mapping of basket token to asset to balance
+    mapping(address basketToken => mapping(address asset => uint256 balance)) public basketBalanceOf;
     /// @notice Mapping of basketId to basket address
     mapping(bytes32 basketId => address basketToken) public basketIdToAddress;
+    /// @notice Mapping of basket token to assets
+    mapping(address basketToken => address[] basketAssets) public basketAssets;
     /// @notice Mapping of basket token to index plus one. 0 means the basket token does not exist.
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
+    mapping(address basketToken => uint256 pendingWithdraw) public pendingWithdraw;
 
     /// @notice Address of the BasketToken implementation
     address public basketTokenImplementation;
@@ -42,6 +69,8 @@ contract BasketManager {
     address public oracleRegistry;
     /// @notice Address of the AllocationResolver contract used to resolve allocations
     AllocationResolver public allocationResolver;
+    /// @notice Rebalance status
+    RebalanceStatus public rebalanceStatus;
 
     /**
      * Events
@@ -55,35 +84,33 @@ contract BasketManager {
     error BasketTokenAlreadyExists();
     error BasketTokenMaxExceeded();
     error AllocationResolverDoesNotSupportStrategy();
-
-    /**
-     * Structs
-     */
+    error RebalanceNotNeeded();
+    error MustWaitForRebalance();
 
     /**
      * @notice Initializes the contract with the given parameters.
      * @param rootAsset_ Address of the root asset to be used for the baskets.
-     * @param _basketTokenImplementation Address of the basket token implementation.
-     * @param _oracleRegistry Address of the oracle registry.
-     * @param _allocationResolver Address of the allocation resolver.
+     * @param basketTokenImplementation_ Address of the basket token implementation.
+     * @param oracleRegistry_ Address of the oracle registry.
+     * @param allocationResolver_ Address of the allocation resolver.
      */
     constructor(
         address rootAsset_,
-        address _basketTokenImplementation,
-        address _oracleRegistry,
-        address _allocationResolver
+        address basketTokenImplementation_,
+        address oracleRegistry_,
+        address allocationResolver_
     ) {
         // Checks
         if (rootAsset_ == address(0)) revert ZeroAddress();
-        if (_basketTokenImplementation == address(0)) revert ZeroAddress();
-        if (_oracleRegistry == address(0)) revert ZeroAddress();
-        if (_allocationResolver == address(0)) revert ZeroAddress();
+        if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
+        if (oracleRegistry_ == address(0)) revert ZeroAddress();
+        if (allocationResolver_ == address(0)) revert ZeroAddress();
 
         // Effects
         ROOT_ASSET = rootAsset_;
-        basketTokenImplementation = _basketTokenImplementation;
-        oracleRegistry = _oracleRegistry;
-        allocationResolver = AllocationResolver(_allocationResolver);
+        basketTokenImplementation = basketTokenImplementation_;
+        oracleRegistry = oracleRegistry_;
+        allocationResolver = AllocationResolver(allocationResolver_);
     }
 
     /**
@@ -121,6 +148,7 @@ contract BasketManager {
         }
         // Effects
         basket = Clones.clone(basketTokenImplementation);
+        basketAssets[basket] = allocationResolver.getAssets(bitFlag);
         basketTokens.push(basket);
         basketIdToAddress[basketId] = basket;
         unchecked {
@@ -154,5 +182,97 @@ contract BasketManager {
      */
     function numOfBasketTokens() public view returns (uint256) {
         return basketTokens.length;
+    }
+
+    /**
+     * @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
+     * target weight and the proposed target weight is more than 1% or the worth of the difference is more than 10000
+     * USD.
+     * @param basketsToRebalance Array of basket addresses to rebalance.
+     */
+    function proposeRebalance(address[] calldata basketsToRebalance) external {
+        bool shouldRebalance = false;
+        for (uint256 i = 0; i < basketsToRebalance.length;) {
+            address basket = basketsToRebalance[i];
+            address[] memory assets = basketAssets[basket];
+            if (assets.length == 0) {
+                revert BasketTokenNotFound();
+            }
+            uint256[] memory balances = new uint256[](assets.length);
+            uint256[] memory targetBalances = new uint256[](assets.length);
+            uint256[] memory targetWeights = new uint256[](assets.length);
+            uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
+            uint256[] memory priceOfAssets = new uint256[](assets.length);
+            uint256 basketValue = 0;
+            uint256 pendingDeposit = BasketToken(basket).totalPendingDeposit();
+
+            // Calculate current basketValue
+            for (uint256 j = 0; j < assets.length;) {
+                balances[j] = basketBalanceOf[basket][assets[j]];
+                priceOfAssets[j] = 0; // oracleRegistry.getPrice(assets[j]);
+                basketValue += balances[j] * priceOfAssets[j];
+            }
+
+            // Process pending deposit
+            balances[0] += pendingDeposit;
+            uint256 totalSupply = BasketToken(basket).totalSupply();
+            uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0];
+            uint256 requiredDepositShares = pendingDepositValue * totalSupply / basketValue;
+            totalSupply += requiredDepositShares;
+            basketValue += pendingDepositValue;
+            BasketToken(basket).fulfillDeposit(requiredDepositShares);
+
+            // Calculate targetBalances
+            {
+                uint256 requiredWithdrawValue =
+                    basketValue * BasketToken(basket).totalPendingRedeem() / (totalSupply + requiredDepositShares);
+                if (requiredWithdrawValue > basketValue) {
+                    requiredWithdrawValue = basketValue;
+                }
+                unchecked {
+                    // Overflow not possible: requiredWithdrawValue is less than or equal to basketValue
+                    basketValue -= requiredWithdrawValue;
+                }
+                for (uint256 j = 0; j < assets.length;) {
+                    targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
+                }
+                targetBalances[0] += requiredWithdrawValue / priceOfAssets[0];
+            }
+
+            // Calculate targetWeights
+            for (uint256 j = 0; j < assets.length;) {
+                targetWeights[j] = targetBalances[j] * priceOfAssets[j] / basketValue;
+                // Check if the target weight is within the bounds compared to the proposed target weight
+                uint256 diff = MathUtils.diff(targetWeights[j], proposedTargetWeights[j]);
+                // If the difference is more than 1%, propose a token swap
+                if (diff > 1e16) {
+                    shouldRebalance = true;
+                    break;
+                }
+                // If the worth is more than 10000 USD, proceed.
+                if (diff * priceOfAssets[j] > 10_000 ether) {
+                    shouldRebalance = true;
+                    break;
+                }
+            }
+        }
+        if (!shouldRebalance) {
+            revert RebalanceNotNeeded();
+        }
+        rebalanceStatus.timestamp = uint40(block.timestamp);
+        rebalanceStatus.status = Status.REBALANCE_PROPOSED;
+    }
+
+    function proposeTokenSwap() external { }
+
+    function executeTokenSwap() external { }
+
+    function completeRebalance() external {
+        if (block.timestamp - rebalanceStatus.timestamp < 15 minutes) {
+            revert MustWaitForRebalance();
+        }
+        rebalanceStatus.status = Status.NOT_STARTED;
+        rebalanceStatus.timestamp = uint40(block.timestamp);
+        // TODO: fulfill redeems for baskets that have pending redeems
     }
 }
