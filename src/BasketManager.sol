@@ -148,8 +148,8 @@ contract BasketManager {
         }
         // Effects
         basket = Clones.clone(basketTokenImplementation);
-        basketAssets[basket] = allocationResolver.getAssets(bitFlag);
         basketTokens.push(basket);
+        basketAssets[basket] = allocationResolver.getAssets(bitFlag);
         basketIdToAddress[basketId] = basket;
         unchecked {
             // Overflow not possible: basketTokensLength is less than the constant MAX_NUM_OF_BASKET_TOKENS
@@ -211,6 +211,9 @@ contract BasketManager {
                 balances[j] = basketBalanceOf[basket][assets[j]];
                 priceOfAssets[j] = 0; // oracleRegistry.getPrice(assets[j]);
                 basketValue += balances[j] * priceOfAssets[j];
+                unchecked {
+                    ++j;
+                }
             }
 
             // Process pending deposit
@@ -235,6 +238,9 @@ contract BasketManager {
                 }
                 for (uint256 j = 0; j < assets.length;) {
                     targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
+                    unchecked {
+                        ++j;
+                    }
                 }
                 targetBalances[0] += requiredWithdrawValue / priceOfAssets[0];
             }
@@ -254,6 +260,12 @@ contract BasketManager {
                     shouldRebalance = true;
                     break;
                 }
+                unchecked {
+                    ++j;
+                }
+            }
+            unchecked {
+                ++i;
             }
         }
         if (!shouldRebalance) {

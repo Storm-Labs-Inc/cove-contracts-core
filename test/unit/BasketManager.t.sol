@@ -93,6 +93,9 @@ contract BasketManagerTest is BaseTest {
             abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
             abi.encode(true)
         );
+        vm.mockCall(
+            allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(new address[](0))
+        );
         address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
         assertEq(basketManager.numOfBasketTokens(), 1);
         assertEq(basketManager.basketTokens(0), basket);
@@ -103,11 +106,16 @@ contract BasketManagerTest is BaseTest {
     function testFuzz_createNewBasket_revertWhen_BasketTokenMaxExceeded(uint256 bitFlag, uint256 strategyId) public {
         string memory name = "basket";
         string memory symbol = "b";
-        bitFlag = bound(bitFlag, 0, type(uint256).max - 256);
-        strategyId = bound(strategyId, 0, type(uint256).max - 256);
+        bitFlag = bound(bitFlag, 0, type(uint256).max - 257);
+        strategyId = bound(strategyId, 0, type(uint256).max - 257);
         vm.mockCall(basketTokenImplementation, abi.encodeWithSelector(BasketToken.initialize.selector), new bytes(0));
         vm.mockCall(
             allocationResolver, abi.encodeWithSelector(AllocationResolver.supportsStrategy.selector), abi.encode(true)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeWithSelector(AllocationResolver.getAssets.selector),
+            abi.encode(new address[](0))
         );
         for (uint256 i = 0; i < 256; i++) {
             bitFlag += 1;
@@ -131,6 +139,9 @@ contract BasketManagerTest is BaseTest {
             allocationResolver,
             abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
             abi.encode(true)
+        );
+        vm.mockCall(
+            allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(new address[](0))
         );
         basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
         vm.expectRevert(BasketManager.BasketTokenAlreadyExists.selector);
