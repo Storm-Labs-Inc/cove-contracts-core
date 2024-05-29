@@ -52,6 +52,8 @@ library MathUtils {
     }
 
     function diff(uint256 a, uint256 b) internal pure returns (uint256) {
-        return ternary(a > b, a - b, b - a);
+        unchecked {
+            return ternary(a > b, a - b, b - a);
+        }
     }
 }

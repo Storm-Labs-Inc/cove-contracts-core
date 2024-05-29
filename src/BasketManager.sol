@@ -11,6 +11,8 @@ import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
+import { console2 as console } from "forge-std/console2.sol";
+
 /**
  * @title BasketManager
  * @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
@@ -70,7 +72,7 @@ contract BasketManager {
     /// @notice Address of the AllocationResolver contract used to resolve allocations
     AllocationResolver public allocationResolver;
     /// @notice Rebalance status
-    RebalanceStatus public rebalanceStatus;
+    RebalanceStatus private _rebalanceStatus;
 
     /**
      * Events
@@ -184,6 +186,10 @@ contract BasketManager {
         return basketTokens.length;
     }
 
+    function rebalanceStatus() external view returns (RebalanceStatus memory) {
+        return _rebalanceStatus;
+    }
+
     /**
      * @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
      * target weight and the proposed target weight is more than 1% or the worth of the difference is more than 10000
@@ -200,35 +206,39 @@ contract BasketManager {
             }
             uint256[] memory balances = new uint256[](assets.length);
             uint256[] memory targetBalances = new uint256[](assets.length);
-            uint256[] memory targetWeights = new uint256[](assets.length);
-            uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             uint256[] memory priceOfAssets = new uint256[](assets.length);
             uint256 basketValue = 0;
-            uint256 pendingDeposit = BasketToken(basket).totalPendingDeposit();
 
             // Calculate current basketValue
             for (uint256 j = 0; j < assets.length;) {
                 balances[j] = basketBalanceOf[basket][assets[j]];
-                priceOfAssets[j] = 0; // oracleRegistry.getPrice(assets[j]);
-                basketValue += balances[j] * priceOfAssets[j];
+                priceOfAssets[j] = 1e18; // oracleRegistry.getPrice(assets[j]);
+                basketValue += balances[j] * priceOfAssets[j] / 1e18;
                 unchecked {
+                    // Overflow not possible: j is less than assets.length
                     ++j;
                 }
             }
 
-            // Process pending deposit
-            balances[0] += pendingDeposit;
-            uint256 totalSupply = BasketToken(basket).totalSupply();
-            uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0];
-            uint256 requiredDepositShares = pendingDepositValue * totalSupply / basketValue;
-            totalSupply += requiredDepositShares;
-            basketValue += pendingDepositValue;
-            BasketToken(basket).fulfillDeposit(requiredDepositShares);
-
-            // Calculate targetBalances
+            // Process pending deposit and fulfill them
+            uint256 totalSupply = 0;
             {
-                uint256 requiredWithdrawValue =
-                    basketValue * BasketToken(basket).totalPendingRedeem() / (totalSupply + requiredDepositShares);
+                uint256 pendingDeposit = BasketToken(basket).totalPendingDeposit();
+
+                uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
+                totalSupply = BasketToken(basket).totalSupply();
+                uint256 requiredDepositShares =
+                    totalSupply > 0 ? pendingDepositValue * totalSupply / basketValue : pendingDeposit;
+                totalSupply += requiredDepositShares;
+                basketValue += pendingDepositValue;
+                basketBalanceOf[basket][assets[0]] = balances[0] = balances[0] + pendingDeposit;
+                BasketToken(basket).fulfillDeposit(requiredDepositShares);
+            }
+
+            // Pre-process redeems and calculate targetBalances
+            uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
+            {
+                uint256 requiredWithdrawValue = basketValue * BasketToken(basket).totalPendingRedeem() / (totalSupply);
                 if (requiredWithdrawValue > basketValue) {
                     requiredWithdrawValue = basketValue;
                 }
@@ -236,43 +246,44 @@ contract BasketManager {
                     // Overflow not possible: requiredWithdrawValue is less than or equal to basketValue
                     basketValue -= requiredWithdrawValue;
                 }
-                for (uint256 j = 0; j < assets.length;) {
+                targetBalances[0] =
+                    (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
+                for (uint256 j = 1; j < assets.length;) {
                     targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
                     unchecked {
+                        // Overflow not possible: j is less than assets.length
                         ++j;
                     }
                 }
-                targetBalances[0] += requiredWithdrawValue / priceOfAssets[0];
             }
 
-            // Calculate targetWeights
+            // Check if rebalance is needed
             for (uint256 j = 0; j < assets.length;) {
-                targetWeights[j] = targetBalances[j] * priceOfAssets[j] / basketValue;
-                // Check if the target weight is within the bounds compared to the proposed target weight
-                uint256 diff = MathUtils.diff(targetWeights[j], proposedTargetWeights[j]);
-                // If the difference is more than 1%, propose a token swap
-                if (diff > 1e16) {
-                    shouldRebalance = true;
-                    break;
-                }
-                // If the worth is more than 10000 USD, proceed.
-                if (diff * priceOfAssets[j] > 10_000 ether) {
+                // Check if the target balance is different by more than 500 USD
+                // NOTE: This implies it requires only one asset to be different by more than 500 USD
+                //       to trigger a rebalance. This is a placeholder logic and should be updated.
+                // TODO: Update the logic to trigger a rebalance
+                console.log("balances[j]: %s", balances[j]);
+                console.log("targetBalances[j]: %s", targetBalances[j]);
+                if (MathUtils.diff(balances[j], targetBalances[j]) * priceOfAssets[j] / 1e18 > 500) {
                     shouldRebalance = true;
                     break;
                 }
                 unchecked {
+                    // Overflow not possible: j is less than assets.length
                     ++j;
                 }
             }
             unchecked {
+                // Overflow not possible: i is less than basketsToRebalance.length
                 ++i;
             }
         }
         if (!shouldRebalance) {
             revert RebalanceNotNeeded();
         }
-        rebalanceStatus.timestamp = uint40(block.timestamp);
-        rebalanceStatus.status = Status.REBALANCE_PROPOSED;
+        _rebalanceStatus.timestamp = uint40(block.timestamp);
+        _rebalanceStatus.status = Status.REBALANCE_PROPOSED;
     }
 
     function proposeTokenSwap() external { }
@@ -280,11 +291,11 @@ contract BasketManager {
     function executeTokenSwap() external { }
 
     function completeRebalance() external {
-        if (block.timestamp - rebalanceStatus.timestamp < 15 minutes) {
+        if (block.timestamp - _rebalanceStatus.timestamp < 15 minutes) {
             revert MustWaitForRebalance();
         }
-        rebalanceStatus.status = Status.NOT_STARTED;
-        rebalanceStatus.timestamp = uint40(block.timestamp);
+        _rebalanceStatus.status = Status.NOT_STARTED;
+        _rebalanceStatus.timestamp = uint40(block.timestamp);
         // TODO: fulfill redeems for baskets that have pending redeems
     }
 }
