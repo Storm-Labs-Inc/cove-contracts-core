@@ -68,6 +68,8 @@ contract AllocationResolver is AccessControl {
      */
     function supportsStrategy(uint256 bitFlag, uint256 strategyId) public view returns (bool) {
         // TODO: Implement checking if the strategy supports the given bitFlag
+        bitFlag;
+        strategyId;
         return true;
     }
 }
