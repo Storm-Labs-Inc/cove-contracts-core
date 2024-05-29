@@ -223,7 +223,7 @@ contract BasketManager {
             // Process pending deposit and fulfill them
             uint256 totalSupply = 0;
             {
-                uint256 pendingDeposit = BasketToken(basket).totalPendingDeposit();
+                uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits();
 
                 uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
                 totalSupply = BasketToken(basket).totalSupply();
@@ -238,7 +238,7 @@ contract BasketManager {
             // Pre-process redeems and calculate targetBalances
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             {
-                uint256 requiredWithdrawValue = basketValue * BasketToken(basket).totalPendingRedeem() / (totalSupply);
+                uint256 requiredWithdrawValue = basketValue * BasketToken(basket).totalPendingRedeems() / (totalSupply);
                 if (requiredWithdrawValue > basketValue) {
                     requiredWithdrawValue = basketValue;
                 }

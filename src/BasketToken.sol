@@ -49,7 +49,7 @@ contract BasketToken is ERC4626Upgradeable {
      * @notice Returns the total pending deposits from the current epoch.
      * @return Total amount of assets pending deposit.
      */
-    function totalPendingDeposit() public view returns (uint256) {
+    function totalPendingDeposits() public view returns (uint256) {
         // TODO: Return currently pending deposits
         return 0;
     }
@@ -58,7 +58,7 @@ contract BasketToken is ERC4626Upgradeable {
      * @notice Returns the total pending redeems from the current epoch.
      * @return Total number of shares pending redemption.
      */
-    function totalPendingRedeem() public view returns (uint256) {
+    function totalPendingRedeems() public view returns (uint256) {
         // TODO: Return currently pending redeems
         return 0;
     }

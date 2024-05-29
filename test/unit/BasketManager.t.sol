@@ -192,8 +192,8 @@ contract BasketManagerTest is BaseTest {
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
 
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposit, ()), abi.encode(10_000));
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeem, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
         uint256[] memory newTargetWeights = new uint256[](2);
@@ -234,8 +234,8 @@ contract BasketManagerTest is BaseTest {
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
 
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposit, ()), abi.encode(100));
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeem, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(100));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
         uint256[] memory newTargetWeights = new uint256[](2);
