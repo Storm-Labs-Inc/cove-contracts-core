@@ -71,4 +71,13 @@ contract BasketToken is ERC4626Upgradeable {
     function fulfillDeposit(uint256 shares) public {
         // TODO: Fulfill the deposit
     }
+
+    /**
+     * @notice Fulfills the redeem for the given assets.
+     * @param assets Number of assets to fulfill.
+     * @dev This function should be called by the BasketManager contract.
+     */
+    function fulfillRedeem(uint256 assets) public {
+        // TODO: Fulfill the redeem
+    }
 }

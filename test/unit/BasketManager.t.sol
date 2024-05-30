@@ -252,4 +252,45 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(BasketManager.RebalanceNotNeeded.selector);
         basketManager.proposeRebalance(targetBaskets);
     }
+
+    function test_proposeRebalance_revertWhen_noDeposits() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        uint256 strategyId = 1;
+        address[] memory assets = new address[](2);
+        assets[0] = rootAsset;
+        assets[1] = address(new ERC20Mock());
+
+        vm.mockCall(
+            basketTokenImplementation,
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId)),
+            new bytes(0)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
+            abi.encode(true)
+        );
+        vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
+        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        uint256[] memory newTargetWeights = new uint256[](2);
+        newTargetWeights[0] = 0.5e18;
+        newTargetWeights[1] = 0.5e18;
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.getTargetWeight, (basket)),
+            abi.encode(newTargetWeights)
+        );
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+
+        vm.expectRevert(BasketManager.RebalanceNotNeeded.selector);
+        basketManager.proposeRebalance(targetBaskets);
+    }
 }

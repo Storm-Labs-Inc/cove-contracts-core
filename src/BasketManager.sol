@@ -38,6 +38,7 @@ contract BasketManager {
     }
 
     struct RebalanceStatus {
+        bytes32 basketHash;
         uint40 timestamp;
         Status status;
     }
@@ -197,6 +198,11 @@ contract BasketManager {
      * @param basketsToRebalance Array of basket addresses to rebalance.
      */
     function proposeRebalance(address[] calldata basketsToRebalance) external {
+        // Checks
+        // Revert if a rebalance is already in progress
+        if (_rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalance();
+        }
         bool shouldRebalance = false;
         for (uint256 i = 0; i < basketsToRebalance.length;) {
             address basket = basketsToRebalance[i];
@@ -238,13 +244,16 @@ contract BasketManager {
             // Pre-process redeems and calculate targetBalances
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             {
-                uint256 requiredWithdrawValue = basketValue * BasketToken(basket).totalPendingRedeems() / (totalSupply);
-                if (requiredWithdrawValue > basketValue) {
-                    requiredWithdrawValue = basketValue;
-                }
-                unchecked {
-                    // Overflow not possible: requiredWithdrawValue is less than or equal to basketValue
-                    basketValue -= requiredWithdrawValue;
+                uint256 requiredWithdrawValue;
+                if (totalSupply > 0) {
+                    requiredWithdrawValue = basketValue * BasketToken(basket).totalPendingRedeems() / (totalSupply);
+                    if (requiredWithdrawValue > basketValue) {
+                        requiredWithdrawValue = basketValue;
+                    }
+                    unchecked {
+                        // Overflow not possible: requiredWithdrawValue is less than or equal to basketValue
+                        basketValue -= requiredWithdrawValue;
+                    }
                 }
                 targetBalances[0] =
                     (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
@@ -282,6 +291,7 @@ contract BasketManager {
         if (!shouldRebalance) {
             revert RebalanceNotNeeded();
         }
+        _rebalanceStatus.basketHash = keccak256(abi.encodePacked(basketsToRebalance));
         _rebalanceStatus.timestamp = uint40(block.timestamp);
         _rebalanceStatus.status = Status.REBALANCE_PROPOSED;
     }
@@ -290,12 +300,50 @@ contract BasketManager {
 
     function executeTokenSwap() external { }
 
-    function completeRebalance() external {
+    function completeRebalance(address[] calldata basketsToRebalance) external {
+        if (keccak256(abi.encodePacked(basketsToRebalance)) != _rebalanceStatus.basketHash) {
+            revert RebalanceNotNeeded();
+        }
         if (block.timestamp - _rebalanceStatus.timestamp < 15 minutes) {
             revert MustWaitForRebalance();
         }
-        _rebalanceStatus.status = Status.NOT_STARTED;
+        _rebalanceStatus.basketHash = bytes32(0);
         _rebalanceStatus.timestamp = uint40(block.timestamp);
-        // TODO: fulfill redeems for baskets that have pending redeems
+        _rebalanceStatus.status = Status.NOT_STARTED;
+
+        for (uint256 i = 0; i < basketsToRebalance.length; i++) {
+            // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
+            address basket = basketsToRebalance[i];
+            uint256 pendingRedeems = BasketToken(basket).totalPendingRedeems();
+            if (pendingRedeems == 0) {
+                continue;
+            }
+            address[] memory assets = basketAssets[basket];
+            uint256[] memory balances = new uint256[](assets.length);
+            uint256[] memory priceOfAssets = new uint256[](assets.length);
+            uint256 basketValue = 0;
+
+            // Calculate current basketValue
+            for (uint256 j = 0; j < assets.length;) {
+                balances[j] = basketBalanceOf[basket][assets[j]];
+                priceOfAssets[j] = 1e18; // oracleRegistry.getPrice(assets[j]);
+                basketValue += balances[j] * priceOfAssets[j] / 1e18;
+                unchecked {
+                    // Overflow not possible: j is less than assets.length
+                    ++j;
+                }
+            }
+
+            // Calculate the value of the pending redeems
+            uint256 redeemValue = basketValue * pendingRedeems / BasketToken(basket).totalSupply();
+            // TODO: Update accounting for multiple asset support
+            uint256 withdrawAmount = redeemValue * 1e18 / priceOfAssets[0];
+            if (withdrawAmount <= balances[0]) {
+                BasketToken(basket).fulfillRedeem(withdrawAmount);
+                continue;
+            }
+            // TODO: Let the BasketToken contract handle failed redeems
+            // BasketToken(basket).failRedeem();
+        }
     }
 }
