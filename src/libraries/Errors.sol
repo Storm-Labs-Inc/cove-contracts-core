@@ -34,6 +34,7 @@ library Errors {
     error ZeroAddress();
     error ZeroAmount();
     error ZeroPendingDeposits();
+    error ZeroPendingRedeems();
     error AssetPaused();
     error NotOwner();
     error MustClaimOutstandingDeposit();

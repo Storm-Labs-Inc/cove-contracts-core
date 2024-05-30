@@ -11,7 +11,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 interface IBasketManager {
     function totalAssetValue(uint256 strategyId) external view returns (uint256);
-    // function isRebalancing(uint256 strategyId) external returns (bool); // get rid of
 }
 
 interface IAssetRegistry {
@@ -24,7 +23,7 @@ contract BasketToken is ERC4626Upgradeable {
     /**
      * Modifiers
      */
-    modifier onlyOwner() {
+    modifier onlyOwner() { // TODO what is role of owner vs BM
         require(msg.sender == owner, "NOT_OWNER");
         _;
     }
@@ -39,17 +38,17 @@ contract BasketToken is ERC4626Upgradeable {
     /**
      * Events
      */
-    event DepositRequest(address indexed sender, uint256 indexed epoch, uint256 assets);
-    event RedeemRequest(address indexed sender, address indexed operator, address indexed owner, uint256 shares);
+    event DepositRequested(address indexed sender, uint256 indexed epoch, uint256 assets);
+    event RedeemRequested(address indexed sender, address indexed operator, address indexed owner, uint256 shares);
 
-    mapping(address => uint256) internal _pendingDeposit;
-    mapping(address => uint256) internal _pendingWithdraw;
+    mapping(address operator => uint256 assets) internal _pendingDeposit;
+    mapping(address operator => uint256 shares) internal _pendingWithdraw;
 
-    mapping(uint256 => uint256) internal _epochDepositRate;
-    mapping(uint256 => uint256) internal _epochWithdrawRate;
+    mapping(uint256 epoch => uint256 rate) internal _epochDepositRate;
+    mapping(uint256 epoch => uint256 rate) internal _epochWithdrawRate;
 
-    mapping(address => uint256) internal _lastDepositedEpoch;
-    mapping(address => uint256) internal _lastWithdrawnEpoch;
+    mapping(address operator => uint256 epoch) internal _lastDepositedEpoch;
+    mapping(address operator => uint256 epoch) internal _lastWithdrawnEpoch;
 
     uint256 internal _totalPendingDeposits;
     uint256 internal _totalPendingRedeems;
@@ -62,14 +61,6 @@ contract BasketToken is ERC4626Upgradeable {
     address public assetRegistry;
     uint256 public bitFlag;
     uint256 public strategyId;
-    uint32 public constant REDEEM_DELAY_SECONDS = 3 days; // remove
-
-    // get rid of below
-    struct ClaimableDeposit {
-        uint256 assets;
-        uint256 shares;
-    }
-
     uint256 _currentDepositEpoch;
     uint256 _currentRedeemEpoch;
 
@@ -91,7 +82,7 @@ contract BasketToken is ERC4626Upgradeable {
         initializer
     {
         owner = msg.sender;
-        // NOTE: basketManager is set to msg.sender, what is role of owner vs BM
+        // TODO: basketManager is set to msg.sender, what is role of owner vs BM
         basketManager = msg.sender;
         bitFlag = bitFlag_;
         strategyId = strategyId_;
@@ -136,7 +127,7 @@ contract BasketToken is ERC4626Upgradeable {
         _pendingDeposit[receiver] = (currentPendingAssets + assets);
         _totalPendingDeposits += assets;
 
-        emit DepositRequest(receiver, _currentDepositEpoch, assets);
+        emit DepositRequested(receiver, _currentDepositEpoch, assets);
     }
 
     /// @notice this deposit request is added to any pending deposit request
@@ -164,7 +155,7 @@ contract BasketToken is ERC4626Upgradeable {
         _lastWithdrawnEpoch[operator] = _currentRedeemEpoch;
         _pendingWithdraw[operator] = (currentPendingWithdraw + shares);
         _totalPendingRedeems += shares;
-        emit RedeemRequest(msg.sender, operator, requestOwner, shares);
+        emit RedeemRequested(msg.sender, operator, requestOwner, shares);
     }
 
     function requestRedeem(uint256 shares, address operator) public {
@@ -194,7 +185,7 @@ contract BasketToken is ERC4626Upgradeable {
 
     function fulfillRedeem(uint256 assets) public onlyBasketManager {
         if (_totalPendingRedeems == 0) {
-            revert Errors.ZeroPendingDeposits();
+            revert Errors.ZeroPendingRedeems();
         }
         uint256 shares = _totalPendingRedeems;
         _burn(address(this), shares);
@@ -330,10 +321,11 @@ contract BasketToken is ERC4626Upgradeable {
 
     // TODO: add functions for cancelling requests
     function cancelDepositRequest(address operator) public {
-        // check if rate is 0 if not revert
-        require(msg.sender == operator, "NOT_OWNER"); // remove operator just use sender
+        if (msg.sender == operator) {
+            revert Errors.NotOwner();
+        }
         if (_epochDepositRate[_lastDepositedEpoch[operator]] != 0) {
-            revert("Deposit already fulfilled");
+            revert Errors.ZeroPendingDeposits();
         }
         uint256 assets = _pendingDeposit[operator];
         delete _pendingDeposit[operator];
@@ -341,11 +333,12 @@ contract BasketToken is ERC4626Upgradeable {
         IERC20(asset()).safeTransfer(operator, assets);
     }
 
-    function cancelWithdrawRequest(address operator) public {
-        // check if rate is 0 if not revert
-        require(msg.sender == operator, "NOT_OWNER");
+    function cancelRedeemRequest(address operator) public {
+        if (msg.sender == operator) {
+            revert Errors.NotOwner();
+        }
         if (_epochWithdrawRate[_lastWithdrawnEpoch[operator]] != 0) {
-            revert("Withdraw already fulfilled");
+            revert Errors.ZeroPendingRedeems();
         }
         uint256 shares = _pendingWithdraw[operator];
         delete _pendingWithdraw[operator];
