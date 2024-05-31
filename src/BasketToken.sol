@@ -70,16 +70,27 @@ contract BasketToken is ERC4626Upgradeable {
         _disableInitializers();
     }
 
+
     function initialize(
         IERC20 _asset,
         string memory name_,
         string memory symbol_,
         uint256 bitFlag_,
         uint256 strategyId_
-    )
-        public
-        initializer
-    {
+    /**
+     * @notice Initializes the contract.
+     * @param asset_ Address of the asset.
+     * @param name_ Name of the token. All names will be prefixed with "CoveBasket-".
+     * @param symbol_ Symbol of the token. All symbols will be prefixed with "cb".
+     * @param bitFlag  Bitflag representing the selection of assets.
+     * @param strategyId Strategy ID.
+     */
+    function initialize(
+        IERC20 asset_,
+        string memory name_,
+        string memory symbol_,
+        uint256 bitFlag,
+        uint256 strategyId
         owner = msg.sender;
         // TODO: basketManager is set to msg.sender, what is role of owner vs BM?
         basketManager = msg.sender;

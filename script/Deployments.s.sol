@@ -4,10 +4,10 @@ pragma solidity ^0.8.18;
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 // generated from looking at contracts with ./forge-deploy gen-deployer
 import {
-    DeployerFunctions,
     DefaultDeployerFunction,
+    DeployOptions,
     Deployer,
-    DeployOptions
+    DeployerFunctions
 } from "generated/deployer/DeployerFunctions.g.sol";
 // Could also import the default deployer functions
 // import "forge-deploy/DefaultDeployerFunction.sol";
