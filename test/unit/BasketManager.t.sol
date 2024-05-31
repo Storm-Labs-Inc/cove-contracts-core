@@ -170,6 +170,56 @@ contract BasketManagerTest is BaseTest {
         basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
     }
 
+    function test_basketTokenToIndex() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        vm.mockCall(basketTokenImplementation, abi.encodeWithSelector(BasketToken.initialize.selector), new bytes(0));
+        vm.mockCall(
+            allocationResolver, abi.encodeWithSelector(AllocationResolver.supportsStrategy.selector), abi.encode(true)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeWithSelector(AllocationResolver.getAssets.selector),
+            abi.encode(new address[](0))
+        );
+        address[] memory baskets = new address[](256);
+        for (uint256 i = 0; i < 256; i++) {
+            baskets[i] = basketManager.createNewBasket(name, symbol, i, i);
+            assertEq(basketManager.basketTokenToIndex(baskets[i]), i);
+        }
+
+        for (uint256 i = 0; i < 256; i++) {
+            assertEq(basketManager.basketTokenToIndex(baskets[i]), i);
+        }
+    }
+
+    function test_basketTokenToIndex_revertWhen_BasketTokenNotFound() public {
+        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        basketManager.basketTokenToIndex(address(0));
+    }
+
+    function testFuzz_basketTokenToIndex_revertWhen_BasketTokenNotFound(address basket) public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        vm.mockCall(basketTokenImplementation, abi.encodeWithSelector(BasketToken.initialize.selector), new bytes(0));
+        vm.mockCall(
+            allocationResolver, abi.encodeWithSelector(AllocationResolver.supportsStrategy.selector), abi.encode(true)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeWithSelector(AllocationResolver.getAssets.selector),
+            abi.encode(new address[](0))
+        );
+        address[] memory baskets = new address[](256);
+        for (uint256 i = 0; i < 256; i++) {
+            baskets[i] = basketManager.createNewBasket(name, symbol, i, i);
+            vm.assume(baskets[i] != basket);
+        }
+
+        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        basketManager.basketTokenToIndex(basket);
+    }
+
     function test_proposeRebalance_processesDeposits() public {
         string memory name = "basket";
         string memory symbol = "b";
@@ -212,7 +262,7 @@ contract BasketManagerTest is BaseTest {
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.REBALANCE_PROPOSED));
     }
 
-    function test_proposeRebalance_revertWhen_depositTooLittle() public {
+    function test_proposeRebalance_revertWhen_depositTooLittle_RebalanceNotRequired() public {
         string memory name = "basket";
         string memory symbol = "b";
         uint256 bitFlag = 1;
@@ -249,11 +299,11 @@ contract BasketManagerTest is BaseTest {
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
 
-        vm.expectRevert(BasketManager.RebalanceNotNeeded.selector);
+        vm.expectRevert(BasketManager.RebalanceNotRequired.selector);
         basketManager.proposeRebalance(targetBaskets);
     }
 
-    function test_proposeRebalance_revertWhen_noDeposits() public {
+    function test_proposeRebalance_revertWhen_noDeposits_RebalanceNotRequired() public {
         string memory name = "basket";
         string memory symbol = "b";
         uint256 bitFlag = 1;
@@ -290,7 +340,55 @@ contract BasketManagerTest is BaseTest {
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
 
-        vm.expectRevert(BasketManager.RebalanceNotNeeded.selector);
+        vm.expectRevert(BasketManager.RebalanceNotRequired.selector);
         basketManager.proposeRebalance(targetBaskets);
+    }
+
+    function test_completeRebalance() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        uint256 strategyId = 1;
+        address[] memory assets = new address[](2);
+        assets[0] = rootAsset;
+        assets[1] = address(new ERC20Mock());
+
+        vm.mockCall(
+            basketTokenImplementation,
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId)),
+            new bytes(0)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
+            abi.encode(true)
+        );
+        vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
+        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        uint256[] memory newTargetWeights = new uint256[](2);
+        newTargetWeights[0] = 0.5e18;
+        newTargetWeights[1] = 0.5e18;
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.getTargetWeight, (basket)),
+            abi.encode(newTargetWeights)
+        );
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        basketManager.proposeRebalance(targetBaskets);
+
+        // Simulate the passage of time
+        vm.warp(block.timestamp + 15 minutes + 1);
+
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
+        // vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillRedeems.selector), new bytes(0));
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
+        basketManager.completeRebalance(targetBaskets);
     }
 }
