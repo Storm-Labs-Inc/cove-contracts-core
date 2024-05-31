@@ -66,6 +66,7 @@ contract AllocationResolver is AccessControl {
      */
     function getAssets(uint256 bitFlag) public view returns (address[] memory) {
         // TODO: Implement getting the assets from the bitFlag
+        bitFlag;
         return new address[](0);
     }
 
