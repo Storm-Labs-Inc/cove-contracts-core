@@ -39,6 +39,8 @@ contract BasketToken is ERC4626Upgradeable {
         public
         initializer
     {
+        bitFlag;
+        strategyId;
         __ERC4626_init(IERC20Upgradeable(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("cb", symbol_));
     }

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+pragma solidity 0.8.18;
 
 interface IPyth {
-
     /// @notice Update price feeds with given update messages.
     /// This method requires the caller to pay a fee in wei; the required fee can be computed by calling
     /// `getUpdateFee` with the length of the `updateData` array.
@@ -15,17 +14,13 @@ interface IPyth {
     /// @notice Returns the required fee to update an array of price updates.
     /// @param updateData Array of price update data.
     /// @return feeAmount The required fee in Wei.
-    function getUpdateFee(
-        bytes[] calldata updateData
-    ) external view returns (uint feeAmount);
-    
+    function getUpdateFee(bytes[] calldata updateData) external view returns (uint256 feeAmount);
+
     /// @notice Returns the price and confidence interval.
     /// @dev Reverts if the price has not been updated within the last `getValidTimePeriod()` seconds.
     /// @param id The Pyth Price Feed ID of which to fetch the price and confidence interval.
     /// @return price - please read the documentation of PythStructs.Price to understand how to use this safely.
-    function getPrice(
-        bytes32 id
-    ) external view returns (Price memory price);
+    function getPrice(bytes32 id) external view returns (Price memory price);
 
     // A price with a degree of uncertainty, represented as a price +- a confidence interval.
     //
@@ -43,7 +38,7 @@ interface IPyth {
         // Price exponent
         int32 expo;
         // Unix timestamp describing when the price was published
-        uint publishTime;
+        uint256 publishTime;
     }
 
     // PriceFeed represents a current aggregate price from pyth publisher feeds.
@@ -55,5 +50,4 @@ interface IPyth {
         // Latest available exponentially-weighted moving average price
         Price emaPrice;
     }
-
 }
