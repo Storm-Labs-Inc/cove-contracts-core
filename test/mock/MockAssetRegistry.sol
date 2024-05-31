@@ -2,9 +2,17 @@
 pragma solidity ^0.8.20;
 
 contract MockAssetRegistry {
-    constructor() { }
+    bool public paused;
 
-    function isAssetsPaused(address asset) public pure returns (bool) {
-        return false;
+    constructor() {
+        paused = false;
+    }
+
+    function isAssetsPaused(address asset) public view returns (bool) {
+        return paused;
+    }
+
+    function pauseAssets() public {
+        paused = true;
     }
 }

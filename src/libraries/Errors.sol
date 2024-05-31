@@ -38,6 +38,7 @@ library Errors {
     error AssetPaused();
     error NotOwner();
     error MustClaimOutstandingDeposit();
+    error MustClaimOutstandingRedeem();
     error MustClaimFullAmount();
     error NotBasketManager();
 

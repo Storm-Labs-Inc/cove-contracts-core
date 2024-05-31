@@ -23,7 +23,8 @@ contract BasketToken is ERC4626Upgradeable {
     /**
      * Modifiers
      */
-    modifier onlyOwner() { // TODO what is role of owner vs BM
+    modifier onlyOwner() {
+        // TODO what is role of owner vs BM
         require(msg.sender == owner, "NOT_OWNER");
         _;
     }
@@ -42,18 +43,16 @@ contract BasketToken is ERC4626Upgradeable {
     event RedeemRequested(address indexed sender, address indexed operator, address indexed owner, uint256 shares);
 
     mapping(address operator => uint256 assets) internal _pendingDeposit;
-    mapping(address operator => uint256 shares) internal _pendingWithdraw;
+    mapping(address operator => uint256 shares) internal _pendingRedeem;
 
     mapping(uint256 epoch => uint256 rate) internal _epochDepositRate;
-    mapping(uint256 epoch => uint256 rate) internal _epochWithdrawRate;
+    mapping(uint256 epoch => uint256 rate) internal _epochRedeemRate;
 
     mapping(address operator => uint256 epoch) internal _lastDepositedEpoch;
-    mapping(address operator => uint256 epoch) internal _lastWithdrawnEpoch;
+    mapping(address operator => uint256 epoch) internal _lastRedeemEpoch;
 
     uint256 internal _totalPendingDeposits;
     uint256 internal _totalPendingRedeems;
-    address[] internal _pendingDepositors;
-    address[] internal _pendingWithdrawers;
 
     address public owner;
     uint256 public ids;
@@ -82,7 +81,7 @@ contract BasketToken is ERC4626Upgradeable {
         initializer
     {
         owner = msg.sender;
-        // TODO: basketManager is set to msg.sender, what is role of owner vs BM
+        // TODO: basketManager is set to msg.sender, what is role of owner vs BM?
         basketManager = msg.sender;
         bitFlag = bitFlag_;
         strategyId = strategyId_;
@@ -136,7 +135,7 @@ contract BasketToken is ERC4626Upgradeable {
     }
 
     function pendingDepositRequest(address operator) public view returns (uint256 assets) {
-        // check if rate is 0 if not return 0 orhterwise return assets
+        // check if rate is 0 if not return 0 otherwise return assets
         if (_epochDepositRate[_lastDepositedEpoch[operator]] != 0) {
             return 0;
         }
@@ -144,30 +143,36 @@ contract BasketToken is ERC4626Upgradeable {
     }
 
     function requestRedeem(uint256 shares, address operator, address requestOwner) public {
+        if (shares == 0) {
+            revert Errors.ZeroAmount();
+        }
+        if (maxRedeem(requestOwner) > 0) {
+            revert Errors.MustClaimOutstandingRedeem();
+        }
         if (IAssetRegistry(assetRegistry).isAssetsPaused(asset())) {
             revert Errors.AssetPaused();
         }
         if (msg.sender != requestOwner) {
             _spendAllowance(requestOwner, msg.sender, shares);
         }
-        transfer(address(this), shares);
-        uint256 currentPendingWithdraw = _pendingWithdraw[operator]; //<-- is this needed?
-        _lastWithdrawnEpoch[operator] = _currentRedeemEpoch;
-        _pendingWithdraw[operator] = (currentPendingWithdraw + shares);
+        _transfer(requestOwner, address(this), shares);
+        uint256 currentPendingWithdraw = _pendingRedeem[operator];
+        _lastRedeemEpoch[operator] = _currentRedeemEpoch;
+        _pendingRedeem[operator] = (currentPendingWithdraw + shares);
         _totalPendingRedeems += shares;
         emit RedeemRequested(msg.sender, operator, requestOwner, shares);
     }
 
-    function requestRedeem(uint256 shares, address operator) public {
-        requestRedeem(shares, operator, msg.sender);
+    function requestRedeem(uint256 shares) public {
+        requestRedeem(shares, msg.sender, msg.sender);
     }
 
     function pendingRedeemRequest(address operator) public view returns (uint256 shares) {
-        // check if rate is 0 if not return 0 orhterwise return shares
-        if (_epochWithdrawRate[_lastWithdrawnEpoch[operator]] != 0) {
+        // check if rate is 0 if not return 0 otherwise return shares
+        if (_epochRedeemRate[_lastRedeemEpoch[operator]] != 0) {
             return 0;
         }
-        shares = _pendingWithdraw[operator];
+        shares = _pendingRedeem[operator];
     }
 
     function fulfillDeposit(uint256 shares) public onlyBasketManager {
@@ -190,7 +195,7 @@ contract BasketToken is ERC4626Upgradeable {
         uint256 shares = _totalPendingRedeems;
         _burn(address(this), shares);
         uint256 rate = assets / shares;
-        _epochWithdrawRate[_currentRedeemEpoch] = rate;
+        _epochRedeemRate[_currentRedeemEpoch] = rate;
         _currentRedeemEpoch += 1;
         _totalPendingRedeems = 0;
         IERC20(asset()).safeTransferFrom(basketManager, address(this), assets); // <-- pull function from BM?
@@ -220,11 +225,13 @@ contract BasketToken is ERC4626Upgradeable {
         // maxMint returns shares at the fulfilled rate only if the deposit has been filfilled
         claimableShares = maxMint(msg.sender);
         delete _pendingDeposit[msg.sender];
-        _transfer(address(this), receiver, claimableShares); //TODO does not work with public transfer()
+        _transfer(address(this), receiver, claimableShares); //TODO does not work with public transfer(), errors on
+            // `transfer amount exceeds balance`
 
         emit Deposit(msg.sender, receiver, assets, claimableShares);
     }
 
+    // NOTE: Deposit should be used in all instances
     function mint(uint256 shares, address receiver) public override returns (uint256 assets) {
         // The maxWithdraw call checks that shares are claimable
         uint256 claimableShares = maxMint(msg.sender);
@@ -237,7 +244,8 @@ contract BasketToken is ERC4626Upgradeable {
 
         assets = _pendingDeposit[msg.sender];
         delete _pendingDeposit[msg.sender];
-        _transfer(address(this), receiver, claimableShares); //TODO does not work with public transfer()
+        _transfer(address(this), receiver, claimableShares); //TODO does not work with public transfer(), errors on
+            // `transfer amount exceeds balance`
 
         emit Deposit(msg.sender, receiver, assets, shares);
     }
@@ -247,48 +255,44 @@ contract BasketToken is ERC4626Upgradeable {
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        if (assets != maxWithdraw(operator)) {
+        if (assets != maxWithdraw(msg.sender)) {
             revert Errors.MustClaimFullAmount();
         }
-        uint256 withdrawableAmount = maxWithdraw(msg.sender);
-        delete _pendingWithdraw[msg.sender];
-        IERC20(asset()).safeTransfer(receiver, withdrawableAmount);
+        delete _pendingRedeem[msg.sender];
+        IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, msg.sender, assets, shares);
-        // TODO fix return value
+        // Is it worth the gas to get shares amount just for an event?
     }
 
     function redeem(uint256 shares, address receiver, address operator) public override returns (uint256 assets) {
-        uint256 withdrawableShares = maxRedeem(msg.sender);
-        if (withdrawableShares == 0) {
+        if (shares == 0) {
             revert Errors.ZeroAmount();
         }
-        if (shares != withdrawableShares) {
+        if (shares != maxRedeem(msg.sender)) {
             revert Errors.MustClaimFullAmount();
         }
-
-        assets = _pendingWithdraw[msg.sender];
-        delete _pendingWithdraw[msg.sender];
+        uint256 assets = maxWithdraw(msg.sender);
+        delete _pendingRedeem[msg.sender];
         IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, msg.sender, assets, shares);
-        // TODO fix return value
     }
 
     function maxWithdraw(address operator) public view override returns (uint256) {
-        uint256 epoch = _lastWithdrawnEpoch[operator];
-        uint256 rate = _epochWithdrawRate[epoch];
+        uint256 epoch = _lastRedeemEpoch[operator];
+        uint256 rate = _epochRedeemRate[epoch];
         if (rate == 0) {
             return 0;
         }
-        return _pendingWithdraw[operator];
+        return _pendingRedeem[operator] * rate;
     }
 
     function maxRedeem(address operator) public view override returns (uint256) {
-        uint256 epoch = _lastWithdrawnEpoch[operator];
-        uint256 rate = _epochWithdrawRate[epoch];
+        uint256 epoch = _lastRedeemEpoch[operator];
+        uint256 rate = _epochRedeemRate[epoch];
         if (rate == 0) {
             return 0;
         }
-        return _pendingWithdraw[operator] / rate; // TODO: use safemath
+        return _pendingRedeem[operator];
     }
 
     function maxDeposit(address operator) public view override returns (uint256) {
@@ -306,7 +310,7 @@ contract BasketToken is ERC4626Upgradeable {
         if (rate == 0) {
             return 0;
         }
-        return _pendingDeposit[operator] / rate; // TODO: use safemath
+        return _pendingDeposit[operator] / rate;
     }
 
     // Preview functions always revert for async flows
@@ -321,28 +325,28 @@ contract BasketToken is ERC4626Upgradeable {
 
     // TODO: add functions for cancelling requests
     function cancelDepositRequest(address operator) public {
-        if (msg.sender == operator) {
+        if (msg.sender != operator) {
             revert Errors.NotOwner();
         }
-        if (_epochDepositRate[_lastDepositedEpoch[operator]] != 0) {
+        uint256 pendingDeposit = pendingDepositRequest(operator);
+        if (pendingDeposit == 0) {
             revert Errors.ZeroPendingDeposits();
         }
-        uint256 assets = _pendingDeposit[operator];
         delete _pendingDeposit[operator];
-        _totalPendingDeposits -= assets; // TODO: this underflows
-        IERC20(asset()).safeTransfer(operator, assets);
+        _totalPendingDeposits -= pendingDeposit;
+        IERC20(asset()).safeTransfer(operator, pendingDeposit);
     }
 
     function cancelRedeemRequest(address operator) public {
-        if (msg.sender == operator) {
+        if (msg.sender != operator) {
             revert Errors.NotOwner();
         }
-        if (_epochWithdrawRate[_lastWithdrawnEpoch[operator]] != 0) {
+        uint256 pendingRedeem = pendingRedeemRequest(operator);
+        if (pendingRedeem == 0) {
             revert Errors.ZeroPendingRedeems();
         }
-        uint256 shares = _pendingWithdraw[operator];
-        delete _pendingWithdraw[operator];
-        _totalPendingRedeems -= shares; // TODO: this underflows
-        _transfer(address(this), msg.sender, shares);
+        delete _pendingRedeem[operator];
+        _totalPendingRedeems -= pendingRedeem;
+        _transfer(address(this), msg.sender, pendingRedeem);
     }
 }
