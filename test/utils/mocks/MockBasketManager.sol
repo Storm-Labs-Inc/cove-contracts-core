@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.18;
 
-import { BasketToken } from "src/BasketToken.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { BasketToken } from "src/BasketToken.sol";
 
 contract MockBasketManager {
     BasketToken public basketTokenImplementation;
@@ -18,13 +18,14 @@ contract MockBasketManager {
         string memory basketName,
         string memory symbol,
         uint256 bitFlag,
-        uint256 strategyId
+        uint256 strategyId,
+        address owner
     )
         public
         returns (BasketToken basket)
     {
         basket = BasketToken(Clones.clone(address(basketTokenImplementation)));
-        basket.initialize(asset, basketName, symbol, bitFlag, strategyId);
+        basket.initialize(asset, basketName, symbol, bitFlag, strategyId, owner);
         strategyIdToAddress[strategyId] = address(basket);
         BasketToken(basket).approve(address(basket), type(uint256).max);
         IERC20(asset).approve(address(basket), type(uint256).max);

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
+pragma solidity 0.8.18;
 
-import { BaseTest } from "./utils/BaseTest.t.sol";
-import { BasketToken } from "src/BasketToken.sol";
-import { MockBasketManager } from "test/mock/MockBasketManager.sol";
-import { MockAssetRegistry } from "test/mock/MockAssetRegistry.sol";
-// import { Errors } from "src/libraries/Errors.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { DummyERC20 } from "./utils/mocks/DummyERC20.sol";
+import { BasketToken } from "src/BasketToken.sol";
+
 import { Errors } from "src/libraries/Errors.sol";
+import { BaseTest } from "test/utils/BaseTest.t.sol";
+import { DummyERC20 } from "test/utils/mocks/DummyERC20.sol";
+import { MockAssetRegistry } from "test/utils/mocks/MockAssetRegistry.sol";
+import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
 contract BasketToken_Test is BaseTest {
     BasketToken public basket;
@@ -29,7 +29,7 @@ contract BasketToken_Test is BaseTest {
         BasketToken basketTokenImplementation = new BasketToken();
         basketManager = new MockBasketManager(address(basketTokenImplementation));
         vm.label(address(basketManager), "basketManager");
-        basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, 1);
+        basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(owner));
         vm.label(address(basket), "basketToken");
         assetRegistry = new MockAssetRegistry();
         vm.label(address(assetRegistry), "assetRegistry");
@@ -43,6 +43,14 @@ contract BasketToken_Test is BaseTest {
         assertEq(basket.symbol(), string.concat("cb", "TEST"));
         assertEq(basket.basketManager(), address(basketManager));
         assertEq(basket.asset(), address(dummyAsset));
+    }
+
+    function test_setBasketManager() public {
+        MockBasketManager newBasketManager = new MockBasketManager(address(basket));
+        vm.label(address(newBasketManager), "newBasketManager");
+        vm.prank(owner);
+        basket.setBasketManager(address(newBasketManager));
+        assertEq(basket.basketManager(), address(newBasketManager));
     }
 
     function testFuzz_requestDeposit(uint256 amount) public {
@@ -236,7 +244,7 @@ contract BasketToken_Test is BaseTest {
         assertEq(basket.pendingDepositRequest(alice), amount);
         assertEq(basket.totalPendingDeposits(), amount);
         uint256 balanceBefore = dummyAsset.balanceOf(address(alice));
-        basket.cancelDepositRequest(alice);
+        basket.cancelDepositRequest();
         uint256 balanceAfter = dummyAsset.balanceOf(address(alice));
         assertEq(basket.pendingDepositRequest(alice), 0);
         assertEq(balanceAfter, balanceBefore + amount);
@@ -431,5 +439,27 @@ contract BasketToken_Test is BaseTest {
         vm.expectRevert(abi.encodeWithSelector(Errors.MustClaimFullAmount.selector));
         vm.prank(alice);
         basket.redeem(issuedShares - 1, alice, alice);
+    }
+
+    function test_cancelRedeemRequest() public {
+        uint256 amount = 1e18;
+        uint256 issuedShares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(issuedShares);
+        vm.startPrank(alice);
+        basket.deposit(amount, alice);
+        basket.requestRedeem(issuedShares);
+        assertEq(basket.pendingRedeemRequest(alice), issuedShares);
+        assertEq(basket.totalPendingRedeems(), issuedShares);
+        uint256 balanceBefore = dummyAsset.balanceOf(address(alice));
+        basket.cancelRedeemRequest();
+        uint256 balanceAfter = dummyAsset.balanceOf(address(alice));
+        assertEq(basket.pendingRedeemRequest(alice), 0);
+        assertEq(balanceAfter, balanceBefore + issuedShares);
     }
 }

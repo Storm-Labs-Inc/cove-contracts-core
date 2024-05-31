@@ -86,7 +86,7 @@ contract BasketManagerTest is BaseTest {
         string memory symbol = "b";
         vm.mockCall(
             basketTokenImplementation,
-            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId)),
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId, owner)),
             new bytes(0)
         );
         vm.mockCall(
@@ -125,7 +125,7 @@ contract BasketManagerTest is BaseTest {
         string memory symbol = "b";
         vm.mockCall(
             basketTokenImplementation,
-            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId)),
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId, owner)),
             new bytes(0)
         );
         vm.mockCall(
@@ -148,7 +148,7 @@ contract BasketManagerTest is BaseTest {
         string memory symbol = "b";
         vm.mockCall(
             basketTokenImplementation,
-            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId)),
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId, owner)),
             new bytes(0)
         );
         vm.mockCall(

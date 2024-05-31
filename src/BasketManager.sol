@@ -128,7 +128,8 @@ contract BasketManager {
             _basketTokenToIndexPlusOne[basket] = basketTokensLength + 1;
         }
         // Interactions
-        BasketToken(basket).initialize(IERC20(ROOT_ASSET), basketName, symbol, bitFlag, strategyId);
+        // TODO: have owner address to pass to basket tokens on initialization
+        BasketToken(basket).initialize(IERC20(ROOT_ASSET), basketName, symbol, bitFlag, strategyId, address(0));
     }
 
     /**
