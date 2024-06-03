@@ -1,6 +1,6 @@
 # basket-manager
 
-[![codecov](https://codecov.io/gh/Storm-Labs-Inc/cove-contracts-core/branch/master/graph/badge.svg?token=TT68C116IT)](https://codecov.io/gh/Storm-Labs-Inc/cove-contracts-core)
+[![codecov](https://codecov.io/gh/Storm-Labs-Inc/cove-contracts-core/branch/master/graph/badge.svg?token=PSFDZ17DDG)](https://codecov.io/gh/Storm-Labs-Inc/cove-contracts-core)
 [![CI](https://github.com/Storm-Labs-Inc/cove-contracts-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Storm-Labs-Inc/cove-contracts-core/actions/workflows/ci.yml)
 
 # Installation
