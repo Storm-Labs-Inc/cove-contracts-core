@@ -323,7 +323,7 @@ contract BasketManager {
 
     /**
      * @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
-     * If the proposed token swaps results are not close to the target balances, this fuction will revert.
+     * If the proposed token swaps results are not close to the target balances, this function will revert.
      * @dev This function can only be called after proposeRebalance.
      */
     function proposeTokenSwap() external {
