@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "prepare": "husky install && pnpm run forge-deploy:build",
+    "prepare": "husky && pnpm run forge-deploy:build",
     "clean": "rm -rf cache out crytic-export generated && forge clean",
     "build": "./forge-deploy gen-deployer && forge build --sizes",
     "test": "forge test -vvv --gas-report",
@@ -19,8 +19,8 @@
     "lint:fix": "pnpm lint:fix:sol && pnpm run prettier:write",
     "lint:fix:sol": "forge fmt && pnpm run solhint:src --fix && pnpm run solhint:script --fix && pnpm run solhint:test --fix",
     "lint:sol": "forge fmt --check && pnpm run solhint:src && pnpm run solhint:script && pnpm run solhint:test",
-    "solhint:src": "npx solhint --noPrompt --config .solhint.json --ignore-path .solhintignore \"{src}/**/*.sol\"",
-    "solhint:script": "npx solhint --noPrompt --config .solhint.script.json --ignore-path .solhintignore \"{script}/**/*.sol\"",
+    "solhint:src": "npx solhint --noPrompt --config .solhint.json --ignore-path .solhintignore \"src/**/*.sol\"",
+    "solhint:script": "npx solhint --noPrompt --config .solhint.script.json --ignore-path .solhintignore \"script/**/*.sol\"",
     "solhint:test": "npx solhint --noPrompt --config .solhint.test.json --ignore-path .solhintignore \"test/**/*.sol\"",
     "prettier:check": "npx prettier --check \"**/*.{json,md,yml,yaml}\"",
     "prettier:write": "npx prettier --write \"**/*.{json,md,yml,yaml}\""
@@ -52,6 +52,6 @@
     "husky": "^9.0.7",
     "lint-staged": "^15.2.1",
     "prettier": "^3.2.4",
-    "solhint": "^4.5.2"
+    "solhint": "^5.0.1"
   }
 }

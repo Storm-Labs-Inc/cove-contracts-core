@@ -28,9 +28,9 @@ runs:
       run: git submodule update --init --recursive
       shell: bash
 
-    - uses: pnpm/action-setup@v2
+    - uses: pnpm/action-setup@v4
       with:
-        version: 8
+        version: 9
 
     - name: Install Node.js
       uses: buildjet/setup-node@v3
