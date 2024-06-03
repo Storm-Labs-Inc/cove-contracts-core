@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
 pragma solidity 0.8.18;
