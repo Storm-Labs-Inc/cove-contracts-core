@@ -244,24 +244,28 @@ contract BasketManager {
             // Pre-process redeems and calculate targetBalances
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             {
-                uint256 requiredWithdrawValue;
-                if (totalSupply > 0) {
-                    requiredWithdrawValue = basketValue * BasketToken(basket).totalPendingRedeems() / (totalSupply);
-                    if (requiredWithdrawValue > basketValue) {
-                        requiredWithdrawValue = basketValue;
+                uint256 pendingRedeems = BasketToken(basket).totalPendingRedeems();
+                if (pendingRedeems > 0) {
+                    shouldRebalance = true;
+                    uint256 requiredWithdrawValue;
+                    if (totalSupply > 0) {
+                        requiredWithdrawValue = basketValue * pendingRedeems / (totalSupply);
+                        if (requiredWithdrawValue > basketValue) {
+                            requiredWithdrawValue = basketValue;
+                        }
+                        unchecked {
+                            // Overflow not possible: requiredWithdrawValue is less than or equal to basketValue
+                            basketValue -= requiredWithdrawValue;
+                        }
                     }
-                    unchecked {
-                        // Overflow not possible: requiredWithdrawValue is less than or equal to basketValue
-                        basketValue -= requiredWithdrawValue;
-                    }
-                }
-                targetBalances[0] =
-                    (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
-                for (uint256 j = 1; j < assets.length;) {
-                    targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
-                    unchecked {
-                        // Overflow not possible: j is less than assets.length
-                        ++j;
+                    targetBalances[0] =
+                        (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
+                    for (uint256 j = 1; j < assets.length;) {
+                        targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
+                        unchecked {
+                            // Overflow not possible: j is less than assets.length
+                            ++j;
+                        }
                     }
                 }
             }
@@ -356,6 +360,11 @@ contract BasketManager {
                 // TODO: Update accounting for multiple asset support
                 uint256 assetAmount = redeemValue * 1e18 / priceOfAssets[0];
                 if (assetAmount <= balances[0]) {
+                    unchecked {
+                        // Overflow not possible: assetAmount is less than or equal to balances[0]
+                        basketBalanceOf[basket][assets[0]] = balances[0] - assetAmount;
+                    }
+                    IERC20(assets[0]).safeApprove(basket, assetAmount);
                     BasketToken(basket).fulfillRedeem(assetAmount);
                 } else {
                     // TODO: Let the BasketToken contract handle failed redeems
