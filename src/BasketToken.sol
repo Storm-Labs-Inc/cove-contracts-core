@@ -396,7 +396,15 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @param operator The address of the operator.
      * @return shares The amount of shares previously requested for redemption.
      */
-    function withdraw(uint256 assets, address receiver, address operator) public override returns (uint256 shares) {
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address /*operator*/
+    )
+        public
+        override
+        returns (uint256 shares)
+    {
         // Checks
         if (assets == 0) {
             revert Errors.ZeroAmount();
@@ -418,7 +426,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @param operator The address of the operator.
      * @return assets The amount of assets previously requested for redemption.
      */
-    function redeem(uint256 shares, address receiver, address operator) public override returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address /*operator*/ ) public override returns (uint256 assets) {
         // Checks
         if (shares == 0) {
             revert Errors.ZeroAmount();
