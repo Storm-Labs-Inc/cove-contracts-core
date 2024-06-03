@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.18;
 
 import { AccessControlEnumerableUpgradeable } from
@@ -15,7 +15,7 @@ interface IBasketManager {
 }
 
 interface IAssetRegistry {
-    function isAssetsPaused(address) external returns (bool);
+    function isPaused(address asset) external view returns (bool);
 }
 
 /**
@@ -42,9 +42,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     mapping(address operator => uint256 assets) internal _pendingDeposit;
     /// @notice Mapping of operator to the amount of shares pending redemption
     mapping(address operator => uint256 shares) internal _pendingRedeem;
-    /// @notice Mapping of epoch to the rate that deposit requests where fulfilled
+    /// @notice Mapping of epoch to the rate that deposit requests were fulfilled
     mapping(uint256 epoch => uint256 rate) internal _epochDepositRate;
-    /// @notice Mapping of epoch to the rate that redemption requests where fulfilled
+    /// @notice Mapping of epoch to the rate that redemption requests were fulfilled
     mapping(uint256 epoch => uint256 rate) internal _epochRedeemRate;
     /// @notice Mapping of operator to the epoch of the last deposit request
     mapping(address operator => uint256 epoch) internal _lastDepositedEpoch;
@@ -114,7 +114,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         bitFlag = bitFlag_;
         strategyId = strategyId_;
         __ERC4626_init(IERC20Upgradeable(address(asset_)));
-        __ERC20_init(string.concat("CoveBasket-", name_), string.concat("cb", symbol_));
+        __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
 
     /**
@@ -161,7 +161,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        if (IAssetRegistry(assetRegistry).isAssetsPaused(asset())) {
+        if (IAssetRegistry(assetRegistry).isPaused(asset())) {
             revert Errors.AssetPaused();
         }
         // Effects
@@ -211,7 +211,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (maxRedeem(requestOwner) > 0) {
             revert Errors.MustClaimOutstandingRedeem();
         }
-        if (IAssetRegistry(assetRegistry).isAssetsPaused(asset())) {
+        if (IAssetRegistry(assetRegistry).isPaused(asset())) {
             revert Errors.AssetPaused();
         }
         if (msg.sender != requestOwner) {
@@ -356,9 +356,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         shares = maxMint(msg.sender);
         delete _pendingDeposit[msg.sender];
         // Interactions
-        _transfer(address(this), receiver, shares); //TODO does not work with public transfer(), errors on
-            // `transfer amount exceeds balance`
-
+        //TODO: does not work with public transfer(), errors on `transfer amount exceeds balance`
+        _transfer(address(this), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
@@ -383,8 +382,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         assets = _pendingDeposit[msg.sender];
         delete _pendingDeposit[msg.sender];
         // Interactions
-        _transfer(address(this), receiver, shares); //TODO does not work with public transfer(), errors on
-            // `transfer amount exceeds balance`
+        //TODO does not work with public transfer(), errors on `transfer amount exceeds balance`
+        _transfer(address(this), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
 
@@ -393,7 +392,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @dev Redeem should be used in all instances instead
      * @param assets The amount of assets to be claimed.
      * @param receiver The address to receive the assets.
-     * @param operator The address of the operator.
      * @return shares The amount of shares previously requested for redemption.
      */
     function withdraw(
@@ -423,7 +421,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @notice Transfers the receiver shares owed for a previously fulfilled redeem request.
      * @param shares The amount of shares to be claimed.
      * @param receiver The address to receive the assets.
-     * @param operator The address of the operator.
      * @return assets The amount of assets previously requested for redemption.
      */
     function redeem(uint256 shares, address receiver, address /*operator*/ ) public override returns (uint256 assets) {
@@ -451,10 +448,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function maxWithdraw(address operator) public view override returns (uint256) {
         uint256 epoch = _lastRedeemEpoch[operator];
         uint256 rate = _epochRedeemRate[epoch];
-        if (rate == 0) {
-            return 0;
-        }
-        return _pendingRedeem[operator] * rate / DECIMAL_BUFFER;
+        return rate == 0 ? 0 : _pendingRedeem[operator] * rate / DECIMAL_BUFFER;
     }
 
     /**
@@ -466,10 +460,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function maxRedeem(address operator) public view override returns (uint256) {
         uint256 epoch = _lastRedeemEpoch[operator];
         uint256 rate = _epochRedeemRate[epoch];
-        if (rate == 0) {
-            return 0;
-        }
-        return _pendingRedeem[operator];
+        return rate == 0 ? 0 : _pendingRedeem[operator];
     }
 
     /**
@@ -481,10 +472,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function maxDeposit(address operator) public view override returns (uint256) {
         uint256 epoch = _lastDepositedEpoch[operator];
         uint256 rate = _epochDepositRate[epoch];
-        if (rate == 0) {
-            return 0;
-        }
-        return _pendingDeposit[operator];
+        return rate == 0 ? 0 : _pendingDeposit[operator];
     }
 
     /**
@@ -496,10 +484,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function maxMint(address operator) public view override returns (uint256) {
         uint256 epoch = _lastDepositedEpoch[operator];
         uint256 rate = _epochDepositRate[epoch];
-        if (rate == 0) {
-            return 0;
-        }
-        return _pendingDeposit[operator] * DECIMAL_BUFFER / rate;
+        return rate == 0 ? 0 : _pendingDeposit[operator] * DECIMAL_BUFFER / rate;
     }
 
     // Preview functions always revert for async flows

@@ -40,7 +40,7 @@ contract BasketToken_Test is BaseTest {
     function test_initialize() public view {
         assertEq(basket.asset(), address(dummyAsset));
         assertEq(basket.name(), string.concat("CoveBasket-", "Test"));
-        assertEq(basket.symbol(), string.concat("cb", "TEST"));
+        assertEq(basket.symbol(), string.concat("covb", "TEST"));
         assertEq(basket.basketManager(), address(basketManager));
         assertEq(basket.asset(), address(dummyAsset));
     }
