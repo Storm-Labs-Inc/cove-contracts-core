@@ -8,7 +8,7 @@ contract MockAssetRegistry {
         paused = false;
     }
 
-    function isPaused(address asset) public view returns (bool) {
+    function isPaused(address) public view returns (bool) {
         return paused;
     }
 
