@@ -28,10 +28,10 @@ contract BasketManager {
 
     /**
      * @notice Enum representing the status of a rebalance.
-     *   - NOT_STARTED Rebalance has not started.
-     *   - REBALANCE_PROPOSED Rebalance has been proposed.
-     *   - TOKEN_SWAP_PROPOSED Token swap has been proposed.
-     *   - TOKEN_SWAP_EXECUTED Token swap has been executed.
+     *   - NOT_STARTED: Rebalance has not started.
+     *   - REBALANCE_PROPOSED: Rebalance has been proposed.
+     *   - TOKEN_SWAP_PROPOSED: Token swap has been proposed.
+     *   - TOKEN_SWAP_EXECUTED: Token swap has been executed.
      */
     enum Status {
         NOT_STARTED,
@@ -42,9 +42,9 @@ contract BasketManager {
 
     /**
      * @notice Struct representing the rebalance status.
-     *   - basketHash Hash of the baskets proposed for rebalance.
-     *   - timestamp Timestamp of the last action.
-     *   - status Status of the rebalance.
+     *   - basketHash: Hash of the baskets proposed for rebalance.
+     *   - timestamp: Timestamp of the last action.
+     *   - status: Status of the rebalance.
      */
     struct RebalanceStatus {
         bytes32 basketHash;
@@ -63,26 +63,26 @@ contract BasketManager {
     /**
      * State variables
      */
-    /// @notice Array of all basket tokens
+    /// @notice Array of all basket tokens.
     address[] public basketTokens;
-    /// @notice Mapping of basket token to asset to balance
+    /// @notice Mapping of basket token to asset to balance.
     mapping(address basketToken => mapping(address asset => uint256 balance)) public basketBalanceOf;
-    /// @notice Mapping of basketId to basket address
+    /// @notice Mapping of basketId to basket address.
     mapping(bytes32 basketId => address basketToken) public basketIdToAddress;
-    /// @notice Mapping of basket token to assets
+    /// @notice Mapping of basket token to assets.
     mapping(address basketToken => address[] basketAssets) public basketAssets;
     /// @notice Mapping of basket token to index plus one. 0 means the basket token does not exist.
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
-    /// @notice Mapping of basket token to pending redeeming shares
+    /// @notice Mapping of basket token to pending redeeming shares.
     mapping(address basketToken => uint256 pendingWithdraw) public pendingWithdraw;
 
-    /// @notice Address of the BasketToken implementation
+    /// @notice Address of the BasketToken implementation.
     address public basketTokenImplementation;
-    /// @notice Address of the OracleRegistry contract used to fetch oracle values for assets
+    /// @notice Address of the OracleRegistry contract used to fetch oracle values for assets.
     address public oracleRegistry;
-    /// @notice Address of the AllocationResolver contract used to resolve allocations
+    /// @notice Address of the AllocationResolver contract used to resolve allocations.
     AllocationResolver public allocationResolver;
-    /// @notice Rebalance status
+    /// @notice Rebalance status.
     RebalanceStatus private _rebalanceStatus;
 
     /**
@@ -234,7 +234,7 @@ contract BasketManager {
             uint256[] memory priceOfAssets = new uint256[](assets.length);
             uint256 basketValue = 0;
 
-            // Calculate current basketValue
+            // Calculate current basket value
             for (uint256 j = 0; j < assets.length;) {
                 balances[j] = basketBalanceOf[basket][assets[j]];
                 // TODO: Replace with an oracle call, e.g., oracleRegistry.getPrice(assets[j]);
@@ -246,7 +246,7 @@ contract BasketManager {
                 }
             }
 
-            // Process pending deposit and fulfill them
+            // Process pending deposits and fulfill them
             uint256 totalSupply = 0;
             {
                 uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits();
@@ -261,7 +261,7 @@ contract BasketManager {
                 BasketToken(basket).fulfillDeposit(requiredDepositShares);
             }
 
-            // Pre-process redeems and calculate targetBalances
+            // Pre-process redeems and calculate target balances
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             {
                 uint256 pendingRedeems_ = BasketToken(basket).totalPendingRedeems();
@@ -295,7 +295,7 @@ contract BasketManager {
             for (uint256 j = 0; j < assets.length;) {
                 // Check if the target balance is different by more than 500 USD
                 // NOTE: This implies it requires only one asset to be different by more than 500 USD
-                //       to trigger a rebalance. This is a placeholder logic and should be updated.
+                //       to trigger a rebalance. This is placeholder logic and should be updated.
                 // TODO: Update the logic to trigger a rebalance
                 console.log("balances[j]: %s", balances[j]);
                 console.log("targetBalances[j]: %s", targetBalances[j]);
@@ -323,7 +323,7 @@ contract BasketManager {
 
     /**
      * @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
-     * If the proposed token swaps results are not close to the target balances, this function will revert.
+     * If the proposed token swap results are not close to the target balances, this function will revert.
      * @dev This function can only be called after proposeRebalance.
      */
     function proposeTokenSwap() external {
