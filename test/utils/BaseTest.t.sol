@@ -19,6 +19,8 @@ abstract contract BaseTest is Test {
 
     mapping(string => address) public users;
     mapping(string => Fork) public forks;
+    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+    bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
 
     //// TEST CONTRACTS
     ERC20 internal _usdc;

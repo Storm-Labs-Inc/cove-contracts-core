@@ -20,8 +20,8 @@ contract BasketToken_Test is BaseTest {
 
     function setUp() public override {
         super.setUp();
-        alice = users["alice"];
-        owner = users["owner"];
+        alice = createUser("alice");
+        owner = createUser("owner");
         // create dummy asset
         dummyAsset = new DummyERC20("Dummy", "DUMB");
         vm.label(address(dummyAsset), "dummyAsset");
@@ -33,7 +33,7 @@ contract BasketToken_Test is BaseTest {
         vm.label(address(basket), "basketToken");
         assetRegistry = new MockAssetRegistry();
         vm.label(address(assetRegistry), "assetRegistry");
-        vm.prank(address(basketManager));
+        vm.prank(address(owner));
         basket.setAssetRegistry(address(assetRegistry));
     }
 
@@ -150,7 +150,7 @@ contract BasketToken_Test is BaseTest {
     }
 
     function test_fulfillDeposit_revertsWhen_notBasketManager() public {
-        vm.expectRevert(abi.encodeWithSelector(Errors.NotBasketManager.selector));
+        vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
         vm.prank(alice);
         basket.fulfillDeposit(1e18);
     }
@@ -378,7 +378,7 @@ contract BasketToken_Test is BaseTest {
     }
 
     function test_fulfillRedeem_revertsWhen_notBasketManager() public {
-        vm.expectRevert(abi.encodeWithSelector(Errors.NotBasketManager.selector));
+        vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
         vm.prank(alice);
         basket.fulfillRedeem(1e18);
     }
@@ -456,9 +456,9 @@ contract BasketToken_Test is BaseTest {
         basket.requestRedeem(issuedShares);
         assertEq(basket.pendingRedeemRequest(alice), issuedShares);
         assertEq(basket.totalPendingRedeems(), issuedShares);
-        uint256 balanceBefore = dummyAsset.balanceOf(address(alice));
+        uint256 balanceBefore = basket.balanceOf(address(alice));
         basket.cancelRedeemRequest();
-        uint256 balanceAfter = dummyAsset.balanceOf(address(alice));
+        uint256 balanceAfter = basket.balanceOf(address(alice));
         assertEq(basket.pendingRedeemRequest(alice), 0);
         assertEq(balanceAfter, balanceBefore + issuedShares);
     }

@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.18;
 
+import { AccessControlEnumerableUpgradeable } from
+    "@openzeppelin-upgradeable/contracts/access/AccessControlEnumerableUpgradeable.sol";
 import { IERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
-import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Errors } from "src/libraries/Errors.sol";
-
-// import safetrasnfer from openzeppelin
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Errors } from "src/libraries/Errors.sol";
 
 // TODO: interfaces will be removed in the future
 interface IBasketManager {
@@ -24,7 +23,7 @@ interface IAssetRegistry {
  * @notice Contract responsible for accounting for users deposit and redemption requests, which are asynchronously
  * fulfilled by the Basket Manager
  */
-contract BasketToken is ERC4626Upgradeable, AccessControl {
+contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /**
      * Libraries
      */
@@ -111,6 +110,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         owner = owner_;
         basketManager = msg.sender;
         _grantRole(DEFAULT_ADMIN_ROLE, owner);
+        _grantRole(BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
         strategyId = strategyId_;
         __ERC4626_init(IERC20Upgradeable(address(asset_)));
@@ -161,7 +161,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        // Check if asset is paused
         if (IAssetRegistry(assetRegistry).isAssetsPaused(asset())) {
             revert Errors.AssetPaused();
         }
@@ -186,12 +185,12 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
 
     /**
      * @notice Returns the pending deposit request amount for an operator.
+     * @dev If the deposit rate for the last pending deposit request is 0, the request has been fulfilled and is no
+     * longer pending, and this function will return 0.
      * @param operator The address of the operator.
      * @return assets The pending deposit amount.
      */
     function pendingDepositRequest(address operator) public view returns (uint256 assets) {
-        // Checks if the deposit rate for the last pending deposit request is 0
-        // If not 0, this means the request has been fulfilled and is no longer pending
         if (_epochDepositRate[_lastDepositedEpoch[operator]] != 0) {
             return 0;
         }
@@ -205,6 +204,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
      * @param requestOwner The address of the request owner.
      */
     function requestRedeem(uint256 shares, address operator, address requestOwner) public {
+        // Checks
         if (shares == 0) {
             revert Errors.ZeroAmount();
         }
@@ -217,11 +217,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         if (msg.sender != requestOwner) {
             _spendAllowance(requestOwner, msg.sender, shares);
         }
-        _transfer(requestOwner, address(this), shares);
+        // Effects
         uint256 currentPendingWithdraw = _pendingRedeem[operator];
         _lastRedeemEpoch[operator] = _currentRedeemEpoch;
         _pendingRedeem[operator] = (currentPendingWithdraw + shares);
         _totalPendingRedeems += shares;
+        // Interactions
+        _transfer(requestOwner, address(this), shares);
         emit RedeemRequested(msg.sender, _currentRedeemEpoch, operator, requestOwner, shares);
     }
 
@@ -235,12 +237,12 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
 
     /**
      * @notice Returns the pending redeem request amount for an operator.
+     * @dev If the redeem rate for the last pending redeem request is 0, the request has been fulfilled and is no longer
+     * pending, and this function will return 0.
      * @param operator The address of the operator.
      * @return shares The pending redeem share amount.
      */
     function pendingRedeemRequest(address operator) public view returns (uint256 shares) {
-        // Checks if the redeem rate for the last pending redeem request is 0
-        // If not 0, this means the request has been fulfilled and is no longer pending
         if (_epochRedeemRate[_lastRedeemEpoch[operator]] != 0) {
             return 0;
         }
@@ -258,11 +260,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         }
         uint256 assets = _totalPendingDeposits;
         _mint(address(this), shares);
-        uint256 rate = assets / shares * DECIMAL_BUFFER;
+        uint256 rate = assets * DECIMAL_BUFFER / shares;
         _epochDepositRate[_currentDepositEpoch] = rate;
         _currentDepositEpoch += 1;
         _totalPendingDeposits = 0;
-        IERC20(asset()).safeTransfer(basketManager, assets);
+        IERC20(asset()).safeTransfer(msg.sender, assets);
     }
 
     /**
@@ -276,11 +278,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         }
         uint256 shares = _totalPendingRedeems;
         _burn(address(this), shares);
-        uint256 rate = assets / shares;
+        uint256 rate = assets * DECIMAL_BUFFER / shares;
         _epochRedeemRate[_currentRedeemEpoch] = rate;
         _currentRedeemEpoch += 1;
         _totalPendingRedeems = 0;
-        IERC20(asset()).safeTransferFrom(basketManager, address(this), assets); // <-- pull function from BM?
+        IERC20(asset()).safeTransferFrom(basketManager, address(this), assets);
     }
 
     /**
@@ -303,12 +305,15 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
      * @notice Cancels a pending deposit request.
      */
     function cancelDepositRequest() public {
+        // Checks
         uint256 pendingDeposit = pendingDepositRequest(msg.sender);
         if (pendingDeposit == 0) {
             revert Errors.ZeroPendingDeposits();
         }
+        // Effects
         delete _pendingDeposit[msg.sender];
         _totalPendingDeposits -= pendingDeposit;
+        // Interactions
         IERC20(asset()).safeTransfer(msg.sender, pendingDeposit);
     }
 
@@ -316,12 +321,15 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
      * @notice Cancels a pending redeem request.
      */
     function cancelRedeemRequest() public {
+        // Checks
         uint256 pendingRedeem = pendingRedeemRequest(msg.sender);
         if (pendingRedeem == 0) {
             revert Errors.ZeroPendingRedeems();
         }
+        // Effects
         delete _pendingRedeem[msg.sender];
         _totalPendingRedeems -= pendingRedeem;
+        // Interactions
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
@@ -336,16 +344,18 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
      * @return shares The amount of shares minted.
      */
     function deposit(uint256 assets, address receiver) public override returns (uint256 shares) {
+        // Checks
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
         if (assets != maxDeposit(msg.sender)) {
             revert Errors.MustClaimFullAmount();
         }
-
+        // Effects
         // maxMint returns shares at the fulfilled rate only if the deposit has been filfilled
         shares = maxMint(msg.sender);
         delete _pendingDeposit[msg.sender];
+        // Interactions
         _transfer(address(this), receiver, shares); //TODO does not work with public transfer(), errors on
             // `transfer amount exceeds balance`
 
@@ -360,7 +370,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
      * @return assets The amount of assets previously requested for deposit.
      */
     function mint(uint256 shares, address receiver) public override returns (uint256 assets) {
-        // The maxWithdraw call checks that shares are claimable
+        // Checks
+        // maxMint returns shares at the fulfilled rate only if the deposit has been filfilled
         uint256 claimableShares = maxMint(msg.sender);
         if (claimableShares == 0) {
             revert Errors.ZeroAmount();
@@ -368,9 +379,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         if (shares != claimableShares) {
             revert Errors.MustClaimFullAmount();
         }
-
+        // Effects
         assets = _pendingDeposit[msg.sender];
         delete _pendingDeposit[msg.sender];
+        // Interactions
         _transfer(address(this), receiver, shares); //TODO does not work with public transfer(), errors on
             // `transfer amount exceeds balance`
         emit Deposit(msg.sender, receiver, assets, shares);
@@ -385,14 +397,17 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
      * @return shares The amount of shares previously requested for redemption.
      */
     function withdraw(uint256 assets, address receiver, address operator) public override returns (uint256 shares) {
+        // Checks
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
         if (assets != maxWithdraw(msg.sender)) {
             revert Errors.MustClaimFullAmount();
         }
+        // Effects
         emit Withdraw(msg.sender, receiver, msg.sender, assets, _pendingRedeem[msg.sender]);
         delete _pendingRedeem[msg.sender];
+        // Interactions
         IERC20(asset()).safeTransfer(receiver, assets);
     }
 
@@ -404,14 +419,17 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
      * @return assets The amount of assets previously requested for redemption.
      */
     function redeem(uint256 shares, address receiver, address operator) public override returns (uint256 assets) {
+        // Checks
         if (shares == 0) {
             revert Errors.ZeroAmount();
         }
         if (shares != maxRedeem(msg.sender)) {
             revert Errors.MustClaimFullAmount();
         }
+        // Effects
         assets = maxWithdraw(msg.sender);
         delete _pendingRedeem[msg.sender];
+        // Interactions
         IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, msg.sender, assets, shares);
     }
@@ -428,7 +446,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         if (rate == 0) {
             return 0;
         }
-        return _pendingRedeem[operator] * rate;
+        return _pendingRedeem[operator] * rate / DECIMAL_BUFFER;
     }
 
     /**
@@ -473,7 +491,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControl {
         if (rate == 0) {
             return 0;
         }
-        return _pendingDeposit[operator] / rate;
+        return _pendingDeposit[operator] * DECIMAL_BUFFER / rate;
     }
 
     // Preview functions always revert for async flows
