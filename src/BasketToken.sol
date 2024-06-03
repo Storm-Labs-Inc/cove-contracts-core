@@ -270,7 +270,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /**
      * @notice Fulfills all pending redeem requests. Only callable by the basket manager. Burns the shares which are
      * pending redemption. Locks in the rate at which users can claim their assets for redeemed shares.
-     * @param assets The ammount of assets the redemption was fulfilled with.
+     * @param assets The amount of assets the redemption was fulfilled with.
      */
     function fulfillRedeem(uint256 assets) public onlyRole(BASKET_MANAGER_ROLE) {
         if (_totalPendingRedeems == 0) {
