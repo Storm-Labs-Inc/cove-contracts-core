@@ -12,6 +12,7 @@ import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
 contract BasketToken_Test is BaseTest {
     BasketToken public basket;
+    BasketToken public basketTokenImplementation;
     MockBasketManager public basketManager;
     MockAssetRegistry public assetRegistry;
     DummyERC20 public dummyAsset;
@@ -26,7 +27,7 @@ contract BasketToken_Test is BaseTest {
         dummyAsset = new DummyERC20("Dummy", "DUMB");
         vm.label(address(dummyAsset), "dummyAsset");
         vm.prank(owner);
-        BasketToken basketTokenImplementation = new BasketToken();
+        basketTokenImplementation = new BasketToken();
         basketManager = new MockBasketManager(address(basketTokenImplementation));
         vm.label(address(basketManager), "basketManager");
         basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(owner));
@@ -35,6 +36,11 @@ contract BasketToken_Test is BaseTest {
         vm.label(address(assetRegistry), "assetRegistry");
         vm.prank(address(owner));
         basket.setAssetRegistry(address(assetRegistry));
+    }
+
+    function test_constructor() public {
+        vm.expectRevert();
+        basketTokenImplementation.initialize(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(0));
     }
 
     function test_initialize() public view {
