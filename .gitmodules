@@ -13,3 +13,6 @@
 [submodule "lib/forge-deploy"]
 	path = lib/forge-deploy
 	url = https://github.com/Abracadabra-money/forge-deploy
+[submodule "lib/euler-price-oracle"]
+	path = lib/euler-price-oracle
+	url = https://github.com/euler-xyz/euler-price-oracle
