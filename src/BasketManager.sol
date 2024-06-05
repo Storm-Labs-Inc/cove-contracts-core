@@ -150,6 +150,7 @@ contract BasketManager {
         payable
         returns (address basket)
     {
+        // TODO: Add role-based access control for this function
         // Checks
         uint256 basketTokensLength = basketTokens.length;
         if (basketTokensLength >= MAX_NUM_OF_BASKET_TOKENS) {
@@ -217,6 +218,7 @@ contract BasketManager {
      * @param basketsToRebalance Array of basket addresses to rebalance.
      */
     function proposeRebalance(address[] calldata basketsToRebalance) external {
+        // TODO: Add role-based access control for this function
         // Checks
         // Revert if a rebalance is already in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
@@ -247,29 +249,32 @@ contract BasketManager {
             }
 
             // Process pending deposits and fulfill them
-            uint256 totalSupply = 0;
+            uint256 totalSupply = BasketToken(basket).totalSupply();
             {
                 uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits();
-
-                uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
-                totalSupply = BasketToken(basket).totalSupply();
-                uint256 requiredDepositShares =
-                    totalSupply > 0 ? pendingDepositValue * totalSupply / basketValue : pendingDeposit;
-                totalSupply += requiredDepositShares;
-                basketValue += pendingDepositValue;
-                basketBalanceOf[basket][assets[0]] = balances[0] = balances[0] + pendingDeposit;
-                BasketToken(basket).fulfillDeposit(requiredDepositShares);
+                if (pendingDeposit > 0) {
+                    uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
+                    uint256 requiredDepositShares =
+                        totalSupply > 0 ? pendingDepositValue * totalSupply / basketValue : pendingDeposit;
+                    totalSupply += requiredDepositShares;
+                    basketValue += pendingDepositValue;
+                    basketBalanceOf[basket][assets[0]] = balances[0] = balances[0] + pendingDeposit;
+                    BasketToken(basket).fulfillDeposit(requiredDepositShares);
+                }
             }
 
             // Pre-process redeems and calculate target balances
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             {
                 uint256 pendingRedeems_ = BasketToken(basket).totalPendingRedeems();
+                uint256 requiredWithdrawValue;
+
+                // If there are pending redeems, calculate the required withdraw value
+                // and store it in pendingWithdraw
                 if (pendingRedeems_ > 0) {
                     shouldRebalance = true;
-                    uint256 requiredWithdrawValue;
                     if (totalSupply > 0) {
-                        requiredWithdrawValue = basketValue * pendingRedeems_ / (totalSupply);
+                        requiredWithdrawValue = basketValue * pendingRedeems_ / totalSupply;
                         if (requiredWithdrawValue > basketValue) {
                             requiredWithdrawValue = basketValue;
                         }
@@ -279,14 +284,16 @@ contract BasketManager {
                         }
                     }
                     pendingWithdraw[basket] = requiredWithdrawValue * 1e18 / priceOfAssets[0];
-                    targetBalances[0] =
-                        (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
-                    for (uint256 j = 1; j < assets.length;) {
-                        targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
-                        unchecked {
-                            // Overflow not possible: j is less than assets.length
-                            ++j;
-                        }
+                }
+
+                // Update the target balances
+                targetBalances[0] =
+                    (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
+                for (uint256 j = 1; j < assets.length;) {
+                    targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
+                    unchecked {
+                        // Overflow not possible: j is less than assets.length
+                        ++j;
                     }
                 }
             }
