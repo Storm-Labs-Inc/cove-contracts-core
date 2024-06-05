@@ -74,7 +74,7 @@ contract BasketManager {
     /// @notice Mapping of basket token to index plus one. 0 means the basket token does not exist.
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
     /// @notice Mapping of basket token to pending redeeming shares.
-    mapping(address basketToken => uint256 pendingWithdraw) public pendingWithdraw;
+    mapping(address basketToken => uint256 pendingRedeems) public pendingRedeems;
 
     /// @notice Address of the BasketToken implementation.
     address public basketTokenImplementation;
@@ -239,8 +239,14 @@ contract BasketManager {
             // Calculate current basket value
             for (uint256 j = 0; j < assets.length;) {
                 balances[j] = basketBalanceOf[basket][assets[j]];
-                // TODO: Replace with an oracle call, e.g., oracleRegistry.getPrice(assets[j]);
-                priceOfAssets[j] = 1e18; // oracleRegistry.getPrice(assets[j]);
+                // TODO: Replace with an oracle call once the oracle is implemented
+                // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
+                // if (usdPrice == 0) {
+                //     revert PriceOutOfSafeBounds();
+                // }
+                // priceOfAssets[j] = usdPrice;
+                priceOfAssets[j] = 1e18;
+                // Rounding direction: down
                 basketValue += balances[j] * priceOfAssets[j] / 1e18;
                 unchecked {
                     // Overflow not possible: j is less than assets.length
@@ -253,9 +259,12 @@ contract BasketManager {
             {
                 uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits();
                 if (pendingDeposit > 0) {
+                    // Round direction: down
                     uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
+                    // Rounding direction: down
+                    // Division-by-zero is not possible: basketValue is greater than 0
                     uint256 requiredDepositShares =
-                        totalSupply > 0 ? pendingDepositValue * totalSupply / basketValue : pendingDeposit;
+                        basketValue > 0 ? pendingDepositValue * totalSupply / basketValue : pendingDeposit;
                     totalSupply += requiredDepositShares;
                     basketValue += pendingDepositValue;
                     basketBalanceOf[basket][assets[0]] = balances[0] = balances[0] + pendingDeposit;
@@ -274,6 +283,8 @@ contract BasketManager {
                 if (pendingRedeems_ > 0) {
                     shouldRebalance = true;
                     if (totalSupply > 0) {
+                        // Rounding direction: down
+                        // Division-by-zero is not possible: totalSupply is greater than 0
                         requiredWithdrawValue = basketValue * pendingRedeems_ / totalSupply;
                         if (requiredWithdrawValue > basketValue) {
                             requiredWithdrawValue = basketValue;
@@ -283,10 +294,12 @@ contract BasketManager {
                             basketValue -= requiredWithdrawValue;
                         }
                     }
-                    pendingWithdraw[basket] = requiredWithdrawValue * 1e18 / priceOfAssets[0];
+                    pendingRedeems[basket] = pendingRedeems_;
                 }
 
                 // Update the target balances
+                // Rounding direction: down
+                // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
                 targetBalances[0] =
                     (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
                 for (uint256 j = 1; j < assets.length;) {
@@ -304,8 +317,8 @@ contract BasketManager {
                 // NOTE: This implies it requires only one asset to be different by more than 500 USD
                 //       to trigger a rebalance. This is placeholder logic and should be updated.
                 // TODO: Update the logic to trigger a rebalance
-                console.log("balances[j]: %s", balances[j]);
-                console.log("targetBalances[j]: %s", targetBalances[j]);
+                console.log("balances[%s]: %s", j, balances[j]);
+                console.log("targetBalances[%s]: %s", j, targetBalances[j]);
                 if (MathUtils.diff(balances[j], targetBalances[j]) * priceOfAssets[j] / 1e18 > 500) {
                     shouldRebalance = true;
                     break;
@@ -374,17 +387,45 @@ contract BasketManager {
         for (uint256 i = 0; i < basketsToRebalance.length;) {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
             address basket = basketsToRebalance[i];
-            uint256 pendingWithdraw_ = pendingWithdraw[basket];
-            if (pendingWithdraw_ > 0) {
-                delete pendingWithdraw[basket];
-                uint256 currentBalance = basketBalanceOf[basket][ROOT_ASSET];
-                if (pendingWithdraw_ <= currentBalance) {
+            address[] memory assets = basketAssets[basket];
+            uint256[] memory balances = new uint256[](assets.length);
+            uint256[] memory priceOfAssets = new uint256[](assets.length);
+            uint256 basketValue;
+
+            // Calculate current basket value
+            for (uint256 j = 0; j < assets.length;) {
+                balances[j] = basketBalanceOf[basket][assets[j]];
+                // TODO: Replace with an oracle call once the oracle is implemented
+                // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
+                // if (usdPrice == 0) {
+                //     revert PriceOutOfSafeBounds();
+                // }
+                // priceOfAssets[j] = usdPrice;
+                priceOfAssets[j] = 1e18;
+                // Rounding direction: down
+                basketValue += balances[j] * priceOfAssets[j] / 1e18;
+                unchecked {
+                    // Overflow not possible: j is less than assets.length
+                    ++j;
+                }
+            }
+
+            // If there are pending redeems, process them
+            uint256 pendingRedeems_ = pendingRedeems[basket];
+            if (pendingRedeems_ > 0) {
+                delete pendingRedeems[basket];
+                uint256 withdrawValue = pendingRedeems_ * basketValue / BasketToken(basket).totalSupply();
+                // Assume the first asset is always the root asset
+                // Rounding direction: down
+                // Division-by-zero is not possible: priceOfAssets[0] is greater than 0
+                uint256 withdrawAmount = withdrawValue * 1e18 / priceOfAssets[0];
+                if (withdrawAmount <= balances[0]) {
                     unchecked {
-                        // Overflow not possible: pendingWithdraw_ is less than or equal to currentBalance
-                        basketBalanceOf[basket][ROOT_ASSET] = currentBalance - pendingWithdraw_;
+                        // Overflow not possible: withdrawAmount is less than or equal to balances[0]
+                        basketBalanceOf[basket][ROOT_ASSET] = balances[0] - withdrawAmount;
                     }
-                    IERC20(ROOT_ASSET).safeApprove(basket, pendingWithdraw_);
-                    BasketToken(basket).fulfillRedeem(pendingWithdraw_);
+                    IERC20(ROOT_ASSET).safeApprove(basket, withdrawAmount);
+                    BasketToken(basket).fulfillRedeem(withdrawAmount);
                 } else {
                     // TODO: Let the BasketToken contract handle failed redeems
                     // BasketToken(basket).failRedeem();
