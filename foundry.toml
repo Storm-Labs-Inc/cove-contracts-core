@@ -9,6 +9,8 @@ fs_permissions = [
 solc = '0.8.18'
 ffi = true
 evm_version = "cancun"
+optimizer = true
+optimizer_runs = 2_000_000
 
 [fmt]
 bracket_spacing = true

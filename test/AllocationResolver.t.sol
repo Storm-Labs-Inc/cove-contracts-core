@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.18;
 
 import { BaseTest } from "./utils/BaseTest.t.sol";
@@ -21,9 +21,9 @@ contract AllocationResolverTest is BaseTest {
     }
 
     function test_setAllocation() public {
-        bytes32[] memory newAllocation = new bytes32[](2);
-        newAllocation[0] = bytes32(uint256(5e17)); // 0.5 in fixed-point
-        newAllocation[1] = bytes32(uint256(5e17)); // 0.5 in fixed-point
+        uint256[] memory newAllocation = new uint256[](2);
+        newAllocation[0] = uint256(5e17); // 0.5 in fixed-point
+        newAllocation[1] = uint256(5e17); // 0.5 in fixed-point
 
         vm.prank(owner);
         allocationResolver.enroll(basket, resolver, newAllocation.length);
@@ -43,8 +43,8 @@ contract AllocationResolverTest is BaseTest {
     }
 
     function test_setAllocation_InvalidLength() public {
-        bytes32[] memory newAllocation = new bytes32[](1);
-        newAllocation[0] = bytes32(uint256(1e18)); // 1 in fixed-point
+        uint256[] memory newAllocation = new uint256[](1);
+        newAllocation[0] = uint256(1e18); // 1 in fixed-point
 
         vm.prank(owner);
         allocationResolver.enroll(basket, resolver, 2); // Enroll with length 2
@@ -54,9 +54,9 @@ contract AllocationResolverTest is BaseTest {
     }
 
     function test_setAllocation_InvalidSum() public {
-        bytes32[] memory newAllocation = new bytes32[](2);
-        newAllocation[0] = bytes32(uint256(6e17)); // 0.6 in fixed-point
-        newAllocation[1] = bytes32(uint256(3e17)); // 0.3 in fixed-point
+        uint256[] memory newAllocation = new uint256[](2);
+        newAllocation[0] = uint256(6e17); // 0.6 in fixed-point
+        newAllocation[1] = uint256(3e17); // 0.3 in fixed-point
 
         vm.prank(owner);
         allocationResolver.enroll(basket, resolver, newAllocation.length);

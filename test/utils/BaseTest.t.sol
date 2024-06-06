@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.18;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -15,7 +15,7 @@ abstract contract BaseTest is Test {
         uint256 blockNumber;
     }
 
-    uint256 _MAX_UINT256 = type(uint256).max;
+    uint256 internal _MAX_UINT256 = type(uint256).max;
 
     mapping(string => address) public users;
     mapping(string => Fork) public forks;
