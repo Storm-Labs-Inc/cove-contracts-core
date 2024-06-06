@@ -37,6 +37,7 @@ contract AllocationResolver is AccessControl {
         for (uint256 i = 0; i < length;) {
             sum += uint256(newAllocation[i]);
             unchecked {
+                // Overflow not possible: i is always less than length
                 ++i;
             }
         }
