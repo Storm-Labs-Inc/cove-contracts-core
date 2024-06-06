@@ -425,7 +425,7 @@ contract BasketManager {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[0]
                         basketBalanceOf[basket][ROOT_ASSET] = balances[0] - withdrawAmount;
                     }
-                    IERC20(ROOT_ASSET).safeApprove(basket, withdrawAmount);
+                    IERC20(ROOT_ASSET).forceApprove(basket, withdrawAmount);
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
                 } else {
                     // TODO: Let the BasketToken contract handle failed redeems

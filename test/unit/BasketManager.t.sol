@@ -3,7 +3,7 @@ pragma solidity 0.8.23;
 
 import { BaseTest } from "../utils/BaseTest.t.sol";
 
-import { ERC20Mock } from "@openzeppelin/contracts/mocks/ERC20Mock.sol";
+import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketManager } from "src/BasketManager.sol";

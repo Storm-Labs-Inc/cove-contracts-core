@@ -2,8 +2,7 @@
 pragma solidity 0.8.23;
 
 import { AccessControlEnumerableUpgradeable } from
-    "@openzeppelin-upgradeable/contracts/access/AccessControlEnumerableUpgradeable.sol";
-import { IERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
+    "@openzeppelin-upgradeable/contracts/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -113,7 +112,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _grantRole(BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
         strategyId = strategyId_;
-        __ERC4626_init(IERC20Upgradeable(address(asset_)));
+        __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
 
@@ -122,7 +121,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @param _basketManager The new basket manager address.
      */
     function setBasketManager(address _basketManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        revokeRole(BASKET_MANAGER_ROLE, basketManager);
+        _revokeRole(BASKET_MANAGER_ROLE, basketManager);
         basketManager = _basketManager;
         _grantRole(BASKET_MANAGER_ROLE, _basketManager);
     }
