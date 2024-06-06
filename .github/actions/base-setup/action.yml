@@ -17,7 +17,7 @@ runs:
       shell: bash
 
     - name: Cache Submodules
-      uses: buildjet/cache@v3
+      uses: buildjet/cache@v4
       id: cache-submodules
       with:
         path: ./lib
