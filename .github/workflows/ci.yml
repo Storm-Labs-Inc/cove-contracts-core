@@ -92,9 +92,18 @@ jobs:
         run: |
           semgrep --config p/smart-contracts --exclude deps/ src/ -o semgrep.out --text
           RAW_REPORT=$(cat semgrep.out)
-          echo $RAW_REPORT
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+
           if [ "$RAW_REPORT" != "" ]; then
+            # Find the line with "Code Findings" and insert markdown
+            LINE_NUMBER=$(echo "$RAW_REPORT" | grep -n "Code Findings" | cut -d: -f1)
+            if [ -n "$LINE_NUMBER" ]; then
+              LINE_NUMBER=$((LINE_NUMBER + 2))
+              RAW_REPORT=$(echo "$RAW_REPORT" | sed "${LINE_NUMBER}i<details>\n<summary><strong>Full semgrep report</strong> 👇</summary>\n<br />")
+              RAW_REPORT="${RAW_REPORT}\n</details>"
+            fi
+
+            echo "$RAW_REPORT"
+            EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
             echo "report<<$EOF" >> $GITHUB_OUTPUT
             echo "# Semgrep report" >> $GITHUB_OUTPUT
             echo "$RAW_REPORT" >> $GITHUB_OUTPUT
