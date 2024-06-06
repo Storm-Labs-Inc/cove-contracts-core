@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -16,7 +18,7 @@ import { console2 as console } from "forge-std/console2.sol";
  * @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
  * here.
  */
-contract BasketManager {
+contract BasketManager is ReentrancyGuard {
     /**
      * Libraries
      */
@@ -58,7 +60,7 @@ contract BasketManager {
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Address of the root asset to be used for the baskets.
-    address public immutable ROOT_ASSET;
+    address public immutable rootAsset;
 
     /**
      * State variables
@@ -77,10 +79,16 @@ contract BasketManager {
     mapping(address basketToken => uint256 pendingRedeems) public pendingRedeems;
 
     /// @notice Address of the BasketToken implementation.
+    // TODO: add setter function for basketTokenImplementation
+    // slither-disable-next-line immutable-states
     address public basketTokenImplementation;
     /// @notice Address of the OracleRegistry contract used to fetch oracle values for assets.
+    // TODO: add setter function for oracleRegistry
+    // slither-disable-next-line immutable-states
     address public oracleRegistry;
     /// @notice Address of the AllocationResolver contract used to resolve allocations.
+    // TODO: add setter function for allocationResolver
+    // slither-disable-next-line immutable-states
     AllocationResolver public allocationResolver;
     /// @notice Rebalance status.
     RebalanceStatus private _rebalanceStatus;
@@ -115,7 +123,9 @@ contract BasketManager {
         address basketTokenImplementation_,
         address oracleRegistry_,
         address allocationResolver_
-    ) {
+    )
+        payable
+    {
         // Checks
         if (rootAsset_ == address(0)) revert ZeroAddress();
         if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
@@ -123,7 +133,7 @@ contract BasketManager {
         if (allocationResolver_ == address(0)) revert ZeroAddress();
 
         // Effects
-        ROOT_ASSET = rootAsset_;
+        rootAsset = rootAsset_;
         basketTokenImplementation = basketTokenImplementation_;
         oracleRegistry = oracleRegistry_;
         allocationResolver = AllocationResolver(allocationResolver_);
@@ -174,7 +184,7 @@ contract BasketManager {
         }
         // Interactions
         // TODO: have owner address to pass to basket tokens on initialization
-        BasketToken(basket).initialize(IERC20(ROOT_ASSET), basketName, symbol, bitFlag, strategyId, address(0));
+        BasketToken(basket).initialize(IERC20(rootAsset), basketName, symbol, bitFlag, strategyId, address(0));
     }
 
     /**
@@ -218,7 +228,8 @@ contract BasketManager {
      * target balance and the current balance of any asset in the basket is more than 500 USD.
      * @param basketsToRebalance Array of basket addresses to rebalance.
      */
-    function proposeRebalance(address[] calldata basketsToRebalance) external {
+    // slither-disable-next-line cyclomatic-complexity
+    function proposeRebalance(address[] calldata basketsToRebalance) external nonReentrant {
         // TODO: Add role-based access control for this function
         // Checks
         // Revert if a rebalance is already in progress
@@ -226,19 +237,25 @@ contract BasketManager {
             revert MustWaitForRebalance();
         }
         bool shouldRebalance = false;
-        for (uint256 i = 0; i < basketsToRebalance.length;) {
+        uint256 length = basketsToRebalance.length;
+        for (uint256 i = 0; i < length;) {
+            // slither-disable-start calls-loop
             address basket = basketsToRebalance[i];
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = basketAssets[basket];
-            if (assets.length == 0) {
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 assetsLength = assets.length;
+            if (assetsLength == 0) {
                 revert BasketTokenNotFound();
             }
-            uint256[] memory balances = new uint256[](assets.length);
-            uint256[] memory targetBalances = new uint256[](assets.length);
-            uint256[] memory priceOfAssets = new uint256[](assets.length);
+            uint256[] memory balances = new uint256[](assetsLength);
+            uint256[] memory targetBalances = new uint256[](assetsLength);
+            uint256[] memory priceOfAssets = new uint256[](assetsLength);
             uint256 basketValue = 0;
 
             // Calculate current basket value
-            for (uint256 j = 0; j < assets.length;) {
+            for (uint256 j = 0; j < assetsLength;) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 balances[j] = basketBalanceOf[basket][assets[j]];
                 // TODO: Replace with an oracle call once the oracle is implemented
                 // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
@@ -250,7 +267,7 @@ contract BasketManager {
                 // Rounding direction: down
                 basketValue += balances[j] * priceOfAssets[j] / 1e18;
                 unchecked {
-                    // Overflow not possible: j is less than assets.length
+                    // Overflow not possible: j is less than assetsLength
                     ++j;
                 }
             }
@@ -261,6 +278,7 @@ contract BasketManager {
                 uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits();
                 if (pendingDeposit > 0) {
                     // Round direction: down
+                    // slither-disable-next-line divide-before-multiply
                     uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
                     // Rounding direction: down
                     // Division-by-zero is not possible: basketValue is greater than 0
@@ -268,16 +286,19 @@ contract BasketManager {
                         basketValue > 0 ? pendingDepositValue * totalSupply / basketValue : pendingDeposit;
                     totalSupply += requiredDepositShares;
                     basketValue += pendingDepositValue;
+                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                     basketBalanceOf[basket][assets[0]] = balances[0] = balances[0] + pendingDeposit;
+                    // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
                     BasketToken(basket).fulfillDeposit(requiredDepositShares);
                 }
             }
 
             // Pre-process redeems and calculate target balances
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             {
                 uint256 pendingRedeems_ = BasketToken(basket).totalPendingRedeems();
-                uint256 requiredWithdrawValue;
+                uint256 requiredWithdrawValue = 0;
 
                 // If there are pending redeems, calculate the required withdraw value
                 // and store it in pendingWithdraw
@@ -295,6 +316,7 @@ contract BasketManager {
                             basketValue -= requiredWithdrawValue;
                         }
                     }
+                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                     pendingRedeems[basket] = pendingRedeems_;
                 }
 
@@ -303,17 +325,17 @@ contract BasketManager {
                 // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
                 targetBalances[0] =
                     (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
-                for (uint256 j = 1; j < assets.length;) {
+                for (uint256 j = 1; j < assetsLength;) {
                     targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
                     unchecked {
-                        // Overflow not possible: j is less than assets.length
+                        // Overflow not possible: j is less than assetsLength
                         ++j;
                     }
                 }
             }
 
             // Check if rebalance is needed
-            for (uint256 j = 0; j < assets.length;) {
+            for (uint256 j = 0; j < assetsLength;) {
                 // Check if the target balance is different by more than 500 USD
                 // NOTE: This implies it requires only one asset to be different by more than 500 USD
                 //       to trigger a rebalance. This is placeholder logic and should be updated.
@@ -325,10 +347,11 @@ contract BasketManager {
                     break;
                 }
                 unchecked {
-                    // Overflow not possible: j is less than assets.length
+                    // Overflow not possible: j is less than assetsLength
                     ++j;
                 }
             }
+            // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: i is less than basketsToRebalance.length
                 ++i;
@@ -347,7 +370,7 @@ contract BasketManager {
      * If the proposed token swap results are not close to the target balances, this function will revert.
      * @dev This function can only be called after proposeRebalance.
      */
-    function proposeTokenSwap() external {
+    function proposeTokenSwap() external nonReentrant {
         // TODO: Implement the logic to propose token swap
     }
 
@@ -355,7 +378,7 @@ contract BasketManager {
      * @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
      * @dev This function can only be called after proposeTokenSwap.
      */
-    function executeTokenSwap() external {
+    function executeTokenSwap() external nonReentrant {
         // TODO: Implement the logic to execute token swap
     }
 
@@ -364,8 +387,9 @@ contract BasketManager {
      * minutes since the last action.
      * @param basketsToRebalance Array of basket addresses proposed for rebalance.
      */
-    function completeRebalance(address[] calldata basketsToRebalance) external {
+    function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant {
         // Check if there is any rebalance in progress
+        // slither-disable-next-line incorrect-equality
         if (_rebalanceStatus.status == Status.NOT_STARTED) {
             revert NoRebalanceInProgress();
         }
@@ -374,6 +398,7 @@ contract BasketManager {
             revert BasketsMismatch();
         }
         // Check if the rebalance was proposed more than 15 minutes ago
+        // slither-disable-next-line timestamp
         if (block.timestamp - _rebalanceStatus.timestamp < 15 minutes) {
             revert TooEarlyToCompleteRebalance();
         }
@@ -388,13 +413,17 @@ contract BasketManager {
         for (uint256 i = 0; i < basketsToRebalance.length;) {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
             address basket = basketsToRebalance[i];
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = basketAssets[basket];
-            uint256[] memory balances = new uint256[](assets.length);
-            uint256[] memory priceOfAssets = new uint256[](assets.length);
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 assetsLength = assets.length;
+            uint256[] memory balances = new uint256[](assetsLength);
+            uint256[] memory priceOfAssets = new uint256[](assetsLength);
             uint256 basketValue;
 
             // Calculate current basket value
-            for (uint256 j = 0; j < assets.length;) {
+            for (uint256 j = 0; j < assetsLength;) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 balances[j] = basketBalanceOf[basket][assets[j]];
                 // TODO: Replace with an oracle call once the oracle is implemented
                 // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
@@ -406,26 +435,33 @@ contract BasketManager {
                 // Rounding direction: down
                 basketValue += balances[j] * priceOfAssets[j] / 1e18;
                 unchecked {
-                    // Overflow not possible: j is less than assets.length
+                    // Overflow not possible: j is less than assetsLength
                     ++j;
                 }
             }
 
             // If there are pending redeems, process them
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             uint256 pendingRedeems_ = pendingRedeems[basket];
             if (pendingRedeems_ > 0) {
-                delete pendingRedeems[basket];
-                uint256 withdrawValue = pendingRedeems_ * basketValue / BasketToken(basket).totalSupply();
+                // slither-disable-next-line costly-loop
+                delete pendingRedeems[basket]; // nosemgrep
                 // Assume the first asset is always the root asset
                 // Rounding direction: down
-                // Division-by-zero is not possible: priceOfAssets[0] is greater than 0
-                uint256 withdrawAmount = withdrawValue * 1e18 / priceOfAssets[0];
+                // Division-by-zero is not possible: priceOfAssets[0] is greater than 0, totalSupply is greater than 0
+                // when pendingRedeems is greater than 0
+                // slither-disable-next-line calls-loop
+                uint256 withdrawAmount =
+                    pendingRedeems_ * basketValue * 1e18 / BasketToken(basket).totalSupply() / priceOfAssets[0];
                 if (withdrawAmount <= balances[0]) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[0]
-                        basketBalanceOf[basket][ROOT_ASSET] = balances[0] - withdrawAmount;
+                        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                        basketBalanceOf[basket][rootAsset] = balances[0] - withdrawAmount;
                     }
-                    IERC20(ROOT_ASSET).safeApprove(basket, withdrawAmount);
+                    // slither-disable-next-line reentrancy-no-eth,calls-loop
+                    IERC20(rootAsset).forceApprove(basket, withdrawAmount);
+                    // slither-disable-next-line reentrancy-no-eth,calls-loop
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
                 } else {
                     // TODO: Let the BasketToken contract handle failed redeems

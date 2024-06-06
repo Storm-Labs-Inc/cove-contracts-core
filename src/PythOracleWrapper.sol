@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import { IPyth } from "src/interfaces/deps/IPyth.sol";
 
 contract PythOracleWrapper {
-    constructor(address pythContract) { }
+    constructor(address pythContract) payable { }
 
     function updateFeeGetPrice(
         address pythContract,
@@ -19,6 +19,8 @@ contract PythOracleWrapper {
         IPyth pyth = IPyth(pythContract);
         uint256 fee = pyth.getUpdateFee(priceUpdateData);
         // Update the prices to be set to the latest values
+        // TODO: Limit callers to certain roles or add checks if `pyth` is safe to send eth to
+        // slither-disable-next-line arbitrary-send-eth
         pyth.updatePriceFeeds{ value: fee }(priceUpdateData);
 
         // Doing other things that uses prices

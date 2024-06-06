@@ -6,7 +6,7 @@ fs_permissions = [
 	{ access = "read", path = "./deployments" },
 	{ access = "read", path = "./out" },
 ]
-solc = '0.8.18'
+solc = '0.8.23'
 ffi = true
 evm_version = "cancun"
 optimizer = true

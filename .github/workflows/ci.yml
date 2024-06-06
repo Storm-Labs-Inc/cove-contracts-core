@@ -8,7 +8,7 @@ on:
 
 env:
   FOUNDRY_PROFILE: ci
-  NODE_VERSION: 18.16.1
+  NODE_VERSION: 20.14.0
   PYTHON_VERSION: 3.9.17
 
 jobs:
@@ -50,7 +50,7 @@ jobs:
         run: forge build --build-info
 
       - name: Run Slither
-        uses: crytic/slither-action@v0.3.2
+        uses: crytic/slither-action@v0.4.0
         id: slither
         with:
           # TODO: re-enable this before audits
@@ -60,7 +60,6 @@ jobs:
           slither-args:
             --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
           slither-config: slither.config.json
-          slither-version: 0.10.1
 
       - name: Create/update checklist as PR comment
         uses: actions/github-script@v6
@@ -73,6 +72,52 @@ jobs:
             const header = '# Slither report'
             const body = process.env.REPORT
             await script({ github, context, header, body })
+
+  semgrep:
+    name: Semgrep
+    runs-on: buildjet-2vcpu-ubuntu-2204
+    permissions: write-all
+    steps:
+      - name: Checkout repository without submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: false
+      - name: Base setup
+        uses: ./.github/actions/base-setup
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Run Semgrep
+        id: semgrep
+        run: |
+          semgrep --config p/smart-contracts --exclude deps/ src/ -o semgrep.out --text
+          RAW_REPORT=$(cat semgrep.out)
+
+          if [ "$RAW_REPORT" != "" ]; then
+            # Find the line with "Code Findings" and insert markdown
+            LINE_NUMBER=$(echo "$RAW_REPORT" | grep -n "Code Findings" | cut -d: -f1)
+            if [ -n "$LINE_NUMBER" ]; then
+              LINE_NUMBER=$((LINE_NUMBER + 2))
+              RAW_REPORT=$(echo "$RAW_REPORT" | sed "${LINE_NUMBER}i<details>\n<summary><strong>Full semgrep report</strong> 👇</summary>\n<br />")
+              RAW_REPORT="${RAW_REPORT}\n</details>"
+            fi
+
+            echo "$RAW_REPORT"
+            EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+            echo "report<<$EOF" >> $GITHUB_OUTPUT
+            echo "# Semgrep report" >> $GITHUB_OUTPUT
+            echo "$RAW_REPORT" >> $GITHUB_OUTPUT
+            echo "$EOF" >> $GITHUB_OUTPUT
+          fi
+        env:
+          SEMGREP_SEND_METRICS: off
+      - name: Add semgrep to sticky comment
+        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: semgrep
+          delete: ${{ !steps.semgrep.outputs.report }}
+          message: ${{ steps.semgrep.outputs.report }}
 
   test:
     name: Test

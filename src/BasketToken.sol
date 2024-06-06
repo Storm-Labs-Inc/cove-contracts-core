@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import { AccessControlEnumerableUpgradeable } from
-    "@openzeppelin-upgradeable/contracts/access/AccessControlEnumerableUpgradeable.sol";
-import { IERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/IERC20Upgradeable.sol";
+    "@openzeppelin-upgradeable/contracts/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -81,9 +80,21 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     );
 
     /**
+     * Errors
+     */
+    error ZeroPendingDeposits();
+    error ZeroPendingRedeems();
+    error AssetPaused();
+    error NotOwner();
+    error MustClaimOutstandingDeposit();
+    error MustClaimOutstandingRedeem();
+    error MustClaimFullAmount();
+    error NotBasketManager();
+
+    /**
      * @notice Disables the ability to call initializers.
      */
-    constructor() {
+    constructor() payable {
         _disableInitializers();
     }
 
@@ -107,32 +118,41 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         public
         initializer
     {
+        if (owner_ == address(0)) {
+            revert Errors.ZeroAddress();
+        }
         owner = owner_;
         basketManager = msg.sender;
         _grantRole(DEFAULT_ADMIN_ROLE, owner);
         _grantRole(BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
         strategyId = strategyId_;
-        __ERC4626_init(IERC20Upgradeable(address(asset_)));
+        __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
 
     /**
      * @notice Sets the basket manager address. Only callable by the contract owner.
-     * @param _basketManager The new basket manager address.
+     * @param basketManager_ The new basket manager address.
      */
-    function setBasketManager(address _basketManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        revokeRole(BASKET_MANAGER_ROLE, basketManager);
-        basketManager = _basketManager;
-        _grantRole(BASKET_MANAGER_ROLE, _basketManager);
+    function setBasketManager(address basketManager_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (basketManager_ == address(0)) {
+            revert Errors.ZeroAddress();
+        }
+        _revokeRole(BASKET_MANAGER_ROLE, basketManager);
+        basketManager = basketManager_;
+        _grantRole(BASKET_MANAGER_ROLE, basketManager_);
     }
 
     /**
      * @notice Sets the asset registry address. Only callable by the contract owner.
-     * @param _assetRegistry The new asset registry address.
+     * @param assetRegistry_ The new asset registry address.
      */
-    function setAssetRegistry(address _assetRegistry) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        assetRegistry = _assetRegistry;
+    function setAssetRegistry(address assetRegistry_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (assetRegistry_ == address(0)) {
+            revert Errors.ZeroAddress();
+        }
+        assetRegistry = assetRegistry_;
     }
 
     /**
@@ -156,19 +176,19 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function requestDeposit(uint256 assets, address receiver) public {
         // Checks
         if (maxDeposit(receiver) > 0) {
-            revert Errors.MustClaimOutstandingDeposit();
+            revert MustClaimOutstandingDeposit();
         }
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
         if (IAssetRegistry(assetRegistry).isPaused(asset())) {
-            revert Errors.AssetPaused();
+            revert AssetPaused();
         }
         // Effects
         uint256 currentPendingAssets = _pendingDeposit[receiver];
         _lastDepositedEpoch[receiver] = _currentDepositEpoch;
         _pendingDeposit[receiver] = (currentPendingAssets + assets);
-        _totalPendingDeposits += assets;
+        _totalPendingDeposits = _totalPendingDeposits + assets;
         emit DepositRequested(receiver, _currentDepositEpoch, assets);
         // Interactions
         // Assets are immediately transferrred to here to await the basketManager to pull them
@@ -209,10 +229,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert Errors.ZeroAmount();
         }
         if (maxRedeem(requestOwner) > 0) {
-            revert Errors.MustClaimOutstandingRedeem();
+            revert MustClaimOutstandingRedeem();
         }
         if (IAssetRegistry(assetRegistry).isPaused(asset())) {
-            revert Errors.AssetPaused();
+            revert AssetPaused();
         }
         if (msg.sender != requestOwner) {
             _spendAllowance(requestOwner, msg.sender, shares);
@@ -221,7 +241,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 currentPendingWithdraw = _pendingRedeem[operator];
         _lastRedeemEpoch[operator] = _currentRedeemEpoch;
         _pendingRedeem[operator] = (currentPendingWithdraw + shares);
-        _totalPendingRedeems += shares;
+        _totalPendingRedeems = _totalPendingRedeems + shares;
         // Interactions
         _transfer(requestOwner, address(this), shares);
         emit RedeemRequested(msg.sender, _currentRedeemEpoch, operator, requestOwner, shares);
@@ -256,13 +276,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function fulfillDeposit(uint256 shares) public onlyRole(BASKET_MANAGER_ROLE) {
         if (_totalPendingDeposits == 0) {
-            revert Errors.ZeroPendingDeposits();
+            revert ZeroPendingDeposits();
         }
         uint256 assets = _totalPendingDeposits;
         _mint(address(this), shares);
         uint256 rate = assets * DECIMAL_BUFFER / shares;
         _epochDepositRate[_currentDepositEpoch] = rate;
-        _currentDepositEpoch += 1;
+        _currentDepositEpoch = _currentDepositEpoch + 1;
         _totalPendingDeposits = 0;
         IERC20(asset()).safeTransfer(msg.sender, assets);
     }
@@ -274,13 +294,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function fulfillRedeem(uint256 assets) public onlyRole(BASKET_MANAGER_ROLE) {
         if (_totalPendingRedeems == 0) {
-            revert Errors.ZeroPendingRedeems();
+            revert ZeroPendingRedeems();
         }
         uint256 shares = _totalPendingRedeems;
         _burn(address(this), shares);
         uint256 rate = assets * DECIMAL_BUFFER / shares;
         _epochRedeemRate[_currentRedeemEpoch] = rate;
-        _currentRedeemEpoch += 1;
+        _currentRedeemEpoch = _currentRedeemEpoch + 1;
         _totalPendingRedeems = 0;
         IERC20(asset()).safeTransferFrom(basketManager, address(this), assets);
     }
@@ -308,7 +328,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Checks
         uint256 pendingDeposit = pendingDepositRequest(msg.sender);
         if (pendingDeposit == 0) {
-            revert Errors.ZeroPendingDeposits();
+            revert ZeroPendingDeposits();
         }
         // Effects
         delete _pendingDeposit[msg.sender];
@@ -324,7 +344,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Checks
         uint256 pendingRedeem = pendingRedeemRequest(msg.sender);
         if (pendingRedeem == 0) {
-            revert Errors.ZeroPendingRedeems();
+            revert ZeroPendingRedeems();
         }
         // Effects
         delete _pendingRedeem[msg.sender];
@@ -349,7 +369,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert Errors.ZeroAmount();
         }
         if (assets != maxDeposit(msg.sender)) {
-            revert Errors.MustClaimFullAmount();
+            revert MustClaimFullAmount();
         }
         // Effects
         // maxMint returns shares at the fulfilled rate only if the deposit has been filfilled
@@ -376,7 +396,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert Errors.ZeroAmount();
         }
         if (shares != claimableShares) {
-            revert Errors.MustClaimFullAmount();
+            revert MustClaimFullAmount();
         }
         // Effects
         assets = _pendingDeposit[msg.sender];
@@ -408,7 +428,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert Errors.ZeroAmount();
         }
         if (assets != maxWithdraw(msg.sender)) {
-            revert Errors.MustClaimFullAmount();
+            revert MustClaimFullAmount();
         }
         // Effects
         emit Withdraw(msg.sender, receiver, msg.sender, assets, _pendingRedeem[msg.sender]);
@@ -429,12 +449,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert Errors.ZeroAmount();
         }
         if (shares != maxRedeem(msg.sender)) {
-            revert Errors.MustClaimFullAmount();
+            revert MustClaimFullAmount();
         }
         // Effects
         assets = maxWithdraw(msg.sender);
         delete _pendingRedeem[msg.sender];
         // Interactions
+        // slither-disable-next-line reentrancy-events
         IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, msg.sender, assets, shares);
     }

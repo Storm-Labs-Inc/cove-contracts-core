@@ -17,7 +17,7 @@ runs:
       shell: bash
 
     - name: Cache Submodules
-      uses: buildjet/cache@v3
+      uses: buildjet/cache@v4
       id: cache-submodules
       with:
         path: ./lib
@@ -33,7 +33,7 @@ runs:
         version: 9
 
     - name: Install Node.js
-      uses: buildjet/setup-node@v3
+      uses: buildjet/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
@@ -47,7 +47,7 @@ runs:
 
     - name: Install Python dependencies
       if: ${{ inputs.python-version != '' }}
-      run: pip install -r requirements-ci.txt
+      run: pip install -r requirements.txt
       shell: bash
 
     - name: Install Foundry

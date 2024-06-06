@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 
 contract ChainLinkOracleWrapper {
-    constructor() { }
+    // slither-disable-next-line locked-ether
+    constructor() payable { }
 
     /**
      * Returns the latest price

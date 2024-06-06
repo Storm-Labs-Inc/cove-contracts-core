@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import { BaseTest } from "./utils/BaseTest.t.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
@@ -48,7 +48,7 @@ contract AllocationResolverTest is BaseTest {
 
         vm.prank(owner);
         allocationResolver.enroll(basket, resolver, 2); // Enroll with length 2
-        vm.expectRevert("INVALID_ALLOCATION_LENGTH");
+        vm.expectRevert(AllocationResolver.InvalidAllocationLength.selector);
         vm.prank(resolver);
         allocationResolver.setAllocation(basket, newAllocation);
     }
@@ -60,7 +60,7 @@ contract AllocationResolverTest is BaseTest {
 
         vm.prank(owner);
         allocationResolver.enroll(basket, resolver, newAllocation.length);
-        vm.expectRevert("INVALID_ALLOCATION_SUM");
+        vm.expectRevert(AllocationResolver.InvalidAllocationSum.selector);
         vm.prank(resolver);
         allocationResolver.setAllocation(basket, newAllocation);
     }

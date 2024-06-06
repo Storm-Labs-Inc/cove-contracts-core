@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 /**
  * @title MathUtils
@@ -13,6 +13,7 @@ library MathUtils {
      */
     function toUint(bool b) internal pure returns (uint256 u) {
         /// @solidity memory-safe-assembly
+        // slither-disable-next-line assembly
         assembly {
             u := iszero(iszero(b))
         }

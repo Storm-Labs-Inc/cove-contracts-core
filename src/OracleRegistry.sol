@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import { IOracleRegistry } from "./interfaces/IOracleRegistry.sol";
 import { Errors } from "./libraries/Errors.sol";
@@ -42,7 +42,7 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
     event AddChainlinkPriceFeed(address indexed token, address indexed priceFeed);
     event UpdateChainlinkPriceFeed(address indexed token, address indexed priceFeed);
 
-    constructor(address admin) {
+    constructor(address admin) payable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, msg.sender);
     }

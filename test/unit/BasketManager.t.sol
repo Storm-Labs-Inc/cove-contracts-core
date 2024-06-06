@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import { BaseTest } from "../utils/BaseTest.t.sol";
 
-import { ERC20Mock } from "@openzeppelin/contracts/mocks/ERC20Mock.sol";
+import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketManager } from "src/BasketManager.sol";
@@ -47,7 +47,7 @@ contract BasketManagerTest is BaseTest {
 
         BasketManager bm =
             new BasketManager(rootAsset_, basketTokenImplementation_, oracleRegistry_, allocationResolver_);
-        assertEq(bm.ROOT_ASSET(), rootAsset_);
+        assertEq(bm.rootAsset(), rootAsset_);
         assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
         assertEq(bm.oracleRegistry(), oracleRegistry_);
         assertEq(address(bm.allocationResolver()), allocationResolver_);
