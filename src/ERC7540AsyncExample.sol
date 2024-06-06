@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 // import safetrasnfer from openzeppelin

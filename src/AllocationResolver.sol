@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
-pragma solidity 0.8.18;
+pragma solidity 0.8.23;
 
 contract AllocationResolver is AccessControl {
     // mapping of basket address to allocation

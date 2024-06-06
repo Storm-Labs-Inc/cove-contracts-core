@@ -33,7 +33,7 @@ runs:
         version: 9
 
     - name: Install Node.js
-      uses: buildjet/setup-node@v3
+      uses: buildjet/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
