@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
-// OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/extensions/ERC4626.sol)
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
 pragma solidity 0.8.18;
 
 contract AllocationResolver is AccessControl {
     // mapping of basket address to allocation
-    mapping(address => bytes32[]) public allocations;
+    mapping(address => uint256[]) public allocations;
     mapping(address => uint256) public allocationLastUpdated;
     mapping(address => address) public basketAllocationResolver;
 
@@ -19,7 +18,7 @@ contract AllocationResolver is AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function setAllocation(address basket, bytes32[] memory newAllocation) public onlyBasketResolver(basket) {
+    function setAllocation(address basket, uint256[] memory newAllocation) public onlyBasketResolver(basket) {
         require(newAllocation.length == allocations[basket].length, "INVALID_ALLOCATION_LENGTH");
         allocations[basket] = newAllocation;
         allocationLastUpdated[basket] = block.timestamp;
@@ -31,7 +30,7 @@ contract AllocationResolver is AccessControl {
         require(sum == 1e18, "INVALID_ALLOCATION_SUM");
     }
 
-    function getTargetWeight(address basket) public view returns (bytes32[] memory) {
+    function getTargetWeight(address basket) public view returns (uint256[] memory) {
         return allocations[basket];
     }
 
@@ -39,7 +38,7 @@ contract AllocationResolver is AccessControl {
         return allocations[basket].length;
     }
 
-    function getAllocationElement(address basket, uint256 index) public view returns (bytes32) {
+    function getAllocationElement(address basket, uint256 index) public view returns (uint256) {
         return allocations[basket][index];
     }
 
@@ -49,7 +48,7 @@ contract AllocationResolver is AccessControl {
 
     function enroll(address basket, address resolver, uint256 selectionsLength) public onlyRole(DEFAULT_ADMIN_ROLE) {
         basketAllocationResolver[basket] = resolver;
-        allocations[basket] = new bytes32[](selectionsLength);
+        allocations[basket] = new uint256[](selectionsLength);
     }
 
     function isEnrolled(address basket) public view returns (bool) {
@@ -58,6 +57,17 @@ contract AllocationResolver is AccessControl {
 
     function isSubscribed(address basket, address proposer) public view returns (bool) {
         return basketAllocationResolver[basket] == proposer;
+    }
+
+    /**
+     * @notice Gets the assets from the bitFlag.
+     * @param bitFlag The bitFlag representing the set of assets.
+     * @return address[] The assets from the bitFlag.
+     */
+    function getAssets(uint256 bitFlag) public view returns (address[] memory) {
+        // TODO: Implement getting the assets from the bitFlag
+        bitFlag;
+        return new address[](0);
     }
 
     /**
