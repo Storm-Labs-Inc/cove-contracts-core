@@ -31,6 +31,8 @@ jobs:
     name: Slither
     runs-on: buildjet-4vcpu-ubuntu-2204
     permissions:
+      security-events: write # required for upload-sarif
+      actions: read # required for upload-sarif
       contents: read
       packages: read
       pull-requests: write
