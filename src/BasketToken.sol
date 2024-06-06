@@ -356,7 +356,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         shares = maxMint(msg.sender);
         delete _pendingDeposit[msg.sender];
         // Interactions
-        //TODO: does not work with public transfer(), errors on `transfer amount exceeds balance`
+        // TODO: does not work with public transfer(), errors on `transfer amount exceeds balance`
         _transfer(address(this), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
@@ -382,7 +382,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         assets = _pendingDeposit[msg.sender];
         delete _pendingDeposit[msg.sender];
         // Interactions
-        //TODO does not work with public transfer(), errors on `transfer amount exceeds balance`
+        // TODO does not work with public transfer(), errors on `transfer amount exceeds balance`
         _transfer(address(this), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
