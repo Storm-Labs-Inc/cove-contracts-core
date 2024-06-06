@@ -57,17 +57,11 @@ jobs:
         with:
           # TODO: re-enable this before audits
           fail-on: none
-          sarif: results.sarif
           ignore-compile: true
           node-version: ${{ env.NODE_VERSION }}
           slither-args:
             --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
           slither-config: slither.config.json
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: ${{ steps.slither.outputs.sarif }}
 
       - name: Create/update checklist as PR comment
         uses: actions/github-script@v6
