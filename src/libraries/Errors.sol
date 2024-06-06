@@ -30,6 +30,18 @@ library Errors {
     /// @notice Thrown when a duplicate Oracle address is found.
     error DuplicateOracleAddress(address OracleAddress);
 
+    /// BASKET TOKEN ///
+    error ZeroAddress();
+    error ZeroAmount();
+    error ZeroPendingDeposits();
+    error ZeroPendingRedeems();
+    error AssetPaused();
+    error NotOwner();
+    error MustClaimOutstandingDeposit();
+    error MustClaimOutstandingRedeem();
+    error MustClaimFullAmount();
+    error NotBasketManager();
+
     /// TESTING ///
 
     error TakeAwayNotEnoughBalance();
