@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 import { IPyth } from "src/interfaces/deps/IPyth.sol";
 
 contract PythOracleWrapper {
-    constructor(address pythContract) { }
+    constructor(address pythContract) payable { }
 
     function updateFeeGetPrice(
         address pythContract,

@@ -42,7 +42,7 @@ contract OracleRegistry is IOracleRegistry, AccessControl, Multicall {
     event AddChainlinkPriceFeed(address indexed token, address indexed priceFeed);
     event UpdateChainlinkPriceFeed(address indexed token, address indexed priceFeed);
 
-    constructor(address admin) {
+    constructor(address admin) payable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, msg.sender);
     }

@@ -9,25 +9,40 @@ contract AllocationResolver is AccessControl {
     mapping(address => uint256) public allocationLastUpdated;
     mapping(address => address) public basketAllocationResolver;
 
+    error NotBasketResolver();
+    error InvalidAllocationLength();
+    error InvalidAllocationSum();
+
     modifier onlyBasketResolver(address basket) {
-        require(msg.sender == basketAllocationResolver[basket], "NOT_BASKET_RESOLVER");
+        if (basketAllocationResolver[basket] != msg.sender) {
+            revert NotBasketResolver();
+        }
         _;
     }
 
-    constructor() {
+    // slither-disable-next-line locked-ether
+    constructor() payable {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function setAllocation(address basket, uint256[] memory newAllocation) public onlyBasketResolver(basket) {
-        require(newAllocation.length == allocations[basket].length, "INVALID_ALLOCATION_LENGTH");
+        if (newAllocation.length != allocations[basket].length) {
+            revert InvalidAllocationLength();
+        }
         allocations[basket] = newAllocation;
         allocationLastUpdated[basket] = block.timestamp;
         // ensure that all allocations sum to 1
         uint256 sum = 0;
-        for (uint256 i = 0; i < newAllocation.length; i++) {
+        uint256 length = newAllocation.length;
+        for (uint256 i = 0; i < length;) {
             sum += uint256(newAllocation[i]);
+            unchecked {
+                ++i;
+            }
         }
-        require(sum == 1e18, "INVALID_ALLOCATION_SUM");
+        if (sum != 1e18) {
+            revert InvalidAllocationSum();
+        }
     }
 
     function getTargetWeight(address basket) public view returns (uint256[] memory) {

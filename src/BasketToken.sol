@@ -94,7 +94,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /**
      * @notice Disables the ability to call initializers.
      */
-    constructor() {
+    constructor() payable {
         _disableInitializers();
     }
 
@@ -188,7 +188,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 currentPendingAssets = _pendingDeposit[receiver];
         _lastDepositedEpoch[receiver] = _currentDepositEpoch;
         _pendingDeposit[receiver] = (currentPendingAssets + assets);
-        _totalPendingDeposits += assets;
+        _totalPendingDeposits = _totalPendingDeposits + assets;
         emit DepositRequested(receiver, _currentDepositEpoch, assets);
         // Interactions
         // Assets are immediately transferrred to here to await the basketManager to pull them
@@ -241,7 +241,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 currentPendingWithdraw = _pendingRedeem[operator];
         _lastRedeemEpoch[operator] = _currentRedeemEpoch;
         _pendingRedeem[operator] = (currentPendingWithdraw + shares);
-        _totalPendingRedeems += shares;
+        _totalPendingRedeems = _totalPendingRedeems + shares;
         // Interactions
         _transfer(requestOwner, address(this), shares);
         emit RedeemRequested(msg.sender, _currentRedeemEpoch, operator, requestOwner, shares);
@@ -282,7 +282,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _mint(address(this), shares);
         uint256 rate = assets * DECIMAL_BUFFER / shares;
         _epochDepositRate[_currentDepositEpoch] = rate;
-        _currentDepositEpoch += 1;
+        _currentDepositEpoch = _currentDepositEpoch + 1;
         _totalPendingDeposits = 0;
         IERC20(asset()).safeTransfer(msg.sender, assets);
     }
@@ -300,7 +300,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _burn(address(this), shares);
         uint256 rate = assets * DECIMAL_BUFFER / shares;
         _epochRedeemRate[_currentRedeemEpoch] = rate;
-        _currentRedeemEpoch += 1;
+        _currentRedeemEpoch = _currentRedeemEpoch + 1;
         _totalPendingRedeems = 0;
         IERC20(asset()).safeTransferFrom(basketManager, address(this), assets);
     }
