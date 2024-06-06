@@ -13,6 +13,7 @@ library MathUtils {
      */
     function toUint(bool b) internal pure returns (uint256 u) {
         /// @solidity memory-safe-assembly
+        // slither-disable-next-line assembly
         assembly {
             u := iszero(iszero(b))
         }

@@ -47,7 +47,7 @@ contract BasketManagerTest is BaseTest {
 
         BasketManager bm =
             new BasketManager(rootAsset_, basketTokenImplementation_, oracleRegistry_, allocationResolver_);
-        assertEq(bm.ROOT_ASSET(), rootAsset_);
+        assertEq(bm.rootAsset(), rootAsset_);
         assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
         assertEq(bm.oracleRegistry(), oracleRegistry_);
         assertEq(address(bm.allocationResolver()), allocationResolver_);

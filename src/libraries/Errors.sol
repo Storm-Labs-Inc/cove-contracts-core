@@ -33,14 +33,6 @@ library Errors {
     /// BASKET TOKEN ///
     error ZeroAddress();
     error ZeroAmount();
-    error ZeroPendingDeposits();
-    error ZeroPendingRedeems();
-    error AssetPaused();
-    error NotOwner();
-    error MustClaimOutstandingDeposit();
-    error MustClaimOutstandingRedeem();
-    error MustClaimFullAmount();
-    error NotBasketManager();
 
     /// TESTING ///
 

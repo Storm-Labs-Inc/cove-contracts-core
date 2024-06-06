@@ -66,6 +66,8 @@ contract AllocationResolver is AccessControl {
      */
     function getAssets(uint256 bitFlag) public view returns (address[] memory) {
         // TODO: Implement getting the assets from the bitFlag
+        // workaround for slither for unused variables
+        // slither-disable-next-line redundant-statements
         bitFlag;
         return new address[](0);
     }
@@ -78,7 +80,10 @@ contract AllocationResolver is AccessControl {
      */
     function supportsStrategy(uint256 bitFlag, uint256 strategyId) public view returns (bool) {
         // TODO: Implement checking if the strategy supports the given bitFlag
+        // workaround for slither for unused variables
+        // slither-disable-next-line redundant-statements
         bitFlag;
+        // slither-disable-next-line redundant-statements
         strategyId;
         return true;
     }
