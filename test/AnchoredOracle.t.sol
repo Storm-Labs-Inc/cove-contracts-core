@@ -20,6 +20,7 @@ contract AnchoredOracleTest is BaseTest {
     AnchoredOracle oracle;
 
     function setUp() public override {
+        super.setUp();
         primary = new StubPriceOracle();
         anchor = new StubPriceOracle();
         oracle = new AnchoredOracle(address(primary), address(anchor), MAX_DIVERGENCE);
