@@ -52,12 +52,37 @@ contract BasketToken_Test is BaseTest {
         assertEq(basket.asset(), address(dummyAsset));
     }
 
+    function test_initialize_revertsWhen_ownerZeroAddress() public {
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(0));
+    }
+
     function test_setBasketManager() public {
         MockBasketManager newBasketManager = new MockBasketManager(address(basket));
         vm.label(address(newBasketManager), "newBasketManager");
         vm.prank(owner);
         basket.setBasketManager(address(newBasketManager));
         assertEq(basket.basketManager(), address(newBasketManager));
+    }
+
+    function test_setBasketManager_revertsWhen_zeroAddress() public {
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.prank(owner);
+        basket.setBasketManager(address(0));
+    }
+
+    function test_setAssetRegistry() public {
+        MockAssetRegistry newAssetRegistry = new MockAssetRegistry();
+        vm.label(address(newAssetRegistry), "newAssetRegistry");
+        vm.prank(owner);
+        basket.setAssetRegistry(address(newAssetRegistry));
+        assertEq(basket.assetRegistry(), address(newAssetRegistry));
+    }
+
+    function test_setAssetRegistry_revertWhen_zeroAddress() public {
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.prank(owner);
+        basket.setAssetRegistry(address(0));
     }
 
     function testFuzz_requestDeposit(uint256 amount) public {
