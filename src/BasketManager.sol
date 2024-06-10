@@ -304,6 +304,8 @@ contract BasketManager is ReentrancyGuard {
                 // and store it in pendingWithdraw
                 if (pendingRedeems_ > 0) {
                     shouldRebalance = true;
+                    // Advance the redeem epcoh
+                    BasketToken(basket).preFulfillRedeem();
                     if (totalSupply > 0) {
                         // Rounding direction: down
                         // Division-by-zero is not possible: totalSupply is greater than 0
