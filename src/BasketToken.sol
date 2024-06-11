@@ -304,15 +304,16 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /**
      * @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
      * current epoch. Records the total amount of shares pending redemption. This is called at the first step of the
-     * rebalance process.
+     * rebalance process. When there are no pending redeems, the epoch is not advanced.
      */
-    function preFulfillRedeem() public onlyRole(BASKET_MANAGER_ROLE) {
+    function preFulfillRedeem() public onlyRole(BASKET_MANAGER_ROLE) returns (uint256) {
         if (_totalPendingRedeems == 0) {
-            revert ZeroPendingRedeems();
+            return 0;
         }
         _currentRedeemEpoch = _currentRedeemEpoch + 1;
         _currentRedeemEpochAmount = _totalPendingRedeems;
         _totalPendingRedeems = 0;
+        return _currentRedeemEpochAmount;
     }
 
     /**

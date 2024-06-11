@@ -11,7 +11,7 @@ import { DummyERC20 } from "test/utils/mocks/DummyERC20.sol";
 import { MockAssetRegistry } from "test/utils/mocks/MockAssetRegistry.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
-contract BasketToken_Test is BaseTest {
+contract BasketTokenTest is BaseTest {
     BasketToken public basket;
     BasketToken public basketTokenImplementation;
     MockBasketManager public basketManager;
@@ -447,10 +447,9 @@ contract BasketToken_Test is BaseTest {
         assertEq(basket.maxWithdraw(alice), amount);
     }
 
-    function test_preFulfillRedeem_revertsWhen_ZeroPendingRedeems() public {
+    function test_preFulfillRedeem_returnsZeroWhen_ZeroPendingRedeems() public {
         vm.startPrank(address(basketManager));
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingRedeems.selector));
-        basket.preFulfillRedeem();
+        assertEq(basket.preFulfillRedeem(), 0);
     }
 
     function test_fulfillRedeem_revertsWhen_preFulfillRedeem_notCalled() public {
