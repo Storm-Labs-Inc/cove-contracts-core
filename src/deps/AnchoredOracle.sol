@@ -5,7 +5,9 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { BaseAdapter, Errors, IPriceOracle } from "euler-price-oracle/src/adapter/BaseAdapter.sol";
 
 /// @title AnchoredOracle
-/// @author Euler Labs (https://www.eulerlabs.com/)
+/// @author Storm Labs (https://www.eulerlabs.com/)
+/// @dev Adapted from Euler's experimental implementation:
+/// https://github.com/euler-xyz/euler-price-oracle/blob/experiments/src/aggregator/AnchoredOracle.sol
 /// @notice PriceOracle that chains two PriceOracles.
 contract AnchoredOracle is BaseAdapter {
     /// @notice The lower bound for `maxDivergence`, 0.1%.
@@ -46,13 +48,13 @@ contract AnchoredOracle is BaseAdapter {
         uint256 primaryOutAmount = IPriceOracle(primaryOracle).getQuote(inAmount, base, quote);
         uint256 anchorOutAmount = IPriceOracle(anchorOracle).getQuote(inAmount, base, quote);
 
-        if (primaryOutAmount < anchorOutAmount) {
-            uint256 divergence = FixedPointMathLib.fullMulDivUp(primaryOutAmount, WAD, anchorOutAmount);
-            if (divergence > maxDivergence) revert Errors.PriceOracle_InvalidAnswer();
-        } else {
-            uint256 divergence = FixedPointMathLib.fullMulDivUp(anchorOutAmount, WAD, primaryOutAmount);
-            if (divergence > maxDivergence) revert Errors.PriceOracle_InvalidAnswer();
+        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOutAmount, WAD - maxDivergence, WAD);
+        uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryOutAmount, WAD + maxDivergence, WAD);
+
+        if (anchorOutAmount < lowerBound || anchorOutAmount > upperBound) {
+            revert Errors.PriceOracle_InvalidAnswer();
         }
+
         return primaryOutAmount;
     }
 }
