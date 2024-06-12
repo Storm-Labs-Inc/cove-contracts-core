@@ -79,7 +79,7 @@ contract AnchoredOracleTest is BaseTest {
         uint256 primaryOut = primary.getQuote(inAmount, base, quote);
 
         // check the lower bound, rounding up
-        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOut, 1e18 - MAX_DIVERGENCE, inAmount);
+        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOut, 1e18 - MAX_DIVERGENCE, 1e18);
         uint256 anchorPrice = FixedPointMathLib.fullMulDivUp(lowerBound, 1e18, inAmount);
         console.log("Lowerbound calculated in test: ", lowerBound);
 
