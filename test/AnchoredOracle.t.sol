@@ -33,28 +33,38 @@ contract AnchoredOracleTest is BaseTest {
         assertEq(oracle.maxDivergence(), MAX_DIVERGENCE);
     }
 
+    function test_constructor_revertWhen_zeroPrimaryOracle() public {
+        vm.expectRevert(Errors.PriceOracle_InvalidConfiguration.selector);
+        oracle = new AnchoredOracle(address(0), address(anchor), MAX_DIVERGENCE);
+    }
+
+    function test_constructor_revertWhen_zeroAnchorOracle() public {
+        vm.expectRevert(Errors.PriceOracle_InvalidConfiguration.selector);
+        oracle = new AnchoredOracle(address(primary), address(0), MAX_DIVERGENCE);
+    }
+
     function testFuzz_constructor_revertWhen_maxDivergenceTooLow(
-        address base,
-        address quote,
+        address primary_,
+        address anchor_,
         uint256 maxDivergence
     )
         public
     {
         maxDivergence = bound(maxDivergence, 0, _MAX_DIVERGENCE_LOWER_BOUND - 1);
         vm.expectRevert(Errors.PriceOracle_InvalidConfiguration.selector);
-        new AnchoredOracle(base, quote, maxDivergence);
+        new AnchoredOracle(primary_, anchor_, maxDivergence);
     }
 
     function testFuzz_constructor_revertWhen_maxDivergenceTooHigh(
-        address base,
-        address quote,
+        address primary_,
+        address anchor_,
         uint256 maxDivergence
     )
         public
     {
         maxDivergence = bound(maxDivergence, _MAX_DIVERGENCE_UPPER_BOUND + 1, type(uint256).max);
         vm.expectRevert(Errors.PriceOracle_InvalidConfiguration.selector);
-        new AnchoredOracle(base, quote, maxDivergence);
+        new AnchoredOracle(primary_, anchor_, maxDivergence);
     }
 
     function testFuzz_getQuote_matches(uint256 inAmount, address base, address quote, uint256 price) public {

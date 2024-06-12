@@ -35,7 +35,14 @@ contract AnchoredOracle is BaseAdapter {
      * @param _maxDivergence The maximum allowed divergence between the primary and anchor oracle prices, denominated in
      * _WAD.
      */
-    constructor(address _primaryOracle, address _anchorOracle, uint256 _maxDivergence) {
+    // slither-disable-next-line locked-ether
+    constructor(address _primaryOracle, address _anchorOracle, uint256 _maxDivergence) payable {
+        if (_primaryOracle == address(0)) {
+            revert Errors.PriceOracle_InvalidConfiguration();
+        }
+        if (_anchorOracle == address(0)) {
+            revert Errors.PriceOracle_InvalidConfiguration();
+        }
         if (_maxDivergence < _MAX_DIVERGENCE_LOWER_BOUND || _maxDivergence > _MAX_DIVERGENCE_UPPER_BOUND) {
             revert Errors.PriceOracle_InvalidConfiguration();
         }
