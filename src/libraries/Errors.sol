@@ -30,9 +30,9 @@ library Errors {
     /// @notice Thrown when a duplicate Oracle address is found.
     error DuplicateOracleAddress(address OracleAddress);
 
-    /// @notice Thrown when the 0 address is found;
+    /// @notice Thrown when the 0 address is found.
     error ZeroAddress();
-    /// @notice Thrown when an amount of 0 is found;
+    /// @notice Thrown when an amount of 0 is found.
     error ZeroAmount();
 
     /// TESTING ///
