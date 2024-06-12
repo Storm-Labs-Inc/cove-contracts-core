@@ -238,6 +238,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (maxRedeem(requestOwner) > 0) {
             revert MustClaimOutstandingRedeem();
         }
+        // Below checks for the case of a user requesting a redeem after an epoch has been preFulfilled
+        if (_lastRedeemEpoch[operator] != _currentRedeemEpoch) {
+            revert MustClaimOutstandingRedeem();
+        }
         if (IAssetRegistry(assetRegistry).isPaused(asset())) {
             revert AssetPaused();
         }
@@ -502,6 +506,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         emit Withdraw(msg.sender, receiver, msg.sender, assets, _pendingRedeem[msg.sender]);
         delete _pendingRedeem[msg.sender];
+        _lastRedeemEpoch[msg.sender] = _currentRedeemEpoch;
         // Interactions
         IERC20(asset()).safeTransfer(receiver, assets);
     }
@@ -523,6 +528,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         assets = maxWithdraw(msg.sender);
         delete _pendingRedeem[msg.sender];
+        _lastRedeemEpoch[msg.sender] = _currentRedeemEpoch;
         // Interactions
         // slither-disable-next-line reentrancy-events
         IERC20(asset()).safeTransfer(receiver, assets);

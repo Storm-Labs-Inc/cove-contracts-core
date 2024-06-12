@@ -3,6 +3,7 @@ pragma solidity 0.8.23;
 
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
+import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -18,7 +19,7 @@ import { console2 as console } from "forge-std/console2.sol";
  * @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
  * here.
  */
-contract BasketManager is ReentrancyGuard {
+contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /**
      * Libraries
      */
@@ -61,6 +62,12 @@ contract BasketManager is ReentrancyGuard {
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Address of the root asset to be used for the baskets.
     address public immutable rootAsset;
+    /// @notice Manager role. Managers can create new baskets.
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    /// @notice Pauser role.
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    /// @notice Rebalancer role. Rebalancers can propose rebalance, propose token swap, and execute token swap.
+    bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
 
     /**
      * State variables
@@ -122,7 +129,8 @@ contract BasketManager is ReentrancyGuard {
         address rootAsset_,
         address basketTokenImplementation_,
         address oracleRegistry_,
-        address allocationResolver_
+        address allocationResolver_,
+        address admin
     )
         payable
     {
@@ -131,8 +139,10 @@ contract BasketManager is ReentrancyGuard {
         if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
         if (oracleRegistry_ == address(0)) revert ZeroAddress();
         if (allocationResolver_ == address(0)) revert ZeroAddress();
+        if (admin == address(0)) revert ZeroAddress();
 
         // Effects
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
         rootAsset = rootAsset_;
         basketTokenImplementation = basketTokenImplementation_;
         oracleRegistry = oracleRegistry_;
@@ -151,16 +161,16 @@ contract BasketManager is ReentrancyGuard {
      * @param strategyId Strategy id for the basket.
      */
     function createNewBasket(
-        string memory basketName,
-        string memory symbol,
+        string calldata basketName,
+        string calldata symbol,
         uint256 bitFlag,
         uint256 strategyId
     )
-        public
+        external
         payable
+        onlyRole(MANAGER_ROLE)
         returns (address basket)
     {
-        // TODO: Add role-based access control for this function
         // Checks
         uint256 basketTokensLength = basketTokens.length;
         if (basketTokensLength >= MAX_NUM_OF_BASKET_TOKENS) {
@@ -229,8 +239,7 @@ contract BasketManager is ReentrancyGuard {
      * @param basketsToRebalance Array of basket addresses to rebalance.
      */
     // slither-disable-next-line cyclomatic-complexity
-    function proposeRebalance(address[] calldata basketsToRebalance) external nonReentrant {
-        // TODO: Add role-based access control for this function
+    function proposeRebalance(address[] calldata basketsToRebalance) external onlyRole(REBALANCER_ROLE) nonReentrant {
         // Checks
         // Revert if a rebalance is already in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
@@ -371,7 +380,7 @@ contract BasketManager is ReentrancyGuard {
      * If the proposed token swap results are not close to the target balances, this function will revert.
      * @dev This function can only be called after proposeRebalance.
      */
-    function proposeTokenSwap() external nonReentrant {
+    function proposeTokenSwap() external onlyRole(REBALANCER_ROLE) nonReentrant {
         // TODO: Implement the logic to propose token swap
     }
 
@@ -379,7 +388,7 @@ contract BasketManager is ReentrancyGuard {
      * @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
      * @dev This function can only be called after proposeTokenSwap.
      */
-    function executeTokenSwap() external nonReentrant {
+    function executeTokenSwap() external onlyRole(REBALANCER_ROLE) nonReentrant {
         // TODO: Implement the logic to execute token swap
     }
 
