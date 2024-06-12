@@ -5,7 +5,7 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { BaseAdapter, Errors, IPriceOracle } from "euler-price-oracle/src/adapter/BaseAdapter.sol";
 
 /// @title AnchoredOracle
-/// @author Storm Labs (https://www.eulerlabs.com/)
+/// @author Storm Labs (https://storm-labs.xyz/)
 /// @dev Adapted from Euler's experimental implementation:
 /// https://github.com/euler-xyz/euler-price-oracle/blob/experiments/src/aggregator/AnchoredOracle.sol
 /// @notice PriceOracle that chains two PriceOracles.
