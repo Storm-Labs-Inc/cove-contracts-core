@@ -826,7 +826,6 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.totalPendingRedeems(), 0);
         basket.fallbackRedeemTrigger();
         vm.stopPrank();
-        uint256 aliceBalanceBefore = basket.balanceOf(alice);
         assertEq(basket.pendingRedeemRequest(alice), 0);
         vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingRedeems.selector));
         vm.prank(alice);
@@ -854,7 +853,6 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.totalPendingRedeems(), 0);
         basket.fallbackRedeemTrigger();
         vm.stopPrank();
-        uint256 aliceBalanceBefore = basket.balanceOf(alice);
         assertEq(basket.pendingRedeemRequest(alice), 0);
         uint256 aliceMaxRedeem = basket.maxRedeem(alice);
         vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));

@@ -242,8 +242,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert AssetPaused();
         }
         // Below checks for the case of a user requesting a redeem after an epoch has been preFulfilled
-        if (_currentRedeemEpochAmount > 0 && _lastRedeemEpoch[operator] == _currentRedeemEpoch - 1) {
-            revert CurrentlyFulfillingRedeem();
+        if (_currentRedeemEpochAmount > 0) {
+            if (_lastRedeemEpoch[operator] == _currentRedeemEpoch - 1) {
+                revert CurrentlyFulfillingRedeem();
+            }
         }
         // Effects
         if (msg.sender != requestOwner) {
