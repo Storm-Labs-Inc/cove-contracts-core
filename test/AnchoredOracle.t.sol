@@ -76,16 +76,25 @@ contract AnchoredOracleTest is BaseTest {
         inAmount = bound(inAmount, 1e18, type(uint128).max);
         price = bound(price, 1e18, type(uint128).max);
         primary.setPrice(base, quote, price);
+        uint256 primaryOut = primary.getQuote(inAmount, base, quote);
 
         // check the lower bound, rounding up
-        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(price, 1e18 - MAX_DIVERGENCE, 1e18) + 1;
-        anchor.setPrice(base, quote, lowerBound);
+        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOut, 1e18 - MAX_DIVERGENCE, inAmount);
+        uint256 anchorPrice = FixedPointMathLib.fullMulDivUp(lowerBound, 1e18, inAmount);
+        console.log("Lowerbound calculated in test: ", lowerBound);
+
+        // set the anchor price such that the quote output is equal to the lower bound
+        anchor.setPrice(base, quote, anchorPrice);
         uint256 outAmount = oracle.getQuote(inAmount, base, quote);
         assertEq(FixedPointMathLib.fullMulDivUp(inAmount, price, 1e18), outAmount);
 
         // check the upper bound, rounding down
-        uint256 upperBound = FixedPointMathLib.fullMulDiv(price, 1e18 + MAX_DIVERGENCE, 1e18) - 1;
-        anchor.setPrice(base, quote, upperBound);
+        uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryOut, 1e18 + MAX_DIVERGENCE, 1e18);
+        anchorPrice = FixedPointMathLib.fullMulDiv(upperBound, 1e18, inAmount);
+        console.log("Upperbound calculated in test: ", upperBound);
+
+        // set the anchor price such that the quote output is equal to the upper bound
+        anchor.setPrice(base, quote, anchorPrice);
         outAmount = oracle.getQuote(inAmount, base, quote);
         assertEq(FixedPointMathLib.fullMulDivUp(inAmount, price, 1e18), outAmount);
     }
@@ -98,19 +107,25 @@ contract AnchoredOracleTest is BaseTest {
 
         // set the primary price normally
         primary.setPrice(base, quote, price);
+        uint256 primaryOut = primary.getQuote(inAmount, base, quote);
 
         // calculate bounds
-        uint256 lowerBound = FixedPointMathLib.fullMulDiv(price, 1e18 - MAX_DIVERGENCE, 1e18) - 1;
-        // TODO: why does setting this to +1 make the test fail?
-        uint256 upperBound = FixedPointMathLib.fullMulDivUp(price, 1e18 + MAX_DIVERGENCE, 1e18) + 2;
+        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOut, 1e18 - MAX_DIVERGENCE, 1e18);
+        uint256 anchorPrice = FixedPointMathLib.fullMulDivUp(lowerBound, 1e18, inAmount) - 1;
+        console.log("Lowerbound calculated in test: ", lowerBound);
 
-        // check the lower bound
-        anchor.setPrice(base, quote, lowerBound);
+        // set the anchor price such that the quote output is 1 less than the lower bound
+        anchor.setPrice(base, quote, anchorPrice - 1);
         vm.expectRevert(Errors.PriceOracle_InvalidAnswer.selector);
         oracle.getQuote(inAmount, base, quote);
 
-        // check the upper bound
-        anchor.setPrice(base, quote, upperBound);
+        // calculate bounds
+        uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryOut, 1e18 + MAX_DIVERGENCE, 1e18);
+        anchorPrice = FixedPointMathLib.fullMulDiv(upperBound, 1e18, inAmount) + 1;
+        console.log("Upperbound calculated in test: ", upperBound);
+
+        // set the anchor price such that the quote output is 1 more than the upper bound
+        anchor.setPrice(base, quote, anchorPrice);
         vm.expectRevert(Errors.PriceOracle_InvalidAnswer.selector);
         oracle.getQuote(inAmount, base, quote);
     }

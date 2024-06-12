@@ -3,6 +3,7 @@ pragma solidity 0.8.23;
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { BaseAdapter, Errors, IPriceOracle } from "euler-price-oracle/src/adapter/BaseAdapter.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 /// @title AnchoredOracle
 /// @author Storm Labs (https://storm-labs.xyz/)
@@ -49,8 +50,11 @@ contract AnchoredOracle is BaseAdapter {
         uint256 anchorOutAmount = IPriceOracle(anchorOracle).getQuote(inAmount, base, quote);
 
         uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOutAmount, WAD - maxDivergence, WAD);
+        console.log("Lowerbound calculated in AnchoredOracle: ", lowerBound);
         uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryOutAmount, WAD + maxDivergence, WAD);
-
+        console.log("Upperbound calculated in AnchoredOracle: ", upperBound);
+        console.log("Primary out amount: ", primaryOutAmount);
+        console.log("Anchor out amount: ", anchorOutAmount);
         if (anchorOutAmount < lowerBound || anchorOutAmount > upperBound) {
             revert Errors.PriceOracle_InvalidAnswer();
         }
