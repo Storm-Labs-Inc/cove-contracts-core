@@ -306,7 +306,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             {
-                uint256 pendingRedeems_ = BasketToken(basket).totalPendingRedeems();
+                // Advances redeem epoch if there are pending redeems
+                uint256 pendingRedeems_ = BasketToken(basket).preFulfillRedeem();
                 uint256 requiredWithdrawValue = 0;
 
                 // If there are pending redeems, calculate the required withdraw value
