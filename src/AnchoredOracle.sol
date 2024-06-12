@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-import { BaseAdapter, Errors, IPriceOracle } from "euler-price-oracle/src/adapter/BaseAdapter.sol";
+import { BaseAdapter, Errors, IPriceOracle } from "src/deps/euler-price-oracle/BaseAdapter.sol";
 
 /*
  * @title AnchoredOracle
