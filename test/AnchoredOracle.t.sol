@@ -6,20 +6,19 @@ import { BaseTest } from "./utils/BaseTest.t.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
 
-import { console2 as console } from "forge-std/console2.sol";
-import { AnchoredOracle } from "src/deps/AnchoredOracle.sol";
+import { AnchoredOracle } from "src/AnchoredOracle.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 
 contract AnchoredOracleTest is BaseTest {
     /// @notice The lower bound for `maxDivergence`, 0.1%.
-    uint256 internal constant MAX_DIVERGENCE_LOWER_BOUND = 0.001e18;
+    uint256 internal constant _MAX_DIVERGENCE_LOWER_BOUND = 0.001e18;
     /// @notice The upper bound for `maxDivergence`, 50%.
-    uint256 internal constant MAX_DIVERGENCE_UPPER_BOUND = 0.5e18;
+    uint256 internal constant _MAX_DIVERGENCE_UPPER_BOUND = 0.5e18;
 
-    uint256 MAX_DIVERGENCE = 0.5e18;
-    MockPriceOracle primary;
-    MockPriceOracle anchor;
-    AnchoredOracle oracle;
+    uint256 public MAX_DIVERGENCE = 0.5e18;
+    MockPriceOracle public primary;
+    MockPriceOracle public anchor;
+    AnchoredOracle public oracle;
 
     function setUp() public override {
         super.setUp();
@@ -41,7 +40,7 @@ contract AnchoredOracleTest is BaseTest {
     )
         public
     {
-        maxDivergence = bound(maxDivergence, 0, MAX_DIVERGENCE_LOWER_BOUND - 1);
+        maxDivergence = bound(maxDivergence, 0, _MAX_DIVERGENCE_LOWER_BOUND - 1);
         vm.expectRevert(Errors.PriceOracle_InvalidConfiguration.selector);
         new AnchoredOracle(base, quote, maxDivergence);
     }
@@ -53,7 +52,7 @@ contract AnchoredOracleTest is BaseTest {
     )
         public
     {
-        maxDivergence = bound(maxDivergence, MAX_DIVERGENCE_UPPER_BOUND + 1, type(uint256).max);
+        maxDivergence = bound(maxDivergence, _MAX_DIVERGENCE_UPPER_BOUND + 1, type(uint256).max);
         vm.expectRevert(Errors.PriceOracle_InvalidConfiguration.selector);
         new AnchoredOracle(base, quote, maxDivergence);
     }
@@ -81,7 +80,6 @@ contract AnchoredOracleTest is BaseTest {
         // check the lower bound, rounding up
         uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOut, 1e18 - MAX_DIVERGENCE, 1e18);
         uint256 anchorPrice = FixedPointMathLib.fullMulDivUp(lowerBound, 1e18, inAmount);
-        console.log("Lowerbound calculated in test: ", lowerBound);
 
         // set the anchor price such that the quote output is equal to the lower bound
         anchor.setPrice(base, quote, anchorPrice);
@@ -91,7 +89,6 @@ contract AnchoredOracleTest is BaseTest {
         // check the upper bound, rounding down
         uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryOut, 1e18 + MAX_DIVERGENCE, 1e18);
         anchorPrice = FixedPointMathLib.fullMulDiv(upperBound, 1e18, inAmount);
-        console.log("Upperbound calculated in test: ", upperBound);
 
         // set the anchor price such that the quote output is equal to the upper bound
         anchor.setPrice(base, quote, anchorPrice);
@@ -112,7 +109,6 @@ contract AnchoredOracleTest is BaseTest {
         // calculate bounds
         uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOut, 1e18 - MAX_DIVERGENCE, 1e18);
         uint256 anchorPrice = FixedPointMathLib.fullMulDivUp(lowerBound, 1e18, inAmount) - 1;
-        console.log("Lowerbound calculated in test: ", lowerBound);
 
         // set the anchor price such that the quote output is 1 less than the lower bound
         anchor.setPrice(base, quote, anchorPrice - 1);
@@ -122,7 +118,6 @@ contract AnchoredOracleTest is BaseTest {
         // calculate bounds
         uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryOut, 1e18 + MAX_DIVERGENCE, 1e18);
         anchorPrice = FixedPointMathLib.fullMulDiv(upperBound, 1e18, inAmount) + 1;
-        console.log("Upperbound calculated in test: ", upperBound);
 
         // set the anchor price such that the quote output is 1 more than the upper bound
         anchor.setPrice(base, quote, anchorPrice);
