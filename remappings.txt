@@ -3,6 +3,4 @@ permit2/=lib/permit2/
 forge-deploy/=lib/forge-deploy/contracts/
 @openzeppelin/=lib/openzeppelin-contracts/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
-script/=script/
-src/=src/
-test/=test/
+euler-price-oracle/=lib/euler-price-oracle/
