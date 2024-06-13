@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.23;
 
-import { IOracleRegistry } from "./interfaces/IOracleRegistry.sol";
-import { Errors } from "./libraries/Errors.sol";
+import { IOracleRegistry } from "src/interfaces/IOracleRegistry.sol";
+import { Errors } from "src/libraries/Errors.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 

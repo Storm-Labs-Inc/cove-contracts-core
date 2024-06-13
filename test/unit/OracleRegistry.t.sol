@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { BaseTest } from "./utils/BaseTest.t.sol";
 import { OracleRegistry } from "src/OracleRegistry.sol";
 import { Errors } from "src/libraries/Errors.sol";
+import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract OracleRegistry_Test is BaseTest {
     OracleRegistry public oracleRegistry;
