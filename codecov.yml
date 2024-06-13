@@ -1,4 +1,5 @@
 ignore:
-  - "test"
-  - "script"
   - "generated"
+  - "script"
+  - "src/deps"
+  - "test"
