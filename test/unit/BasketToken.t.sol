@@ -131,7 +131,7 @@ contract BasketTokenTest is BaseTest {
     function test_requestDeposit_revertWhen_zeroAmount() public {
         vm.prank(alice);
         dummyAsset.approve(address(basket), 0);
-        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));
+        vm.expectRevert(Errors.ZeroAmount.selector);
         vm.prank(alice);
         basket.requestDeposit(0, alice);
     }
@@ -146,7 +146,7 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares);
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimOutstandingDeposit.selector));
+        vm.expectRevert(BasketToken.MustClaimOutstandingDeposit.selector);
         vm.startPrank(alice);
         basket.requestDeposit(amount, alice);
     }
@@ -157,7 +157,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         assetRegistry.pauseAssets();
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.AssetPaused.selector));
+        vm.expectRevert(BasketToken.AssetPaused.selector);
         basket.requestDeposit(amount, alice);
     }
 
@@ -186,7 +186,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_fulfillDeposit_revertsWhen_ZeroPendingDeposits() public {
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingDeposits.selector));
+        vm.expectRevert(BasketToken.ZeroPendingDeposits.selector);
         vm.prank(address(basketManager));
         basket.fulfillDeposit(1e18);
     }
@@ -231,7 +231,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_deposit_revertsWhen_zeroAmount() public {
-        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));
+        vm.expectRevert(Errors.ZeroAmount.selector);
         vm.prank(alice);
         basket.deposit(0, alice);
     }
@@ -246,7 +246,7 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares);
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimFullAmount.selector));
+        vm.expectRevert(BasketToken.MustClaimFullAmount.selector);
         vm.prank(alice);
         basket.deposit(amount - 1, alice);
     }
@@ -271,7 +271,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_mint_revertsWhen_zeroAmount() public {
-        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));
+        vm.expectRevert(Errors.ZeroAmount.selector);
         vm.prank(alice);
         basket.mint(0, alice);
     }
@@ -286,7 +286,7 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares);
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimFullAmount.selector));
+        vm.expectRevert(BasketToken.MustClaimFullAmount.selector);
         vm.prank(alice);
         basket.mint(issuedShares - 1, alice);
     }
@@ -307,7 +307,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_cancelDepositRequest_revertsWhen_zeroPendingDeposits() public {
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingDeposits.selector));
+        vm.expectRevert(BasketToken.ZeroPendingDeposits.selector);
         vm.prank(alice);
         basket.cancelDepositRequest();
     }
@@ -390,7 +390,7 @@ contract BasketTokenTest is BaseTest {
 
     function test_requestRedeem_revertWhen_zeroAmount() public {
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));
+        vm.expectRevert(Errors.ZeroAmount.selector);
         basket.requestRedeem(0, alice, alice);
     }
 
@@ -400,7 +400,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         assetRegistry.pauseAssets();
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.AssetPaused.selector));
+        vm.expectRevert(BasketToken.AssetPaused.selector);
         basket.requestRedeem(amount, alice, alice);
     }
 
@@ -421,7 +421,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(address(basketManager));
         basket.preFulfillRedeem();
         basket.fulfillRedeem(amount);
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimOutstandingRedeem.selector));
+        vm.expectRevert(BasketToken.MustClaimOutstandingRedeem.selector);
         vm.stopPrank();
         vm.prank(alice);
         basket.requestRedeem(issuedShares / 2, alice, alice);
@@ -503,7 +503,7 @@ contract BasketTokenTest is BaseTest {
         uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
         assertEq(basketManagerBalanceBefore, amount);
         vm.startPrank(address(basketManager));
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.PreFulFillRedeemNotCalled.selector));
+        vm.expectRevert(BasketToken.PreFulFillRedeemNotCalled.selector);
         basket.fulfillRedeem(amount);
     }
 
@@ -641,7 +641,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_redeem_revertsWhen_zeroAmount() public {
-        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));
+        vm.expectRevert(Errors.ZeroAmount.selector);
         vm.prank(alice);
         basket.redeem(0, alice, alice);
     }
@@ -663,7 +663,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(address(basketManager));
         basket.preFulfillRedeem();
         basket.fulfillRedeem(amount);
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimFullAmount.selector));
+        vm.expectRevert(BasketToken.MustClaimFullAmount.selector);
         vm.stopPrank();
         vm.prank(alice);
         basket.redeem(issuedShares - 1, alice, alice);
@@ -703,7 +703,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_withdraw_revertsWhen_zeroAmount() public {
-        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));
+        vm.expectRevert(Errors.ZeroAmount.selector);
         vm.prank(alice);
         basket.withdraw(0, alice, alice);
     }
@@ -726,7 +726,7 @@ contract BasketTokenTest is BaseTest {
         basket.preFulfillRedeem();
         basket.fulfillRedeem(amount);
         vm.stopPrank();
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimFullAmount.selector));
+        vm.expectRevert(BasketToken.MustClaimFullAmount.selector);
         vm.prank(alice);
         basket.withdraw(amount - 1, alice, alice);
     }
@@ -754,7 +754,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_cancelRedeemRequest_revertsWhen_zeroPendingRedeems() public {
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingRedeems.selector));
+        vm.expectRevert(BasketToken.ZeroPendingRedeems.selector);
         vm.prank(alice);
         basket.cancelRedeemRequest();
     }
@@ -775,7 +775,7 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.preFulfillRedeem();
-        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingRedeems.selector));
+        vm.expectRevert(BasketToken.ZeroPendingRedeems.selector);
         vm.prank(alice);
         basket.cancelRedeemRequest();
     }
