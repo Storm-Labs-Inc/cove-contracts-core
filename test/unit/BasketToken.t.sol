@@ -114,9 +114,6 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestDeposit_passWhen_pendingDepositRequest() public {
-        // vm.assume(amount > 0 && amount2 > 0 && amount + amount2 < type(uint256).max); // TODO: overflows
-        // bound(amount, 0, type(uint256).max / 2);
-        // bound(amount2, 0, type(uint256).max/ 2);
         uint256 amount = 1e22;
         uint256 amount2 = 1e20;
         dummyAsset.mint(alice, amount);
@@ -199,6 +196,20 @@ contract BasketTokenTest is BaseTest {
         vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
         vm.prank(alice);
         basket.fulfillDeposit(1e18);
+    }
+
+    function test_pendingDepositRequest_returnsZeroWhenFulfilled() public {
+        uint256 amount = 1e18;
+        uint256 shares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        assertEq(basket.pendingDepositRequest(alice), amount);
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(shares);
+        assertEq(basket.pendingDepositRequest(alice), 0);
     }
 
     function test_deposit() public {
@@ -445,6 +456,30 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.balanceOf(alice), 0);
         assertEq(basket.maxRedeem(alice), issuedShares);
         assertEq(basket.maxWithdraw(alice), amount);
+    }
+
+    function test_pendingRedeemRequest_returnsZeroWhenFulfilled() public {
+        uint256 amount = 1e18;
+        uint256 issuedShares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(issuedShares); // pps = 10
+        vm.startPrank(alice);
+        basket.deposit(amount, alice);
+        uint256 userShares = basket.balanceOf(alice);
+        basket.requestRedeem(userShares, alice, alice);
+        vm.stopPrank();
+        uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
+        assertEq(basketManagerBalanceBefore, amount);
+        uint256 basketBalanceBefore = basket.balanceOf(address(basket));
+        vm.startPrank(address(basketManager));
+        basket.preFulfillRedeem();
+        basket.fulfillRedeem(amount);
+        assertEq(basket.pendingRedeemRequest(alice), 0);
     }
 
     function test_preFulfillRedeem_returnsZeroWhen_ZeroPendingRedeems() public {
