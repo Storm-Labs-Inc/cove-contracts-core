@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
@@ -475,7 +474,6 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
         uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
         assertEq(basketManagerBalanceBefore, amount);
-        uint256 basketBalanceBefore = basket.balanceOf(address(basket));
         vm.startPrank(address(basketManager));
         basket.preFulfillRedeem();
         basket.fulfillRedeem(amount);
