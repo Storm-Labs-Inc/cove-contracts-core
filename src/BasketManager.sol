@@ -60,8 +60,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
      */
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
-    /// @notice Address of the root asset to be used for the baskets.
-    address public immutable rootAsset;
     /// @notice Manager role. Managers can create new baskets.
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @notice Pauser role.
@@ -113,6 +111,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error BasketTokenMaxExceeded();
     error AllocationResolverDoesNotSupportStrategy();
     error BasketsMismatch();
+    error BaseAssetMismatch();
+    error AssetListEmpty();
     error MustWaitForRebalance();
     error NoRebalanceInProgress();
     error TooEarlyToCompleteRebalance();
@@ -120,13 +120,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /**
      * @notice Initializes the contract with the given parameters.
-     * @param rootAsset_ Address of the root asset to be used for the baskets.
      * @param basketTokenImplementation_ Address of the basket token implementation.
      * @param oracleRegistry_ Address of the oracle registry.
      * @param allocationResolver_ Address of the allocation resolver.
      */
     constructor(
-        address rootAsset_,
         address basketTokenImplementation_,
         address oracleRegistry_,
         address allocationResolver_,
@@ -135,7 +133,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         payable
     {
         // Checks
-        if (rootAsset_ == address(0)) revert ZeroAddress();
         if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
         if (oracleRegistry_ == address(0)) revert ZeroAddress();
         if (allocationResolver_ == address(0)) revert ZeroAddress();
@@ -143,7 +140,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        rootAsset = rootAsset_;
         basketTokenImplementation = basketTokenImplementation_;
         oracleRegistry = oracleRegistry_;
         allocationResolver = AllocationResolver(allocationResolver_);
@@ -163,6 +159,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     function createNewBasket(
         string calldata basketName,
         string calldata symbol,
+        address baseAsset,
         uint256 bitFlag,
         uint256 strategyId
     )
@@ -172,6 +169,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         returns (address basket)
     {
         // Checks
+        if (baseAsset == address(0)) {
+            revert ZeroAddress();
+        }
         uint256 basketTokensLength = basketTokens.length;
         if (basketTokensLength >= MAX_NUM_OF_BASKET_TOKENS) {
             revert BasketTokenMaxExceeded();
@@ -186,7 +186,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         // Effects
         basket = Clones.clone(basketTokenImplementation);
         basketTokens.push(basket);
-        basketAssets[basket] = allocationResolver.getAssets(bitFlag);
+        address[] memory assets = allocationResolver.getAssets(bitFlag);
+        if (assets.length == 0) {
+            revert AssetListEmpty();
+        }
+        if (assets[0] != baseAsset) {
+            revert BaseAssetMismatch();
+        }
+        basketAssets[basket] = assets;
         basketIdToAddress[basketId] = basket;
         unchecked {
             // Overflow not possible: basketTokensLength is less than the constant MAX_NUM_OF_BASKET_TOKENS
@@ -194,7 +201,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
         // Interactions
         // TODO: have owner address to pass to basket tokens on initialization
-        BasketToken(basket).initialize(IERC20(rootAsset), basketName, symbol, bitFlag, strategyId, address(0));
+        BasketToken(basket).initialize(IERC20(baseAsset), basketName, symbol, bitFlag, strategyId, address(0));
     }
 
     /**
@@ -286,6 +293,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             {
                 uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits();
                 if (pendingDeposit > 0) {
+                    // Assume the first asset listed in the basket is the base asset
                     // Round direction: down
                     // slither-disable-next-line divide-before-multiply
                     uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
@@ -455,7 +463,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             if (pendingRedeems_ > 0) {
                 // slither-disable-next-line costly-loop
                 delete pendingRedeems[basket]; // nosemgrep
-                // Assume the first asset is always the root asset
+                // Assume the first asset listed in the basket is the base asset
                 // Rounding direction: down
                 // Division-by-zero is not possible: priceOfAssets[0] is greater than 0, totalSupply is greater than 0
                 // when pendingRedeems is greater than 0
@@ -466,10 +474,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[0]
                         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                        basketBalanceOf[basket][rootAsset] = balances[0] - withdrawAmount;
+                        basketBalanceOf[basket][assets[0]] = balances[0] - withdrawAmount;
                     }
                     // slither-disable-next-line reentrancy-no-eth,calls-loop
-                    IERC20(rootAsset).forceApprove(basket, withdrawAmount);
+                    IERC20(assets[0]).forceApprove(basket, withdrawAmount);
+                    // ERC20.transferFrom is called in BasketToken.fulfillRedeem
                     // slither-disable-next-line reentrancy-no-eth,calls-loop
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
                 } else {

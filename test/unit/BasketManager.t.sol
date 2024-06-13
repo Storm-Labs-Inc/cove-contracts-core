@@ -5,9 +5,9 @@ import { BaseTest } from "../utils/BaseTest.t.sol";
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketManager } from "src/BasketManager.sol";
-
 import { BasketToken } from "src/BasketToken.sol";
 
 contract BasketManagerTest is BaseTest {
@@ -36,8 +36,7 @@ contract BasketManagerTest is BaseTest {
         basketTokenImplementation = createUser("basketTokenImplementation");
         oracleRegistry = createUser("oracleRegistry");
         allocationResolver = createUser("allocationResolver");
-        basketManager =
-            new BasketManager(rootAsset, basketTokenImplementation, oracleRegistry, allocationResolver, admin);
+        basketManager = new BasketManager(basketTokenImplementation, oracleRegistry, allocationResolver, admin);
         vm.startPrank(admin);
         basketManager.grantRole(MANAGER_ROLE, manager);
         basketManager.grantRole(REBALANCER_ROLE, rebalancer);
@@ -48,7 +47,6 @@ contract BasketManagerTest is BaseTest {
     }
 
     function testFuzz_constructor(
-        address rootAsset_,
         address basketTokenImplementation_,
         address oracleRegistry_,
         address allocationResolver_,
@@ -59,12 +57,9 @@ contract BasketManagerTest is BaseTest {
         vm.assume(basketTokenImplementation_ != address(0));
         vm.assume(oracleRegistry_ != address(0));
         vm.assume(allocationResolver_ != address(0));
-        vm.assume(rootAsset_ != address(0));
         vm.assume(admin_ != address(0));
 
-        BasketManager bm =
-            new BasketManager(rootAsset_, basketTokenImplementation_, oracleRegistry_, allocationResolver_, admin_);
-        assertEq(bm.rootAsset(), rootAsset_);
+        BasketManager bm = new BasketManager(basketTokenImplementation_, oracleRegistry_, allocationResolver_, admin_);
         assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
         assertEq(bm.oracleRegistry(), oracleRegistry_);
         assertEq(address(bm.allocationResolver()), allocationResolver_);
@@ -76,7 +71,6 @@ contract BasketManagerTest is BaseTest {
     }
 
     function testFuzz_constructor_revertWhen_ZeroAddress(
-        address rootAsset_,
         address basketTokenImplementation_,
         address oracleRegistry_,
         address allocationResolver_,
@@ -86,25 +80,22 @@ contract BasketManagerTest is BaseTest {
         public
     {
         // Use flag to determine which address to set to zero
-        flag = bound(flag, 0, 30);
+        flag = bound(flag, 0, 14);
         if (flag & 1 == 0) {
-            rootAsset_ = address(0);
-        }
-        if (flag & 2 == 0) {
             basketTokenImplementation_ = address(0);
         }
-        if (flag & 4 == 0) {
+        if (flag & 2 == 0) {
             oracleRegistry_ = address(0);
         }
-        if (flag & 8 == 0) {
+        if (flag & 4 == 0) {
             allocationResolver_ = address(0);
         }
-        if (flag & 16 == 0) {
+        if (flag & 8 == 0) {
             admin_ = address(0);
         }
 
         vm.expectRevert(BasketManager.ZeroAddress.selector);
-        new BasketManager(rootAsset_, basketTokenImplementation_, oracleRegistry_, allocationResolver_, admin_);
+        new BasketManager(basketTokenImplementation_, oracleRegistry_, allocationResolver_, admin_);
     }
 
     function testFuzz_createNewBasket(uint256 bitFlag, uint256 strategyId) public {
@@ -120,11 +111,13 @@ contract BasketManagerTest is BaseTest {
             abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
             abi.encode(true)
         );
+        address[] memory assets = new address[](1);
+        assets[0] = rootAsset;
         vm.mockCall(
-            allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(new address[](0))
+            allocationResolver, abi.encodeWithSelector(AllocationResolver.getAssets.selector), abi.encode(assets)
         );
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, address(rootAsset), bitFlag, strategyId);
         assertEq(basketManager.numOfBasketTokens(), 1);
         assertEq(basketManager.basketTokens(0), basket);
         assertEq(basketManager.basketIdToAddress(keccak256(abi.encodePacked(bitFlag, strategyId))), basket);
@@ -140,20 +133,20 @@ contract BasketManagerTest is BaseTest {
         vm.mockCall(
             allocationResolver, abi.encodeWithSelector(AllocationResolver.supportsStrategy.selector), abi.encode(true)
         );
+        address[] memory assets = new address[](1);
+        assets[0] = rootAsset;
         vm.mockCall(
-            allocationResolver,
-            abi.encodeWithSelector(AllocationResolver.getAssets.selector),
-            abi.encode(new address[](0))
+            allocationResolver, abi.encodeWithSelector(AllocationResolver.getAssets.selector), abi.encode(assets)
         );
         vm.startPrank(manager);
         for (uint256 i = 0; i < 256; i++) {
             bitFlag += 1;
             strategyId += 1;
-            basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+            basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
             assertEq(basketManager.numOfBasketTokens(), i + 1);
         }
         vm.expectRevert(BasketManager.BasketTokenMaxExceeded.selector);
-        basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
     }
 
     function testFuzz_createNewBasket_revertWhen_BasketTokenAlreadyExists(uint256 bitFlag, uint256 strategyId) public {
@@ -169,13 +162,15 @@ contract BasketManagerTest is BaseTest {
             abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
             abi.encode(true)
         );
+        address[] memory assets = new address[](1);
+        assets[0] = rootAsset;
         vm.mockCall(
-            allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(new address[](0))
+            allocationResolver, abi.encodeWithSelector(AllocationResolver.getAssets.selector), abi.encode(assets)
         );
         vm.startPrank(manager);
-        basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
         vm.expectRevert(BasketManager.BasketTokenAlreadyExists.selector);
-        basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
     }
 
     function testFuzz_createNewBasket_revertWhen_AllocationResolverDoesNotSupportStrategy(
@@ -198,7 +193,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.expectRevert(BasketManager.AllocationResolverDoesNotSupportStrategy.selector);
         vm.startPrank(manager);
-        basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
     }
 
     function testFuzz_createNewBasket_revertWhen_CallerIsNotManager(address caller) public {
@@ -207,6 +202,17 @@ contract BasketManagerTest is BaseTest {
         string memory symbol = "b";
         uint256 bitFlag = 1;
         uint256 strategyId = 1;
+        vm.prank(caller);
+        vm.expectRevert(_formatAccessControlError(caller, MANAGER_ROLE));
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
+    }
+
+    function test_createNewBasket_revertWhen_AssetListEmpty() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        uint256 strategyId = 1;
+        address[] memory assets = new address[](0);
         vm.mockCall(
             basketTokenImplementation,
             abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId, admin)),
@@ -217,12 +223,48 @@ contract BasketManagerTest is BaseTest {
             abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
             abi.encode(true)
         );
+        vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
+        vm.expectRevert(BasketManager.AssetListEmpty.selector);
+        vm.prank(manager);
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
+    }
+
+    function test_createNewBasket_revertWhen_BaseAssetMismatch() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        uint256 strategyId = 1;
+        address wrongAsset = address(new ERC20Mock());
+        address[] memory assets = new address[](1);
+        assets[0] = wrongAsset;
+
         vm.mockCall(
-            allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(new address[](0))
+            basketTokenImplementation,
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId, admin)),
+            new bytes(0)
         );
-        vm.prank(caller);
-        vm.expectRevert(_formatAccessControlError(caller, MANAGER_ROLE));
-        basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
+            abi.encode(true)
+        );
+        vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
+        vm.expectRevert(BasketManager.BaseAssetMismatch.selector);
+        vm.prank(manager);
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
+    }
+
+    function test_createNewBasket_revertWhen_BaseAssetIsZeroAddress() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        uint256 strategyId = 1;
+        address[] memory assets = new address[](1);
+        assets[0] = address(0);
+
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        vm.prank(manager);
+        basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategyId);
     }
 
     function test_basketTokenToIndex() public {
@@ -232,15 +274,15 @@ contract BasketManagerTest is BaseTest {
         vm.mockCall(
             allocationResolver, abi.encodeWithSelector(AllocationResolver.supportsStrategy.selector), abi.encode(true)
         );
+        address[] memory assets = new address[](1);
+        assets[0] = rootAsset;
         vm.mockCall(
-            allocationResolver,
-            abi.encodeWithSelector(AllocationResolver.getAssets.selector),
-            abi.encode(new address[](0))
+            allocationResolver, abi.encodeWithSelector(AllocationResolver.getAssets.selector), abi.encode(assets)
         );
         address[] memory baskets = new address[](256);
         vm.startPrank(manager);
         for (uint256 i = 0; i < 256; i++) {
-            baskets[i] = basketManager.createNewBasket(name, symbol, i, i);
+            baskets[i] = basketManager.createNewBasket(name, symbol, rootAsset, i, i);
             assertEq(basketManager.basketTokenToIndex(baskets[i]), i);
         }
 
@@ -261,15 +303,15 @@ contract BasketManagerTest is BaseTest {
         vm.mockCall(
             allocationResolver, abi.encodeWithSelector(AllocationResolver.supportsStrategy.selector), abi.encode(true)
         );
+        address[] memory assets = new address[](1);
+        assets[0] = rootAsset;
         vm.mockCall(
-            allocationResolver,
-            abi.encodeWithSelector(AllocationResolver.getAssets.selector),
-            abi.encode(new address[](0))
+            allocationResolver, abi.encodeWithSelector(AllocationResolver.getAssets.selector), abi.encode(assets)
         );
         address[] memory baskets = new address[](256);
         vm.startPrank(manager);
         for (uint256 i = 0; i < 256; i++) {
-            baskets[i] = basketManager.createNewBasket(name, symbol, i, i);
+            baskets[i] = basketManager.createNewBasket(name, symbol, rootAsset, i, i);
             vm.assume(baskets[i] != basket);
         }
 
@@ -298,7 +340,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
@@ -342,7 +384,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(100));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
@@ -385,7 +427,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
@@ -428,7 +470,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
@@ -488,7 +530,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
@@ -544,7 +586,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
@@ -620,7 +662,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
@@ -665,7 +707,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
-        address basket = basketManager.createNewBasket(name, symbol, bitFlag, strategyId);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingRedeems, ()), abi.encode(0));
