@@ -318,6 +318,8 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
+        uint256 currentRedeemEpoch = basket.currentRedeemEpoch();
+        assertEq(uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.OPEN));
         basket.requestDeposit(amount, alice);
         vm.stopPrank();
         vm.prank(address(basketManager));
@@ -445,9 +447,16 @@ contract BasketTokenTest is BaseTest {
         uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
         assertEq(basketManagerBalanceBefore, amount);
         uint256 basketBalanceBefore = basket.balanceOf(address(basket));
+        uint256 currentRedeemEpoch = basket.currentRedeemEpoch();
         vm.startPrank(address(basketManager));
         basket.preFulfillRedeem();
+        assertEq(
+            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.REDEEM_PEFULFILLED)
+        );
         basket.fulfillRedeem(amount);
+        assertEq(
+            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.REDEEM_FULFILLED)
+        );
         assertEq(basketManagerBalanceBefore - amount, dummyAsset.balanceOf(address(basketManager)));
         assertEq(basketBalanceBefore - userShares, basket.balanceOf(address(basket)));
         assertEq(basket.pendingRedeemRequest(alice), 0);
@@ -796,10 +805,14 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
         assertEq(basket.totalPendingRedeems(), issuedShares);
         assertEq(basket.pendingRedeemRequest(alice), issuedShares);
+        uint256 currentRedeemEpoch = basket.currentRedeemEpoch();
         vm.startPrank(address(basketManager));
         basket.preFulfillRedeem();
         assertEq(basket.totalPendingRedeems(), 0);
         basket.fallbackRedeemTrigger();
+        assertEq(
+            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.FALLBACK_TRIGGERED)
+        );
         vm.stopPrank();
         uint256 aliceBalanceBefore = basket.balanceOf(alice);
         assertEq(basket.pendingRedeemRequest(alice), 0);
