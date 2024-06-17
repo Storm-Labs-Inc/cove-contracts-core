@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
@@ -114,9 +113,6 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestDeposit_passWhen_pendingDepositRequest() public {
-        // vm.assume(amount > 0 && amount2 > 0 && amount + amount2 < type(uint256).max); // TODO: overflows
-        // bound(amount, 0, type(uint256).max / 2);
-        // bound(amount2, 0, type(uint256).max/ 2);
         uint256 amount = 1e22;
         uint256 amount2 = 1e20;
         dummyAsset.mint(alice, amount);
@@ -199,6 +195,20 @@ contract BasketTokenTest is BaseTest {
         vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
         vm.prank(alice);
         basket.fulfillDeposit(1e18);
+    }
+
+    function test_pendingDepositRequest_returnsZeroWhenFulfilled() public {
+        uint256 amount = 1e18;
+        uint256 shares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        assertEq(basket.pendingDepositRequest(alice), amount);
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(shares);
+        assertEq(basket.pendingDepositRequest(alice), 0);
     }
 
     function test_deposit() public {
@@ -308,12 +318,14 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
+        uint256 currentRedeemEpoch = basket.currentRedeemEpoch();
+        assertEq(uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.OPEN));
         basket.requestDeposit(amount, alice);
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares); // pps = 10
         vm.startPrank(alice);
-        basket.deposit(1e18, alice);
+        basket.deposit(amount, alice);
         uint256 userShares = basket.balanceOf(alice);
         basket.requestRedeem(userShares, alice, alice);
         assertEq(basket.pendingRedeemRequest(alice), userShares);
@@ -435,9 +447,16 @@ contract BasketTokenTest is BaseTest {
         uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
         assertEq(basketManagerBalanceBefore, amount);
         uint256 basketBalanceBefore = basket.balanceOf(address(basket));
+        uint256 currentRedeemEpoch = basket.currentRedeemEpoch();
         vm.startPrank(address(basketManager));
         basket.preFulfillRedeem();
+        assertEq(
+            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.REDEEM_PREFULFILLED)
+        );
         basket.fulfillRedeem(amount);
+        assertEq(
+            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.REDEEM_FULFILLED)
+        );
         assertEq(basketManagerBalanceBefore - amount, dummyAsset.balanceOf(address(basketManager)));
         assertEq(basketBalanceBefore - userShares, basket.balanceOf(address(basket)));
         assertEq(basket.pendingRedeemRequest(alice), 0);
@@ -445,6 +464,29 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.balanceOf(alice), 0);
         assertEq(basket.maxRedeem(alice), issuedShares);
         assertEq(basket.maxWithdraw(alice), amount);
+    }
+
+    function test_pendingRedeemRequest_returnsZeroWhenFulfilled() public {
+        uint256 amount = 1e18;
+        uint256 issuedShares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(issuedShares); // pps = 10
+        vm.startPrank(alice);
+        basket.deposit(amount, alice);
+        uint256 userShares = basket.balanceOf(alice);
+        basket.requestRedeem(userShares, alice, alice);
+        vm.stopPrank();
+        uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
+        assertEq(basketManagerBalanceBefore, amount);
+        vm.startPrank(address(basketManager));
+        basket.preFulfillRedeem();
+        basket.fulfillRedeem(amount);
+        assertEq(basket.pendingRedeemRequest(alice), 0);
     }
 
     function test_preFulfillRedeem_returnsZeroWhen_ZeroPendingRedeems() public {
@@ -494,7 +536,7 @@ contract BasketTokenTest is BaseTest {
         vm.prank(address(basketManager));
         basket.preFulfillRedeem();
         vm.prank(alice);
-        vm.expectRevert(BasketToken.MustClaimOutstandingRedeem.selector);
+        vm.expectRevert(BasketToken.CurrentlyFulfillingRedeem.selector);
         basket.requestRedeem(userShares / 2, alice, alice);
     }
 
@@ -745,6 +787,123 @@ contract BasketTokenTest is BaseTest {
         vm.expectRevert(BasketToken.ZeroPendingRedeems.selector);
         vm.prank(alice);
         basket.cancelRedeemRequest();
+    }
+
+    function test_fallbackCancelRedeemRequest() public {
+        uint256 amount = 1e18;
+        uint256 issuedShares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(issuedShares);
+        vm.startPrank(alice);
+        basket.deposit(amount, alice);
+        basket.requestRedeem(issuedShares);
+        vm.stopPrank();
+        assertEq(basket.totalPendingRedeems(), issuedShares);
+        assertEq(basket.pendingRedeemRequest(alice), issuedShares);
+        uint256 currentRedeemEpoch = basket.currentRedeemEpoch();
+        vm.startPrank(address(basketManager));
+        basket.preFulfillRedeem();
+        assertEq(basket.totalPendingRedeems(), 0);
+        basket.fallbackRedeemTrigger();
+        assertEq(
+            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.FALLBACK_TRIGGERED)
+        );
+        vm.stopPrank();
+        uint256 aliceBalanceBefore = basket.balanceOf(alice);
+        assertEq(basket.pendingRedeemRequest(alice), 0);
+        vm.prank(alice);
+        basket.fallbackCancelRedeemRequest();
+        assertEq(basket.balanceOf(alice), aliceBalanceBefore + issuedShares);
+        assertEq(basket.totalPendingRedeems(), 0);
+        assertEq(basket.pendingRedeemRequest(alice), 0);
+    }
+
+    function test_fallbackCancelRedeemRequest_revertsWhen_fallbackNotTriggered() public {
+        uint256 amount = 1e18;
+        uint256 issuedShares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(issuedShares);
+        vm.startPrank(alice);
+        basket.deposit(amount, alice);
+        basket.requestRedeem(issuedShares);
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.EpochFallbackNotTriggered.selector));
+        basket.fallbackCancelRedeemRequest();
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.preFulfillRedeem();
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.EpochFallbackNotTriggered.selector));
+        vm.prank(alice);
+        basket.fallbackCancelRedeemRequest();
+        vm.prank(address(basketManager));
+        basket.fulfillRedeem(amount);
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.EpochFallbackNotTriggered.selector));
+        vm.prank(alice);
+        basket.fallbackCancelRedeemRequest();
+    }
+
+    function test_cancelRedeemRequest_revertsWhen_fallbackTriggered() public {
+        uint256 amount = 1e18;
+        uint256 issuedShares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(issuedShares);
+        vm.startPrank(alice);
+        basket.deposit(amount, alice);
+        basket.requestRedeem(issuedShares);
+        vm.stopPrank();
+        assertEq(basket.totalPendingRedeems(), issuedShares);
+        assertEq(basket.pendingRedeemRequest(alice), issuedShares);
+        vm.startPrank(address(basketManager));
+        basket.preFulfillRedeem();
+        assertEq(basket.totalPendingRedeems(), 0);
+        basket.fallbackRedeemTrigger();
+        vm.stopPrank();
+        assertEq(basket.pendingRedeemRequest(alice), 0);
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingRedeems.selector));
+        vm.prank(alice);
+        basket.cancelRedeemRequest();
+    }
+
+    function test_redeem_revertsWhen_fallbackTriggered() public {
+        uint256 amount = 1e18;
+        uint256 issuedShares = 1e17;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, alice);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(issuedShares);
+        vm.startPrank(alice);
+        basket.deposit(amount, alice);
+        basket.requestRedeem(issuedShares);
+        vm.stopPrank();
+        assertEq(basket.totalPendingRedeems(), issuedShares);
+        assertEq(basket.pendingRedeemRequest(alice), issuedShares);
+        vm.startPrank(address(basketManager));
+        basket.preFulfillRedeem();
+        assertEq(basket.totalPendingRedeems(), 0);
+        basket.fallbackRedeemTrigger();
+        vm.stopPrank();
+        assertEq(basket.pendingRedeemRequest(alice), 0);
+        uint256 aliceMaxRedeem = basket.maxRedeem(alice);
+        vm.expectRevert(abi.encodeWithSelector(Errors.ZeroAmount.selector));
+        vm.prank(alice);
+        basket.redeem(aliceMaxRedeem, alice, alice);
     }
 
     function test_previewDeposit_reverts() public {
