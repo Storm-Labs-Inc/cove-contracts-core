@@ -14,7 +14,7 @@ import { AnchoredOracle } from "src/AnchoredOracle.sol";
 
 contract AnchoredOracle_ForkedTest is BaseTest {
     uint256 public MAX_DIVERGENCE = 0.02e18; // 2.0%
-    address public WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public USD = address(840); // USD ISO 4217 currency code
     // Ref: https://github.com/euler-xyz/euler-price-oracle/blob/experiments/test/adapter/pyth/PythFeeds.sol
     address public PYTH = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
@@ -32,15 +32,15 @@ contract AnchoredOracle_ForkedTest is BaseTest {
         super.setUp();
 
         // https://pyth.network/price-feeds/crypto-eth-usd
-        primary = new PythOracle(PYTH, WETH, USD, PYTH_ETH_USD_FEED, 15 minutes, 500);
+        primary = new PythOracle(PYTH, ETH, USD, PYTH_ETH_USD_FEED, 15 minutes, 500);
         // https://data.chain.link/feeds/ethereum/mainnet/eth-usd
-        anchor = new ChainlinkOracle(WETH, USD, CHAINLINK_ETH_USD_FEED, 1 days);
+        anchor = new ChainlinkOracle(ETH, USD, CHAINLINK_ETH_USD_FEED, 1 days);
         oracle = new AnchoredOracle(address(primary), address(anchor), MAX_DIVERGENCE);
     }
 
     function test_getQuote_revertWhen_stalePrice() public {
         vm.expectRevert(Errors.PriceOracle_InvalidAnswer.selector);
-        oracle.getQuote(1e18, WETH, USD);
+        oracle.getQuote(1e18, ETH, USD);
     }
 
     function test_getQuote() public {
@@ -49,7 +49,7 @@ contract AnchoredOracle_ForkedTest is BaseTest {
         p.publishTime = block.timestamp - 5 minutes;
         vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (PYTH_ETH_USD_FEED)), abi.encode(p));
 
-        uint256 outAmount = oracle.getQuote(1e18, WETH, USD);
+        uint256 outAmount = oracle.getQuote(1e18, ETH, USD);
         assertEq(outAmount, 349_371_565_257e10);
     }
 }
