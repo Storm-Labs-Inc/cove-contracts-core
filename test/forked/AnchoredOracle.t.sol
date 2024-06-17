@@ -3,9 +3,7 @@ pragma solidity 0.8.23;
 
 import { IPyth } from "@pyth/IPyth.sol";
 import { PythStructs } from "@pyth/PythStructs.sol";
-import { console2 as console } from "forge-std/console2.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
