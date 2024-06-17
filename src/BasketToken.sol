@@ -300,7 +300,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _lastRedeemEpoch[operator] = redeemEpoch;
         _pendingRedeem[operator] = (currentPendingRedeem + shares);
         _totalPendingRedeems = _totalPendingRedeems + shares;
-        // Interactions
         _transfer(requestOwner, address(this), shares);
         emit RedeemRequested(msg.sender, redeemEpoch, operator, requestOwner, shares);
     }
@@ -417,7 +416,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         uint256 pendingRedeem = _pendingRedeem[msg.sender];
         delete _pendingRedeem[msg.sender];
-        // Interactions
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
@@ -465,7 +463,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         delete _pendingRedeem[msg.sender];
         _totalPendingRedeems = _totalPendingRedeems - pendingRedeem;
-        // Interactions
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
@@ -491,8 +488,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // maxMint returns shares at the fulfilled rate only if the deposit has been fulfilled
         shares = maxMint(msg.sender);
         delete _pendingDeposit[msg.sender];
-        // Interactions
-        // TODO: does not work with public transfer(), errors on `transfer amount exceeds balance`
         _transfer(address(this), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
@@ -517,8 +512,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         assets = _pendingDeposit[msg.sender];
         delete _pendingDeposit[msg.sender];
-        // Interactions
-        // TODO does not work with public transfer(), errors on `transfer amount exceeds balance`
         _transfer(address(this), receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
     }
