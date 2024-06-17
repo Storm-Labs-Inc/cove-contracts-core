@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity 0.8.23;
+
+import { IPyth } from "@pyth/IPyth.sol";
+import { PythStructs } from "@pyth/PythStructs.sol";
+import { console2 as console } from "forge-std/console2.sol";
+import { BaseTest } from "test/utils/BaseTest.t.sol";
+import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
+
+import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
+import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
+import { AnchoredOracle } from "src/AnchoredOracle.sol";
+
+contract AnchoredOracle_ForkedTest is BaseTest {
+    uint256 public MAX_DIVERGENCE = 0.02e18; // 2.0%
+    address public WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public USD = address(840); // USD ISO 4217 currency code
+    // Ref: https://github.com/euler-xyz/euler-price-oracle/blob/experiments/test/adapter/pyth/PythFeeds.sol
+    address public PYTH = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
+    bytes32 public PYTH_ETH_USD_FEED = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
+    address public CHAINLINK_ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
+
+    PythOracle public primary;
+    ChainlinkOracle public anchor;
+    AnchoredOracle public oracle;
+
+    function setUp() public override {
+        // Fork ethereum mainnet at block 20113049 for consistent testing and to cache RPC calls
+        // https://etherscan.io/block/20113049
+        forkNetworkAt("mainnet", 20_113_049);
+        super.setUp();
+
+        // https://pyth.network/price-feeds/crypto-eth-usd
+        primary = new PythOracle(PYTH, WETH, USD, PYTH_ETH_USD_FEED, 15 minutes, 500);
+        // https://data.chain.link/feeds/ethereum/mainnet/eth-usd
+        anchor = new ChainlinkOracle(WETH, USD, CHAINLINK_ETH_USD_FEED, 1 days);
+        oracle = new AnchoredOracle(address(primary), address(anchor), MAX_DIVERGENCE);
+    }
+
+    function test_getQuote_revertWhen_stalePrice() public {
+        vm.expectRevert(Errors.PriceOracle_InvalidAnswer.selector);
+        oracle.getQuote(1e18, WETH, USD);
+    }
+
+    function test_getQuote() public {
+        // Ref: https://github.com/euler-xyz/euler-price-oracle/blob/experiments/test/adapter/pyth/PythOracle.fork.t.sol
+        PythStructs.Price memory p = IPyth(PYTH).getPriceUnsafe(PYTH_ETH_USD_FEED);
+        p.publishTime = block.timestamp - 5 minutes;
+        vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (PYTH_ETH_USD_FEED)), abi.encode(p));
+
+        uint256 outAmount = oracle.getQuote(1e18, WETH, USD);
+        assertEq(outAmount, 349_371_565_257e10);
+    }
+}
