@@ -451,7 +451,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(address(basketManager));
         basket.preFulfillRedeem();
         assertEq(
-            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.REDEEM_PEFULFILLED)
+            uint8(basket.redemptionStatus(currentRedeemEpoch)), uint8(BasketToken.RedemptionStatus.REDEEM_PREFULFILLED)
         );
         basket.fulfillRedeem(amount);
         assertEq(

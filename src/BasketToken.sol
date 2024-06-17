@@ -40,13 +40,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /**
      * @notice Enum representing the status of a redeem epoch.
      *   - OPEN: Default status of an epoch.
-     *   - REDEEM_PEFULFILLED: preFulfillRedeem has been called.
+     *   - REDEEM_PREFULFILLED: preFulfillRedeem has been called.
      *   - REDEEM_FULFILLED: fulFillRedeem has been called.
      *   - FALLBACK_TRIGGERED: A fallback redeem has been triggered.
      */
     enum RedemptionStatus {
         OPEN,
-        REDEEM_PEFULFILLED,
+        REDEEM_PREFULFILLED,
         REDEEM_FULFILLED,
         FALLBACK_TRIGGERED
     }
@@ -289,7 +289,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 currentRedeemEpoch = _currentRedeemEpoch;
         // Checks for the case of a user requesting a redeem after a previous redeem request's epoch has been
         // preFulfilled
-        if (_epochStatus[_lastRedeemEpoch[requestOwner]] == RedemptionStatus.REDEEM_PEFULFILLED) {
+        if (_epochStatus[_lastRedeemEpoch[requestOwner]] == RedemptionStatus.REDEEM_PREFULFILLED) {
             revert CurrentlyFulfillingRedeem();
         }
         // Effects
@@ -359,7 +359,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (currentPendingRedeems == 0) {
             return 0;
         }
-        _epochStatus[currentRedeemEpoch] = RedemptionStatus.REDEEM_PEFULFILLED;
+        _epochStatus[currentRedeemEpoch] = RedemptionStatus.REDEEM_PREFULFILLED;
         _currentRedeemEpoch = currentRedeemEpoch + 1;
         _currentRedeemEpochAmount = currentPendingRedeems;
         _totalPendingRedeems = 0;
@@ -375,7 +375,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function fulfillRedeem(uint256 assets) public onlyRole(BASKET_MANAGER_ROLE) {
         uint256 currentRedeemEpochAmount = _currentRedeemEpochAmount;
         uint256 redeemEpoch = _currentRedeemEpoch - 1;
-        if (_epochStatus[redeemEpoch] != RedemptionStatus.REDEEM_PEFULFILLED) {
+        if (_epochStatus[redeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
             revert PreFulFillRedeemNotCalled();
         }
         // Effects
@@ -396,7 +396,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function fallbackRedeemTrigger() public onlyRole(BASKET_MANAGER_ROLE) {
         uint256 previousRedeemEpoch = _currentRedeemEpoch - 1;
-        if (_epochStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PEFULFILLED) {
+        if (_epochStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
             revert PreFulFillRedeemNotCalled();
         }
         // Setting the rate to 0 disallow normal redemption
