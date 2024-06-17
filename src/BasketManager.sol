@@ -66,6 +66,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     /// @notice Rebalancer role. Rebalancers can propose rebalance, propose token swap, and execute token swap.
     bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
+    /// @notice Basket token role. Given to the basket token contracts when they are created.
+    bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
 
     /**
      * State variables
@@ -106,6 +108,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
      * Errors
      */
     error ZeroAddress();
+    error ZeroTotalSupply();
+    error ZeroBurnedShares();
     error BasketTokenNotFound();
     error BasketTokenAlreadyExists();
     error BasketTokenMaxExceeded();
@@ -180,12 +184,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (basketIdToAddress[basketId] != address(0)) {
             revert BasketTokenAlreadyExists();
         }
+        // Checks with external view calls
         if (!allocationResolver.supportsStrategy(bitFlag, strategyId)) {
             revert AllocationResolverDoesNotSupportStrategy();
         }
-        // Effects
-        basket = Clones.clone(basketTokenImplementation);
-        basketTokens.push(basket);
         address[] memory assets = allocationResolver.getAssets(bitFlag);
         if (assets.length == 0) {
             revert AssetListEmpty();
@@ -193,6 +195,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (assets[0] != baseAsset) {
             revert BaseAssetMismatch();
         }
+        // Effects
+        basket = Clones.clone(basketTokenImplementation);
+        _grantRole(BASKET_TOKEN_ROLE, basket);
+        basketTokens.push(basket);
         basketAssets[basket] = assets;
         basketIdToAddress[basketId] = basket;
         unchecked {
@@ -489,6 +495,59 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             }
             unchecked {
                 // Overflow not possible: i is less than basketsToRebalance.length
+                ++i;
+            }
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        FALLBACK REDEEM LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
+     * each underlying asset in the basket pro-rata to the amount of shares redeemed.
+     * @param totalSupplyBefore Total supply of the basket token before the shares were burned.
+     * @param burnedShares Amount of shares burned.
+     * @param to Address to send the redeemed assets to.
+     */
+    function fallbackRedeem(
+        uint256 totalSupplyBefore,
+        uint256 burnedShares,
+        address to
+    )
+        public
+        onlyRole(BASKET_TOKEN_ROLE)
+    {
+        // Checks
+        if (totalSupplyBefore == 0) {
+            revert ZeroTotalSupply();
+        }
+        if (burnedShares == 0) {
+            revert ZeroBurnedShares();
+        }
+        if (to == address(0)) {
+            revert ZeroAddress();
+        }
+        // Revert if a rebalance is in progress
+        if (_rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalance();
+        }
+        // Effects
+        address basket = msg.sender;
+        address[] memory assets = basketAssets[basket];
+        uint256 assetsLength = assets.length;
+        uint256[] memory balances = new uint256[](assetsLength);
+        // Interactions
+        for (uint256 i = 0; i < assetsLength;) {
+            balances[i] = basketBalanceOf[basket][assets[i]];
+            // Rounding direction: down
+            // Division-by-zero is not possible: totalSupplyBefore is greater than 0
+            // when pendingRedeems is greater than 0
+            uint256 amountToWithdraw = burnedShares * balances[i] / totalSupplyBefore;
+            IERC20(assets[i]).safeTransfer(to, amountToWithdraw);
+            unchecked {
+                // Overflow not possible: i is less than assetsLength
                 ++i;
             }
         }

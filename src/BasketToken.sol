@@ -6,6 +6,7 @@ import { AccessControlEnumerableUpgradeable } from
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 // TODO: interfaces will be removed in the future
@@ -390,36 +391,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     }
 
     /**
-     * @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
-     * users to claim their shares back for a redemption in the future and advances the redemption epoch.
-     */
-    function fallbackRedeemTrigger() public onlyRole(BASKET_MANAGER_ROLE) {
-        uint256 previousRedeemEpoch = _currentRedeemEpoch - 1;
-        if (_epochStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
-            revert PreFulFillRedeemNotCalled();
-        }
-        // Setting the rate to 0 disallow normal redemption
-        _epochRedeemRate[previousRedeemEpoch] = 0;
-        _currentRedeemEpochAmount = 0;
-        _epochStatus[previousRedeemEpoch] = RedemptionStatus.FALLBACK_TRIGGERED;
-    }
-
-    /**
-     * @notice Retrieve shares given for a previous redemption request in the event a redemption fulfillment for a
-     * given epoch fails.
-     */
-    function fallbackCancelRedeemRequest() public {
-        // Checks
-        if (_epochStatus[_currentRedeemEpoch - 1] != RedemptionStatus.FALLBACK_TRIGGERED) {
-            revert EpochFallbackNotTriggered();
-        }
-        // Effects
-        uint256 pendingRedeem = _pendingRedeem[msg.sender];
-        delete _pendingRedeem[msg.sender];
-        _transfer(address(this), msg.sender, pendingRedeem);
-    }
-
-    /**
      * @notice Returns the total amount of assets pending deposit.
      * @return The total pending deposit amount.
      */
@@ -464,6 +435,52 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         delete _pendingRedeem[msg.sender];
         _totalPendingRedeems = _totalPendingRedeems - pendingRedeem;
         _transfer(address(this), msg.sender, pendingRedeem);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        FALLBACK REDEEM LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
+     * users to claim their shares back for a redemption in the future and advances the redemption epoch.
+     */
+    function fallbackRedeemTrigger() public onlyRole(BASKET_MANAGER_ROLE) {
+        uint256 previousRedeemEpoch = _currentRedeemEpoch - 1;
+        if (_epochStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
+            revert PreFulFillRedeemNotCalled();
+        }
+        // Setting the rate to 0 disallow normal redemption
+        _epochRedeemRate[previousRedeemEpoch] = 0;
+        _currentRedeemEpochAmount = 0;
+        _epochStatus[previousRedeemEpoch] = RedemptionStatus.FALLBACK_TRIGGERED;
+    }
+
+    /**
+     * @notice Retrieve shares given for a previous redemption request in the event a redemption fulfillment for a
+     * given epoch fails.
+     */
+    function fallbackCancelRedeemRequest() public {
+        // Checks
+        if (_epochStatus[_currentRedeemEpoch - 1] != RedemptionStatus.FALLBACK_TRIGGERED) {
+            revert EpochFallbackNotTriggered();
+        }
+        // Effects
+        uint256 pendingRedeem = _pendingRedeem[msg.sender];
+        delete _pendingRedeem[msg.sender];
+        _transfer(address(this), msg.sender, pendingRedeem);
+    }
+
+    function fallbackRedeem(uint256 shares, address to, address from) public {
+        // Checks
+        // Effects
+        if (msg.sender != from) {
+            _spendAllowance(from, msg.sender, shares);
+        }
+        uint256 totalSupplyBefore = totalSupply();
+        _burn(from, shares);
+        // Interactions
+        BasketManager(basketManager).fallbackRedeem(totalSupplyBefore, shares, to);
     }
 
     /*//////////////////////////////////////////////////////////////
