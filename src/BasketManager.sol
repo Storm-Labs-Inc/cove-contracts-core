@@ -535,17 +535,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
         // Effects
         address basket = msg.sender;
-        address[] memory assets = basketAssets[basket];
+        address[] storage assets = basketAssets[basket];
         uint256 assetsLength = assets.length;
-        uint256[] memory balances = new uint256[](assetsLength);
         // Interactions
         for (uint256 i = 0; i < assetsLength;) {
-            balances[i] = basketBalanceOf[basket][assets[i]];
+            address asset = assets[i];
             // Rounding direction: down
             // Division-by-zero is not possible: totalSupplyBefore is greater than 0
-            // when pendingRedeems is greater than 0
-            uint256 amountToWithdraw = burnedShares * balances[i] / totalSupplyBefore;
-            IERC20(assets[i]).safeTransfer(to, amountToWithdraw);
+            IERC20(asset).safeTransfer(to, burnedShares * basketBalanceOf[basket][asset] / totalSupplyBefore);
             unchecked {
                 // Overflow not possible: i is less than assetsLength
                 ++i;

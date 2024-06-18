@@ -471,6 +471,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
+    /**
+     * @notice Immediately redeems shares for all assets associated with this basket. This is synchronous and does not
+     * require the rebalance process to be completed.
+     * @param shares Number of shares to redeem.
+     * @param to Address to receive the assets.
+     * @param from Address to redeem shares from.
+     */
     function fallbackRedeem(uint256 shares, address to, address from) public {
         // Checks
         // Effects
