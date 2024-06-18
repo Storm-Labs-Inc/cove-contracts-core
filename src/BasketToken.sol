@@ -478,7 +478,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @param to Address to receive the assets.
      * @param from Address to redeem shares from.
      */
-    function fallbackRedeem(uint256 shares, address to, address from) public {
+    function proRataRedeem(uint256 shares, address to, address from) public {
         // Checks
         // Effects
         if (msg.sender != from) {
@@ -487,7 +487,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 totalSupplyBefore = totalSupply();
         _burn(from, shares);
         // Interactions
-        BasketManager(basketManager).fallbackRedeem(totalSupplyBefore, shares, to);
+        BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
     }
 
     /*//////////////////////////////////////////////////////////////
