@@ -117,7 +117,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error BasketsMismatch();
     error BaseAssetMismatch();
     error AssetListEmpty();
-    error MustWaitForRebalance();
+    error MustWaitForRebalanceToComplete();
     error NoRebalanceInProgress();
     error TooEarlyToCompleteRebalance();
     error RebalanceNotRequired();
@@ -256,7 +256,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         // Checks
         // Revert if a rebalance is already in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalance();
+            revert MustWaitForRebalanceToComplete();
         }
         bool shouldRebalance = false;
         uint256 length = basketsToRebalance.length;
@@ -531,7 +531,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
         // Revert if a rebalance is in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalance();
+            revert MustWaitForRebalanceToComplete();
         }
         // Effects
         address basket = msg.sender;
