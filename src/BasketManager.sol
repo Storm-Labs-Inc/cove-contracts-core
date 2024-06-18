@@ -542,6 +542,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             address asset = assets[i];
             // Rounding direction: down
             // Division-by-zero is not possible: totalSupplyBefore is greater than 0
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             IERC20(asset).safeTransfer(to, burnedShares * basketBalanceOf[basket][asset] / totalSupplyBefore);
             unchecked {
                 // Overflow not possible: i is less than assetsLength
