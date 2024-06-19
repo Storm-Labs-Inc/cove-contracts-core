@@ -6,6 +6,8 @@ import { AccessControlEnumerableUpgradeable } from
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+
 import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
@@ -338,7 +340,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         }
         // Effects
         uint256 assets = _totalPendingDeposits;
-        uint256 rate = assets * DECIMAL_BUFFER / shares;
+        uint256 rate = Math.mulDiv(assets, DECIMAL_BUFFER, shares, Math.Rounding.Ceil);
         uint256 depositEpoch = _currentDepositEpoch;
         _epochDepositRate[depositEpoch] = rate;
         _currentDepositEpoch = depositEpoch + 1;
@@ -632,7 +634,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function maxMint(address operator) public view override returns (uint256) {
         uint256 rate = _epochDepositRate[_lastDepositedEpoch[operator]];
-        return rate == 0 ? 0 : _pendingDeposit[operator] * DECIMAL_BUFFER / rate;
+        return rate == 0 ? 0 : Math.mulDiv(_pendingDeposit[operator], DECIMAL_BUFFER, rate);
     }
 
     // Preview functions always revert for async flows

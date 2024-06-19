@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
+import { BasketManager } from "./../../src/BasketManager.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
+import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { DummyERC20 } from "test/utils/mocks/DummyERC20.sol";
 import { MockAssetRegistry } from "test/utils/mocks/MockAssetRegistry.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
@@ -15,7 +17,7 @@ contract BasketTokenTest is BaseTest {
     BasketToken public basketTokenImplementation;
     MockBasketManager public basketManager;
     MockAssetRegistry public assetRegistry;
-    DummyERC20 public dummyAsset;
+    ERC20Mock public dummyAsset;
     address public alice;
     address public owner;
 
@@ -24,7 +26,7 @@ contract BasketTokenTest is BaseTest {
         alice = createUser("alice");
         owner = createUser("owner");
         // create dummy asset
-        dummyAsset = new DummyERC20("Dummy", "DUMB");
+        dummyAsset = new ERC20Mock();
         vm.label(address(dummyAsset), "dummyAsset");
         vm.prank(owner);
         basketTokenImplementation = new BasketToken();
@@ -914,5 +916,56 @@ contract BasketTokenTest is BaseTest {
     function test_previewMint_reverts() public {
         vm.expectRevert();
         basket.previewMint(1);
+    }
+
+    function testFuzz_proRataRedeem(
+        uint256 depositAmount,
+        address to,
+        address from,
+        uint256 sharesMinted,
+        uint256 sharesToRedeem
+    )
+        public
+    {
+        vm.assume(to != address(0));
+        vm.assume(from != address(0));
+        // 1 <= depositAmount <= type(uint256).max
+        // 1 <= sharesMinted <= type(uint256).max
+        // depositAmount / 1e18 <= sharesMinted <= depositAmount * 1e18
+        depositAmount = bound(depositAmount, 1, type(uint256).max);
+        uint256 minSharesMinted = Math.max(depositAmount / 1e18, 1);
+        uint256 maxSharesMinted = depositAmount > type(uint256).max / 1e18 ? type(uint256).max : depositAmount * 1e18;
+        sharesMinted = bound(sharesMinted, minSharesMinted, maxSharesMinted);
+
+        // Approve and requestDeposit
+        dummyAsset.mint(from, depositAmount);
+        vm.startPrank(from);
+        dummyAsset.approve(address(basket), depositAmount);
+        basket.requestDeposit(depositAmount, from);
+        vm.stopPrank();
+
+        // FulfillDeposit from BasketManager
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(sharesMinted);
+
+        // Deposit
+        vm.prank(from);
+        basket.deposit(depositAmount, from);
+        uint256 acutalMinted = basket.balanceOf(from);
+        // Check minted shares
+        assertGt(acutalMinted, 0);
+        assertLe(acutalMinted, sharesMinted);
+        // 1 <= sharesToRedeem <= realSharesMinted <= sharesMinted
+        sharesToRedeem = bound(sharesToRedeem, 1, acutalMinted);
+
+        // proRataRedeem
+        uint256 totalSupply = basket.totalSupply();
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeCall(BasketManager.proRataRedeem, (totalSupply, sharesToRedeem, to)),
+            new bytes(0)
+        );
+        vm.prank(from);
+        basket.proRataRedeem(sharesToRedeem, to, from);
     }
 }
