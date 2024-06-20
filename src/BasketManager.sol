@@ -570,9 +570,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         for (uint256 i = 0; i < externalTrades.length;) {
             ExternalTrade memory trade = externalTrades[i];
             address buyToken = trade.buyToken;
-            uint256 buyTokenAssetIndex = _basketAssetToIndexPlusOne[basket][buyToken] - 1;
             address sellToken = trade.sellToken;
-            uint256 sellTokenAssetIndex = _basketAssetToIndexPlusOne[basket][sellToken] - 1;
             uint256 sellAmount = trade.sellAmount;
 
             // Cache token prices to avoid redundant storage reads
@@ -591,6 +589,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
                 address basket = trade.basketTradeOwnership[j].basket;
                 uint256 basketIndex = _basketToRebalanceIndexPlusOne[basket];
+                uint256 buyTokenAssetIndex = _basketAssetToIndexPlusOne[basket][buyToken] - 1;
+                uint256 sellTokenAssetIndex = _basketAssetToIndexPlusOne[basket][sellToken] - 1;
 
                 // Check if the basket is included in basketsToRebalance
                 // note this also checks if the index was set in a previous call of proposeTokenSwap
@@ -612,7 +612,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // trades are actually executed (I asssume as the exact buy amount is not known yet).
                 _basketAssetAmounts[basketIndex][sellTokenAssetIndex] =
                     _basketAssetAmounts[basketIndex][sellTokenAssetIndex] - sellAmount;
-                _basketAssetAmounts[basketIndex][buyTokenAssetIndex] = _basketAssetAmounts[basketIndex][buyTokenAssetIndex] + internalMinAmount;
+                _basketAssetAmounts[basketIndex][buyTokenAssetIndex] =
+                    _basketAssetAmounts[basketIndex][buyTokenAssetIndex] + internalMinAmount;
                 // Calculate total basket value once per basket
                 if (_totalBasketValue[basketIndex - 1] == 0) {
                     _totalBasketValue[basketIndex - 1] = _basketTotalValue(basket);
