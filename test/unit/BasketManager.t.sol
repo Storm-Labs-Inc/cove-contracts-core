@@ -733,10 +733,13 @@ contract BasketManagerTest is BaseTest {
     }
 
     function testFuzz_proposeTokenSwap_revertWhen_CallerIsNotRebalancer(address caller) public {
+        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
+        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
+        address[] memory targetBaskets = new address[](1);
         vm.assume(!basketManager.hasRole(REBALANCER_ROLE, caller));
         vm.expectRevert(_formatAccessControlError(caller, REBALANCER_ROLE));
         vm.prank(caller);
-        basketManager.proposeTokenSwap();
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
     }
 
     function testFuzz_executeTokenSwap_revertWhen_CallerIsNotRebalancer(address caller) public {
