@@ -4,6 +4,8 @@ pragma solidity 0.8.23;
 import { BasketManager } from "./../../src/BasketManager.sol";
 
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
@@ -45,6 +47,19 @@ contract BasketTokenTest is BaseTest {
     function test_constructor() public {
         vm.expectRevert();
         basketTokenImplementation.initialize(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(0));
+    }
+
+    function testFuzz_constructor_disablesInitializers(
+        address asset,
+        uint256 bitFlag,
+        uint256 strategyId,
+        address owner_
+    )
+        public
+    {
+        BasketToken tokenImpl = new BasketToken();
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        tokenImpl.initialize(ERC20(asset), "Test", "TEST", bitFlag, strategyId, owner_);
     }
 
     function test_initialize() public view {
@@ -176,8 +191,10 @@ contract BasketTokenTest is BaseTest {
         basket.requestDeposit(amount, alice);
         vm.stopPrank();
         uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
+        uint256 depositEpochBefore = basket.currentDepositEpoch();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares);
+        assertEq(basket.currentDepositEpoch(), depositEpochBefore + 1);
         assertEq(dummyAsset.balanceOf(address(basketManager)), basketManagerBalanceBefore + amount);
         assertEq(basket.balanceOf(address(basket)), issuedShares);
         // assertEq(basket.totalAssets(), amount);
@@ -880,6 +897,12 @@ contract BasketTokenTest is BaseTest {
         vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroPendingRedeems.selector));
         vm.prank(alice);
         basket.cancelRedeemRequest();
+    }
+
+    function test_fallbackRedeemTrigger_revertWhen_PreFulFillRedeemNotCalled() public {
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.PreFulFillRedeemNotCalled.selector));
+        vm.prank(address(basketManager));
+        basket.fallbackRedeemTrigger();
     }
 
     function test_redeem_revertsWhen_fallbackTriggered() public {
