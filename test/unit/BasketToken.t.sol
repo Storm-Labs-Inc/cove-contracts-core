@@ -2,6 +2,8 @@
 pragma solidity 0.8.23;
 
 import { BasketManager } from "./../../src/BasketManager.sol";
+
+import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
@@ -966,6 +968,63 @@ contract BasketTokenTest is BaseTest {
             new bytes(0)
         );
         vm.prank(from);
+        basket.proRataRedeem(sharesToRedeem, to, from);
+    }
+
+    function testFuzz_proRataRedeem_revertWhen_ERC20InsufficientAllowance(
+        uint256 depositAmount,
+        address to,
+        address from,
+        address spender,
+        uint256 approveAmount,
+        uint256 sharesMinted,
+        uint256 sharesToRedeem
+    )
+        public
+    {
+        vm.assume(to != address(0));
+        vm.assume(from != address(0));
+        vm.assume(spender != address(0) && spender != from);
+        // 1 <= depositAmount <= type(uint256).max
+        // 1 <= sharesMinted <= type(uint256).max
+        // depositAmount / 1e18 <= sharesMinted <= depositAmount * 1e18
+        depositAmount = bound(depositAmount, 1, type(uint256).max);
+        uint256 minSharesMinted = Math.max(depositAmount / 1e18, 1);
+        uint256 maxSharesMinted = depositAmount > type(uint256).max / 1e18 ? type(uint256).max : depositAmount * 1e18;
+        sharesMinted = bound(sharesMinted, minSharesMinted, maxSharesMinted);
+
+        // Approve and requestDeposit
+        dummyAsset.mint(from, depositAmount);
+        vm.startPrank(from);
+        dummyAsset.approve(address(basket), depositAmount);
+        basket.requestDeposit(depositAmount, from);
+        vm.stopPrank();
+
+        // FulfillDeposit from BasketManager
+        vm.prank(address(basketManager));
+        basket.fulfillDeposit(sharesMinted);
+
+        // Deposit
+        vm.prank(from);
+        basket.deposit(depositAmount, from);
+        uint256 acutalMinted = basket.balanceOf(from);
+        // Check minted shares
+        assertGt(acutalMinted, 0);
+        assertLe(acutalMinted, sharesMinted);
+        // 1 <= sharesToRedeem <= realSharesMinted <= sharesMinted
+        sharesToRedeem = bound(sharesToRedeem, 1, acutalMinted);
+        // 0 <= approveAmount <= sharesToRedeem - 1
+        approveAmount = bound(approveAmount, 0, sharesToRedeem - 1);
+        vm.prank(from);
+        basket.approve(spender, approveAmount);
+
+        // proRataRedeem from another user trying to use from's shares
+        vm.prank(spender);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IERC20Errors.ERC20InsufficientAllowance.selector, spender, approveAmount, sharesToRedeem
+            )
+        );
         basket.proRataRedeem(sharesToRedeem, to, from);
     }
 }

@@ -551,6 +551,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             // Division-by-zero is not possible: totalSupplyBefore is greater than 0
             uint256 amountToWithdraw = Math.mulDiv(burnedShares, balance, totalSupplyBefore);
             if (amountToWithdraw > 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 basketBalanceOf[basket][asset] = balance - amountToWithdraw;
                 IERC20(asset).safeTransfer(to, amountToWithdraw);
             }
