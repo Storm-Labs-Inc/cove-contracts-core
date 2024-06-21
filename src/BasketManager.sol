@@ -519,6 +519,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         address to
     )
         public
+        nonReentrant
         onlyRole(BASKET_TOKEN_ROLE)
     {
         // Checks
@@ -553,6 +554,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             if (amountToWithdraw > 0) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 basketBalanceOf[basket][asset] = balance - amountToWithdraw;
+                // Asset is an allowlisted ERC20 with no reentrancy problem in transfer
+                // slither-disable-next-line reentrancy-no-eth
                 IERC20(asset).safeTransfer(to, amountToWithdraw);
             }
             unchecked {
