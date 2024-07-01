@@ -63,7 +63,7 @@ contract AssetRegistry is AccessControlEnumerable {
     constructor(address admin) payable {
         if (admin == address(0)) revert Errors.ZeroAddress();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(_MANAGER_ROLE, msg.sender);
+        _grantRole(_MANAGER_ROLE, admin);
     }
 
     /**
