@@ -8,6 +8,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
@@ -66,6 +68,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     /// @notice Rebalancer role. Rebalancers can propose rebalance, propose token swap, and execute token swap.
     bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
+    /// @notice Basket token role. Given to the basket token contracts when they are created.
+    bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
 
     /**
      * State variables
@@ -106,6 +110,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
      * Errors
      */
     error ZeroAddress();
+    error ZeroTotalSupply();
+    error ZeroBurnedShares();
+    error CannotBurnMoreSharesThanTotalSupply();
     error BasketTokenNotFound();
     error BasketTokenAlreadyExists();
     error BasketTokenMaxExceeded();
@@ -113,7 +120,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error BasketsMismatch();
     error BaseAssetMismatch();
     error AssetListEmpty();
-    error MustWaitForRebalance();
+    error MustWaitForRebalanceToComplete();
     error NoRebalanceInProgress();
     error TooEarlyToCompleteRebalance();
     error RebalanceNotRequired();
@@ -180,12 +187,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (basketIdToAddress[basketId] != address(0)) {
             revert BasketTokenAlreadyExists();
         }
+        // Checks with external view calls
         if (!allocationResolver.supportsStrategy(bitFlag, strategyId)) {
             revert AllocationResolverDoesNotSupportStrategy();
         }
-        // Effects
-        basket = Clones.clone(basketTokenImplementation);
-        basketTokens.push(basket);
         address[] memory assets = allocationResolver.getAssets(bitFlag);
         if (assets.length == 0) {
             revert AssetListEmpty();
@@ -193,6 +198,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (assets[0] != baseAsset) {
             revert BaseAssetMismatch();
         }
+        // Effects
+        basket = Clones.clone(basketTokenImplementation);
+        _grantRole(BASKET_TOKEN_ROLE, basket);
+        basketTokens.push(basket);
         basketAssets[basket] = assets;
         basketIdToAddress[basketId] = basket;
         unchecked {
@@ -250,7 +259,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         // Checks
         // Revert if a rebalance is already in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalance();
+            revert MustWaitForRebalanceToComplete();
         }
         bool shouldRebalance = false;
         uint256 length = basketsToRebalance.length;
@@ -281,7 +290,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // priceOfAssets[j] = usdPrice;
                 priceOfAssets[j] = 1e18;
                 // Rounding direction: down
-                basketValue += balances[j] * priceOfAssets[j] / 1e18;
+                basketValue += FixedPointMathLib.fullMulDiv(balances[j], priceOfAssets[j], 1e18);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -296,11 +305,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                     // Assume the first asset listed in the basket is the base asset
                     // Round direction: down
                     // slither-disable-next-line divide-before-multiply
-                    uint256 pendingDepositValue = pendingDeposit * priceOfAssets[0] / 1e18;
+                    uint256 pendingDepositValue = FixedPointMathLib.fullMulDiv(pendingDeposit, priceOfAssets[0], 1e18);
                     // Rounding direction: down
                     // Division-by-zero is not possible: basketValue is greater than 0
-                    uint256 requiredDepositShares =
-                        basketValue > 0 ? pendingDepositValue * totalSupply / basketValue : pendingDeposit;
+                    uint256 requiredDepositShares = basketValue > 0
+                        ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
+                        : pendingDeposit;
                     totalSupply += requiredDepositShares;
                     basketValue += pendingDepositValue;
                     // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -341,15 +351,15 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // Update the target balances
                 // Rounding direction: down
                 // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
-                targetBalances[0] =
-                    (proposedTargetWeights[0] * basketValue + requiredWithdrawValue * 1e18) / priceOfAssets[0];
-                for (uint256 j = 1; j < assetsLength;) {
-                    targetBalances[j] = proposedTargetWeights[j] * basketValue / priceOfAssets[j];
+                for (uint256 j = 0; j < assetsLength;) {
+                    targetBalances[j] =
+                        FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, priceOfAssets[j]);
                     unchecked {
                         // Overflow not possible: j is less than assetsLength
                         ++j;
                     }
                 }
+                targetBalances[0] += FixedPointMathLib.fullMulDiv(requiredWithdrawValue, 1e18, priceOfAssets[0]);
             }
 
             // Check if rebalance is needed
@@ -360,7 +370,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // TODO: Update the logic to trigger a rebalance
                 console.log("balances[%s]: %s", j, balances[j]);
                 console.log("targetBalances[%s]: %s", j, targetBalances[j]);
-                if (MathUtils.diff(balances[j], targetBalances[j]) * priceOfAssets[j] / 1e18 > 500) {
+                if (
+                    FixedPointMathLib.fullMulDiv(MathUtils.diff(balances[j], targetBalances[j]), priceOfAssets[j], 1e18)
+                        > 500
+                ) {
                     shouldRebalance = true;
                     break;
                 }
@@ -451,7 +464,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // priceOfAssets[j] = usdPrice;
                 priceOfAssets[j] = 1e18;
                 // Rounding direction: down
-                basketValue += balances[j] * priceOfAssets[j] / 1e18;
+                basketValue += FixedPointMathLib.fullMulDiv(balances[j], priceOfAssets[j], 1e18);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -469,8 +482,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // Division-by-zero is not possible: priceOfAssets[0] is greater than 0, totalSupply is greater than 0
                 // when pendingRedeems is greater than 0
                 // slither-disable-next-line calls-loop
-                uint256 withdrawAmount =
-                    pendingRedeems_ * basketValue * 1e18 / BasketToken(basket).totalSupply() / priceOfAssets[0];
+                uint256 withdrawAmount = FixedPointMathLib.fullMulDiv(
+                    FixedPointMathLib.fullMulDiv(basketValue, 1e18, priceOfAssets[0]),
+                    pendingRedeems_,
+                    BasketToken(basket).totalSupply()
+                );
                 if (withdrawAmount <= balances[0]) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[0]
@@ -489,6 +505,69 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             }
             unchecked {
                 // Overflow not possible: i is less than basketsToRebalance.length
+                ++i;
+            }
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        FALLBACK REDEEM LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
+     * each underlying asset in the basket pro-rata to the amount of shares redeemed.
+     * @param totalSupplyBefore Total supply of the basket token before the shares were burned.
+     * @param burnedShares Amount of shares burned.
+     * @param to Address to send the redeemed assets to.
+     */
+    function proRataRedeem(
+        uint256 totalSupplyBefore,
+        uint256 burnedShares,
+        address to
+    )
+        public
+        nonReentrant
+        onlyRole(BASKET_TOKEN_ROLE)
+    {
+        // Checks
+        if (totalSupplyBefore == 0) {
+            revert ZeroTotalSupply();
+        }
+        if (burnedShares == 0) {
+            revert ZeroBurnedShares();
+        }
+        if (burnedShares > totalSupplyBefore) {
+            revert CannotBurnMoreSharesThanTotalSupply();
+        }
+        if (to == address(0)) {
+            revert ZeroAddress();
+        }
+        // Revert if a rebalance is in progress
+        if (_rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        // Effects
+        address basket = msg.sender;
+        address[] storage assets = basketAssets[basket];
+        uint256 assetsLength = assets.length;
+        // Interactions
+        for (uint256 i = 0; i < assetsLength;) {
+            address asset = assets[i];
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            uint256 balance = basketBalanceOf[basket][asset];
+            // Rounding direction: down
+            // Division-by-zero is not possible: totalSupplyBefore is greater than 0
+            uint256 amountToWithdraw = FixedPointMathLib.fullMulDiv(burnedShares, balance, totalSupplyBefore);
+            if (amountToWithdraw > 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                basketBalanceOf[basket][asset] = balance - amountToWithdraw;
+                // Asset is an allowlisted ERC20 with no reentrancy problem in transfer
+                // slither-disable-next-line reentrancy-no-eth
+                IERC20(asset).safeTransfer(to, amountToWithdraw);
+            }
+            unchecked {
+                // Overflow not possible: i is less than assetsLength
                 ++i;
             }
         }

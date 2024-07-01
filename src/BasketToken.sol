@@ -6,6 +6,9 @@ import { AccessControlEnumerableUpgradeable } from
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+
+import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 // TODO: interfaces will be removed in the future
@@ -337,7 +340,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         }
         // Effects
         uint256 assets = _totalPendingDeposits;
-        uint256 rate = assets * DECIMAL_BUFFER / shares;
+        uint256 rate = FixedPointMathLib.fullMulDivUp(assets, DECIMAL_BUFFER, shares);
         uint256 depositEpoch = _currentDepositEpoch;
         _epochDepositRate[depositEpoch] = rate;
         _currentDepositEpoch = depositEpoch + 1;
@@ -390,36 +393,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     }
 
     /**
-     * @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
-     * users to claim their shares back for a redemption in the future and advances the redemption epoch.
-     */
-    function fallbackRedeemTrigger() public onlyRole(BASKET_MANAGER_ROLE) {
-        uint256 previousRedeemEpoch = _currentRedeemEpoch - 1;
-        if (_epochStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
-            revert PreFulFillRedeemNotCalled();
-        }
-        // Setting the rate to 0 disallow normal redemption
-        _epochRedeemRate[previousRedeemEpoch] = 0;
-        _currentRedeemEpochAmount = 0;
-        _epochStatus[previousRedeemEpoch] = RedemptionStatus.FALLBACK_TRIGGERED;
-    }
-
-    /**
-     * @notice Retrieve shares given for a previous redemption request in the event a redemption fulfillment for a
-     * given epoch fails.
-     */
-    function fallbackCancelRedeemRequest() public {
-        // Checks
-        if (_epochStatus[_currentRedeemEpoch - 1] != RedemptionStatus.FALLBACK_TRIGGERED) {
-            revert EpochFallbackNotTriggered();
-        }
-        // Effects
-        uint256 pendingRedeem = _pendingRedeem[msg.sender];
-        delete _pendingRedeem[msg.sender];
-        _transfer(address(this), msg.sender, pendingRedeem);
-    }
-
-    /**
      * @notice Returns the total amount of assets pending deposit.
      * @return The total pending deposit amount.
      */
@@ -464,6 +437,59 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         delete _pendingRedeem[msg.sender];
         _totalPendingRedeems = _totalPendingRedeems - pendingRedeem;
         _transfer(address(this), msg.sender, pendingRedeem);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        FALLBACK REDEEM LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
+     * users to claim their shares back for a redemption in the future and advances the redemption epoch.
+     */
+    function fallbackRedeemTrigger() public onlyRole(BASKET_MANAGER_ROLE) {
+        uint256 previousRedeemEpoch = _currentRedeemEpoch - 1;
+        if (_epochStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
+            revert PreFulFillRedeemNotCalled();
+        }
+        // Setting the rate to 0 to disallow normal redemption
+        _epochRedeemRate[previousRedeemEpoch] = 0;
+        _currentRedeemEpochAmount = 0;
+        _epochStatus[previousRedeemEpoch] = RedemptionStatus.FALLBACK_TRIGGERED;
+    }
+
+    /**
+     * @notice Retrieve shares given for a previous redemption request in the event a redemption fulfillment for a
+     * given epoch fails.
+     */
+    function fallbackCancelRedeemRequest() public {
+        // Checks
+        if (_epochStatus[_currentRedeemEpoch - 1] != RedemptionStatus.FALLBACK_TRIGGERED) {
+            revert EpochFallbackNotTriggered();
+        }
+        // Effects
+        uint256 pendingRedeem = _pendingRedeem[msg.sender];
+        delete _pendingRedeem[msg.sender];
+        _transfer(address(this), msg.sender, pendingRedeem);
+    }
+
+    /**
+     * @notice Immediately redeems shares for all assets associated with this basket. This is synchronous and does not
+     * require the rebalance process to be completed.
+     * @param shares Number of shares to redeem.
+     * @param to Address to receive the assets.
+     * @param from Address to redeem shares from.
+     */
+    function proRataRedeem(uint256 shares, address to, address from) public {
+        // Checks
+        // Effects
+        if (msg.sender != from) {
+            _spendAllowance(from, msg.sender, shares);
+        }
+        uint256 totalSupplyBefore = totalSupply();
+        _burn(from, shares);
+        // Interactions
+        BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -608,7 +634,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function maxMint(address operator) public view override returns (uint256) {
         uint256 rate = _epochDepositRate[_lastDepositedEpoch[operator]];
-        return rate == 0 ? 0 : _pendingDeposit[operator] * DECIMAL_BUFFER / rate;
+        return rate == 0 ? 0 : FixedPointMathLib.fullMulDiv(_pendingDeposit[operator], DECIMAL_BUFFER, rate);
     }
 
     // Preview functions always revert for async flows
