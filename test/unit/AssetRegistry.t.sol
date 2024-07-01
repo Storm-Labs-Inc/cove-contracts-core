@@ -168,75 +168,69 @@ contract AssetRegistry_Test is BaseTest {
         assertFalse(paused);
     }
 
-    function test_pauseAsset_revertWhen_zeroAddress() public {
+    function test_setAssetPaused_revertWhen_zeroAddress() public {
         vm.expectRevert(Errors.ZeroAddress.selector);
-        assetRegistry.pauseAsset(address(0));
+        assetRegistry.setAssetPaused(address(0), true);
     }
 
-    function testFuzz_pauseAsset_revertWhen_notEnabled(address asset) public {
+    function testFuzz_setAssetPaused_revertWhen_notEnabled(address asset) public {
         vm.assume(asset != address(0));
 
         vm.expectRevert(AssetRegistry.AssetNotEnabled.selector);
-        assetRegistry.pauseAsset(asset);
+        assetRegistry.setAssetPaused(asset, true);
     }
 
-    function testFuzz_pauseAsset_revertWhen_alreadyPaused(address asset) public {
-        vm.assume(asset != address(0));
-
-        assetRegistry.addAsset(asset);
-        assetRegistry.pauseAsset(asset);
-
-        vm.expectRevert(AssetRegistry.AssetAlreadyPaused.selector);
-        assetRegistry.pauseAsset(asset);
-    }
-
-    function testFuzz_pauseAsset(address asset) public {
+    function testFuzz_setAssetPaused_pause(address asset) public {
         vm.assume(asset != address(0));
 
         assetRegistry.addAsset(asset);
 
         vm.expectEmit();
-        emit AssetRegistry.PauseAsset(asset);
-        assetRegistry.pauseAsset(asset);
+        emit AssetRegistry.SetAssetPaused(asset, true);
+        assetRegistry.setAssetPaused(asset, true);
 
         (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
         assertTrue(enabled);
         assertTrue(paused);
     }
 
-    function test_unpauseAsset_revertWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
-        assetRegistry.unpauseAsset(address(0));
-    }
-
-    function testFuzz_unpauseAsset_revertWhen_notEnabled(address asset) public {
-        vm.assume(asset != address(0));
-
-        vm.expectRevert(AssetRegistry.AssetNotEnabled.selector);
-        assetRegistry.unpauseAsset(asset);
-    }
-
-    function testFuzz_unpauseAsset_revertWhen_alreadyUnpaused(address asset) public {
+    function testFuzz_setAssetPaused_unpause(address asset) public {
         vm.assume(asset != address(0));
 
         assetRegistry.addAsset(asset);
-
-        vm.expectRevert(AssetRegistry.AssetNotPaused.selector);
-        assetRegistry.unpauseAsset(asset);
-    }
-
-    function testFuzz_unpauseAsset(address asset) public {
-        vm.assume(asset != address(0));
-
-        assetRegistry.addAsset(asset);
-        assetRegistry.pauseAsset(asset);
+        assetRegistry.setAssetPaused(asset, true);
 
         vm.expectEmit();
-        emit AssetRegistry.UnpauseAsset(asset);
-        assetRegistry.unpauseAsset(asset);
+        emit AssetRegistry.SetAssetPaused(asset, false);
+        assetRegistry.setAssetPaused(asset, false);
 
         (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
         assertTrue(enabled);
         assertFalse(paused);
+    }
+
+    function testFuzz_setAssetPaused_revertWhen_noStateChange(address asset) public {
+        vm.assume(asset != address(0));
+
+        assetRegistry.addAsset(asset);
+
+        // Attempt to set paused to false when it's already false
+        vm.expectRevert(AssetRegistry.AssetInvalidPauseUpdate.selector);
+        assetRegistry.setAssetPaused(asset, false);
+
+        (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
+        assertTrue(enabled);
+        assertFalse(paused);
+
+        // Pause the asset
+        assetRegistry.setAssetPaused(asset, true);
+
+        // Attempt to set paused to true when it's already true
+        vm.expectRevert(AssetRegistry.AssetInvalidPauseUpdate.selector);
+        assetRegistry.setAssetPaused(asset, true);
+
+        (enabled, paused) = assetRegistry.getAssetStatus(asset);
+        assertTrue(enabled);
+        assertTrue(paused);
     }
 }

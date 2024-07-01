@@ -40,10 +40,8 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     /// @dev Emitted when a new asset is added to the registry.
     event AddAsset(address indexed asset);
-    /// @dev Emitted when an asset is paused in the registry.
-    event PauseAsset(address indexed asset);
-    /// @dev Emitted when an asset is unpaused in the registry.
-    event UnpauseAsset(address indexed asset);
+    /// @dev Emitted when an asset's pause status is updated.
+    event SetAssetPaused(address indexed asset, bool paused);
 
     /**
      * Errors
@@ -52,10 +50,8 @@ contract AssetRegistry is AccessControlEnumerable {
     error AssetAlreadyEnabled();
     /// @notice Thrown when attempting to perform an operation on an asset that is not enabled in the registry.
     error AssetNotEnabled();
-    /// @notice Thrown when attempting to pause an asset that is already in a paused state.
-    error AssetAlreadyPaused();
-    /// @notice Thrown when attempting to unpause an asset that is already unpaused.
-    error AssetNotPaused();
+    /// @notice Thrown when attempting to set the pause status for an asset to the existing status.
+    error AssetInvalidPauseUpdate();
 
     /**
      * @notice Initializes the AssetRegistry contract
@@ -82,34 +78,14 @@ contract AssetRegistry is AccessControlEnumerable {
         emit AddAsset(asset);
     }
 
-    /**
-     * @notice Pauses an asset in the registry
-     * @dev Only callable by accounts with the MANAGER_ROLE
-     * @param asset The address of the asset to be paused
-     */
-    function pauseAsset(address asset) external onlyRole(_MANAGER_ROLE) {
+    function setAssetPaused(address asset, bool pause) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
         AssetStatus storage status = _assetRegistry[asset];
         if (!status.enabled) revert AssetNotEnabled();
-        if (status.paused) revert AssetAlreadyPaused();
+        if (pause == status.paused) revert AssetInvalidPauseUpdate();
 
-        status.paused = true;
-        emit PauseAsset(asset);
-    }
-
-    /**
-     * @notice Unpauses an asset in the registry
-     * @dev Only callable by accounts with the MANAGER_ROLE
-     * @param asset The address of the asset to be unpaused
-     */
-    function unpauseAsset(address asset) external onlyRole(_MANAGER_ROLE) {
-        if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetStatus storage status = _assetRegistry[asset];
-        if (!status.enabled) revert AssetNotEnabled();
-        if (!status.paused) revert AssetNotPaused();
-
-        status.paused = false;
-        emit UnpauseAsset(asset);
+        status.paused = pause;
+        emit SetAssetPaused(asset, pause);
     }
 
     /**
