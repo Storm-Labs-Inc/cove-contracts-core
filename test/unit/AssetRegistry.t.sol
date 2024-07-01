@@ -203,4 +203,40 @@ contract AssetRegistry_Test is BaseTest {
         assertTrue(enabled);
         assertTrue(paused);
     }
+
+    function test_unpauseAsset_revertWhen_zeroAddress() public {
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        assetRegistry.unpauseAsset(address(0));
+    }
+
+    function testFuzz_unpauseAsset_revertWhen_notEnabled(address asset) public {
+        vm.assume(asset != address(0));
+
+        vm.expectRevert(AssetRegistry.AssetNotEnabled.selector);
+        assetRegistry.unpauseAsset(asset);
+    }
+
+    function testFuzz_unpauseAsset_revertWhen_alreadyUnpaused(address asset) public {
+        vm.assume(asset != address(0));
+
+        assetRegistry.addAsset(asset);
+
+        vm.expectRevert(AssetRegistry.AssetNotPaused.selector);
+        assetRegistry.unpauseAsset(asset);
+    }
+
+    function testFuzz_unpauseAsset(address asset) public {
+        vm.assume(asset != address(0));
+
+        assetRegistry.addAsset(asset);
+        assetRegistry.pauseAsset(asset);
+
+        vm.expectEmit();
+        emit AssetRegistry.UnpauseAsset(asset);
+        assetRegistry.unpauseAsset(asset);
+
+        (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
+        assertTrue(enabled);
+        assertFalse(paused);
+    }
 }

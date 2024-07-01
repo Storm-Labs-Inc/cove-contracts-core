@@ -40,9 +40,10 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     /// @dev Emitted when a new asset is added to the registry.
     event AddAsset(address indexed asset);
-
     /// @dev Emitted when an asset is paused in the registry.
     event PauseAsset(address indexed asset);
+    /// @dev Emitted when an asset is unpaused in the registry.
+    event UnpauseAsset(address indexed asset);
 
     /**
      * Errors
@@ -53,6 +54,8 @@ contract AssetRegistry is AccessControlEnumerable {
     error AssetNotEnabled();
     /// @notice Thrown when attempting to pause an asset that is already in a paused state.
     error AssetAlreadyPaused();
+    /// @notice Thrown when attempting to unpause an asset that is already unpaused.
+    error AssetNotPaused();
 
     /**
      * @notice Initializes the AssetRegistry contract
@@ -92,6 +95,21 @@ contract AssetRegistry is AccessControlEnumerable {
 
         status.paused = true;
         emit PauseAsset(asset);
+    }
+
+    /**
+     * @notice Unpauses an asset in the registry
+     * @dev Only callable by accounts with the MANAGER_ROLE
+     * @param asset The address of the asset to be unpaused
+     */
+    function unpauseAsset(address asset) external onlyRole(_MANAGER_ROLE) {
+        if (asset == address(0)) revert Errors.ZeroAddress();
+        AssetStatus storage status = _assetRegistry[asset];
+        if (!status.enabled) revert AssetNotEnabled();
+        if (!status.paused) revert AssetNotPaused();
+
+        status.paused = false;
+        emit UnpauseAsset(asset);
     }
 
     /**
