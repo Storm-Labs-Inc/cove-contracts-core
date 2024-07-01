@@ -57,6 +57,8 @@ contract AssetRegistry is AccessControlEnumerable {
      * @notice Initializes the AssetRegistry contract
      * @dev Sets up initial roles for admin and manager
      * @param admin The address to be granted the DEFAULT_ADMIN_ROLE
+     * @dev Reverts if:
+     *      - The admin address is zero (Errors.ZeroAddress)
      */
     // slither-disable-next-line locked-ether
     constructor(address admin) payable {
@@ -69,6 +71,10 @@ contract AssetRegistry is AccessControlEnumerable {
      * @notice Adds a new asset to the registry
      * @dev Only callable by accounts with the MANAGER_ROLE
      * @param asset The address of the asset to be added
+     * @dev Reverts if:
+     *      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
+     *      - The asset address is zero (Errors.ZeroAddress)
+     *      - The asset is already enabled (AssetAlreadyEnabled)
      */
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
@@ -78,6 +84,17 @@ contract AssetRegistry is AccessControlEnumerable {
         emit AddAsset(asset);
     }
 
+    /**
+     * @notice Sets the pause status of an asset in the registry
+     * @dev Only callable by accounts with the MANAGER_ROLE
+     * @param asset The address of the asset to update
+     * @param pause The new pause status to set (true for paused, false for unpaused)
+     * @dev Reverts if:
+     *      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
+     *      - The asset address is zero (Errors.ZeroAddress)
+     *      - The asset is not enabled in the registry (AssetNotEnabled)
+     *      - The new pause status is the same as the current status (AssetInvalidPauseUpdate)
+     */
     function setAssetPaused(address asset, bool pause) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
         AssetStatus storage status = _assetRegistry[asset];
