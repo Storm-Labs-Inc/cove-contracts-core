@@ -8,6 +8,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
+import { console2 as console } from "forge-std/console2.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
@@ -35,7 +36,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * Constants
      */
     bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
-    uint256 public constant DECIMAL_BUFFER = 1e18;
+    uint256 private constant DECIMAL_BUFFER = 1e18;
+    /// @dev The maximum rate that a deposit or redemption can be fulfilled at.
+    uint256 private constant MAX_RATE = 1e28;
+    /// @dev The minimum rate that a deposit or redemption can be fulfilled at.
+    uint256 private constant MIN_RATE = 1e8;
 
     /**
      * Structs
@@ -54,6 +59,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         FALLBACK_TRIGGERED
     }
 
+    struct Request {
+        uint256 assets;
+        uint256 shares;
+    }
+
     /**
      * State variables
      */
@@ -62,25 +72,19 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Mapping of operator to the amount of shares pending redemption
     mapping(address operator => uint256 shares) internal _pendingRedeem;
     /// @notice Mapping of epoch to the rate that deposit requests were fulfilled
-    mapping(uint256 epoch => uint256 rate) internal _epochDepositRate;
+    mapping(uint256 epoch => Request depositRequest) internal _epochDepositRequests;
     /// @notice Mapping of epoch to the rate that redemption requests were fulfilled
-    mapping(uint256 epoch => uint256 rate) internal _epochRedeemRate;
+    mapping(uint256 epoch => Request redeemRequest) internal _epochRedeemRequests;
     /// @notice Mapping of operator to the epoch of the last deposit request
     mapping(address operator => uint256 epoch) internal _lastDepositedEpoch;
     /// @notice Mapping of operator to the epoch of the last redemption request
     mapping(address operator => uint256 epoch) internal _lastRedeemEpoch;
     /// @notice Mapping of epoch to its current status
     mapping(uint256 epoch => RedemptionStatus) internal _epochStatus;
-    /// @notice Total amount of assets pending deposit
-    uint256 internal _totalPendingDeposits;
-    /// @notice Total amount of shares pending redemption
-    uint256 internal _totalPendingRedeems;
     /// @notice Latest deposit epoch, initialized as 1
     uint256 internal _currentDepositEpoch;
     /// @notice Latest redemption epoch, initialized as 1
     uint256 internal _currentRedeemEpoch;
-    /// @notice Amount of shares pending redemption for the current epoch
-    uint256 internal _currentRedeemEpochAmount;
     /// @notice Address of the owner of the contract, used to set the BasketManager and AssetRegistry
     address public owner;
     /// @notice Address of the BasketManager contract used to fulfill deposit and redemption requests and manage
@@ -117,6 +121,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     error PreFulFillRedeemNotCalled();
     error EpochFallbackNotTriggered();
     error CurrentlyFulfillingRedeem();
+    error InvalidRate();
+    error CannotFulfillWithZeroShares();
 
     /**
      * @notice Disables the ability to call initializers.
@@ -185,11 +191,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     }
 
     /**
-     * @notice Returns the total asset value of the basket reported by the BasketManager.
-     * @return The total asset value.
+     * @notice Returns the value of the basket in assets. This will be an estimate as it does not account for other
+     * factors that may affect the swap rates.
+     * @return The total value of the basket in assets.
      */
     function totalAssets() public view override returns (uint256) {
         // Below will not be effected by pending assets
+        // TODO: Replace this with value of the basket divided by the value of the asset
         return IBasketManager(basketManager).totalAssetValue(strategyId);
     }
 
@@ -243,7 +251,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 depositEpoch = _currentDepositEpoch;
         _lastDepositedEpoch[receiver] = depositEpoch;
         _pendingDeposit[receiver] = (currentPendingAssets + assets);
-        _totalPendingDeposits = _totalPendingDeposits + assets;
+        Request storage depositRequest = _epochDepositRequests[depositEpoch];
+        depositRequest.assets = (depositRequest.assets + assets);
         emit DepositRequested(receiver, depositEpoch, assets);
         // Interactions
         // Assets are immediately transferrred to here to await the basketManager to pull them
@@ -302,7 +311,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 currentPendingRedeem = _pendingRedeem[operator];
         _lastRedeemEpoch[operator] = redeemEpoch;
         _pendingRedeem[operator] = (currentPendingRedeem + shares);
-        _totalPendingRedeems = _totalPendingRedeems + shares;
+        Request storage redeemRequest = _epochRedeemRequests[redeemEpoch];
+        redeemRequest.shares = (redeemRequest.shares + shares);
         _transfer(requestOwner, address(this), shares);
         emit RedeemRequested(msg.sender, redeemEpoch, operator, requestOwner, shares);
     }
@@ -335,16 +345,18 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function fulfillDeposit(uint256 shares) public onlyRole(BASKET_MANAGER_ROLE) {
         // Checks
-        if (_totalPendingDeposits == 0) {
+        uint256 depositEpoch = _currentDepositEpoch;
+        Request storage depositRequest = _epochDepositRequests[depositEpoch];
+        uint256 assets = depositRequest.assets;
+        if (assets == 0) {
             revert ZeroPendingDeposits();
         }
+        if (shares == 0) {
+            revert CannotFulfillWithZeroShares();
+        }
         // Effects
-        uint256 assets = _totalPendingDeposits;
-        uint256 rate = FixedPointMathLib.fullMulDivUp(assets, DECIMAL_BUFFER, shares);
-        uint256 depositEpoch = _currentDepositEpoch;
-        _epochDepositRate[depositEpoch] = rate;
+        depositRequest.shares = shares;
         _currentDepositEpoch = depositEpoch + 1;
-        _totalPendingDeposits = 0;
         _mint(address(this), shares);
         // Interactions
         IERC20(asset()).safeTransfer(msg.sender, assets);
@@ -356,15 +368,14 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * rebalance process. When there are no pending redeems, the epoch is not advanced.
      */
     function preFulfillRedeem() public onlyRole(BASKET_MANAGER_ROLE) returns (uint256) {
-        uint256 currentPendingRedeems = _totalPendingRedeems;
         uint256 redeemEpoch = _currentRedeemEpoch;
+        Request storage redeemRequest = _epochRedeemRequests[redeemEpoch];
+        uint256 currentPendingRedeems = redeemRequest.shares;
         if (currentPendingRedeems == 0) {
             return 0;
         }
         _epochStatus[redeemEpoch] = RedemptionStatus.REDEEM_PREFULFILLED;
         _currentRedeemEpoch = redeemEpoch + 1;
-        _currentRedeemEpochAmount = currentPendingRedeems;
-        _totalPendingRedeems = 0;
         return currentPendingRedeems;
     }
 
@@ -375,17 +386,15 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @param assets The amount of assets the redemption was fulfilled with.
      */
     function fulfillRedeem(uint256 assets) public onlyRole(BASKET_MANAGER_ROLE) {
-        uint256 currentRedeemEpochAmount = _currentRedeemEpochAmount;
         uint256 redeemEpoch = _currentRedeemEpoch - 1;
+        Request storage redeemRequest = _epochRedeemRequests[redeemEpoch];
+        uint256 shares = redeemRequest.shares;
+        // The currentRedeemEpoch was incremented in preFulfillRedeem
         if (_epochStatus[redeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
             revert PreFulFillRedeemNotCalled();
         }
         // Effects
-        uint256 shares = currentRedeemEpochAmount;
-        uint256 rate = assets * DECIMAL_BUFFER / shares;
-        // The currentRedeemEpoch was incremented in preFulfillRedeem
-        _epochRedeemRate[redeemEpoch] = rate;
-        _currentRedeemEpochAmount = 0;
+        _epochRedeemRequests[redeemEpoch] = Request(assets, shares);
         _epochStatus[redeemEpoch] = RedemptionStatus.REDEEM_FULFILLED;
         _burn(address(this), shares);
         // Interactions
@@ -397,7 +406,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The total pending deposit amount.
      */
     function totalPendingDeposits() public view returns (uint256) {
-        return _totalPendingDeposits;
+        Request storage depositRequest = _epochDepositRequests[_currentDepositEpoch];
+        return depositRequest.assets;
     }
 
     /**
@@ -405,7 +415,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The total pending redeem amount.
      */
     function totalPendingRedeems() public view returns (uint256) {
-        return _totalPendingRedeems;
+        Request storage redeemRequest = _epochRedeemRequests[_currentRedeemEpoch];
+        return redeemRequest.shares;
     }
 
     /**
@@ -419,7 +430,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         }
         // Effects
         delete _pendingDeposit[msg.sender];
-        _totalPendingDeposits = _totalPendingDeposits - pendingDeposit;
+        Request storage depositRequest = _epochDepositRequests[_lastDepositedEpoch[msg.sender]];
+        depositRequest.assets = depositRequest.assets - pendingDeposit;
         // Interactions
         IERC20(asset()).safeTransfer(msg.sender, pendingDeposit);
     }
@@ -435,7 +447,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         }
         // Effects
         delete _pendingRedeem[msg.sender];
-        _totalPendingRedeems = _totalPendingRedeems - pendingRedeem;
+        Request storage redeemRequest = _epochDepositRequests[_lastRedeemEpoch[msg.sender]];
+        redeemRequest.shares = redeemRequest.shares - pendingRedeem;
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
@@ -452,9 +465,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (_epochStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
             revert PreFulFillRedeemNotCalled();
         }
-        // Setting the rate to 0 to disallow normal redemption
-        _epochRedeemRate[previousRedeemEpoch] = 0;
-        _currentRedeemEpochAmount = 0;
         _epochStatus[previousRedeemEpoch] = RedemptionStatus.FALLBACK_TRIGGERED;
     }
 
@@ -602,8 +612,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The amount of assets that can be withdrawn.
      */
     function maxWithdraw(address operator) public view override returns (uint256) {
-        uint256 rate = _epochRedeemRate[_lastRedeemEpoch[operator]];
-        return rate == 0 ? 0 : _pendingRedeem[operator] * rate / DECIMAL_BUFFER;
+        Request storage redeemRequest = _epochRedeemRequests[_lastRedeemEpoch[operator]];
+        uint256 totalShares = redeemRequest.shares;
+        return totalShares == 0 ? 0 : FixedPointMathLib.fullMulDiv(redeemRequest.assets, _pendingRedeem[operator], totalShares);
     }
 
     /**
@@ -613,7 +624,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The amount of shares that can be redeemed.
      */
     function maxRedeem(address operator) public view override returns (uint256) {
-        return _epochRedeemRate[_lastRedeemEpoch[operator]] == 0 ? 0 : _pendingRedeem[operator];
+        Request storage redeemRequest = _epochRedeemRequests[_lastRedeemEpoch[operator]];
+        return redeemRequest.assets == 0 ? 0 : _pendingRedeem[operator];
     }
 
     /**
@@ -623,7 +635,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The amount of assets that can be deposited.
      */
     function maxDeposit(address operator) public view override returns (uint256) {
-        return _epochDepositRate[_lastDepositedEpoch[operator]] == 0 ? 0 : _pendingDeposit[operator];
+        Request storage depositRequest = _epochDepositRequests[_lastDepositedEpoch[operator]];
+        return depositRequest.shares == 0 ? 0 : _pendingDeposit[operator];
     }
 
     /**
@@ -633,8 +646,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The amount of shares that can be minted.
      */
     function maxMint(address operator) public view override returns (uint256) {
-        uint256 rate = _epochDepositRate[_lastDepositedEpoch[operator]];
-        return rate == 0 ? 0 : FixedPointMathLib.fullMulDiv(_pendingDeposit[operator], DECIMAL_BUFFER, rate);
+        Request storage depositRequest = _epochDepositRequests[_lastDepositedEpoch[operator]];
+        uint256 totalAssets = depositRequest.assets;
+        return totalAssets == 0 ? 0 : FixedPointMathLib.fullMulDiv(depositRequest.shares, _pendingDeposit[operator], totalAssets);
     }
 
     // Preview functions always revert for async flows
