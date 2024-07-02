@@ -742,6 +742,171 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
     }
 
+    function testFuzz_proposeTokenSwap_externalTrade(uint256 sellWeight, uint256 depositAmount) public {
+        sellWeight = bound(sellWeight, 0, 1e18);
+        // Below bound is due to deposit amount being scaled by price and target weight
+        depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
+        // With price set at 1e18 this is the threshhold for a rebalance to be valid
+        vm.assume(depositAmount * sellWeight / 1e18 > 500);
+        uint256 baseAssetWeight = 1e18 - sellWeight;
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        uint256 strategyId = 1;
+        address pairAsset = address(new ERC20Mock());
+        address[] memory assets = new address[](2);
+        assets[0] = rootAsset;
+        assets[1] = pairAsset;
+
+        vm.mockCall(
+            basketTokenImplementation,
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId, admin)),
+            new bytes(0)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
+            abi.encode(true)
+        );
+        vm.mockCall(allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(assets));
+        vm.prank(manager);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
+
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(depositAmount));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.preFulfillRedeem, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        uint256[] memory newTargetWeights = new uint256[](2);
+        newTargetWeights[0] = baseAssetWeight;
+        newTargetWeights[1] = sellWeight;
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.getTargetWeight, (basket)),
+            abi.encode(newTargetWeights)
+        );
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
+        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
+        BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: basket, tradeOwnership: uint96(1e18) });
+        externalTrades[0] = BasketManager.ExternalTrade({
+            sellToken: rootAsset,
+            buyToken: pairAsset,
+            sellAmount: depositAmount * sellWeight / 1e18,
+            minAmount: (depositAmount * sellWeight / 1e18) * 0.995e18 / 1e18,
+            basketTradeOwnership: tradeOwnerships
+        });
+
+        vm.prank(rebalancer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
+        assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.TOKEN_SWAP_PROPOSED));
+    }
+
+    function testFuzz_proposeTokenSwap_internalTrade(uint256 sellWeight, uint256 depositAmount) public {
+        sellWeight = bound(sellWeight, 0, 1e18);
+        // Below bound is due to deposit amount being scaled by price and target weight
+        depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
+        // With price set at 1e18 this is the threshhold for a rebalance to be valid
+        vm.assume(depositAmount * sellWeight / 1e18 > 500);
+        uint256 baseAssetWeight = 1e18 - sellWeight;
+        string memory name = "basket";
+        string memory name2 = "basket2";
+        string memory symbol = "b";
+        string memory symbol2 = "c";
+        uint256 bitFlag = 1;
+        uint256 bitFlag2 = 2;
+        uint256 strategyId = 1;
+        uint256 strategyId2 = 2;
+        address pairAsset = address(new ERC20Mock());
+        vm.label(pairAsset, "pairAsset");
+        address[] memory basket1Assets = new address[](2);
+        basket1Assets[0] = rootAsset;
+        basket1Assets[1] = pairAsset;
+        address[] memory basket2Assets = new address[](2);
+        basket2Assets[0] = pairAsset;
+        basket2Assets[1] = rootAsset;
+
+        vm.mockCall(
+            basketTokenImplementation,
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategyId, admin)),
+            new bytes(0)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag, strategyId)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag)), abi.encode(basket1Assets)
+        );
+        vm.startPrank(manager);
+        address basket = basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategyId);
+        vm.label(basket, "basket");
+        vm.mockCall(
+            basketTokenImplementation,
+            abi.encodeCall(BasketToken.initialize, (IERC20(pairAsset), name2, symbol2, bitFlag2, strategyId2, admin)),
+            new bytes(0)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.supportsStrategy, (bitFlag2, strategyId2)),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            allocationResolver, abi.encodeCall(AllocationResolver.getAssets, (bitFlag2)), abi.encode(basket2Assets)
+        );
+        address basket2 = basketManager.createNewBasket(name2, symbol2, pairAsset, bitFlag2, strategyId2);
+        vm.label(basket2, "basket2");
+        vm.stopPrank();
+
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(depositAmount));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.preFulfillRedeem, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        vm.mockCall(basket2, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(depositAmount));
+        vm.mockCall(basket2, abi.encodeCall(BasketToken.preFulfillRedeem, ()), abi.encode(0));
+        vm.mockCall(basket2, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
+        vm.mockCall(basket2, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        uint256[] memory intialTargetWeights = new uint256[](2);
+        intialTargetWeights[0] = baseAssetWeight;
+        intialTargetWeights[1] = 1e18 - baseAssetWeight;
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.getTargetWeight, (basket)),
+            abi.encode(intialTargetWeights)
+        );
+        vm.mockCall(
+            allocationResolver,
+            abi.encodeCall(AllocationResolver.getTargetWeight, (basket2)),
+            abi.encode(intialTargetWeights)
+        );
+        address[] memory targetBaskets = new address[](2);
+        targetBaskets[0] = basket;
+        targetBaskets[1] = basket2;
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+
+        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
+        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
+        internalTrades[0] = BasketManager.InternalTrade({
+            fromBasket: basket,
+            sellToken: rootAsset,
+            buyToken: pairAsset,
+            toBasket: basket2,
+            sellAmount: depositAmount * (1e18 - baseAssetWeight) / 1e18,
+            minAmount: (depositAmount * (1e18 - baseAssetWeight) / 1e18) * 0.995e18 / 1e18
+        });
+
+        vm.prank(rebalancer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
+        assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.TOKEN_SWAP_PROPOSED));
+    }
+
     function testFuzz_executeTokenSwap_revertWhen_CallerIsNotRebalancer(address caller) public {
         vm.assume(!basketManager.hasRole(REBALANCER_ROLE, caller));
         vm.expectRevert(_formatAccessControlError(caller, REBALANCER_ROLE));
