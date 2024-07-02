@@ -7,20 +7,21 @@ import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { MockAssetRegistry } from "test/utils/mocks/MockAssetRegistry.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
 contract BasketTokenTest is BaseTest {
     BasketToken public basket;
     BasketToken public basketTokenImplementation;
     MockBasketManager public basketManager;
-    MockAssetRegistry public assetRegistry;
+    AssetRegistry public assetRegistry;
     ERC20Mock public dummyAsset;
     address public alice;
     address public owner;
@@ -38,10 +39,12 @@ contract BasketTokenTest is BaseTest {
         vm.label(address(basketManager), "basketManager");
         basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(owner));
         vm.label(address(basket), "basketToken");
-        assetRegistry = new MockAssetRegistry();
+        assetRegistry = new AssetRegistry(address(owner));
         vm.label(address(assetRegistry), "assetRegistry");
-        vm.prank(address(owner));
+        vm.startPrank(address(owner));
         basket.setAssetRegistry(address(assetRegistry));
+        assetRegistry.addAsset(address(dummyAsset));
+        vm.stopPrank();
     }
 
     function test_constructor() public {
@@ -90,7 +93,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_setAssetRegistry() public {
-        MockAssetRegistry newAssetRegistry = new MockAssetRegistry();
+        AssetRegistry newAssetRegistry = new AssetRegistry(address(owner));
         vm.label(address(newAssetRegistry), "newAssetRegistry");
         vm.prank(owner);
         basket.setAssetRegistry(address(newAssetRegistry));
@@ -171,11 +174,12 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestDeposit_revertWhen_assetPaused() public {
+        vm.prank(owner);
+        assetRegistry.setAssetPaused(address(dummyAsset), true);
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
-        assetRegistry.pauseAssets();
         vm.expectRevert(BasketToken.AssetPaused.selector);
         basket.requestDeposit(amount, alice);
     }
@@ -418,11 +422,12 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestRedeem_revertWhen_assetPaused() public {
+        vm.prank(owner);
+        assetRegistry.setAssetPaused(address(dummyAsset), true);
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
-        assetRegistry.pauseAssets();
         vm.expectRevert(BasketToken.AssetPaused.selector);
         basket.requestRedeem(amount, alice, alice);
     }
