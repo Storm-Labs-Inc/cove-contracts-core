@@ -163,9 +163,7 @@ contract AssetRegistry_Test is BaseTest {
         emit AssetRegistry.AddAsset(asset);
         assetRegistry.addAsset(asset);
 
-        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
-        assertTrue(status.enabled);
-        assertFalse(status.paused);
+        _assertAssetStatus(asset, true, false);
     }
 
     function test_setAssetPaused_revertWhen_zeroAddress() public {
@@ -189,9 +187,7 @@ contract AssetRegistry_Test is BaseTest {
         emit AssetRegistry.SetAssetPaused(asset, true);
         assetRegistry.setAssetPaused(asset, true);
 
-        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
-        assertTrue(status.enabled);
-        assertTrue(status.paused);
+        _assertAssetStatus(asset, true, true);
     }
 
     function testFuzz_setAssetPaused_unpause(address asset) public {
@@ -204,9 +200,7 @@ contract AssetRegistry_Test is BaseTest {
         emit AssetRegistry.SetAssetPaused(asset, false);
         assetRegistry.setAssetPaused(asset, false);
 
-        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
-        assertTrue(status.enabled);
-        assertFalse(status.paused);
+        _assertAssetStatus(asset, true, false);
     }
 
     function testFuzz_setAssetPaused_revertWhen_noStateChange(address asset) public {
@@ -218,9 +212,7 @@ contract AssetRegistry_Test is BaseTest {
         vm.expectRevert(AssetRegistry.AssetInvalidPauseUpdate.selector);
         assetRegistry.setAssetPaused(asset, false);
 
-        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
-        assertTrue(status.enabled);
-        assertFalse(status.paused);
+        _assertAssetStatus(asset, true, false);
 
         // Pause the asset
         assetRegistry.setAssetPaused(asset, true);
@@ -229,8 +221,12 @@ contract AssetRegistry_Test is BaseTest {
         vm.expectRevert(AssetRegistry.AssetInvalidPauseUpdate.selector);
         assetRegistry.setAssetPaused(asset, true);
 
-        status = assetRegistry.getAssetStatus(asset);
-        assertTrue(status.enabled);
-        assertTrue(status.paused);
+        _assertAssetStatus(asset, true, true);
+    }
+
+    function _assertAssetStatus(address asset, bool expectedEnabled, bool expectedPaused) internal view {
+        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
+        assertTrue(status.enabled == expectedEnabled);
+        assertTrue(status.paused == expectedPaused);
     }
 }

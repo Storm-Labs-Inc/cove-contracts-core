@@ -106,11 +106,11 @@ contract AssetRegistry is AccessControlEnumerable {
     }
 
     /**
-    * @notice Retrieves the status of an asset
-    * @dev Returns the status of the asset. For non-existent assets, returns (enabled: false, paused: false)
-    * @param asset The address of the asset to query
-    * @return AssetStatus The status of the asset
-    */
+     * @notice Retrieves the status of an asset
+     * @dev Returns the status of the asset. For non-existent assets, returns (enabled: false, paused: false)
+     * @param asset The address of the asset to query
+     * @return AssetStatus The status of the asset
+     */
     function getAssetStatus(address asset) external view returns (AssetStatus memory) {
         return _assetRegistry[asset];
     }
