@@ -97,11 +97,12 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     function setAssetPaused(address asset, bool pause) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetStatus storage status = _assetRegistry[asset];
+        AssetStatus memory status = _assetRegistry[asset];
         if (!status.enabled) revert AssetNotEnabled();
         if (pause == status.paused) revert AssetInvalidPauseUpdate();
 
         status.paused = pause;
+        _assetRegistry[asset] = status;
         emit SetAssetPaused(asset, pause);
     }
 
