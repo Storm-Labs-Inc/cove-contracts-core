@@ -184,6 +184,17 @@ contract BasketTokenTest is BaseTest {
         basket.requestDeposit(amount, alice);
     }
 
+    function test_requestDeposit_revertWhen_assetDisabled() public {
+        vm.startPrank(owner);
+        basket.setAssetRegistry(address(new AssetRegistry(owner)));
+        uint256 amount = 1e18;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        vm.expectRevert(BasketToken.AssetDisabled.selector);
+        basket.requestDeposit(amount, alice);
+    }
+
     function test_fulfillDeposit() public {
         // Note: fuzztest fails if amount = 1, issued shares = 2, should this be checked in basket manager?
         // vm.assume(amount > 0 && issuedShares > 0);
@@ -429,6 +440,17 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
+        basket.requestRedeem(amount, alice, alice);
+    }
+
+    function test_requestRedeem_revertWhen_assetDisabled() public {
+        vm.startPrank(owner);
+        basket.setAssetRegistry(address(new AssetRegistry(owner)));
+        uint256 amount = 1e18;
+        dummyAsset.mint(alice, amount);
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        vm.expectRevert(BasketToken.AssetDisabled.selector);
         basket.requestRedeem(amount, alice, alice);
     }
 
