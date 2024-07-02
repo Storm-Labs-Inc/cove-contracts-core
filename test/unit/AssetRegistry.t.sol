@@ -226,7 +226,7 @@ contract AssetRegistry_Test is BaseTest {
 
     function _assertAssetStatus(address asset, bool expectedEnabled, bool expectedPaused) internal view {
         AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
-        assertTrue(status.enabled == expectedEnabled);
-        assertTrue(status.paused == expectedPaused);
+        assertEq(status.enabled, expectedEnabled);
+        assertEq(status.paused, expectedPaused);
     }
 }
