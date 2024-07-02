@@ -8,7 +8,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
-import { console2 as console } from "forge-std/console2.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
@@ -36,7 +35,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * Constants
      */
     bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
-    uint256 private constant DECIMAL_BUFFER = 1e18;
 
     /**
      * Structs
