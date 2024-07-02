@@ -295,9 +295,10 @@ contract BasketTokenTest is BaseTest {
 
             // Call deposit
             vm.prank(froms[i]);
-            basket.deposit(maxDeposit, froms[i]);
+            uint256 shares = basket.deposit(maxDeposit, froms[i]);
 
             // Check state
+            assertEq(shares, maxMint);
             assertEq(basket.balanceOf(froms[i]), userBalanceBefore + maxMint);
             assertEq(basket.maxDeposit(froms[i]), 0);
             assertEq(basket.maxMint(froms[i]), 0);
@@ -689,9 +690,10 @@ contract BasketTokenTest is BaseTest {
 
             // Call redeem
             vm.prank(from);
-            basket.redeem(maxRedeem, from, from);
+            uint256 assets = basket.redeem(maxRedeem, from, from);
 
             // Check state
+            assertEq(assets, maxWithdraw);
             assertEq(dummyAsset.balanceOf(from), userBalanceBefore + maxWithdraw);
             assertEq(basket.maxRedeem(from), 0);
             assertEq(basket.maxWithdraw(from), 0);

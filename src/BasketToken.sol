@@ -570,8 +570,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert MustClaimFullAmount();
         }
         // Effects
-        emit Withdraw(msg.sender, receiver, msg.sender, assets, _pendingRedeem[msg.sender]);
+        shares = _pendingRedeem[msg.sender];
         delete _pendingRedeem[msg.sender];
+        emit Withdraw(msg.sender, receiver, msg.sender, assets, shares);
         // Interactions
         IERC20(asset()).safeTransfer(receiver, assets);
     }
@@ -593,10 +594,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         assets = maxWithdraw(msg.sender);
         delete _pendingRedeem[msg.sender];
-        // Interactions
-        // slither-disable-next-line reentrancy-events
-        IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, msg.sender, assets, shares);
+        // Interactions
+        IERC20(asset()).safeTransfer(receiver, assets);
     }
 
     /**
@@ -643,10 +643,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function maxMint(address operator) public view override returns (uint256) {
         Request storage depositRequest = _epochDepositRequests[_lastDepositEpoch[operator]];
-        uint256 totalAssets = depositRequest.assets;
-        return totalAssets == 0
-            ? 0
-            : FixedPointMathLib.fullMulDiv(depositRequest.shares, _pendingDeposit[operator], totalAssets);
+        uint256 assets = depositRequest.assets;
+        return assets == 0 ? 0 : FixedPointMathLib.fullMulDiv(depositRequest.shares, _pendingDeposit[operator], assets);
     }
 
     // Preview functions always revert for async flows
