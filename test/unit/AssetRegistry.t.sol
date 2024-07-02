@@ -163,9 +163,9 @@ contract AssetRegistry_Test is BaseTest {
         emit AssetRegistry.AddAsset(asset);
         assetRegistry.addAsset(asset);
 
-        (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
-        assertTrue(enabled);
-        assertFalse(paused);
+        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
+        assertTrue(status.enabled);
+        assertFalse(status.paused);
     }
 
     function test_setAssetPaused_revertWhen_zeroAddress() public {
@@ -189,9 +189,9 @@ contract AssetRegistry_Test is BaseTest {
         emit AssetRegistry.SetAssetPaused(asset, true);
         assetRegistry.setAssetPaused(asset, true);
 
-        (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
-        assertTrue(enabled);
-        assertTrue(paused);
+        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
+        assertTrue(status.enabled);
+        assertTrue(status.paused);
     }
 
     function testFuzz_setAssetPaused_unpause(address asset) public {
@@ -204,9 +204,9 @@ contract AssetRegistry_Test is BaseTest {
         emit AssetRegistry.SetAssetPaused(asset, false);
         assetRegistry.setAssetPaused(asset, false);
 
-        (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
-        assertTrue(enabled);
-        assertFalse(paused);
+        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
+        assertTrue(status.enabled);
+        assertFalse(status.paused);
     }
 
     function testFuzz_setAssetPaused_revertWhen_noStateChange(address asset) public {
@@ -218,9 +218,9 @@ contract AssetRegistry_Test is BaseTest {
         vm.expectRevert(AssetRegistry.AssetInvalidPauseUpdate.selector);
         assetRegistry.setAssetPaused(asset, false);
 
-        (bool enabled, bool paused) = assetRegistry.getAssetStatus(asset);
-        assertTrue(enabled);
-        assertFalse(paused);
+        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
+        assertTrue(status.enabled);
+        assertFalse(status.paused);
 
         // Pause the asset
         assetRegistry.setAssetPaused(asset, true);
@@ -229,8 +229,8 @@ contract AssetRegistry_Test is BaseTest {
         vm.expectRevert(AssetRegistry.AssetInvalidPauseUpdate.selector);
         assetRegistry.setAssetPaused(asset, true);
 
-        (enabled, paused) = assetRegistry.getAssetStatus(asset);
-        assertTrue(enabled);
-        assertTrue(paused);
+        status = assetRegistry.getAssetStatus(asset);
+        assertTrue(status.enabled);
+        assertTrue(status.paused);
     }
 }

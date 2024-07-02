@@ -106,14 +106,12 @@ contract AssetRegistry is AccessControlEnumerable {
     }
 
     /**
-     * @notice Retrieves the status of an asset
-     * @dev Returns default values (false, false) for non-existent assets
-     * @param asset The address of the asset to query
-     * @return enabled Whether the asset is enabled in the registry
-     * @return paused Whether the asset is currently paused
-     */
-    function getAssetStatus(address asset) external view returns (bool enabled, bool paused) {
-        AssetStatus memory status = _assetRegistry[asset];
-        return (status.enabled, status.paused);
+    * @notice Retrieves the status of an asset
+    * @dev Returns the status of the asset. For non-existent assets, returns (enabled: false, paused: false)
+    * @param asset The address of the asset to query
+    * @return AssetStatus The status of the asset
+    */
+    function getAssetStatus(address asset) external view returns (AssetStatus memory) {
+        return _assetRegistry[asset];
     }
 }
