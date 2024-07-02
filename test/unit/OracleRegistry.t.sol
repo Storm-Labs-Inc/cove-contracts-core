@@ -323,22 +323,22 @@ contract OracleRegistry_Test is BaseTest {
         assert(!oracleRegistry.hasRole(adminRole, users["alice"]));
     }
 
-    function test_renouceRole_managerRole() public {
+    function test_renounceRole_managerRole() public {
         // Check the admin has the manager role
         assert(oracleRegistry.hasRole(managerRole, users["admin"]));
 
-        // Renouce the manager role from the admin
+        // Renounce the manager role from the admin
         oracleRegistry.renounceRole(managerRole, users["admin"]);
 
         // Check the user no longer has the manager role
         assert(!oracleRegistry.hasRole(managerRole, users["admin"]));
     }
 
-    function test_renouceRole_adminRole() public {
+    function test_renounceRole_adminRole() public {
         // Check the user has the admin role
         assert(oracleRegistry.hasRole(adminRole, users["admin"]));
 
-        // Renouce the admin role from the admin
+        // Renounce the admin role from the admin
         oracleRegistry.renounceRole(adminRole, users["admin"]);
 
         // Check the user no longer has the admin role
