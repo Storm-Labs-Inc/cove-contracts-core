@@ -29,7 +29,7 @@ contract BasketTokenTest is BaseTest {
     address public alice;
     address public owner;
 
-    address[] public froms;
+    address[] public fuzzedUsers;
     uint256[] public depositAmounts;
     uint256[] public redeemAmounts;
 
@@ -192,11 +192,11 @@ contract BasketTokenTest is BaseTest {
     function testFuzz_fulfillDeposit(uint256 totalAmount, uint256 issuedShares) public {
         // First, requestDeposit from 100 users
         totalAmount = bound(totalAmount, 1, type(uint256).max);
-        froms = new address[](100);
+        fuzzedUsers = new address[](100);
         depositAmounts = new uint256[](100);
         uint256 remainingAmount = totalAmount;
         for (uint256 i = 0; i < 100; ++i) {
-            froms[i] = createUser(string.concat("user", vm.toString(i)));
+            fuzzedUsers[i] = createUser(string.concat("user", vm.toString(i)));
             if (remainingAmount == 0) {
                 break;
             }
@@ -209,7 +209,7 @@ contract BasketTokenTest is BaseTest {
             if (depositAmounts[i] == 0) {
                 continue;
             }
-            testFuzz_requestDeposit(depositAmounts[i], froms[i]);
+            testFuzz_requestDeposit(depositAmounts[i], fuzzedUsers[i]);
         }
         assertEq(basket.totalPendingDeposits(), totalAmount);
 
@@ -236,9 +236,9 @@ contract BasketTokenTest is BaseTest {
         assertEq(dummyAsset.balanceOf(address(basket)), 0);
         assertEq(dummyAsset.balanceOf(address(basketManager)), totalAmount);
         for (uint256 i = 0; i < 100; ++i) {
-            assertEq(basket.pendingDepositRequest(froms[i]), 0);
-            assertEq(basket.maxDeposit(froms[i]), depositAmounts[i]);
-            assertEq(basket.maxMint(froms[i]), depositAmounts[i].fullMulDiv(issuedShares, totalAmount));
+            assertEq(basket.pendingDepositRequest(fuzzedUsers[i]), 0);
+            assertEq(basket.maxDeposit(fuzzedUsers[i]), depositAmounts[i]);
+            assertEq(basket.maxMint(fuzzedUsers[i]), depositAmounts[i].fullMulDiv(issuedShares, totalAmount));
         }
         assertEq(basket.totalPendingDeposits(), 0);
     }
@@ -289,19 +289,19 @@ contract BasketTokenTest is BaseTest {
             if (depositAmounts[i] == 0) {
                 continue;
             }
-            uint256 userBalanceBefore = basket.balanceOf(froms[i]);
-            uint256 maxDeposit = basket.maxDeposit(froms[i]);
-            uint256 maxMint = basket.maxMint(froms[i]);
+            uint256 userBalanceBefore = basket.balanceOf(fuzzedUsers[i]);
+            uint256 maxDeposit = basket.maxDeposit(fuzzedUsers[i]);
+            uint256 maxMint = basket.maxMint(fuzzedUsers[i]);
 
             // Call deposit
-            vm.prank(froms[i]);
-            uint256 shares = basket.deposit(maxDeposit, froms[i]);
+            vm.prank(fuzzedUsers[i]);
+            uint256 shares = basket.deposit(maxDeposit, fuzzedUsers[i]);
 
             // Check state
             assertEq(shares, maxMint);
-            assertEq(basket.balanceOf(froms[i]), userBalanceBefore + maxMint);
-            assertEq(basket.maxDeposit(froms[i]), 0);
-            assertEq(basket.maxMint(froms[i]), 0);
+            assertEq(basket.balanceOf(fuzzedUsers[i]), userBalanceBefore + maxMint);
+            assertEq(basket.maxDeposit(fuzzedUsers[i]), 0);
+            assertEq(basket.maxMint(fuzzedUsers[i]), 0);
         }
 
         // Check state
@@ -398,7 +398,7 @@ contract BasketTokenTest is BaseTest {
         testFuzz_deposit(amount, issuedShares);
         redeemAmounts = new uint256[](100);
         for (uint256 i = 0; i < 100; ++i) {
-            address from = froms[i];
+            address from = fuzzedUsers[i];
             uint256 userSharesBefore = basket.balanceOf(from);
             if (userSharesBefore == 0) {
                 continue;
@@ -542,10 +542,11 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.balanceOf(address(basket)), basketBalanceBefore - totalPendingRedeemsBefore);
         assertEq(basket.totalPendingRedeems(), 0);
         for (uint256 i = 0; i < 100; ++i) {
-            assertEq(basket.pendingRedeemRequest(froms[i]), 0);
-            assertEq(basket.maxRedeem(froms[i]), redeemAmounts[i]);
+            assertEq(basket.pendingRedeemRequest(fuzzedUsers[i]), 0);
+            assertEq(basket.maxRedeem(fuzzedUsers[i]), redeemAmounts[i]);
             assertEq(
-                basket.maxWithdraw(froms[i]), redeemAmounts[i].fullMulDiv(fulfillAmount, totalPendingRedeemsBefore)
+                basket.maxWithdraw(fuzzedUsers[i]),
+                redeemAmounts[i].fullMulDiv(fulfillAmount, totalPendingRedeemsBefore)
             );
         }
     }
@@ -680,7 +681,7 @@ contract BasketTokenTest is BaseTest {
     function testFuzz_redeem(uint256 totalDepositAmount, uint256 issuedShares, uint256 redeemAmount) public {
         testFuzz_fulfillRedeem(totalDepositAmount, issuedShares, redeemAmount);
         for (uint256 i = 0; i < 100; ++i) {
-            address from = froms[i];
+            address from = fuzzedUsers[i];
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxRedeem = basket.maxRedeem(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
@@ -732,7 +733,7 @@ contract BasketTokenTest is BaseTest {
     function testFuzz_withdraw(uint256 totalDepositAmount, uint256 issuedShares, uint256 redeemAmount) public {
         testFuzz_fulfillRedeem(totalDepositAmount, issuedShares, redeemAmount);
         for (uint256 i = 0; i < 100; ++i) {
-            address from = froms[i];
+            address from = fuzzedUsers[i];
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
             if (maxWithdraw == 0) {
