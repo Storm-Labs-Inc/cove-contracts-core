@@ -163,80 +163,79 @@ contract AssetRegistry_Test is BaseTest {
         emit AssetRegistry.AddAsset(asset);
         assetRegistry.addAsset(asset);
 
-        _assertAssetStatus(asset, AssetRegistry.AssetState.ENABLED);
+        _assertAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
     }
 
-    function test_setAssetState_revertWhen_zeroAddress() public {
+    function test_setAssetStatus_revertWhen_zeroAddress() public {
         vm.expectRevert(Errors.ZeroAddress.selector);
-        assetRegistry.setAssetState(address(0), AssetRegistry.AssetState.PAUSED);
+        assetRegistry.setAssetStatus(address(0), AssetRegistry.AssetStatus.PAUSED);
     }
 
-    function testFuzz_setAssetState_revertWhen_notEnabled(address asset) public {
+    function testFuzz_setAssetStatus_revertWhen_notEnabled(address asset) public {
         vm.assume(asset != address(0));
 
         vm.expectRevert(AssetRegistry.AssetNotEnabled.selector);
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.PAUSED);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
     }
 
-    function testFuzz_setAssetState_pause(address asset) public {
+    function testFuzz_setAssetStatus_pause(address asset) public {
         vm.assume(asset != address(0));
 
         assetRegistry.addAsset(asset);
 
         vm.expectEmit();
-        emit AssetRegistry.SetAssetState(asset, AssetRegistry.AssetState.PAUSED);
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.PAUSED);
+        emit AssetRegistry.SetAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
 
-        _assertAssetStatus(asset, AssetRegistry.AssetState.PAUSED);
+        _assertAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
     }
 
-    function testFuzz_setAssetState_unpause(address asset) public {
+    function testFuzz_setAssetStatus_unpause(address asset) public {
         vm.assume(asset != address(0));
 
         assetRegistry.addAsset(asset);
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.PAUSED);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
 
         vm.expectEmit();
-        emit AssetRegistry.SetAssetState(asset, AssetRegistry.AssetState.ENABLED);
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.ENABLED);
+        emit AssetRegistry.SetAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
 
-        _assertAssetStatus(asset, AssetRegistry.AssetState.ENABLED);
+        _assertAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
     }
 
-    function testFuzz_setAssetState_revertWhen_noStateChange(address asset) public {
+    function testFuzz_setAssetStatus_revertWhen_noStatusChange(address asset) public {
         vm.assume(asset != address(0));
 
         assetRegistry.addAsset(asset);
 
-        // Attempt to set state to ENABLED when it's already ENABLED
-        vm.expectRevert(AssetRegistry.AssetInvalidStateUpdate.selector);
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.ENABLED);
+        // Attempt to set status to ENABLED when it's already ENABLED
+        vm.expectRevert(AssetRegistry.AssetInvalidStatusUpdate.selector);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
 
-        _assertAssetStatus(asset, AssetRegistry.AssetState.ENABLED);
+        _assertAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
 
         // Pause the asset
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.PAUSED);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
 
-        // Attempt to set state to PAUSED when it's already PAUSED
-        vm.expectRevert(AssetRegistry.AssetInvalidStateUpdate.selector);
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.PAUSED);
+        // Attempt to set status to PAUSED when it's already PAUSED
+        vm.expectRevert(AssetRegistry.AssetInvalidStatusUpdate.selector);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
 
-        _assertAssetStatus(asset, AssetRegistry.AssetState.PAUSED);
+        _assertAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
     }
 
-    function testFuzz_setAssetState_revertWhen_settingToDisabled(address asset) public {
+    function testFuzz_setAssetStatus_revertWhen_settingToDisabled(address asset) public {
         vm.assume(asset != address(0));
 
         assetRegistry.addAsset(asset);
 
-        vm.expectRevert(AssetRegistry.AssetInvalidStateUpdate.selector);
-        assetRegistry.setAssetState(asset, AssetRegistry.AssetState.DISABLED);
+        vm.expectRevert(AssetRegistry.AssetInvalidStatusUpdate.selector);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.DISABLED);
 
-        _assertAssetStatus(asset, AssetRegistry.AssetState.ENABLED);
+        _assertAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
     }
 
-    function _assertAssetStatus(address asset, AssetRegistry.AssetState expectedState) internal view {
-        AssetRegistry.AssetStatus memory status = assetRegistry.getAssetStatus(asset);
-        assertEq(uint256(status.state), uint256(expectedState));
+    function _assertAssetStatus(address asset, AssetRegistry.AssetStatus expectedStatus) internal view {
+        assertEq(uint256(assetRegistry.getAssetStatus(asset)), uint256(expectedStatus));
     }
 }
