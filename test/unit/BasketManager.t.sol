@@ -1428,6 +1428,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap();
     }
 
+    function testFuzz_basketTokenToReblanceToIndex_revertWhen_basketTokenNotFound(address basket) public {
+        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        basketManager.basketTokenToReblanceToIndex(basket);
+    }
+
     function testFuzz_proRataRedeem(uint256 depositAmount, uint256 redeemAmount) public {
         depositAmount = bound(depositAmount, 500e18, type(uint256).max);
         redeemAmount = bound(redeemAmount, 1, depositAmount);
