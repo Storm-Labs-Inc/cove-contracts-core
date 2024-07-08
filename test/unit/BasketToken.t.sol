@@ -376,9 +376,9 @@ contract BasketTokenTest is BaseTest {
         public
     {
         vm.assume(from != address(0));
-        uint256 amount = bound(amount, 2, type(uint256).max);
-        uint256 issuedShares = bound(issuedShares, 1, type(uint256).max);
-        uint256 claimingAmount = bound(claimingAmount, 1, amount - 1);
+        amount = bound(amount, 2, type(uint256).max);
+        issuedShares = bound(issuedShares, 1, type(uint256).max);
+        claimingAmount = bound(claimingAmount, 1, amount - 1);
         dummyAsset.mint(from, amount);
         vm.startPrank(from);
         dummyAsset.approve(address(basket), amount);
