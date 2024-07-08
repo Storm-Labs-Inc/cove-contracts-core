@@ -70,7 +70,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Mapping of epoch to the rate that redemption requests were fulfilled
     mapping(uint256 epoch => Request redeemRequest) internal _epochRedeemRequests;
     /// @notice Mapping of operator to the epoch of the last deposit request
-    mapping(address operator => uint256 epoch) internal _lastDepositEpoch;
+    mapping(address operator => uint256 epoch) internal _lastDepositedEpoch;
     /// @notice Mapping of operator to the epoch of the last redemption request
     mapping(address operator => uint256 epoch) internal _lastRedeemEpoch;
     /// @notice Mapping of epoch to its current status
@@ -243,7 +243,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         uint256 currentPendingAssets = _pendingDeposit[receiver];
         uint256 depositEpoch = _currentDepositEpoch;
-        _lastDepositEpoch[receiver] = depositEpoch;
+        _lastDepositedEpoch[receiver] = depositEpoch;
         _pendingDeposit[receiver] = (currentPendingAssets + assets);
         Request storage depositRequest = _epochDepositRequests[depositEpoch];
         depositRequest.assets = (depositRequest.assets + assets);
@@ -268,7 +268,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return assets The amount of assets pending deposit.
      */
     function pendingDepositRequest(address operator) public view returns (uint256 assets) {
-        if (_lastDepositEpoch[operator] != _currentDepositEpoch) {
+        if (_lastDepositedEpoch[operator] != _currentDepositEpoch) {
             return 0;
         }
         assets = _pendingDeposit[operator];
@@ -424,7 +424,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         }
         // Effects
         delete _pendingDeposit[msg.sender];
-        Request storage depositRequest = _epochDepositRequests[_lastDepositEpoch[msg.sender]];
+        Request storage depositRequest = _epochDepositRequests[_lastDepositedEpoch[msg.sender]];
         depositRequest.assets = depositRequest.assets - pendingDeposit;
         // Interactions
         IERC20(asset()).safeTransfer(msg.sender, pendingDeposit);
@@ -631,7 +631,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The amount of assets that can be deposited.
      */
     function maxDeposit(address operator) public view override returns (uint256) {
-        Request storage depositRequest = _epochDepositRequests[_lastDepositEpoch[operator]];
+        Request storage depositRequest = _epochDepositRequests[_lastDepositedEpoch[operator]];
         return depositRequest.shares == 0 ? 0 : _pendingDeposit[operator];
     }
 
@@ -642,7 +642,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      * @return The amount of shares that can be minted.
      */
     function maxMint(address operator) public view override returns (uint256) {
-        Request storage depositRequest = _epochDepositRequests[_lastDepositEpoch[operator]];
+        Request storage depositRequest = _epochDepositRequests[_lastDepositedEpoch[operator]];
         uint256 assets = depositRequest.assets;
         return assets == 0 ? 0 : FixedPointMathLib.fullMulDiv(depositRequest.shares, _pendingDeposit[operator], assets);
     }
