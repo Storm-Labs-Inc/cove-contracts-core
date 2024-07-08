@@ -982,7 +982,7 @@ contract BasketManagerTest is BaseTest {
         BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
         BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
         address[] memory targetBaskets = new address[](1);
-        vm.expectRevert(BasketManager.MustWaitForRebalance.selector);
+        vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
         vm.prank(rebalancer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
     }

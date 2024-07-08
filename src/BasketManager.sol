@@ -575,7 +575,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     {
         RebalanceStatus memory status = _rebalanceStatus;
         if (status.status != Status.REBALANCE_PROPOSED) {
-            revert MustWaitForRebalance();
+            revert MustWaitForRebalanceToComplete();
         }
         // Ensure the basketsToRebalance matches the hash from proposeRebalance
         if (keccak256(abi.encodePacked(basketsToRebalance)) != status.basketHash) {
