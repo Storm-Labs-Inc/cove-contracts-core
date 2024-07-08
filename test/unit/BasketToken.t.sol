@@ -175,7 +175,7 @@ contract BasketTokenTest is BaseTest {
 
     function test_requestDeposit_revertWhen_assetPaused() public {
         vm.prank(owner);
-        assetRegistry.setAssetPaused(address(dummyAsset), true);
+        assetRegistry.setAssetStatus(address(dummyAsset), AssetRegistry.AssetStatus.PAUSED);
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
@@ -191,7 +191,7 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
-        vm.expectRevert(BasketToken.AssetDisabled.selector);
+        vm.expectRevert(BasketToken.AssetPaused.selector);
         basket.requestDeposit(amount, alice);
     }
 
@@ -434,7 +434,7 @@ contract BasketTokenTest is BaseTest {
 
     function test_requestRedeem_revertWhen_assetPaused() public {
         vm.prank(owner);
-        assetRegistry.setAssetPaused(address(dummyAsset), true);
+        assetRegistry.setAssetStatus(address(dummyAsset), AssetRegistry.AssetStatus.PAUSED);
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
@@ -450,7 +450,7 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
-        vm.expectRevert(BasketToken.AssetDisabled.selector);
+        vm.expectRevert(BasketToken.AssetPaused.selector);
         basket.requestRedeem(amount, alice, alice);
     }
 

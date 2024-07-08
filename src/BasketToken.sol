@@ -105,7 +105,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     error ZeroPendingDeposits();
     error ZeroPendingRedeems();
-    error AssetDisabled();
     error AssetPaused();
     error NotOwner();
     error MustClaimOutstandingDeposit();
@@ -233,11 +232,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        AssetRegistry.AssetStatus memory assetStatus = AssetRegistry(assetRegistry).getAssetStatus(asset());
-        if (!assetStatus.enabled) {
-            revert AssetDisabled();
-        }
-        if (assetStatus.paused) {
+        if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
             revert AssetPaused();
         }
         // Effects
@@ -288,11 +283,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (maxRedeem(requestOwner) > 0) {
             revert MustClaimOutstandingRedeem();
         }
-        AssetRegistry.AssetStatus memory assetStatus = AssetRegistry(assetRegistry).getAssetStatus(asset());
-        if (!assetStatus.enabled) {
-            revert AssetDisabled();
-        }
-        if (assetStatus.paused) {
+        if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
             revert AssetPaused();
         }
         uint256 redeemEpoch = _currentRedeemEpoch;
