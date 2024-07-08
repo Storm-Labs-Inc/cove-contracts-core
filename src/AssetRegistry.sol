@@ -9,17 +9,22 @@ import { Errors } from "src/libraries/Errors.sol";
 /**
  * @title AssetRegistry
  * @dev Manages the registration and status of assets in the system.
- * @notice This contract provides functionality to add and pause assets, with role-based access control.
+ * @notice This contract provides functionality to add, enable, pause, and manage assets, with role-based access
+ * control.
+ * @dev Utilizes OpenZeppelin's AccessControlEnumerable for granular permission management.
+ * @dev Supports three asset states: DISABLED -> ENABLED <-> PAUSED.
  */
 contract AssetRegistry is AccessControlEnumerable {
     /**
-     * Structs
+     * Enums
      */
-    struct AssetStatus {
-        /// @dev Indicates whether the asset is enabled in the registry.
-        bool enabled;
-        /// @dev Indicates whether the asset is currently paused.
-        bool paused;
+    enum AssetStatus {
+        /// @notice Asset is disabled and cannot be used in the system
+        DISABLED,
+        /// @notice Asset is enabled and can be used normally in the system
+        ENABLED,
+        /// @notice Asset is paused and cannot be used until unpaused
+        PAUSED
     }
 
     /**
@@ -40,8 +45,8 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     /// @dev Emitted when a new asset is added to the registry.
     event AddAsset(address indexed asset);
-    /// @dev Emitted when an asset's pause status is updated.
-    event SetAssetPaused(address indexed asset, bool paused);
+    /// @dev Emitted when an asset's status is updated.
+    event SetAssetStatus(address indexed asset, AssetStatus status);
 
     /**
      * Errors
@@ -50,8 +55,8 @@ contract AssetRegistry is AccessControlEnumerable {
     error AssetAlreadyEnabled();
     /// @notice Thrown when attempting to perform an operation on an asset that is not enabled in the registry.
     error AssetNotEnabled();
-    /// @notice Thrown when attempting to set the pause status for an asset to the existing status.
-    error AssetInvalidPauseUpdate();
+    /// @notice Thrown when attempting to set the asset status to an invalid status.
+    error AssetInvalidStatusUpdate();
 
     /**
      * @notice Initializes the AssetRegistry contract
@@ -78,41 +83,40 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        if (_assetRegistry[asset].enabled) revert AssetAlreadyEnabled();
+        if (_assetRegistry[asset] != AssetStatus.DISABLED) revert AssetAlreadyEnabled();
 
-        _assetRegistry[asset] = AssetStatus({ enabled: true, paused: false });
+        _assetRegistry[asset] = AssetStatus.ENABLED;
         emit AddAsset(asset);
     }
 
     /**
-     * @notice Sets the pause status of an asset in the registry
+     * @notice Sets the status of an asset in the registry
      * @dev Only callable by accounts with the MANAGER_ROLE
      * @param asset The address of the asset to update
-     * @param pause The new pause status to set (true for paused, false for unpaused)
+     * @param newStatus The new status to set (ENABLED or PAUSED)
      * @dev Reverts if:
      *      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
      *      - The asset address is zero (Errors.ZeroAddress)
      *      - The asset is not enabled in the registry (AssetNotEnabled)
-     *      - The new pause status is the same as the current status (AssetInvalidPauseUpdate)
+     *      - The new status is invalid (AssetInvalidStatusUpdate)
      */
-    function setAssetPaused(address asset, bool pause) external onlyRole(_MANAGER_ROLE) {
+    function setAssetStatus(address asset, AssetStatus newStatus) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetStatus memory status = _assetRegistry[asset];
-        if (!status.enabled) revert AssetNotEnabled();
-        if (pause == status.paused) revert AssetInvalidPauseUpdate();
+        AssetStatus currentStatus = _assetRegistry[asset];
+        if (currentStatus == AssetStatus.DISABLED) revert AssetNotEnabled();
+        if (newStatus == AssetStatus.DISABLED || newStatus == currentStatus) revert AssetInvalidStatusUpdate();
 
-        status.paused = pause;
-        _assetRegistry[asset] = status;
-        emit SetAssetPaused(asset, pause);
+        _assetRegistry[asset] = newStatus;
+        emit SetAssetStatus(asset, newStatus);
     }
 
     /**
      * @notice Retrieves the status of an asset
-     * @dev Returns the status of the asset. For non-existent assets, returns (enabled: false, paused: false)
+     * @dev Returns the status of the asset. For non-existent assets, returns status as DISABLED
      * @param asset The address of the asset to query
      * @return AssetStatus The status of the asset
      */
-    function getAssetStatus(address asset) external view returns (AssetStatus memory) {
+    function getAssetStatus(address asset) external view returns (AssetStatus) {
         return _assetRegistry[asset];
     }
 }
