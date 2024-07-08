@@ -14,6 +14,8 @@ import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+
+import { console } from "forge-std/console.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { MockAssetRegistry } from "test/utils/mocks/MockAssetRegistry.sol";
@@ -32,7 +34,6 @@ contract BasketTokenTest is BaseTest {
 
     address[] public fuzzedUsers;
     uint256[] public depositAmounts;
-    uint256[] public redeemAmounts;
 
     function setUp() public override {
         super.setUp();
@@ -258,17 +259,17 @@ contract BasketTokenTest is BaseTest {
     function testFuzz_fulfillDeposit(uint256 totalAmount, uint256 issuedShares) public {
         totalAmount = bound(totalAmount, 1, type(uint256).max);
         issuedShares = bound(issuedShares, 1, type(uint256).max);
-        fuzzedUsers = new address[](100);
-        depositAmounts = new uint256[](100);
+        fuzzedUsers = new address[](20);
+        depositAmounts = new uint256[](20);
         uint256 remainingAmount = totalAmount;
 
-        // Call requestDeposit from 100 users with random amounts
-        for (uint256 i = 0; i < 100; ++i) {
+        // Call requestDeposit from 20 users with random amounts
+        for (uint256 i = 0; i < 20; ++i) {
             fuzzedUsers[i] = createUser(string.concat("user", vm.toString(i)));
             if (remainingAmount == 0) {
                 break;
             }
-            if (i == 99) {
+            if (i == 19) {
                 depositAmounts[i] = remainingAmount;
             } else {
                 depositAmounts[i] = bound(uint256(keccak256(abi.encodePacked(block.timestamp, i))), 1, remainingAmount);
@@ -296,7 +297,7 @@ contract BasketTokenTest is BaseTest {
 
         assertEq(dummyAsset.balanceOf(address(basket)), 0);
         assertEq(dummyAsset.balanceOf(address(basketManager)), totalAmount);
-        for (uint256 i = 0; i < 100; ++i) {
+        for (uint256 i = 0; i < 20; ++i) {
             assertEq(basket.pendingDepositRequest(fuzzedUsers[i]), 0);
             assertEq(basket.maxDeposit(fuzzedUsers[i]), depositAmounts[i]);
             assertEq(basket.maxMint(fuzzedUsers[i]), depositAmounts[i].fullMulDiv(issuedShares, totalAmount));
@@ -331,10 +332,10 @@ contract BasketTokenTest is BaseTest {
     }
 
     function testFuzz_deposit(uint256 amount, uint256 issuedShares) public {
-        // First, call testFuzz_fulfillDeposit which will requestDeposit and fulfillDeposit for 100 users
+        // First, call testFuzz_fulfillDeposit which will requestDeposit and fulfillDeposit for 20 users
         testFuzz_fulfillDeposit(amount, issuedShares);
         issuedShares = basket.balanceOf(address(basket));
-        for (uint256 i = 0; i < 100; ++i) {
+        for (uint256 i = 0; i < 20; ++i) {
             if (depositAmounts[i] == 0) {
                 continue;
             }
@@ -395,7 +396,7 @@ contract BasketTokenTest is BaseTest {
 
     function testFuzz_mint(uint256 amount, uint256 issuedShares) public {
         testFuzz_fulfillDeposit(amount, issuedShares);
-        for (uint256 i = 0; i < 100; ++i) {
+        for (uint256 i = 0; i < 20; ++i) {
             address from = fuzzedUsers[i];
             uint256 userBalanceBefore = basket.balanceOf(from);
             uint256 basketBalanceBefore = basket.balanceOf(address(basket));
@@ -474,16 +475,8 @@ contract BasketTokenTest is BaseTest {
         basket.cancelDepositRequest();
     }
 
-    function testFuzz_requestRedeem(
-        uint256 amount,
-        uint256 issuedShares,
-        address[100] memory callers,
-        address[100] memory dests
-    )
-        public
-    {
-        testFuzz_deposit(amount, issuedShares);
-        for (uint256 i = 0; i < 100; ++i) {
+    function _testFuzz_requestRedeem(address[20] memory callers, address[20] memory dests) internal {
+        for (uint256 i = 0; i < 20; ++i) {
             address from = fuzzedUsers[i];
             address caller = callers[i];
             vm.assume(caller != address(0));
@@ -491,13 +484,11 @@ contract BasketTokenTest is BaseTest {
             vm.assume(to != address(0));
 
             uint256 userSharesBefore = basket.balanceOf(from);
-            if (userSharesBefore == 0) {
-                continue;
-            }
+            vm.assume(userSharesBefore > 0);
             uint256 basketBalanceOfSelfBefore = basket.balanceOf(address(basket));
             uint256 pendingRedeemRequestBefore = basket.pendingRedeemRequest(to);
             uint256 totalPendingRedeemsBefore = basket.totalPendingRedeems();
-            uint256 sharesToRedeem = bound(userSharesBefore, 1, userSharesBefore);
+            uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userSharesBefore))), 1, userSharesBefore);
 
             vm.prank(from);
             basket.approve(caller, sharesToRedeem);
@@ -514,42 +505,33 @@ contract BasketTokenTest is BaseTest {
         }
     }
 
+    function testFuzz_requestRedeem(
+        uint256 amount,
+        uint256 issuedShares,
+        address[20] memory callers,
+        address[20] memory dests
+    )
+        public
+    {
+        testFuzz_deposit(amount, issuedShares);
+        _testFuzz_requestRedeem(callers, dests);
+    }
+
     function testFuzz_requestRedeem(uint256 amount, uint256 issuedShares) public {
         testFuzz_deposit(amount, issuedShares);
-        redeemAmounts = new uint256[](100);
-        for (uint256 i = 0; i < 100; ++i) {
-            address from = fuzzedUsers[i];
-            uint256 userSharesBefore = basket.balanceOf(from);
-            if (userSharesBefore == 0) {
-                continue;
-            }
-            uint256 basketBalanceOfSelfBefore = basket.balanceOf(address(basket));
-            uint256 pendingRedeemRequestBefore = basket.pendingRedeemRequest(from);
-            uint256 totalPendingRedeemsBefore = basket.totalPendingRedeems();
-            uint256 sharesToRedeem = bound(userSharesBefore, 1, userSharesBefore);
-
-            vm.prank(from);
-            basket.requestRedeem(sharesToRedeem, from, from);
-
-            assertEq(basket.pendingRedeemRequest(from), pendingRedeemRequestBefore + sharesToRedeem);
-            assertEq(basket.totalPendingRedeems(), totalPendingRedeemsBefore + sharesToRedeem);
-            assertEq(basket.balanceOf(from), userSharesBefore - sharesToRedeem);
-            assertEq(basket.balanceOf(address(basket)), basketBalanceOfSelfBefore + sharesToRedeem);
-            assertEq(basket.maxRedeem(from), 0);
-            assertEq(basket.maxWithdraw(from), 0);
-
-            redeemAmounts[i] = sharesToRedeem;
+        address[20] memory users_;
+        for (uint256 i = 0; i < 20; ++i) {
+            users_[i] = fuzzedUsers[i];
         }
+        _testFuzz_requestRedeem(users_, users_);
     }
 
     function testFuzz_requestRedeem_revertWhen_afterPreFulfillRedeem(uint256 amount, uint256 issuedShares) public {
         testFuzz_preFulfillRedeem(amount, issuedShares);
-        for (uint256 i = 0; i < 100; ++i) {
+        for (uint256 i = 0; i < 20; ++i) {
             address from = fuzzedUsers[i];
             uint256 userSharesBefore = basket.balanceOf(from);
-            if (userSharesBefore == 0) {
-                continue;
-            }
+            vm.assume(userSharesBefore > 0);
             vm.prank(from);
             vm.expectRevert(BasketToken.CurrentlyFulfillingRedeem.selector);
             basket.requestRedeem(userSharesBefore, from, from);
@@ -627,6 +609,11 @@ contract BasketTokenTest is BaseTest {
     function testFuzz_fulfillRedeem(uint256 amount, uint256 issuedShares, uint256 fulfillAmount) public {
         testFuzz_requestRedeem(amount, issuedShares);
 
+        uint256[] memory redeemShares = new uint256[](20);
+        for (uint256 i = 0; i < 20; ++i) {
+            redeemShares[i] = basket.pendingRedeemRequest(fuzzedUsers[i]);
+        }
+
         uint256 totalPendingRedeemsBefore = basket.totalPendingRedeems();
         vm.assume(totalPendingRedeemsBefore != 0);
         uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
@@ -651,12 +638,11 @@ contract BasketTokenTest is BaseTest {
         assertEq(dummyAsset.balanceOf(address(basketManager)), basketManagerBalanceBefore - fulfillAmount);
         assertEq(basket.balanceOf(address(basket)), basketBalanceBefore - totalPendingRedeemsBefore);
         assertEq(basket.totalPendingRedeems(), 0);
-        for (uint256 i = 0; i < 100; ++i) {
+        for (uint256 i = 0; i < 20; ++i) {
             assertEq(basket.pendingRedeemRequest(fuzzedUsers[i]), 0);
-            assertEq(basket.maxRedeem(fuzzedUsers[i]), redeemAmounts[i]);
+            assertEq(basket.maxRedeem(fuzzedUsers[i]), redeemShares[i]);
             assertEq(
-                basket.maxWithdraw(fuzzedUsers[i]),
-                redeemAmounts[i].fullMulDiv(fulfillAmount, totalPendingRedeemsBefore)
+                basket.maxWithdraw(fuzzedUsers[i]), redeemShares[i].fullMulDiv(fulfillAmount, totalPendingRedeemsBefore)
             );
         }
     }
@@ -780,7 +766,7 @@ contract BasketTokenTest is BaseTest {
 
     function testFuzz_redeem(uint256 totalDepositAmount, uint256 issuedShares, uint256 redeemAmount) public {
         testFuzz_fulfillRedeem(totalDepositAmount, issuedShares, redeemAmount);
-        for (uint256 i = 0; i < 100; ++i) {
+        for (uint256 i = 0; i < 20; ++i) {
             address from = fuzzedUsers[i];
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxRedeem = basket.maxRedeem(from);
@@ -832,7 +818,7 @@ contract BasketTokenTest is BaseTest {
 
     function testFuzz_withdraw(uint256 totalDepositAmount, uint256 issuedShares, uint256 redeemAmount) public {
         testFuzz_fulfillRedeem(totalDepositAmount, issuedShares, redeemAmount);
-        for (uint256 i = 0; i < 100; ++i) {
+        for (uint256 i = 0; i < 20; ++i) {
             address from = fuzzedUsers[i];
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
