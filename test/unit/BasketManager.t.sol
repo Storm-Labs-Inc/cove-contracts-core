@@ -751,7 +751,7 @@ contract BasketManagerTest is BaseTest {
         params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
-        // With price set at 1e18 this is the threshhold for a rebalance to be valid
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.names = new string[](1);
@@ -830,6 +830,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
         assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.TOKEN_SWAP_PROPOSED));
+        assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
     }
 
     function testFuzz_proposeTokenSwap_internalTrade(uint256 sellWeight, uint256 depositAmount) public {
@@ -837,7 +838,7 @@ contract BasketManagerTest is BaseTest {
         params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
-        // With price set at 1e18 this is the threshhold for a rebalance to be valid
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.names = new string[](2);
@@ -1006,7 +1007,7 @@ contract BasketManagerTest is BaseTest {
         params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
-        // With price set at 1e18 this is the threshhold for a rebalance to be valid
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.names = new string[](2);
@@ -1155,7 +1156,7 @@ contract BasketManagerTest is BaseTest {
         uint256 deviatedWeight = params.sellWeight + max_weight_deviation;
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 1e18, type(uint256).max) / 1e36;
-        // With price set at 1e18 this is the threshhold for a rebalance to be valid
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.names = new string[](2);
@@ -1291,7 +1292,7 @@ contract BasketManagerTest is BaseTest {
         params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
-        // With price set at 1e18 this is the threshhold for a rebalance to be valid
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.names = new string[](2);

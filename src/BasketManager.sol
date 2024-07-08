@@ -207,6 +207,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     AllocationResolver public allocationResolver;
     /// @notice Rebalance status.
     RebalanceStatus private _rebalanceStatus;
+    /// @notice A hash of the latest external trades stored during proposeTokenSwap
+    bytes32 private _externalTradesHash;
 
     /**
      * Events
@@ -399,6 +401,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
      */
     function rebalanceStatus() external view returns (RebalanceStatus memory) {
         return _rebalanceStatus;
+    }
+
+    /**
+     * @notice Returns the hash of the external trades stored during proposeTokenSwap
+     * @return Hash of the external trades
+     */
+    function externalTradesHash() external view returns (bytes32) {
+        return _externalTradesHash;
     }
 
     /**
@@ -716,6 +726,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         status.status = Status.TOKEN_SWAP_PROPOSED;
         _rebalanceStatus = status;
         // store hashes of external trades
+        _externalTradesHash = keccak256(abi.encode(externalTrades));
     }
 
     /**
