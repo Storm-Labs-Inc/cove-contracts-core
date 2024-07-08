@@ -113,8 +113,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     *   - sellTokenPrice: Price of the sell token.
     *   - buyTokenPrice: Price of the buy token.
     *   - buyAmount: Amount of the buy token.
-    *   - fromBasketValue: Value of the selling basket.
-    *   - toBasketValue: Value of the buying basket.
     */
     struct InternalTradeInfo {
         uint256 fromBasketIndex;
@@ -126,8 +124,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         uint256 sellTokenPrice;
         uint256 buyTokenPrice;
         uint256 buyAmount;
-        uint256 fromBasketValue;
-        uint256 toBasketValue;
     }
 
     /*
@@ -194,9 +190,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
     /// @notice Mapping of basket token to pending redeeming shares.
     mapping(address basketToken => uint256 pendingRedeems) public pendingRedeems;
-    // Prices are cached before propose tokenswap is called
-    // TODO: remove in favor of a stored hash to compare against
-    mapping(address token => uint256 price) internal _tokenPrices;
+    // @notice Mapping of basket token to index plus one. 0 means the basket token is not in the rebalance list.
     mapping(address => uint256) private _basketToRebalanceIndexPlusOne;
 
     /// @notice Address of the BasketToken implementation.
@@ -559,6 +553,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
      * If the proposed token swap results are not close to the target balances, this function will revert.
      * @dev This function can only be called after proposeRebalance.
      */
+    // slither-disable-next-line cyclomatic-complexity
     function proposeTokenSwap(
         InternalTrade[] calldata internalTrades,
         ExternalTrade[] calldata externalTrades,
@@ -568,40 +563,45 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         onlyRole(REBALANCER_ROLE)
         nonReentrant
     {
-        RebalanceStatus memory rebalanceStatus = _rebalanceStatus;
-        if (rebalanceStatus.status != Status.REBALANCE_PROPOSED) {
+        RebalanceStatus memory status = _rebalanceStatus;
+        if (status.status != Status.REBALANCE_PROPOSED) {
             revert MustWaitForRebalance();
         }
         // Ensure the basketsToRebalance matches the hash from proposeRebalance
-        if (keccak256(abi.encodePacked(basketsToRebalance)) != rebalanceStatus.basketHash) {
+        if (keccak256(abi.encodePacked(basketsToRebalance)) != status.basketHash) {
             revert BasketsMismatch();
         }
         uint256 numBaskets = basketsToRebalance.length;
         uint256[] memory _totalBasketValue = new uint256[](numBaskets);
         uint256[][] memory _afterTradeBasketAssetAmounts = new uint256[][](numBaskets);
+        uint256[][] memory _tokenPrices = new uint256[][](numBaskets);
         for (uint256 i = 0; i < numBaskets;) {
             address basket = basketsToRebalance[i];
             address[] memory assets = basketAssets[basket];
             uint256 numAssets = assets.length;
             uint256[] memory _basketAssetAmounts = new uint256[](numAssets);
+            uint256[] memory _basketAssetPrices = new uint256[](numAssets);
             _basketToRebalanceIndexPlusOne[basket] = i + 1;
             for (uint256 j = 0; j < numAssets;) {
                 address asset = assets[j];
                 _basketAssetToIndexPlusOne[basket][asset] = j + 1;
-                _basketAssetAmounts[j] = basketBalanceOf[basket][asset];
+                uint256 currentAssetAmount = basketBalanceOf[basket][asset];
+                _basketAssetAmounts[j] = currentAssetAmount;
                 // TODO: Replace with an oracle call once the oracle is implemented
                 // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
                 // if (usdPrice == 0) {
                 //     revert PriceOutOfSafeBounds();
                 // }
-                // _tokenPrices[asset] = usdPrice;
-                _tokenPrices[asset] = 1e18;
+                // _basketAssetPrices[j] = usdPrice;
+                uint256 usdPrice = 1e18;
+                _basketAssetPrices[j] = usdPrice;
+                _totalBasketValue[i] = _totalBasketValue[i] + (currentAssetAmount * usdPrice);
                 unchecked {
                     ++j;
                 }
             }
             _afterTradeBasketAssetAmounts[i] = _basketAssetAmounts;
-            _totalBasketValue[i] = _basketTotalValue(basket);
+            _tokenPrices[i] = _basketAssetPrices;
             unchecked {
                 ++i;
             }
@@ -616,11 +616,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             info.buyTokenAssetIndex = basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.buyToken);
             info.toBasketBuyTokenIndex = basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.buyToken);
             info.toBasketSellTokenIndex = basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.sellToken);
-            info.sellTokenPrice = _tokenPrices[trade.sellToken];
-            info.buyTokenPrice = _tokenPrices[trade.buyToken];
+            info.sellTokenPrice = _tokenPrices[info.fromBasketIndex][info.sellTokenAssetIndex];
+            info.buyTokenPrice = _tokenPrices[info.fromBasketIndex][info.buyTokenAssetIndex];
             info.buyAmount = (trade.sellAmount * info.sellTokenPrice) / info.buyTokenPrice;
-            info.fromBasketValue = _totalBasketValue[info.fromBasketIndex];
-            info.toBasketValue = _totalBasketValue[info.toBasketIndex];
 
             if (info.buyAmount < trade.minAmount) {
                 revert InternalTradeMinAmountNotReached();
@@ -634,7 +632,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 .toBasketBuyTokenIndex] = basketBalanceOf[trade.toBasket][trade.buyToken] - info.buyAmount;
             basketBalanceOf[trade.toBasket][trade.sellToken] = _afterTradeBasketAssetAmounts[info.toBasketIndex][info
                 .toBasketSellTokenIndex] = basketBalanceOf[trade.toBasket][trade.sellToken] + trade.sellAmount;
-
+            // Update total basket value for the "from" basket
+            _totalBasketValue[info.fromBasketIndex] = _totalBasketValue[info.fromBasketIndex]
+                - (trade.sellAmount * info.sellTokenPrice) / 1e18 + (info.buyAmount * info.buyTokenPrice) / 1e18;
+            // Update total basket value for the "to" basket
+            _totalBasketValue[info.toBasketIndex] = _totalBasketValue[info.toBasketIndex]
+                - (info.buyAmount * info.buyTokenPrice) / 1e18 + (trade.sellAmount * info.sellTokenPrice) / 1e18;
             unchecked {
                 ++i;
             }
@@ -642,8 +645,35 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         for (uint256 i = 0; i < externalTrades.length;) {
             ExternalTrade memory trade = externalTrades[i];
             ExternalTradeInfo memory info;
-            info.sellTokenPrice = _tokenPrices[trade.sellToken];
-            info.buyTokenPrice = _tokenPrices[trade.buyToken];
+            BasketOwnershipInfo memory ownershipInfo;
+
+            for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
+                BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
+                // BasketOwnershipInfo memory ownershipInfo;
+                ownershipInfo.basketIndex = basketTokenToReblanceToIndex(ownership.basket);
+                ownershipInfo.buyTokenAssetIndex = basketTokenToRebalanceAssetToIndex(ownership.basket, trade.buyToken);
+                ownershipInfo.sellTokenAssetIndex =
+                    basketTokenToRebalanceAssetToIndex(ownership.basket, trade.sellToken);
+                uint256 ownershipSellAmount = (trade.sellAmount * ownership.tradeOwnership) / 1e18;
+                uint256 ownershipBuyAmount = (trade.minAmount * ownership.tradeOwnership) / 1e18;
+                // Record changes in basket asset holdings due to the external trade
+                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] =
+                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
+                    - ownershipSellAmount;
+                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] =
+                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex]
+                    + ownershipBuyAmount;
+                // Update total basket value
+                _totalBasketValue[ownershipInfo.basketIndex] = _totalBasketValue[ownershipInfo.basketIndex]
+                    - ownershipSellAmount * _tokenPrices[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
+                        / 1e18
+                    + ownershipBuyAmount * _tokenPrices[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] / 1e18;
+                unchecked {
+                    ++j;
+                }
+            }
+            info.sellTokenPrice = _tokenPrices[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex];
+            info.buyTokenPrice = _tokenPrices[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex];
             info.sellValue = trade.sellAmount * info.sellTokenPrice;
             info.internalMinAmount = info.sellValue / info.buyTokenPrice;
             info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
@@ -652,26 +682,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             if (info.internalMinAmount < trade.minAmount) {
                 if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE) {
                     revert ExternalTradeSlippage();
-                }
-            }
-
-            for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
-                BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
-                BasketOwnershipInfo memory ownershipInfo;
-                ownershipInfo.basketIndex = basketTokenToReblanceToIndex(ownership.basket);
-                ownershipInfo.buyTokenAssetIndex = basketTokenToRebalanceAssetToIndex(ownership.basket, trade.buyToken);
-                ownershipInfo.sellTokenAssetIndex =
-                    basketTokenToRebalanceAssetToIndex(ownership.basket, trade.sellToken);
-
-                // Record changes in basket asset holdings due to the external trade
-                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] =
-                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
-                    - (trade.sellAmount * 1e18) / ownership.tradeOwnership;
-                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] =
-                _afterTradeBasketAssetAmounts[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex]
-                    + (info.internalMinAmount * 1e18) / ownership.tradeOwnership;
-                unchecked {
-                    ++j;
                 }
             }
             unchecked {
@@ -687,7 +697,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             for (uint256 j = 0; j < proposedTargetWeights.length;) {
                 address asset = assets[j];
                 uint256 afterTradeWeight =
-                    _afterTradeBasketAssetAmounts[i][j] * _tokenPrices[asset] * 1e18 / _totalBasketValue[i];
+                    _afterTradeBasketAssetAmounts[i][j] * _tokenPrices[i][j] * 1e18 / _totalBasketValue[i];
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
                     console.log("basket, asset: ", basket, asset);
                     console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
@@ -702,24 +712,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 ++i;
             }
         }
-        rebalanceStatus.timestamp = uint40(block.timestamp);
-        rebalanceStatus.status = Status.TOKEN_SWAP_PROPOSED;
-        _rebalanceStatus = rebalanceStatus;
-    }
-
-    function _calculateCurrentBasketWeights(address basket) internal view returns (uint256[] memory weights) {
-        uint256[] memory values;
-        uint256 totalUSDCValue = _basketTotalValue(basket);
-        for (uint256 i = 0; i < values.length; i++) {
-            weights[i] = values[i] * 1e18 / totalUSDCValue;
-        }
-    }
-
-    function _basketTotalValue(address basket) internal view returns (uint256 totalUSDCValue) {
-        address[] memory assets = basketAssets[basket];
-        for (uint256 i = 0; i < assets.length; i++) {
-            totalUSDCValue = totalUSDCValue + basketBalanceOf[basket][assets[i]] * _tokenPrices[assets[i]];
-        }
+        status.timestamp = uint40(block.timestamp);
+        status.status = Status.TOKEN_SWAP_PROPOSED;
+        _rebalanceStatus = status;
+        // store hashes of external trades
     }
 
     /**
