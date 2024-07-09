@@ -15,7 +15,6 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
-import { console } from "forge-std/console.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { MockAssetRegistry } from "test/utils/mocks/MockAssetRegistry.sol";
@@ -268,18 +267,15 @@ contract BasketTokenTest is BaseTest {
         // Call requestDeposit from users with random amounts
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             fuzzedUsers[i] = createUser(string.concat("user", vm.toString(i)));
-            if (remainingAmount == 0) {
-                break;
-            }
+            // Ignore the cases where a user ends up with zero deposit amount
+            vm.assume(remainingAmount > 1);
             if (i == MAX_USERS - 1) {
                 depositAmounts[i] = remainingAmount;
             } else {
-                depositAmounts[i] = bound(uint256(keccak256(abi.encodePacked(block.timestamp, i))), 1, remainingAmount);
+                depositAmounts[i] =
+                    bound(uint256(keccak256(abi.encodePacked(block.timestamp, i))), 1, remainingAmount - 1);
             }
             remainingAmount -= depositAmounts[i];
-            if (depositAmounts[i] == 0) {
-                continue;
-            }
             testFuzz_requestDeposit(depositAmounts[i], fuzzedUsers[i]);
         }
         assertEq(basket.totalPendingDeposits(), totalAmount);
@@ -338,12 +334,13 @@ contract BasketTokenTest is BaseTest {
         testFuzz_fulfillDeposit(amount, issuedShares);
         issuedShares = basket.balanceOf(address(basket));
         for (uint256 i = 0; i < MAX_USERS; ++i) {
-            if (depositAmounts[i] == 0) {
-                continue;
-            }
+            // Skip users with zero deposit amount. This is to avoid ZeroAmount error
+            // Zero deposit amount happens due to splitting the total deposit amount among users
             uint256 userBalanceBefore = basket.balanceOf(fuzzedUsers[i]);
             uint256 maxDeposit = basket.maxDeposit(fuzzedUsers[i]);
             uint256 maxMint = basket.maxMint(fuzzedUsers[i]);
+            assertGt(depositAmounts[i], 0, "users should have non-zero deposit amount before testing");
+            assertGt(maxDeposit, 0, "Max deposit should be greater than 0 if user has pending deposit");
 
             // Call deposit
             vm.prank(fuzzedUsers[i]);
@@ -397,9 +394,11 @@ contract BasketTokenTest is BaseTest {
             uint256 userBalanceBefore = basket.balanceOf(from);
             uint256 basketBalanceBefore = basket.balanceOf(address(basket));
             uint256 maxMint = basket.maxMint(from);
-            if (maxMint == 0) {
-                continue;
-            }
+            // TODO: Allow 0 as shares value when `mint` is called
+            // In case of "bad" assets to shares ratio, maxMint can be zero despite non zero assets deposited.
+            // This will block future deposits from this user since their pending deposits cannot be ressetted to 0.
+            // Therefore we need a way to allow 0 as shares value when `mint` is called.
+            vm.assume(maxMint > 0);
 
             // Call mint
             vm.prank(from);
@@ -420,30 +419,24 @@ contract BasketTokenTest is BaseTest {
     }
 
     function testFuzz_mint_revertsWhen_notClaimingFullOutstandingDeposit(
-        address from,
         uint256 amount,
         uint256 issuedShares,
         uint256 claimingShares
     )
         public
     {
-        vm.assume(from != address(0));
-        amount = bound(amount, 1, type(uint256).max);
-        issuedShares = bound(issuedShares, 2, type(uint256).max);
-        claimingShares = bound(claimingShares, 1, issuedShares - 1);
+        testFuzz_fulfillDeposit(amount, issuedShares);
+        for (uint256 i = 0; i < MAX_USERS; ++i) {
+            address from = fuzzedUsers[i];
+            uint256 maxMint = basket.maxMint(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
+            vm.assume(maxMint > 1);
+            claimingShares = bound(claimingShares, 1, maxMint - 1);
 
-        dummyAsset.mint(from, amount);
-        vm.startPrank(from);
-        dummyAsset.approve(address(basket), amount);
-        basket.requestDeposit(amount, from);
-        vm.stopPrank();
-
-        vm.prank(address(basketManager));
-        basket.fulfillDeposit(issuedShares);
-
-        vm.prank(from);
-        vm.expectRevert(BasketToken.MustClaimFullAmount.selector);
-        basket.mint(claimingShares, from);
+            vm.prank(from);
+            vm.expectRevert(BasketToken.MustClaimFullAmount.selector);
+            basket.mint(claimingShares, from);
+        }
     }
 
     function testFuzz_cancelDepositRequest(uint256 amount, address from) public {
@@ -451,8 +444,12 @@ contract BasketTokenTest is BaseTest {
         testFuzz_requestDeposit(amount, from);
         uint256 requestAmount = basket.pendingDepositRequest(from);
         uint256 balanceBefore = dummyAsset.balanceOf(from);
+
+        // Call cancelDepositRequest
         vm.prank(from);
         basket.cancelDepositRequest();
+
+        // Check state
         assertEq(basket.pendingDepositRequest(from), 0);
         assertEq(dummyAsset.balanceOf(from), balanceBefore + requestAmount);
     }
@@ -472,6 +469,7 @@ contract BasketTokenTest is BaseTest {
             vm.assume(caller != address(0) && to != address(0));
 
             uint256 userSharesBefore = basket.balanceOf(from);
+            // Ignores the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userSharesBefore > 0);
             uint256 basketBalanceOfSelfBefore = basket.balanceOf(address(basket));
             uint256 pendingRedeemRequestBefore = basket.pendingRedeemRequest(to);
@@ -522,6 +520,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 userSharesBefore = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userSharesBefore > 0);
             vm.prank(from);
             vm.expectRevert(BasketToken.CurrentlyFulfillingRedeem.selector);
@@ -534,6 +533,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 userSharesBefore = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userSharesBefore > 0);
             uint256 userPendingRequest = basket.pendingRedeemRequest(from);
             uint256 totalPendingRedeems = basket.totalPendingRedeems();
@@ -597,7 +597,7 @@ contract BasketTokenTest is BaseTest {
         }
 
         uint256 totalPendingRedeemsBefore = basket.totalPendingRedeems();
-        vm.assume(totalPendingRedeemsBefore != 0);
+        assertGt(totalPendingRedeemsBefore, 0, "Total pending redeems should be greater than 0 for this test");
         uint256 basketManagerBalanceBefore = dummyAsset.balanceOf(address(basketManager));
         fulfillAmount = bound(fulfillAmount, 1, basketManagerBalanceBefore);
         uint256 basketBalanceBefore = basket.balanceOf(address(basket));
@@ -633,7 +633,7 @@ contract BasketTokenTest is BaseTest {
         testFuzz_requestRedeem(totalAmount, issuedShares);
 
         uint256 pendingSharesBefore = basket.totalPendingRedeems();
-        vm.assume(pendingSharesBefore != 0);
+        assertGt(pendingSharesBefore, 0, "Total pending redeems should be greater than 0 for this test");
 
         uint256 redeemEpochBefore = basket.currentRedeemEpoch();
 
@@ -713,6 +713,7 @@ contract BasketTokenTest is BaseTest {
             uint256 userPendingRequest = basket.pendingRedeemRequest(from);
             uint256 totalPendingRedeems = basket.totalPendingRedeems();
             uint256 userBalanceBefore = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userBalanceBefore > 0);
 
             uint256 sharesToRequest = bound(uint256(keccak256(abi.encode(userBalanceBefore))), 1, userBalanceBefore);
@@ -727,7 +728,7 @@ contract BasketTokenTest is BaseTest {
         }
     }
 
-    function testFuzz_fulfillRedeem_passWhen_afterWithdraw(
+    function testFuzz_requestRedeem_passWhen_afterWithdraw(
         uint256 totalDepositAmount,
         uint256 issuedShares,
         uint256 redeemAmount
@@ -740,6 +741,7 @@ contract BasketTokenTest is BaseTest {
             uint256 userPendingRequest = basket.pendingRedeemRequest(from);
             uint256 totalPendingRedeems = basket.totalPendingRedeems();
             uint256 userBalanceBefore = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userBalanceBefore > 0);
 
             uint256 sharesToRequest = bound(uint256(keccak256(abi.encode(userBalanceBefore))), 1, userBalanceBefore);
@@ -773,9 +775,8 @@ contract BasketTokenTest is BaseTest {
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxRedeem = basket.maxRedeem(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
-            if (maxRedeem == 0) {
-                continue;
-            }
+            // Previous tests ensures that the user has non zero shares to redeem
+            assertGt(maxRedeem, 0, "Max redeem should be greater than 0 for this test");
 
             // Call redeem
             vm.prank(from);
@@ -806,6 +807,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 maxRedeem = basket.maxRedeem(from);
+            // Ignore the cases where the user has redeemed non zero shares but will receive zero assets
             vm.assume(maxRedeem > 1);
             uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(maxRedeem))), 1, maxRedeem - 1);
 
@@ -822,6 +824,12 @@ contract BasketTokenTest is BaseTest {
             address from = fuzzedUsers[i];
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
+            // Ignore the cases where the user has redeemed non zero shares but will receive zero assets
+            // TODO: Allow 0 as assets value when `withdraw` is called
+            // In case of "bad" assets to shares ratio, maxWithdraw can be zero despite non zero shares redeemed.
+            // This will block future redeems from this user since their pending redeems cannot be ressetted to 0.
+            // Therefore we need a way to allow 0 as assets value when `withdraw` is called to ensure that the user's
+            // pending redeems can be reset to 0.
             vm.assume(maxWithdraw > 0);
 
             // Call redeem
@@ -853,6 +861,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 maxWithdraw = basket.maxWithdraw(from);
+            // Ignore the cases where the user has redeemed non zero shares but will receive zero assets
             vm.assume(maxWithdraw > 1);
             uint256 sharesToWithdraw = bound(uint256(keccak256(abi.encode(maxWithdraw))), 1, maxWithdraw - 1);
 
@@ -1051,6 +1060,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 userShares = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
             uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userShares))), 1, userShares);
 
@@ -1089,6 +1099,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 userShares = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
             uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userShares))), 1, userShares);
 
@@ -1131,6 +1142,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 userShares = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
             uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userShares))), 1, userShares);
             uint256 approveAmount = bound(uint256(keccak256(abi.encode(sharesToRedeem))), 0, sharesToRedeem - 1);
