@@ -107,15 +107,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     error ZeroPendingDeposits();
     error ZeroPendingRedeems();
     error AssetPaused();
-    error NotOwner();
     error MustClaimOutstandingDeposit();
     error MustClaimOutstandingRedeem();
     error MustClaimFullAmount();
-    error NotBasketManager();
     error PreFulFillRedeemNotCalled();
-    error EpochFallbackNotTriggered();
     error CurrentlyFulfillingRedeem();
-    error InvalidRate();
     error CannotFulfillWithZeroShares();
     error ZeroClaimableFallbackShares();
     error MustWaitForPreviousRedeemEpoch();
