@@ -6,7 +6,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { Test, console2 } from "forge-std/Test.sol";
+import { Test, console } from "forge-std/Test.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 abstract contract BaseTest is Test {
@@ -40,7 +40,7 @@ abstract contract BaseTest is Test {
     function createUser(string memory name) public returns (address payable) {
         address payable user = payable(makeAddr(name));
         if (users[name] != address(0)) {
-            console2.log("User ", name, " already exists");
+            console.log("User ", name, " already exists");
             return user;
         }
         vm.deal({ account: user, newBalance: 100 ether });
@@ -75,8 +75,8 @@ abstract contract BaseTest is Test {
         string memory rpcURL = vm.rpcUrl(network);
         uint256 forkId = vm.createSelectFork(rpcURL, blockNumber);
         forks[network] = Fork({ forkId: forkId, blockNumber: blockNumber });
-        console2.log("Started fork ", network, " at block ", block.number);
-        console2.log("with id", forkId);
+        console.log("Started fork ", network, " at block ", block.number);
+        console.log("with id", forkId);
         return forkId;
     }
 
@@ -89,8 +89,8 @@ abstract contract BaseTest is Test {
         string memory rpcURL = vm.rpcUrl(network);
         uint256 forkId = vm.createSelectFork(rpcURL);
         forks[network] = Fork({ forkId: forkId, blockNumber: block.number });
-        console2.log("Started fork ", network, "at block ", block.number);
-        console2.log("with id", forkId);
+        console.log("Started fork ", network, "at block ", block.number);
+        console.log("with id", forkId);
         return forkId;
     }
 
