@@ -440,6 +440,7 @@ contract BasketTokenTest is BaseTest {
             address from = fuzzedUsers[i];
             uint256 userBalanceBefore = basket.balanceOf(from);
             uint256 basketBalanceBefore = basket.balanceOf(address(basket));
+            uint256 maxDeposit = basket.maxDeposit(from);
             uint256 maxMint = basket.maxMint(from);
             // TODO: Allow 0 as shares value when `mint` is called
             // In case of "bad" assets to shares ratio, maxMint can be zero despite non zero assets deposited.
@@ -449,7 +450,7 @@ contract BasketTokenTest is BaseTest {
 
             // Call mint
             vm.prank(from);
-            basket.mint(maxMint, from);
+            assertEq(basket.mint(maxMint, from), maxDeposit);
 
             // Check state
             assertEq(basket.balanceOf(from), userBalanceBefore + maxMint);
@@ -909,6 +910,7 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
+            uint256 maxRedeem = basket.maxRedeem(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
             // Ignore the cases where the user has redeemed non zero shares but will receive zero assets
             // TODO: Allow 0 as assets value when `withdraw` is called
@@ -920,7 +922,7 @@ contract BasketTokenTest is BaseTest {
 
             // Call redeem
             vm.prank(from);
-            basket.withdraw(maxWithdraw, from, from);
+            assertEq(basket.withdraw(maxWithdraw, from, from), maxRedeem);
 
             // Check state
             assertEq(dummyAsset.balanceOf(from), userBalanceBefore + maxWithdraw);
