@@ -21,8 +21,8 @@ contract BasketTokenTest is BaseTest {
     BasketToken public basket;
     BasketToken public basketTokenImplementation;
     MockBasketManager public basketManager;
-    AssetRegistry public assetRegistry;
     ERC20Mock public dummyAsset;
+    address public assetRegistry;
     address public alice;
     address public owner;
 
@@ -39,12 +39,18 @@ contract BasketTokenTest is BaseTest {
         vm.label(address(basketManager), "basketManager");
         basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(owner));
         vm.label(address(basket), "basketToken");
-        assetRegistry = new AssetRegistry(address(owner));
+        assetRegistry = createUser("assetRegistry");
         vm.label(address(assetRegistry), "assetRegistry");
         vm.startPrank(address(owner));
         basket.setAssetRegistry(address(assetRegistry));
-        assetRegistry.addAsset(address(dummyAsset));
         vm.stopPrank();
+
+        // mock call to return ENABLED for the dummyAsset
+        vm.mockCall(
+            address(assetRegistry),
+            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
+            abi.encode(uint8(AssetRegistry.AssetStatus.ENABLED))
+        );
     }
 
     function test_constructor() public {
@@ -174,10 +180,15 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestDeposit_revertWhen_assetPaused() public {
-        vm.prank(owner);
-        assetRegistry.setAssetStatus(address(dummyAsset), AssetRegistry.AssetStatus.PAUSED);
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
+
+        vm.mockCall(
+            address(assetRegistry),
+            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
+            abi.encode(uint8(AssetRegistry.AssetStatus.PAUSED))
+        );
+
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
@@ -185,13 +196,35 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestDeposit_revertWhen_assetDisabled() public {
-        vm.startPrank(owner);
-        basket.setAssetRegistry(address(new AssetRegistry(owner)));
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
+
+        vm.mockCall(
+            address(assetRegistry),
+            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
+            abi.encode(uint8(AssetRegistry.AssetStatus.DISABLED))
+        );
+
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
+        basket.requestDeposit(amount, alice);
+    }
+
+    function testFuzz_requestDeposit_revertWhen_invalidAssetStatus(uint8 status) public {
+        vm.assume(status > 2);
+        uint256 amount = 1e18;
+        dummyAsset.mint(alice, amount);
+
+        vm.mockCall(
+            address(assetRegistry),
+            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
+            abi.encode(status)
+        );
+
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        vm.expectRevert();
         basket.requestDeposit(amount, alice);
     }
 
@@ -433,10 +466,15 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestRedeem_revertWhen_assetPaused() public {
-        vm.prank(owner);
-        assetRegistry.setAssetStatus(address(dummyAsset), AssetRegistry.AssetStatus.PAUSED);
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
+
+        vm.mockCall(
+            address(assetRegistry),
+            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
+            abi.encode(uint8(AssetRegistry.AssetStatus.PAUSED))
+        );
+
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
@@ -444,13 +482,35 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_requestRedeem_revertWhen_assetDisabled() public {
-        vm.startPrank(owner);
-        basket.setAssetRegistry(address(new AssetRegistry(owner)));
         uint256 amount = 1e18;
         dummyAsset.mint(alice, amount);
+
+        vm.mockCall(
+            address(assetRegistry),
+            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
+            abi.encode(uint8(AssetRegistry.AssetStatus.DISABLED))
+        );
+
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
+        basket.requestRedeem(amount, alice, alice);
+    }
+
+    function testFuzz_requestRedeem_revertWhen_invalidAssetStatus(uint8 status) public {
+        vm.assume(status > 2);
+        uint256 amount = 1e18;
+        dummyAsset.mint(alice, amount);
+
+        vm.mockCall(
+            address(assetRegistry),
+            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
+            abi.encode(status)
+        );
+
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        vm.expectRevert();
         basket.requestRedeem(amount, alice, alice);
     }
 
