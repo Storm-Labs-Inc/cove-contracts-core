@@ -8,16 +8,13 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
+import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 // TODO: interfaces will be removed in the future
 interface IBasketManager {
     function totalAssetValue(uint256 strategyId) external view returns (uint256);
-}
-
-interface IAssetRegistry {
-    function isPaused(address asset) external view returns (bool);
 }
 
 /**
@@ -235,7 +232,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        if (IAssetRegistry(assetRegistry).isPaused(asset())) {
+        if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
             revert AssetPaused();
         }
         // Effects
@@ -286,7 +283,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (maxRedeem(requestOwner) > 0) {
             revert MustClaimOutstandingRedeem();
         }
-        if (IAssetRegistry(assetRegistry).isPaused(asset())) {
+        if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
             revert AssetPaused();
         }
         uint256 redeemEpoch = _currentRedeemEpoch;
