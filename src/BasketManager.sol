@@ -14,7 +14,7 @@ import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
-import { console2 as console } from "forge-std/console2.sol";
+import { console } from "forge-std/console.sol";
 
 /**
  * @title BasketManager
