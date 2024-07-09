@@ -118,6 +118,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     error InvalidRate();
     error CannotFulfillWithZeroShares();
     error ZeroClaimableFallbackShares();
+    error MustWaitForPreviousRedeemEpoch();
 
     /**
      * @notice Disables the ability to call initializers.
@@ -366,7 +367,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function preFulfillRedeem() public onlyRole(BASKET_MANAGER_ROLE) returns (uint256) {
         uint256 redeemEpoch = _currentRedeemEpoch;
         if (_epochRedeemStatus[redeemEpoch - 1] < RedemptionStatus.REDEEM_FULFILLED) {
-            revert PreFulFillRedeemNotCalled();
+            revert MustWaitForPreviousRedeemEpoch();
         }
         Request storage redeemRequest = _epochRedeemRequests[redeemEpoch];
         uint256 currentPendingRedeems = redeemRequest.shares;
