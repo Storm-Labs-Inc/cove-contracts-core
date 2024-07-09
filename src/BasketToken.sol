@@ -117,6 +117,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     error CurrentlyFulfillingRedeem();
     error InvalidRate();
     error CannotFulfillWithZeroShares();
+    error ZeroClaimableFallbackShares();
 
     /**
      * @notice Disables the ability to call initializers.
@@ -156,6 +157,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         strategyId = strategyId_;
         _currentRedeemEpoch = 1;
         _currentDepositEpoch = 1;
+        _epochRedeemStatus[0] = RedemptionStatus.REDEEM_FULFILLED;
         __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
@@ -363,6 +365,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
      */
     function preFulfillRedeem() public onlyRole(BASKET_MANAGER_ROLE) returns (uint256) {
         uint256 redeemEpoch = _currentRedeemEpoch;
+        if (_epochRedeemStatus[redeemEpoch - 1] < RedemptionStatus.REDEEM_FULFILLED) {
+            revert PreFulFillRedeemNotCalled();
+        }
         Request storage redeemRequest = _epochRedeemRequests[redeemEpoch];
         uint256 currentPendingRedeems = redeemRequest.shares;
         if (currentPendingRedeems == 0) {
@@ -463,18 +468,30 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     }
 
     /**
-     * @notice Retrieve shares given for a previous redemption request in the event a redemption fulfillment for a
+     * @notice Claims shares given for a previous redemption request in the event a redemption fulfillment for a
      * given epoch fails.
      */
-    function fallbackCancelRedeemRequest() public {
-        // Checks
-        if (_epochRedeemStatus[_currentRedeemEpoch - 1] != RedemptionStatus.FALLBACK_TRIGGERED) {
-            revert EpochFallbackNotTriggered();
-        }
+    function claimFallbackShares() public returns (uint256 shares) {
         // Effects
-        uint256 pendingRedeem = _pendingRedeem[msg.sender];
+        shares = claimableFallbackShares(msg.sender);
+        if (shares == 0) {
+            revert ZeroClaimableFallbackShares();
+        }
         delete _pendingRedeem[msg.sender];
-        _transfer(address(this), msg.sender, pendingRedeem);
+        _transfer(address(this), msg.sender, shares);
+    }
+
+    /**
+     * @notice Returns the amount of shares claimable for a given operator in the event of a failed redemption
+     * fulfillment.
+     * @param operator The address of the operator.
+     * @return shares The amount of shares claimable by the operator.
+     */
+    function claimableFallbackShares(address operator) public view returns (uint256 shares) {
+        if (_epochRedeemStatus[_lastRedeemEpoch[operator]] != RedemptionStatus.FALLBACK_TRIGGERED) {
+            return 0;
+        }
+        shares = _pendingRedeem[operator];
     }
 
     /**
