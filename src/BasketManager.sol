@@ -644,6 +644,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             // Settle the internal trades and track the balance changes
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             basketBalanceOf[trade.fromBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
                 .sellTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.sellToken] - trade.sellAmount; // nosemgrep
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
