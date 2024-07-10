@@ -681,34 +681,32 @@ contract BasketManagerTest is BaseTest {
     {
         /// Setup fuzzing bounds
         uint256 max_weight_deviation = 0.051e18;
-        sellWeight = bound(sellWeight, max_weight_deviation, 1e18 - max_weight_deviation);
-        uint256 deviatedWeight = sellWeight + max_weight_deviation;
-        // Below bound is due to deposit amount being scaled by price and target weight
-        depositAmount = bound(depositAmount, 1e18, type(uint256).max) / 1e36;
-        // With price set at 1e18 this is the threshold for a rebalance to be valid
-        vm.assume(depositAmount * sellWeight / 1e18 > 500);
+        TradeTestParams memory params;
+        params.sellWeight = bound(sellWeight, max_weight_deviation, 1e18 - max_weight_deviation);
+        params.depositAmount = bound(depositAmount, 1e18, type(uint256).max) / 1e36;
+        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = address(new ERC20Mock());
 
         /// Setup basket and target weights
-        uint256 baseAssetWeight = 1e18 - sellWeight;
-        address pairAsset = address(new ERC20Mock());
-        address[][] memory assetsPerBasket = new address[][](2);
-        assetsPerBasket[0] = new address[](2);
-        assetsPerBasket[0][0] = rootAsset;
-        assetsPerBasket[0][1] = pairAsset;
-        assetsPerBasket[1] = new address[](2);
-        assetsPerBasket[1][0] = pairAsset;
-        assetsPerBasket[1][1] = rootAsset;
+        address[][] memory basketAssets = new address[][](2);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        basketAssets[1] = new address[](2);
+        basketAssets[1][0] = params.pairAsset;
+        basketAssets[1][1] = rootAsset;
         uint256[][] memory weightsPerBasket = new uint256[][](2);
         weightsPerBasket[0] = new uint256[](2);
-        weightsPerBasket[0][0] = baseAssetWeight - max_weight_deviation;
-        weightsPerBasket[0][1] = 1e18 - baseAssetWeight - max_weight_deviation;
+        weightsPerBasket[0][0] = params.baseAssetWeight - max_weight_deviation;
+        weightsPerBasket[0][1] = 1e18 - params.baseAssetWeight - max_weight_deviation;
         weightsPerBasket[1] = new uint256[](2);
-        weightsPerBasket[1][0] = baseAssetWeight - max_weight_deviation;
-        weightsPerBasket[1][1] = 1e18 - baseAssetWeight - max_weight_deviation;
+        weightsPerBasket[1][0] = params.baseAssetWeight - max_weight_deviation;
+        weightsPerBasket[1][1] = 1e18 - params.baseAssetWeight - max_weight_deviation;
         uint256[] memory initialDepositAmounts = new uint256[](2);
-        initialDepositAmounts[0] = depositAmount;
-        initialDepositAmounts[1] = depositAmount;
-        address[] memory baskets = _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts);
+        initialDepositAmounts[0] = params.depositAmount;
+        initialDepositAmounts[1] = params.depositAmount;
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, weightsPerBasket, initialDepositAmounts);
 
         /// Propose the rebalance
         vm.prank(rebalancer);
@@ -720,11 +718,11 @@ contract BasketManagerTest is BaseTest {
         internalTrades[0] = BasketManager.InternalTrade({
             fromBasket: baskets[0],
             sellToken: rootAsset,
-            buyToken: pairAsset,
+            buyToken: params.pairAsset,
             toBasket: baskets[1],
-            sellAmount: depositAmount * (1e18 - deviatedWeight) / 1e18,
-            minAmount: (depositAmount * (1e18 - deviatedWeight) / 1e18) * 0.995e18 / 1e18,
-            maxAmount: (depositAmount * (1e18 - deviatedWeight) / 1e18) * 1.005e18 / 1e18
+            sellAmount: params.depositAmount * (1e18 - (params.sellWeight + max_weight_deviation)) / 1e18,
+            minAmount: (params.depositAmount * (1e18 - (params.sellWeight + max_weight_deviation)) / 1e18) * 0.995e18 / 1e18,
+            maxAmount: (params.depositAmount * (1e18 - (params.sellWeight + max_weight_deviation)) / 1e18) * 1.005e18 / 1e18
         });
         vm.prank(rebalancer);
         vm.expectRevert(BasketManager.TargetWeightsNotMet.selector);
