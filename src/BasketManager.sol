@@ -315,6 +315,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         uint256 assetsLength = assets.length;
         for (uint256 j = 0; j < assetsLength;) {
             address asset = assets[j];
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             _basketAssetToIndexPlusOne[basket][asset] = j + 1;
             unchecked {
                 ++j;
@@ -599,6 +600,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = basketAssets[basket];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 assetsLength = assets.length;
             afterTradeBasketAssetAmounts_[i] = new uint256[](assetsLength);
             tokenPrices_[i] = new uint256[](assetsLength);
@@ -642,18 +644,17 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             // Settle the internal trades and track the balance changes
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             basketBalanceOf[trade.fromBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
-                .sellTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.sellToken] - trade.sellAmount;
+                .sellTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.sellToken] - trade.sellAmount; // nosemgrep
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             basketBalanceOf[trade.fromBasket][trade.buyToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
-                .buyTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.buyToken] + info.buyAmount;
+                .buyTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.buyToken] + info.buyAmount; // nosemgrep
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             basketBalanceOf[trade.toBasket][trade.buyToken] = afterTradeBasketAssetAmounts_[info.toBasketIndex][info
-                .toBasketBuyTokenIndex] = basketBalanceOf[trade.toBasket][trade.buyToken] - info.buyAmount;
+                .toBasketBuyTokenIndex] = basketBalanceOf[trade.toBasket][trade.buyToken] - info.buyAmount; // nosemgrep
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             basketBalanceOf[trade.toBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.toBasketIndex][info
-                .toBasketSellTokenIndex] = basketBalanceOf[trade.toBasket][trade.sellToken] + trade.sellAmount;
+                .toBasketSellTokenIndex] = basketBalanceOf[trade.toBasket][trade.sellToken] + trade.sellAmount; // nosemgrep
             // Update total basket value for the "from" basket
             totalBasketValue_[info.fromBasketIndex] = totalBasketValue_[info.fromBasketIndex]
                 - FixedPointMathLib.fullMulDiv(trade.sellAmount, sellTokenPrice, 1e18)
@@ -670,8 +671,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             ExternalTrade memory trade = externalTrades[i];
             ExternalTradeInfo memory info;
             BasketOwnershipInfo memory ownershipInfo;
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 basketTradeOwnershipLength = trade.basketTradeOwnership.length;
-
             for (uint256 j = 0; j < basketTradeOwnershipLength;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 ownershipInfo.basketIndex = _indexOf(basketsToRebalance, ownership.basket);
@@ -721,7 +722,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             // slither-disable-next-line calls-loop
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket); // nosemgrep:
                 // solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = basketAssets[basket];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
                 address asset = assets[j];
