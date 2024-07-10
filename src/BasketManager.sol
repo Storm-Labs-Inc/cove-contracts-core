@@ -702,9 +702,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION threshold
         for (uint256 i = 0; i < numBaskets;) {
             address basket = basketsToRebalance[i];
+            // slither-disable-next-line calls-loop
             uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
             address[] memory assets = basketAssets[basket];
-            for (uint256 j = 0; j < proposedTargetWeights.length;) {
+            uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
+            for (uint256 j = 0; j < proposedTargetWeightsLength;) {
                 address asset = assets[j];
                 uint256 afterTradeWeight =
                     afterTradeBasketAssetAmounts_[i][j] * tokenPrices_[i][j] * 1e18 / totalBasketValue_[i];
