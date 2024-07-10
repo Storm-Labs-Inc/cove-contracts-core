@@ -85,6 +85,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         address toBasket;
         uint256 sellAmount;
         uint256 minAmount;
+        uint256 maxAmount;
     }
 
     /*
@@ -232,7 +233,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error RebalanceNotRequired();
     error ExternalTradeSlippage();
     error TargetWeightsNotMet();
-    error InternalTradeMinAmountNotReached();
+    error InternalTradeMinMaxAmountNotReached();
 
     /**
      * @notice Initializes the contract with the given parameters.
@@ -612,20 +613,21 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
         for (uint256 i = 0; i < internalTrades.length;) {
             InternalTrade memory trade = internalTrades[i];
-            InternalTradeInfo memory info;
-
-            info.fromBasketIndex = basketTokenToReblanceToIndex(trade.fromBasket);
-            info.toBasketIndex = basketTokenToReblanceToIndex(trade.toBasket);
-            info.sellTokenAssetIndex = basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.sellToken);
-            info.buyTokenAssetIndex = basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.buyToken);
-            info.toBasketBuyTokenIndex = basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.buyToken);
-            info.toBasketSellTokenIndex = basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.sellToken);
+            InternalTradeInfo memory info = InternalTradeInfo({
+                fromBasketIndex: basketTokenToReblanceToIndex(trade.fromBasket),
+                toBasketIndex: basketTokenToReblanceToIndex(trade.toBasket),
+                sellTokenAssetIndex: basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.sellToken),
+                buyTokenAssetIndex: basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.buyToken),
+                toBasketBuyTokenIndex: basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.buyToken),
+                toBasketSellTokenIndex: basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.sellToken),
+                buyAmount: 0
+            });
             uint256 sellTokenPrice = tokenPrices_[info.fromBasketIndex][info.sellTokenAssetIndex];
             uint256 buyTokenPrice = tokenPrices_[info.fromBasketIndex][info.buyTokenAssetIndex];
             info.buyAmount = (trade.sellAmount * sellTokenPrice) / buyTokenPrice;
 
-            if (info.buyAmount < trade.minAmount) {
-                revert InternalTradeMinAmountNotReached();
+            if (info.buyAmount < trade.minAmount || trade.maxAmount < info.buyAmount) {
+                revert InternalTradeMinMaxAmountNotReached();
             }
             // Settle the internal trades and track the balance changes
             basketBalanceOf[trade.fromBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
@@ -652,15 +654,18 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             ExternalTrade memory trade = externalTrades[i];
             ExternalTradeInfo memory info;
             BasketOwnershipInfo memory ownershipInfo;
+            uint256 basketTradeOwnershipLength = trade.basketTradeOwnership.length;
 
-            for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
+            for (uint256 j = 0; j < basketTradeOwnershipLength;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 ownershipInfo.basketIndex = basketTokenToReblanceToIndex(ownership.basket);
                 ownershipInfo.buyTokenAssetIndex = basketTokenToRebalanceAssetToIndex(ownership.basket, trade.buyToken);
                 ownershipInfo.sellTokenAssetIndex =
                     basketTokenToRebalanceAssetToIndex(ownership.basket, trade.sellToken);
-                uint256 ownershipSellAmount = (trade.sellAmount * ownership.tradeOwnership) / 1e18;
-                uint256 ownershipBuyAmount = (trade.minAmount * ownership.tradeOwnership) / 1e18;
+                uint256 ownershipSellAmount =
+                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                uint256 ownershipBuyAmount =
+                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
                 // Record changes in basket asset holdings due to the external trade
                 afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] =
                 afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
