@@ -571,12 +571,33 @@ contract BasketManagerTest is BaseTest {
             minAmount: (params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18) * 0.995e18 / 1e18,
             maxAmount: (params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18) * 1.005e18 / 1e18
         });
+        uint256 basket0RootAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[0], rootAsset);
+        uint256 basket0PairAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[0], params.pairAsset);
+        uint256 basket1RootAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[1], rootAsset);
+        uint256 basket1PairAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[1], params.pairAsset);
         vm.prank(rebalancer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
 
         /// Confirm end state
         assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.TOKEN_SWAP_PROPOSED));
+        assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
+        assertEq(
+            basketManager.basketBalanceOf(baskets[0], rootAsset),
+            basket0RootAssetBalanceOfBefore - internalTrades[0].sellAmount
+        );
+        assertEq(
+            basketManager.basketBalanceOf(baskets[0], params.pairAsset),
+            basket0PairAssetBalanceOfBefore + internalTrades[0].sellAmount
+        );
+        assertEq(
+            basketManager.basketBalanceOf(baskets[1], rootAsset),
+            basket1RootAssetBalanceOfBefore + internalTrades[0].sellAmount
+        );
+        assertEq(
+            basketManager.basketBalanceOf(baskets[1], params.pairAsset),
+            basket1PairAssetBalanceOfBefore - internalTrades[0].sellAmount
+        );
     }
 
     function testFuzz_proposeTokenSwap_revertWhen_CallerIsNotRebalancer(address caller) public {
