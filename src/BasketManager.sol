@@ -12,9 +12,15 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
+
+import { OracleRegistry } from "src/OracleRegistry.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
 import { console } from "forge-std/console.sol";
+
+interface IPriceOracle {
+    function getQuote(uint256 inAmount, address base, address quote) external view returns (uint256);
+}
 
 /**
  * @title BasketManager
@@ -158,9 +164,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
-    uint256 private constant _MAX_SLIPPAGE = 0.05e18; // .05%
+    uint256 private constant _MAX_SLIPPAGE_BPS = 0.05e18; // .05%
     // @notice Maximum deviation from target weights allowed for token swaps.
-    uint256 private constant _MAX_WEIGHT_DEVIATION = 0.05e18; // .05%
+    uint256 private constant _MAX_WEIGHT_DEVIATION_BPS = 0.05e18; // .05%
     /// @notice Manager role. Managers can create new baskets.
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @notice Pauser role.
@@ -233,6 +239,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error ExternalTradeSlippage();
     error TargetWeightsNotMet();
     error InternalTradeMinMaxAmountNotReached();
+    error PriceOutOfSafeBounds();
 
     /**
      * @notice Initializes the contract with the given parameters.
@@ -609,12 +616,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 currentAssetAmount = basketBalanceOf[basket][asset];
                 afterTradeBasketAssetAmounts_[i][j] = currentAssetAmount;
-                // TODO: Replace with an oracle call once the oracle is implemented
-                // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
-                // if (usdPrice == 0) {
-                //     revert PriceOutOfSafeBounds();
-                // }
-                uint256 usdPrice = 1e18;
+                // TODO: Replace production oracle behavior
+                address priceOracle = OracleRegistry(oracleRegistry).resolveNameToLatestAddress("PriceOracle");
+                uint256 usdPrice = IPriceOracle(priceOracle).getQuote(1e18, asset, asset);
+                if (usdPrice == 0) {
+                    revert PriceOutOfSafeBounds();
+                }
                 tokenPrices_[i][j] = usdPrice;
                 totalBasketValue_[i] = totalBasketValue_[i] + (currentAssetAmount * usdPrice);
                 unchecked {
@@ -706,9 +713,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             info.internalMinAmount = info.sellValue / info.buyTokenPrice;
             info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
 
-            // Check if the given minAmount is within the _MAX_SLIPPAGE threshold of internalMinAmount
+            // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
             if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE) {
+                if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
                     revert ExternalTradeSlippage();
                 }
             }
@@ -717,7 +724,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             }
         }
 
-        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION threshold
+        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
         for (uint256 i = 0; i < numBaskets;) {
             address basket = basketsToRebalance[i];
             // slither-disable-next-line calls-loop
@@ -731,7 +738,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 address asset = assets[j];
                 uint256 afterTradeWeight =
                     afterTradeBasketAssetAmounts_[i][j] * tokenPrices_[i][j] * 1e18 / totalBasketValue_[i];
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
+                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
                     console.log("basket, asset: ", basket, asset);
                     console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
                     console.log("afterTradeWeight: %s", afterTradeWeight);
