@@ -800,7 +800,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
      */
 
     /**
-     * @notice Internal function to intialize the basket data to be used while proposing a token swap.
+     * @notice Internal function to initialize the basket data to be used while proposing a token swap.
      * @param basketsToRebalance Array of basket addresses currently being rebalanced.
      * @return totalBasketValue_ Array of total basket values in USD.
      * @return afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
