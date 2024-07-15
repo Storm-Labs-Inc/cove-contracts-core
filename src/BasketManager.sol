@@ -357,27 +357,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     }
 
     /**
-     * @notice Returns the index of the element in the array.
-     * @dev Reverts if the element does not exist in the array.
-     * @param array Array to find the element in.
-     * @param element Element to find in the array.
-     * @return index Index of the element in the array.
-     */
-    function _indexOf(address[] memory array, address element) internal view returns (uint256 index) {
-        uint256 length = array.length;
-        for (uint256 i = 0; i < length;) {
-            if (array[i] == element) {
-                return i;
-            }
-            unchecked {
-                // Overflow not possible: index is not 0
-                ++i;
-            }
-        }
-        revert ElementIndexNotFound();
-    }
-
-    /**
      * @notice Returns the index of the basket asset in the basketAssets array.
      * @dev Reverts if the basket asset does not exist.
      * @param basketToken Address of the basket token.
@@ -580,6 +559,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
      * @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
      * If the proposed token swap results are not close to the target balances, this function will revert.
      * @dev This function can only be called after proposeRebalance.
+     * @param internalTrades Array of internal trades to execute.
+     * @param externalTrades Array of external trades to execute.
+     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
      */
     // slither-disable-next-line cyclomatic-complexity
     function proposeTokenSwap(
@@ -599,163 +581,24 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (keccak256(abi.encodePacked(basketsToRebalance)) != status.basketHash) {
             revert BasketsMismatch();
         }
+
         uint256 numBaskets = basketsToRebalance.length;
         uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
         uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
         uint256[][] memory tokenPrices_ = new uint256[][](numBaskets);
-        for (uint256 i = 0; i < numBaskets;) {
-            address basket = basketsToRebalance[i];
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] memory assets = basketAssets[basket];
-            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
-            uint256 assetsLength = assets.length;
-            afterTradeBasketAssetAmounts_[i] = new uint256[](assetsLength);
-            tokenPrices_[i] = new uint256[](assetsLength);
-            for (uint256 j = 0; j < assetsLength;) {
-                address asset = assets[j];
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 currentAssetAmount = basketBalanceOf[basket][asset];
-                afterTradeBasketAssetAmounts_[i][j] = currentAssetAmount;
-                // TODO: Replace production oracle behavior
-                address priceOracle = OracleRegistry(oracleRegistry).resolveNameToLatestAddress("PriceOracle");
-                uint256 usdPrice = IPriceOracle(priceOracle).getQuote(1e18, asset, asset);
-                if (usdPrice == 0) {
-                    revert PriceOutOfSafeBounds();
-                }
-                tokenPrices_[i][j] = usdPrice;
-                totalBasketValue_[i] = totalBasketValue_[i] + (currentAssetAmount * usdPrice);
-                unchecked {
-                    ++j;
-                }
-            }
-            unchecked {
-                ++i;
-            }
-        }
-        for (uint256 i = 0; i < internalTrades.length;) {
-            InternalTrade memory trade = internalTrades[i];
-            InternalTradeInfo memory info = InternalTradeInfo({
-                fromBasketIndex: _indexOf(basketsToRebalance, trade.fromBasket),
-                toBasketIndex: _indexOf(basketsToRebalance, trade.toBasket),
-                sellTokenAssetIndex: basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.sellToken),
-                buyTokenAssetIndex: basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.buyToken),
-                toBasketBuyTokenIndex: basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.buyToken),
-                toBasketSellTokenIndex: basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.sellToken),
-                buyAmount: 0
-            });
-            uint256 sellTokenPrice = tokenPrices_[info.fromBasketIndex][info.sellTokenAssetIndex];
-            uint256 buyTokenPrice = tokenPrices_[info.fromBasketIndex][info.buyTokenAssetIndex];
-            info.buyAmount = (trade.sellAmount * sellTokenPrice) / buyTokenPrice;
 
-            if (info.buyAmount < trade.minAmount || trade.maxAmount < info.buyAmount) {
-                revert InternalTradeMinMaxAmountNotReached();
-            }
-            // Settle the internal trades and track the balance changes
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            basketBalanceOf[trade.fromBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
-                .sellTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.sellToken] - trade.sellAmount; // nosemgrep
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            basketBalanceOf[trade.fromBasket][trade.buyToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
-                .buyTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.buyToken] + info.buyAmount; // nosemgrep
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            basketBalanceOf[trade.toBasket][trade.buyToken] = afterTradeBasketAssetAmounts_[info.toBasketIndex][info
-                .toBasketBuyTokenIndex] = basketBalanceOf[trade.toBasket][trade.buyToken] - info.buyAmount; // nosemgrep
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            basketBalanceOf[trade.toBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.toBasketIndex][info
-                .toBasketSellTokenIndex] = basketBalanceOf[trade.toBasket][trade.sellToken] + trade.sellAmount; // nosemgrep
-            // Update total basket value for the "from" basket
-            totalBasketValue_[info.fromBasketIndex] = totalBasketValue_[info.fromBasketIndex]
-                - FixedPointMathLib.fullMulDiv(trade.sellAmount, sellTokenPrice, 1e18)
-                + FixedPointMathLib.fullMulDiv(info.buyAmount, buyTokenPrice, 1e18);
-            // Update total basket value for the "to" basket
-            totalBasketValue_[info.toBasketIndex] = totalBasketValue_[info.toBasketIndex]
-                - FixedPointMathLib.fullMulDiv(info.buyAmount, buyTokenPrice, 1e18)
-                + FixedPointMathLib.fullMulDiv(trade.sellAmount, sellTokenPrice, 1e18);
-            unchecked {
-                ++i;
-            }
-        }
-        for (uint256 i = 0; i < externalTrades.length;) {
-            ExternalTrade memory trade = externalTrades[i];
-            ExternalTradeInfo memory info;
-            BasketOwnershipInfo memory ownershipInfo;
-            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
-            uint256 basketTradeOwnershipLength = trade.basketTradeOwnership.length;
-            for (uint256 j = 0; j < basketTradeOwnershipLength;) {
-                BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
-                ownershipInfo.basketIndex = _indexOf(basketsToRebalance, ownership.basket);
-                ownershipInfo.buyTokenAssetIndex = basketTokenToRebalanceAssetToIndex(ownership.basket, trade.buyToken);
-                ownershipInfo.sellTokenAssetIndex =
-                    basketTokenToRebalanceAssetToIndex(ownership.basket, trade.sellToken);
-                uint256 ownershipSellAmount =
-                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
-                uint256 ownershipBuyAmount =
-                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
-                // Record changes in basket asset holdings due to the external trade
-                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] =
-                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
-                    - ownershipSellAmount;
-                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] =
-                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex]
-                    + ownershipBuyAmount;
-                // Update total basket value
-                totalBasketValue_[ownershipInfo.basketIndex] = totalBasketValue_[ownershipInfo.basketIndex]
-                    - ownershipSellAmount * tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
-                        / 1e18
-                    + ownershipBuyAmount * tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] / 1e18;
-                unchecked {
-                    ++j;
-                }
-            }
-            info.sellTokenPrice = tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex];
-            info.buyTokenPrice = tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex];
-            info.sellValue = trade.sellAmount * info.sellTokenPrice;
-            info.internalMinAmount = info.sellValue / info.buyTokenPrice;
-            info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
+        (totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_) = _initializeBasketData(basketsToRebalance);
+        (totalBasketValue_, afterTradeBasketAssetAmounts_) = _settleInternalTrades(
+            internalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_
+        );
+        (totalBasketValue_, afterTradeBasketAssetAmounts_) = _settleExternalTrades(
+            externalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_
+        );
+        _validateTargetWeights(basketsToRebalance, afterTradeBasketAssetAmounts_, tokenPrices_, totalBasketValue_);
 
-            // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
-            if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
-                    revert ExternalTradeSlippage();
-                }
-            }
-            unchecked {
-                ++i;
-            }
-        }
-
-        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
-        for (uint256 i = 0; i < numBaskets;) {
-            address basket = basketsToRebalance[i];
-            // slither-disable-next-line calls-loop
-            uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket); // nosemgrep:
-                // solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] memory assets = basketAssets[basket];
-            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
-            uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
-            for (uint256 j = 0; j < proposedTargetWeightsLength;) {
-                address asset = assets[j];
-                uint256 afterTradeWeight =
-                    afterTradeBasketAssetAmounts_[i][j] * tokenPrices_[i][j] * 1e18 / totalBasketValue_[i];
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
-                    console.log("basket, asset: ", basket, asset);
-                    console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
-                    console.log("afterTradeWeight: %s", afterTradeWeight);
-                    revert TargetWeightsNotMet();
-                }
-                unchecked {
-                    ++j;
-                }
-            }
-            unchecked {
-                ++i;
-            }
-        }
         status.timestamp = uint40(block.timestamp);
         status.status = Status.TOKEN_SWAP_PROPOSED;
         _rebalanceStatus = status;
-        // store hashes of external trades
         _externalTradesHash = keccak256(abi.encode(externalTrades));
     }
 
@@ -922,6 +765,283 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             }
             unchecked {
                 // Overflow not possible: i is less than assetsLength
+                ++i;
+            }
+        }
+    }
+
+    /**
+     * Internal functions
+     */
+
+    /**
+     * @notice Returns the index of the element in the array.
+     * @dev Reverts if the element does not exist in the array.
+     * @param array Array to find the element in.
+     * @param element Element to find in the array.
+     * @return index Index of the element in the array.
+     */
+    function _indexOf(address[] memory array, address element) internal view returns (uint256 index) {
+        uint256 length = array.length;
+        for (uint256 i = 0; i < length;) {
+            if (array[i] == element) {
+                return i;
+            }
+            unchecked {
+                // Overflow not possible: index is not 0
+                ++i;
+            }
+        }
+        revert ElementIndexNotFound();
+    }
+
+    /**
+     * Private functions
+     */
+
+    /**
+     * @notice Internal function to intialize the basket data to be used while proposing a token swap.
+     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
+     * @return totalBasketValue_ Array of total basket values in USD.
+     * @return afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
+     * @return tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
+     */
+    function _initializeBasketData(address[] calldata basketsToRebalance)
+        private
+        view
+        returns (uint256[] memory, uint256[][] memory, uint256[][] memory)
+    {
+        uint256 numBaskets = basketsToRebalance.length;
+        uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
+        uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
+        uint256[][] memory tokenPrices_ = new uint256[][](numBaskets);
+
+        for (uint256 i = 0; i < numBaskets;) {
+            address basket = basketsToRebalance[i];
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            address[] memory assets = basketAssets[basket];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 assetsLength = assets.length;
+            afterTradeBasketAssetAmounts_[i] = new uint256[](assetsLength);
+            tokenPrices_[i] = new uint256[](assetsLength);
+            for (uint256 j = 0; j < assetsLength;) {
+                address asset = assets[j];
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                uint256 currentAssetAmount = basketBalanceOf[basket][asset];
+                afterTradeBasketAssetAmounts_[i][j] = currentAssetAmount;
+                // TODO: Replace production oracle behavior
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                address priceOracle = OracleRegistry(oracleRegistry).resolveNameToLatestAddress("PriceOracle");
+                uint256 usdPrice = IPriceOracle(priceOracle).getQuote(1e18, asset, asset);
+                if (usdPrice == 0) {
+                    revert PriceOutOfSafeBounds();
+                }
+                tokenPrices_[i][j] = usdPrice;
+                totalBasketValue_[i] = totalBasketValue_[i] + (currentAssetAmount * usdPrice);
+                unchecked {
+                    // Overflow not possible: j is less than assetsLength
+                    ++j;
+                }
+            }
+            unchecked {
+                // Overflow not possible: i is less than numBaskets
+                ++i;
+            }
+        }
+        return (totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_);
+    }
+
+    /**
+     * @notice Internal function to settle internal trades.
+     * @param internalTrades Array of internal trades to execute.
+     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
+     * @param totalBasketValue_ Array of total basket values in USD.
+     * @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
+     * @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
+     * @return totalBasketValue_ Updated array of total basket values in USD.
+     * @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after the
+     * trades have been accounted for.
+     * @dev If the result of an internal trade is not within the provided minAmount or maxAmount, this function will
+     * revert.
+     *
+     */
+    function _settleInternalTrades(
+        InternalTrade[] calldata internalTrades,
+        address[] calldata basketsToRebalance,
+        uint256[] memory totalBasketValue_,
+        uint256[][] memory afterTradeBasketAssetAmounts_,
+        uint256[][] memory tokenPrices_
+    )
+        private
+        returns (uint256[] memory, uint256[][] memory)
+    {
+        for (uint256 i = 0; i < internalTrades.length;) {
+            InternalTrade memory trade = internalTrades[i];
+            InternalTradeInfo memory info = InternalTradeInfo({
+                fromBasketIndex: _indexOf(basketsToRebalance, trade.fromBasket),
+                toBasketIndex: _indexOf(basketsToRebalance, trade.toBasket),
+                sellTokenAssetIndex: basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.sellToken),
+                buyTokenAssetIndex: basketTokenToRebalanceAssetToIndex(trade.fromBasket, trade.buyToken),
+                toBasketBuyTokenIndex: basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.buyToken),
+                toBasketSellTokenIndex: basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.sellToken),
+                buyAmount: 0
+            });
+            uint256 sellTokenPrice = tokenPrices_[info.fromBasketIndex][info.sellTokenAssetIndex];
+            uint256 buyTokenPrice = tokenPrices_[info.fromBasketIndex][info.buyTokenAssetIndex];
+            info.buyAmount = (trade.sellAmount * sellTokenPrice) / buyTokenPrice;
+
+            if (info.buyAmount < trade.minAmount || trade.maxAmount < info.buyAmount) {
+                revert InternalTradeMinMaxAmountNotReached();
+            }
+            // Settle the internal trades and track the balance changes
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            basketBalanceOf[trade.fromBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
+                .sellTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.sellToken] - trade.sellAmount; // nosemgrep
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            basketBalanceOf[trade.fromBasket][trade.buyToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
+                .buyTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.buyToken] + info.buyAmount; // nosemgrep
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            basketBalanceOf[trade.toBasket][trade.buyToken] = afterTradeBasketAssetAmounts_[info.toBasketIndex][info
+                .toBasketBuyTokenIndex] = basketBalanceOf[trade.toBasket][trade.buyToken] - info.buyAmount; // nosemgrep
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            basketBalanceOf[trade.toBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.toBasketIndex][info
+                .toBasketSellTokenIndex] = basketBalanceOf[trade.toBasket][trade.sellToken] + trade.sellAmount; // nosemgrep
+            // Update total basket value for the "from" basket
+            totalBasketValue_[info.fromBasketIndex] = totalBasketValue_[info.fromBasketIndex]
+                - FixedPointMathLib.fullMulDiv(trade.sellAmount, sellTokenPrice, 1e18)
+                + FixedPointMathLib.fullMulDiv(info.buyAmount, buyTokenPrice, 1e18);
+            // Update total basket value for the "to" basket
+            totalBasketValue_[info.toBasketIndex] = totalBasketValue_[info.toBasketIndex]
+                - FixedPointMathLib.fullMulDiv(info.buyAmount, buyTokenPrice, 1e18)
+                + FixedPointMathLib.fullMulDiv(trade.sellAmount, sellTokenPrice, 1e18);
+            unchecked {
+                ++i;
+            }
+        }
+        return (totalBasketValue_, afterTradeBasketAssetAmounts_);
+    }
+
+    /**
+     * @notice Internal function to settle external trades.
+     * @param externalTrades Array of external trades to execute.
+     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
+     * @param totalBasketValue_ Array of total basket values in USD.
+     * @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
+     * @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
+     * @return totalBasketValue_ Updated array of total basket values in USD.
+     * @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after
+     * trades
+     * have been accounted for.
+     * @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
+     * function will revert.
+     *
+     */
+    function _settleExternalTrades(
+        ExternalTrade[] calldata externalTrades,
+        address[] calldata basketsToRebalance,
+        uint256[] memory totalBasketValue_,
+        uint256[][] memory afterTradeBasketAssetAmounts_,
+        uint256[][] memory tokenPrices_
+    )
+        private
+        returns (uint256[] memory, uint256[][] memory)
+    {
+        for (uint256 i = 0; i < externalTrades.length;) {
+            ExternalTrade memory trade = externalTrades[i];
+            ExternalTradeInfo memory info;
+            BasketOwnershipInfo memory ownershipInfo;
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 basketTradeOwnershipLength = trade.basketTradeOwnership.length;
+            for (uint256 j = 0; j < basketTradeOwnershipLength;) {
+                BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
+                ownershipInfo.basketIndex = _indexOf(basketsToRebalance, ownership.basket);
+                ownershipInfo.buyTokenAssetIndex = basketTokenToRebalanceAssetToIndex(ownership.basket, trade.buyToken);
+                ownershipInfo.sellTokenAssetIndex =
+                    basketTokenToRebalanceAssetToIndex(ownership.basket, trade.sellToken);
+                uint256 ownershipSellAmount =
+                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                uint256 ownershipBuyAmount =
+                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
+                // Record changes in basket asset holdings due to the external trade
+                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] =
+                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
+                    - ownershipSellAmount;
+                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] =
+                afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex]
+                    + ownershipBuyAmount;
+                // Update total basket value
+                totalBasketValue_[ownershipInfo.basketIndex] = totalBasketValue_[ownershipInfo.basketIndex]
+                    - ownershipSellAmount * tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
+                        / 1e18
+                    + ownershipBuyAmount * tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] / 1e18;
+                unchecked {
+                    ++j;
+                }
+            }
+            info.sellTokenPrice = tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex];
+            info.buyTokenPrice = tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex];
+            info.sellValue = trade.sellAmount * info.sellTokenPrice;
+            info.internalMinAmount = info.sellValue / info.buyTokenPrice;
+            info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
+
+            // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
+            if (info.internalMinAmount < trade.minAmount) {
+                if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
+                    revert ExternalTradeSlippage();
+                }
+            }
+            unchecked {
+                ++i;
+            }
+        }
+        return (totalBasketValue_, afterTradeBasketAssetAmounts_);
+    }
+
+    /**
+     * @notice Internal function to validate the target weights for each basket have been met after all trades have been
+     * settled.
+     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
+     * @param afterTradeBasketAssetAmounts_ Array of asset amounts for each basket as updated with the results from both
+     * external and internal trades.
+     * @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
+     * @param totalBasketValue_ Array of total basket values in USD.
+     * @dev If target weights are not within the _MAX_WEIGHT_DEVIATION_BPS threshold, this function will revert.
+     *
+     */
+    function _validateTargetWeights(
+        address[] calldata basketsToRebalance,
+        uint256[][] memory afterTradeBasketAssetAmounts_,
+        uint256[][] memory tokenPrices_,
+        uint256[] memory totalBasketValue_
+    )
+        private
+        view
+    {
+        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
+        for (uint256 i = 0; i < basketsToRebalance.length;) {
+            address basket = basketsToRebalance[i];
+            // slither-disable-next-line calls-loop
+            uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket); // nosemgrep:
+                // solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            address[] memory assets = basketAssets[basket];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
+            for (uint256 j = 0; j < proposedTargetWeightsLength;) {
+                address asset = assets[j];
+                uint256 afterTradeWeight =
+                    afterTradeBasketAssetAmounts_[i][j] * tokenPrices_[i][j] * 1e18 / totalBasketValue_[i];
+                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
+                    console.log("basket, asset: ", basket, asset);
+                    console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
+                    console.log("afterTradeWeight: %s", afterTradeWeight);
+                    revert TargetWeightsNotMet();
+                }
+                unchecked {
+                    ++j;
+                }
+            }
+            unchecked {
                 ++i;
             }
         }
