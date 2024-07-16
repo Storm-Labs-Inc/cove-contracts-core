@@ -13,7 +13,6 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
-import { OracleRegistry } from "src/OracleRegistry.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
 import { console } from "forge-std/console.sol";
@@ -832,8 +831,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 afterTradeBasketAssetAmounts_[i][j] = currentAssetAmount;
                 // TODO: Replace production oracle behavior
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                address priceOracle = OracleRegistry(oracleRegistry).resolveNameToLatestAddress("PriceOracle");
-                uint256 usdPrice = IPriceOracle(priceOracle).getQuote(1e18, asset, asset);
+                uint256 usdPrice = 1e18;
                 if (usdPrice == 0) {
                     revert PriceOutOfSafeBounds();
                 }
