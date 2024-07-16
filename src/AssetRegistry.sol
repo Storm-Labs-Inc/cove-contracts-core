@@ -90,11 +90,12 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetData memory assetData = _assetRegistry[asset];
+        AssetData storage assetData = _assetRegistry[asset];
         if (assetData.indexPlusOne > 0) revert AssetAlreadyEnabled();
 
         _assetList.push(asset);
-        _assetRegistry[asset] = AssetData(uint32(_assetList.length), AssetStatus.ENABLED);
+        assetData.indexPlusOne = uint32(_assetList.length);
+        assetData.status = AssetStatus.ENABLED;
         emit AddAsset(asset);
     }
 
@@ -111,11 +112,11 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     function setAssetStatus(address asset, AssetStatus newStatus) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetData memory assetData = _assetRegistry[asset];
+        AssetData storage assetData = _assetRegistry[asset];
         if (assetData.indexPlusOne == 0) revert AssetNotEnabled();
         if (newStatus == AssetStatus.DISABLED || assetData.status == newStatus) revert AssetInvalidStatusUpdate();
 
-        _assetRegistry[asset].status = newStatus;
+        assetData.status = newStatus;
         emit SetAssetStatus(asset, newStatus);
     }
 
@@ -126,7 +127,7 @@ contract AssetRegistry is AccessControlEnumerable {
      * @return AssetStatus The status of the asset
      */
     function getAssetStatus(address asset) external view returns (AssetStatus) {
-        AssetData memory assetData = _assetRegistry[asset];
+        AssetData storage assetData = _assetRegistry[asset];
         if (assetData.indexPlusOne == 0) return AssetStatus.DISABLED;
         return assetData.status;
     }
