@@ -6,7 +6,6 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import { console } from "forge-std/console.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 /**
