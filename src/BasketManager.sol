@@ -585,6 +585,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         uint256 numBaskets = basketsToRebalance.length;
         uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
         uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
+        // TODO: will be replaces with quotes instead of stored prices
         uint256[][] memory tokenPrices_ = new uint256[][](numBaskets);
 
         (totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_) = _initializeBasketData(basketsToRebalance);
@@ -886,6 +887,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 toBasketSellTokenIndex: basketTokenToRebalanceAssetToIndex(trade.toBasket, trade.sellToken),
                 buyAmount: 0
             });
+            // TODO: will be replaced with quotes instead of stored prices
             uint256 sellTokenPrice = tokenPrices_[info.fromBasketIndex][info.sellTokenAssetIndex];
             uint256 buyTokenPrice = tokenPrices_[info.fromBasketIndex][info.buyTokenAssetIndex];
             info.buyAmount = (trade.sellAmount * sellTokenPrice) / buyTokenPrice;
@@ -978,6 +980,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                     ++j;
                 }
             }
+            // TODO: will be replaced with quotes instead of stored prices
             info.sellTokenPrice = tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex];
             info.buyTokenPrice = tokenPrices_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex];
             info.sellValue = trade.sellAmount * info.sellTokenPrice;
