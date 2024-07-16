@@ -145,7 +145,7 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return count The number of set bits in the bit flag.
     function _popCount(uint256 bitFlag) private pure returns (uint256 count) {
         unchecked {
-            for (; bitFlag != 0; count++) {
+            for (; bitFlag != 0; ++count) {
                 bitFlag &= bitFlag - 1;
             }
         }
@@ -156,15 +156,17 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return assets The list of assets in the registry.
     function getAssets(uint256 bitFlag) external view returns (address[] memory assets) {
         uint256 maxLength = _assetList.length;
+        // If the bit flag is longer than the number of assets, truncate it
         bitFlag = bitFlag & ((1 << maxLength) - 1);
 
         // Initialize the return array
-        assets = new address[](Math.min(maxLength, _popCount(bitFlag)));
+        assets = new address[](_popCount(bitFlag));
         uint256 index = 0;
 
         // Iterate through the assets and populate the return array
         for (uint256 i; i < maxLength && bitFlag != 0;) {
             if (bitFlag & 1 != 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 assets[index++] = _assetList[i];
             }
             bitFlag >>= 1;
