@@ -28,6 +28,7 @@ contract AssetRegistry is AccessControlEnumerable {
     }
 
     /// Structs
+    /// @notice Contains the index and status of an asset in the registry.
     struct AssetData {
         uint32 indexPlusOne;
         AssetStatus status;
@@ -91,6 +92,7 @@ contract AssetRegistry is AccessControlEnumerable {
      *      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
      *      - The asset address is zero (Errors.ZeroAddress)
      *      - The asset is already enabled (AssetAlreadyEnabled)
+     *      - The maximum number of assets has been reached (MaxAssetsReached)
      */
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
@@ -138,7 +140,7 @@ contract AssetRegistry is AccessControlEnumerable {
         return assetData.status;
     }
 
-    /// @notice Counts the number of set bits in a bit flag using Brian Kernighan's algorithm.
+    /// @dev Counts the number of set bits in a bit flag using Brian Kernighan's algorithm.
     /// @param bitFlag The bit flag to count the number of set bits.
     /// @return count The number of set bits in the bit flag.
     function _popCount(uint256 bitFlag) private pure returns (uint256 count) {
