@@ -4,6 +4,9 @@ pragma solidity 0.8.23;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+
+import { console } from "forge-std/console.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 /**
@@ -36,8 +39,10 @@ contract AssetRegistry is AccessControlEnumerable {
     /**
      * Constants
      */
-    /// @notice Role responsible for managing assets in the registry.
+    /// @dev Role responsible for managing assets in the registry.
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    /// @dev Maximum number of assets that can be registered in the system.
+    uint256 private constant MAX_ASSETS = 255;
 
     /**
      * State variables
@@ -64,6 +69,8 @@ contract AssetRegistry is AccessControlEnumerable {
     error AssetNotEnabled();
     /// @notice Thrown when attempting to set the asset status to an invalid status.
     error AssetInvalidStatusUpdate();
+    /// @notice Thrown when attempting to add an asset when the maximum number of assets has been reached.
+    error MaxAssetsReached();
 
     /**
      * @notice Initializes the AssetRegistry contract
@@ -92,9 +99,11 @@ contract AssetRegistry is AccessControlEnumerable {
         if (asset == address(0)) revert Errors.ZeroAddress();
         AssetData storage assetData = _assetRegistry[asset];
         if (assetData.indexPlusOne > 0) revert AssetAlreadyEnabled();
+        uint256 assetLength = _assetList.length;
+        if (assetLength == MAX_ASSETS) revert MaxAssetsReached();
 
         _assetList.push(asset);
-        assetData.indexPlusOne = uint32(_assetList.length);
+        assetData.indexPlusOne = uint32(assetLength + 1);
         assetData.status = AssetStatus.ENABLED;
         emit AddAsset(asset);
     }
@@ -145,23 +154,30 @@ contract AssetRegistry is AccessControlEnumerable {
 
     /// @notice Retrieves the list of assets in the registry. Parameter bitFlag is used to filter the assets.
     /// @param bitFlag The bit flag to filter the assets.
-    /// @return ret The list of assets in the registry.
-    function getAssets(uint256 bitFlag) external view returns (address[] memory ret) {
+    /// @return assets The list of assets in the registry.
+    function getAssets(uint256 bitFlag) external view returns (address[] memory assets) {
         uint256 maxLength = _assetList.length;
+        bitFlag = bitFlag & ((1 << maxLength) - 1);
 
         // Initialize the return array
-        ret = new address[](_popCount(bitFlag));
+        assets = new address[](Math.min(maxLength, _popCount(bitFlag)));
         uint256 index = 0;
 
         // Iterate through the assets and populate the return array
         for (uint256 i; i < maxLength && bitFlag != 0;) {
             if (bitFlag & 1 != 0) {
-                ret[index++] = _assetList[i];
+                assets[index++] = _assetList[i];
             }
             bitFlag >>= 1;
             unchecked {
                 ++i;
             }
         }
+    }
+
+    /// @notice Retrieves the addresses of all assets in the registry without any filtering.
+    /// @return assets The list of addresses of all assets in the registry.
+    function getAllAssets() external view returns (address[] memory) {
+        return _assetList;
     }
 }

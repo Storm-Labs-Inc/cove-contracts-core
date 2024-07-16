@@ -11,6 +11,8 @@ contract AssetRegistry_Test is BaseTest {
     bytes32 public adminRole;
     bytes32 public managerRole;
 
+    uint256 public constant MAX_ASSETS = 255;
+
     function setUp() public override {
         super.setUp();
         createUser("admin");
@@ -145,6 +147,15 @@ contract AssetRegistry_Test is BaseTest {
         assetRegistry.addAsset(address(0));
     }
 
+    function test_addAsset_revertWhen_maxAssetsReached() public {
+        for (uint256 i = 0; i < MAX_ASSETS; i++) {
+            assetRegistry.addAsset(address(uint160(i + 1)));
+        }
+
+        vm.expectRevert(AssetRegistry.MaxAssetsReached.selector);
+        assetRegistry.addAsset(address(uint160(MAX_ASSETS + 1)));
+    }
+
     function testFuzz_addAsset_revertWhen_alreadyEnabled(address asset) public {
         vm.assume(asset != address(0));
 
@@ -237,5 +248,68 @@ contract AssetRegistry_Test is BaseTest {
 
     function _assertAssetStatus(address asset, AssetRegistry.AssetStatus expectedStatus) internal view {
         assertEq(uint256(assetRegistry.getAssetStatus(asset)), uint256(expectedStatus));
+    }
+
+    function _setupAssets(uint256 assetCount) internal returns (address[] memory) {
+        address[] memory testAssets = new address[](assetCount);
+        for (uint256 i = 0; i < assetCount; i++) {
+            testAssets[i] = address(uint160(i + 1));
+            assetRegistry.addAsset(testAssets[i]);
+        }
+        return testAssets;
+    }
+
+    function testFuzz_getAllAssets(uint256 assetCount) public {
+        vm.assume(assetCount <= MAX_ASSETS);
+        address[] memory testAssets = _setupAssets(assetCount);
+
+        // Get all assets
+        address[] memory returnedAssets = assetRegistry.getAllAssets();
+
+        // Verify all assets are returned
+        assertEq(returnedAssets, testAssets);
+    }
+
+    function testFuzz_getAssets(uint256 assetCount, uint256 bitFlag) public {
+        vm.assume(assetCount <= MAX_ASSETS);
+        address[] memory testAssets = _setupAssets(assetCount);
+
+        // Get assets based on the fuzzed bitFlag
+        address[] memory returnedAssets = assetRegistry.getAssets(bitFlag);
+
+        // Verify the returned assets
+        uint256 expectedCount = 0;
+        for (uint256 i = 0; i < assetCount; i++) {
+            if ((bitFlag & (1 << i)) != 0) {
+                expectedCount++;
+                assertEq(returnedAssets[expectedCount - 1], testAssets[i]);
+            }
+        }
+
+        // Verify the length of the returned array
+        assertEq(returnedAssets.length, expectedCount);
+    }
+
+    function testFuzz_getAssets_emptyBitFlag(uint256 assetCount) public {
+        vm.assume(assetCount <= MAX_ASSETS);
+        _setupAssets(assetCount);
+
+        // Get assets with empty bitFlag
+        address[] memory returnedAssets = assetRegistry.getAssets(0);
+
+        // Verify that an empty array is returned
+        assertEq(returnedAssets.length, 0);
+    }
+
+    function testFuzz_getAssets_allBitsSet(uint256 numAssets) public {
+        vm.assume(numAssets > 0 && numAssets <= MAX_ASSETS);
+        address[] memory testAssets = _setupAssets(numAssets);
+
+        // Get all assets
+        uint256 bitFlag = type(uint256).max;
+        address[] memory returnedAssets = assetRegistry.getAssets(bitFlag);
+
+        // Verify all assets are returned
+        assertEq(returnedAssets, testAssets);
     }
 }
