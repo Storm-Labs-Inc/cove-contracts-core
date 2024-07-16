@@ -27,6 +27,12 @@ contract AssetRegistry is AccessControlEnumerable {
         PAUSED
     }
 
+    /// Structs
+    struct AssetData {
+        uint32 indexPlusOne;
+        AssetStatus status;
+    }
+
     /**
      * Constants
      */
@@ -36,9 +42,10 @@ contract AssetRegistry is AccessControlEnumerable {
     /**
      * State variables
      */
-    // slither-disable-next-line uninitialized-state
-    /// @dev Mapping from asset address to its status in the registry.
-    mapping(address => AssetStatus) private _assetRegistry;
+    /// @dev Array of assets registered in the system.
+    address[] private _assetList;
+    /// @dev Mapping from asset address to AssetData struct containing the asset's index and status.
+    mapping(address asset => AssetData) private _assetRegistry;
 
     /**
      * Events
@@ -83,9 +90,11 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        if (_assetRegistry[asset] != AssetStatus.DISABLED) revert AssetAlreadyEnabled();
+        AssetData memory assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne > 0) revert AssetAlreadyEnabled();
 
-        _assetRegistry[asset] = AssetStatus.ENABLED;
+        _assetList.push(asset);
+        _assetRegistry[asset] = AssetData(uint32(_assetList.length), AssetStatus.ENABLED);
         emit AddAsset(asset);
     }
 
@@ -102,11 +111,11 @@ contract AssetRegistry is AccessControlEnumerable {
      */
     function setAssetStatus(address asset, AssetStatus newStatus) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetStatus currentStatus = _assetRegistry[asset];
-        if (currentStatus == AssetStatus.DISABLED) revert AssetNotEnabled();
-        if (newStatus == AssetStatus.DISABLED || newStatus == currentStatus) revert AssetInvalidStatusUpdate();
+        AssetData memory assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne == 0) revert AssetNotEnabled();
+        if (newStatus == AssetStatus.DISABLED || assetData.status == newStatus) revert AssetInvalidStatusUpdate();
 
-        _assetRegistry[asset] = newStatus;
+        _assetRegistry[asset].status = newStatus;
         emit SetAssetStatus(asset, newStatus);
     }
 
@@ -117,6 +126,41 @@ contract AssetRegistry is AccessControlEnumerable {
      * @return AssetStatus The status of the asset
      */
     function getAssetStatus(address asset) external view returns (AssetStatus) {
-        return _assetRegistry[asset];
+        AssetData memory assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne == 0) return AssetStatus.DISABLED;
+        return assetData.status;
+    }
+
+    /// @notice Counts the number of set bits in a bit flag using Brian Kernighan's algorithm.
+    /// @param bitFlag The bit flag to count the number of set bits.
+    /// @return count The number of set bits in the bit flag.
+    function _popCount(uint256 bitFlag) private pure returns (uint256 count) {
+        unchecked {
+            for (; bitFlag != 0; count++) {
+                bitFlag &= bitFlag - 1;
+            }
+        }
+    }
+
+    /// @notice Retrieves the list of assets in the registry. Parameter bitFlag is used to filter the assets.
+    /// @param bitFlag The bit flag to filter the assets.
+    /// @return ret The list of assets in the registry.
+    function getAssets(uint256 bitFlag) external view returns (address[] memory ret) {
+        uint256 maxLength = _assetList.length;
+
+        // Initialize the return array
+        ret = new address[](_popCount(bitFlag));
+        uint256 index = 0;
+
+        // Iterate through the assets and populate the return array
+        for (uint256 i; i < maxLength && bitFlag != 0;) {
+            if (bitFlag & 1 != 0) {
+                ret[index++] = _assetList[i];
+            }
+            bitFlag >>= 1;
+            unchecked {
+                ++i;
+            }
+        }
     }
 }
