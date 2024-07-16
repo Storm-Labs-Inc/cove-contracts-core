@@ -4,8 +4,6 @@ pragma solidity 0.8.23;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-
 import { Errors } from "src/libraries/Errors.sol";
 
 /**
@@ -41,7 +39,7 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @dev Role responsible for managing assets in the registry.
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @dev Maximum number of assets that can be registered in the system.
-    uint256 private constant MAX_ASSETS = 255;
+    uint256 private constant _MAX_ASSETS = 255;
 
     /**
      * State variables
@@ -99,7 +97,7 @@ contract AssetRegistry is AccessControlEnumerable {
         AssetData storage assetData = _assetRegistry[asset];
         if (assetData.indexPlusOne > 0) revert AssetAlreadyEnabled();
         uint256 assetLength = _assetList.length;
-        if (assetLength == MAX_ASSETS) revert MaxAssetsReached();
+        if (assetLength == _MAX_ASSETS) revert MaxAssetsReached();
 
         _assetList.push(asset);
         assetData.indexPlusOne = uint32(assetLength + 1);
