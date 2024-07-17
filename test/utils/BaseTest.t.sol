@@ -10,7 +10,7 @@ import { Test, console } from "forge-std/Test.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 abstract contract BaseTest is Test {
-    //// VARIABLES ////
+    /// VARIABLES ///
     struct Fork {
         uint256 forkId;
         uint256 blockNumber;
@@ -23,14 +23,14 @@ abstract contract BaseTest is Test {
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
 
-    //// TEST CONTRACTS
+    /// TEST CONTRACTS ///
     ERC20 internal _usdc;
     ERC20 internal _dai;
 
-    //// SETUP FUNCTION ////
+    /// SETUP FUNCTION ///
     function setUp() public virtual { }
 
-    //// HELPERS ////
+    /// HELPERS ///
 
     /// @dev Generates a user, labels its address, and funds it with test assets.
     /// @param name The name of the user.
@@ -59,7 +59,7 @@ abstract contract BaseTest is Test {
         vm.stopPrank();
     }
 
-    //// FORKING UTILS ////
+    /// FORKING UTILS ///
 
     /// @dev Creates a fork at a given block.
     /// @param network The name of the network, matches an entry in the foundry.toml

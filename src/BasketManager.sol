@@ -25,10 +25,10 @@ interface IPriceOracle {
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// here.
 contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
-    /// Libraries
+    /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
-    /// Structs
+    /// STRUCTS ///
 
     /// @notice Enum representing the status of a rebalance.
     enum Status {
@@ -135,7 +135,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         uint256 sellTokenAssetIndex;
     }
 
-    /// Constants
+    /// CONSTANTS ///
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
@@ -151,7 +151,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
 
-    /// State variables
+    /// STATE VARIABLES ///
     /// @notice Array of all basket tokens.
     address[] public basketTokens;
     /// @notice Mapping of basket token to asset to balance.
@@ -185,9 +185,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
     bytes32 private _externalTradesHash;
 
-    /// Events
+    /// EVENTS ///
 
-    /// Errors
+    /// ERRORS ///
     error ZeroAddress();
     error ZeroTotalSupply();
     error ZeroBurnedShares();
@@ -235,7 +235,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         allocationResolver = AllocationResolver(allocationResolver_);
     }
 
-    /// Public functions
+    /// PUBLIC FUNCTIONS ///
 
     /// @notice Creates a new basket token with the given parameters.
     /// @param basketName Name of the basket.
@@ -653,9 +653,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        FALLBACK REDEEM LOGIC
-    //////////////////////////////////////////////////////////////*/
+    /// FALLBACK REDEEM LOGIC ///
 
     /// @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
     /// each underlying asset in the basket pro-rata to the amount of shares redeemed.
@@ -714,7 +712,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    /// Internal functions
+    /// INTERNAL FUNCTIONS ///
 
     /// @notice Returns the index of the element in the array.
     /// @dev Reverts if the element does not exist in the array.
@@ -735,7 +733,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         revert ElementIndexNotFound();
     }
 
-    /// Private functions
+    /// PRIVATE FUNCTIONS ///
 
     /// @notice Internal function to initialize the basket data to be used while proposing a token swap.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.

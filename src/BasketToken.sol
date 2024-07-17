@@ -21,13 +21,14 @@ interface IBasketManager {
 /// @notice Contract responsible for accounting for users deposit and redemption requests, which are asynchronously
 /// fulfilled by the Basket Manager
 contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
-    /// Libraries
+    /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
-    /// Constants
+    /// CONSTANTS ///
     bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
 
-    /// Structs
+
+    /// ENUMS ///
     /// @notice Enum representing the status of a redeem epoch.
     ///   - OPEN: Default status of an epoch.
     ///   - REDEEM_PREFULFILLED: preFulfillRedeem has been called.
@@ -40,12 +41,13 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         FALLBACK_TRIGGERED
     }
 
+    /// STRUCTS ///
     struct Request {
         uint256 assets;
         uint256 shares;
     }
 
-    /// State variables
+    /// STATE VARIABLES ///
     /// @notice Mapping of operator to the amount of assets pending deposit
     mapping(address operator => uint256 assets) internal _pendingDeposit;
     /// @notice Mapping of operator to the amount of shares pending redemption
@@ -76,7 +78,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     uint256 public strategyId;
 
-    /// Events
+    /// EVENTS ///
     /// @notice Emitted when a deposit request is made
     event DepositRequested(address indexed sender, uint256 indexed epoch, uint256 assets);
     /// @notice Emitted when a redemption request is fulfilled
@@ -84,7 +86,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         address indexed sender, uint256 indexed epoch, address operator, address owner, uint256 shares
     );
 
-    /// Errors
+    /// ERRORS ///
     error ZeroPendingDeposits();
     error ZeroPendingRedeems();
     error AssetPaused();
@@ -184,9 +186,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         return _epochRedeemStatus[epoch];
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        ERC7540 LOGIC
-    //////////////////////////////////////////////////////////////*/
+    /// ERC7540 LOGIC ///
 
     /// @notice Requests a deposit of assets to the basket.
     /// @param assets The amount of assets to deposit.
@@ -387,9 +387,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        FALLBACK REDEEM LOGIC
-    //////////////////////////////////////////////////////////////*/
+    /// FALLBACK REDEEM LOGIC ///
 
     /// @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
     /// users to claim their shares back for a redemption in the future and advances the redemption epoch.
@@ -441,9 +439,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        ERC4626 OVERRIDDEN LOGIC
-    //////////////////////////////////////////////////////////////*/
+    /// ERC4626 OVERRIDDEN LOGIC ///
 
     /// @notice Transfers a users shares owed for a previously fulfillled deposit request.
     /// @param assets The amount of assets previously requested for deposit.

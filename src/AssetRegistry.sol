@@ -13,7 +13,7 @@ import { Errors } from "src/libraries/Errors.sol";
 /// @dev Utilizes OpenZeppelin's AccessControlEnumerable for granular permission management.
 /// @dev Supports three asset states: DISABLED -> ENABLED <-> PAUSED.
 contract AssetRegistry is AccessControlEnumerable {
-    /// Enums
+    /// ENUMS ///
     enum AssetStatus {
         /// @notice Asset is disabled and cannot be used in the system
         DISABLED,
@@ -23,22 +23,22 @@ contract AssetRegistry is AccessControlEnumerable {
         PAUSED
     }
 
-    /// Constants
+    /// CONSTANTS ///
     /// @notice Role responsible for managing assets in the registry.
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
-    /// State variables
+    /// STATE VARIABLES ///
     // slither-disable-next-line uninitialized-state
     /// @dev Mapping from asset address to its status in the registry.
     mapping(address => AssetStatus) private _assetRegistry;
 
-    /// Events
+    /// EVENTS ///
     /// @dev Emitted when a new asset is added to the registry.
     event AddAsset(address indexed asset);
     /// @dev Emitted when an asset's status is updated.
     event SetAssetStatus(address indexed asset, AssetStatus status);
 
-    /// Errors
+    /// ERRORS ///
     /// @notice Thrown when attempting to add an asset that is already enabled in the registry.
     error AssetAlreadyEnabled();
     /// @notice Thrown when attempting to perform an operation on an asset that is not enabled in the registry.
