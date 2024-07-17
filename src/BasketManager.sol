@@ -44,7 +44,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /// @notice Struct representing the rebalance status.
     struct RebalanceStatus {
-        //Hash of the baskets proposed for rebalance.
+        // Hash of the baskets proposed for rebalance.
         bytes32 basketHash;
         // Timestamp of the last action.
         uint40 timestamp;
@@ -54,84 +54,84 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /// @notice Struct representing a baskets ownership of an external trade.
     struct BasketTradeOwnership {
-        /// Address of the basket.
+        // Address of the basket.
         address basket;
-        /// Ownership of the trade with a base of 1e18. An ownershipe of 1e18 means the basket owns the entire trade.
+        // Ownership of the trade with a base of 1e18. An ownershipe of 1e18 means the basket owns the entire trade.
         uint96 tradeOwnership;
     }
 
     /// @notice Struct containing data for an internal trade.
     struct InternalTrade {
-        /// Address of the basket that is selling.
+        // Address of the basket that is selling.
         address fromBasket;
-        /// Address of the token to sell.
+        // Address of the token to sell.
         address sellToken;
-        /// Address of the token to buy.
+        // Address of the token to buy.
         address buyToken;
-        /// Address of the basket that is buying.
+        // Address of the basket that is buying.
         address toBasket;
-        /// Amount of the token to sell.
+        // Amount of the token to sell.
         uint256 sellAmount;
-        /// Minimum amount of the buy token that the trade results in. Used to check that the proposers oracle prices
-        /// are correct.
+        // Minimum amount of the buy token that the trade results in. Used to check that the proposers oracle prices
+        // are correct.
         uint256 minAmount;
-        /// Maximum amount of the buy token that the trade can result in.
+        // Maximum amount of the buy token that the trade can result in.
         uint256 maxAmount;
     }
 
     /// @notice Struct containing data for an external trade.
     struct ExternalTrade {
-        /// Address of the token to sell.
+        // Address of the token to sell.
         address sellToken;
-        /// Address of the token to buy.
+        // Address of the token to buy.
         address buyToken;
-        /// Amount of the token to sell.
+        // Amount of the token to sell.
         uint256 sellAmount;
-        /// Minimum amount of the buy token that the trade results in.
+        // Minimum amount of the buy token that the trade results in.
         uint256 minAmount;
-        /// Array of basket trade ownerships.
+        // Array of basket trade ownerships.
         BasketTradeOwnership[] basketTradeOwnership;
     }
 
     /// @notice Struct containing data for an internal trade.
     struct InternalTradeInfo {
-        /// Index of the basket that is selling.
+        // Index of the basket that is selling.
         uint256 fromBasketIndex;
-        /// Index of the basket that is buying.
+        // Index of the basket that is buying.
         uint256 toBasketIndex;
-        /// Index of the token to sell.
+        // Index of the token to sell.
         uint256 sellTokenAssetIndex;
-        /// Index of the token to buy.
+        // Index of the token to buy.
         uint256 buyTokenAssetIndex;
-        /// Index of the buy token in the buying basket.
+        // Index of the buy token in the buying basket.
         uint256 toBasketBuyTokenIndex;
-        /// Index of the sell token in the buying basket.
+        // Index of the sell token in the buying basket.
         uint256 toBasketSellTokenIndex;
-        /// Amount of the buy token.
+        // Amount of the buy token.
         uint256 buyAmount;
     }
 
     /// @notice Struct containing data for an external trade.
     struct ExternalTradeInfo {
-        /// Price of the sell token.
+        // Price of the sell token.
         uint256 sellTokenPrice;
-        /// Price of the buy token.
+        // Price of the buy token.
         uint256 buyTokenPrice;
-        /// Value of the sell token.
+        // Value of the sell token.
         uint256 sellValue;
-        /// Minimum amount of the buy token that the trade results in.
+        // Minimum amount of the buy token that the trade results in.
         uint256 internalMinAmount;
-        /// Difference between the internalMinAmount and the minAmount.
+        // Difference between the internalMinAmount and the minAmount.
         uint256 diff;
     }
 
     /// @notice Struct containing data for basket ownership of an external trade.
     struct BasketOwnershipInfo {
-        /// Index of the basket.
+        // Index of the basket.
         uint256 basketIndex;
-        /// Index of the buy token asset.
+        // Index of the buy token asset.
         uint256 buyTokenAssetIndex;
-        /// Index of the sell token asset.
+        // Index of the sell token asset.
         uint256 sellTokenAssetIndex;
     }
 
