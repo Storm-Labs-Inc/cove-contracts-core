@@ -3,9 +3,10 @@ pragma solidity 0.8.23;
 
 /// @title Errors
 /// @notice Library containing all custom errors the protocol may revert with.
+// solhint-disable var-name-mixedcase
 library Errors {
-    // solhint-disable var-name-mixedcase
-    //// Oracle REGISTRY ////
+    /// ORACLE REGISTRY ///
+
     /// @notice Thrown when the Oracle name given is empty.
     error NameEmpty();
 
@@ -32,10 +33,12 @@ library Errors {
 
     /// @notice Thrown when the 0 address is found.
     error ZeroAddress();
+
     /// @notice Thrown when an amount of 0 is found.
     error ZeroAmount();
 
     /// TESTING ///
 
+    /// @notice Thrown when attempting to take away more than the available balance.
     error TakeAwayNotEnoughBalance();
 }
