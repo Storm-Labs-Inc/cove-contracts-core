@@ -23,14 +23,24 @@ contract AssetRegistry is AccessControlEnumerable {
         PAUSED
     }
 
+    /// STRUCTS ///
+    /// @notice Contains the index and status of an asset in the registry.
+    struct AssetData {
+        uint32 indexPlusOne;
+        AssetStatus status;
+    }
+
     /// CONSTANTS ///
     /// @notice Role responsible for managing assets in the registry.
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    /// @dev Maximum number of assets that can be registered in the system.
+    uint256 private constant _MAX_ASSETS = 255;
 
     /// STATE VARIABLES ///
-    // slither-disable-next-line uninitialized-state
-    /// @dev Mapping from asset address to its status in the registry.
-    mapping(address => AssetStatus) private _assetRegistry;
+    /// @dev Array of assets registered in the system.
+    address[] private _assetList;
+    /// @dev Mapping from asset address to AssetData struct containing the asset's index and status.
+    mapping(address asset => AssetData) private _assetRegistry;
 
     /// EVENTS ///
     /// @dev Emitted when a new asset is added to the registry.
@@ -45,6 +55,8 @@ contract AssetRegistry is AccessControlEnumerable {
     error AssetNotEnabled();
     /// @notice Thrown when attempting to set the asset status to an invalid status.
     error AssetInvalidStatusUpdate();
+    /// @notice Thrown when attempting to add an asset when the maximum number of assets has been reached.
+    error MaxAssetsReached();
 
     /// @notice Initializes the AssetRegistry contract
     /// @dev Sets up initial roles for admin and manager
@@ -65,11 +77,17 @@ contract AssetRegistry is AccessControlEnumerable {
     ///      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
     ///      - The asset address is zero (Errors.ZeroAddress)
     ///      - The asset is already enabled (AssetAlreadyEnabled)
+    ///      - The maximum number of assets has been reached (MaxAssetsReached)
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        if (_assetRegistry[asset] != AssetStatus.DISABLED) revert AssetAlreadyEnabled();
+        AssetData storage assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne > 0) revert AssetAlreadyEnabled();
+        uint256 assetLength = _assetList.length;
+        if (assetLength == _MAX_ASSETS) revert MaxAssetsReached();
 
-        _assetRegistry[asset] = AssetStatus.ENABLED;
+        _assetList.push(asset);
+        assetData.indexPlusOne = uint32(assetLength + 1);
+        assetData.status = AssetStatus.ENABLED;
         emit AddAsset(asset);
     }
 
@@ -84,11 +102,11 @@ contract AssetRegistry is AccessControlEnumerable {
     ///      - The new status is invalid (AssetInvalidStatusUpdate)
     function setAssetStatus(address asset, AssetStatus newStatus) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetStatus currentStatus = _assetRegistry[asset];
-        if (currentStatus == AssetStatus.DISABLED) revert AssetNotEnabled();
-        if (newStatus == AssetStatus.DISABLED || newStatus == currentStatus) revert AssetInvalidStatusUpdate();
+        AssetData storage assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne == 0) revert AssetNotEnabled();
+        if (newStatus == AssetStatus.DISABLED || assetData.status == newStatus) revert AssetInvalidStatusUpdate();
 
-        _assetRegistry[asset] = newStatus;
+        assetData.status = newStatus;
         emit SetAssetStatus(asset, newStatus);
     }
 
@@ -97,6 +115,73 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @param asset The address of the asset to query
     /// @return AssetStatus The status of the asset
     function getAssetStatus(address asset) external view returns (AssetStatus) {
-        return _assetRegistry[asset];
+        AssetData storage assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne == 0) return AssetStatus.DISABLED;
+        return assetData.status;
+    }
+
+    /// @notice Retrieves the list of assets in the registry. Parameter bitFlag is used to filter the assets.
+    /// @param bitFlag The bit flag to filter the assets.
+    /// @return assets The list of assets in the registry.
+    function getAssets(uint256 bitFlag) external view returns (address[] memory assets) {
+        uint256 maxLength = _assetList.length;
+        // If the bit flag is longer than the number of assets, truncate it
+        bitFlag = bitFlag & ((1 << maxLength) - 1);
+
+        // Initialize the return array
+        assets = new address[](_popCount(bitFlag));
+        uint256 index = 0;
+
+        // Iterate through the assets and populate the return array
+        for (uint256 i; i < maxLength && bitFlag != 0;) {
+            if (bitFlag & 1 != 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                assets[index++] = _assetList[i];
+            }
+            bitFlag >>= 1;
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Retrieves the addresses of all assets in the registry without any filtering.
+    /// @return assets The list of addresses of all assets in the registry.
+    function getAllAssets() external view returns (address[] memory) {
+        return _assetList;
+    }
+
+    /// @dev Counts the number of set bits in a bit flag using parallel counting.
+    /// This algorithm is based on the "Counting bits set, in parallel" technique from:
+    /// https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
+    /// @param bitFlag The bit flag to count the number of set bits.
+    /// @return count The number of set bits in the bit flag.
+    function _popCount(uint256 bitFlag) private pure returns (uint256) {
+        unchecked {
+            // Mask to 255 bits which is the maximum number of assets
+            // This step ensures we only count up to 255 bits, as that's our max asset count
+            bitFlag &= type(uint256).max >> 1;
+
+            // Parallel count for 16 4-bit nibbles
+            // This step counts bits in parallel, processing 2 bits at a time
+            // The magic number 0x5555... is a bit mask of alternating 0s and 1s (b'01010101...)
+            bitFlag = bitFlag - ((bitFlag >> 1) & 0x5555555555555555555555555555555555555555555555555555555555555555);
+
+            // This step continues the parallel counting, now processing 4 bits at a time
+            // The magic number 0x3333... is a bit mask of alternating pairs of 0s and 1s (b'00110011...)
+            bitFlag = (bitFlag & 0x3333333333333333333333333333333333333333333333333333333333333333)
+                + ((bitFlag >> 2) & 0x3333333333333333333333333333333333333333333333333333333333333333);
+
+            // Sum nibbles (4-bit groups)
+            // This step sums up the counts in each nibble (4-bit group)
+            // The magic number 0x0F0F... is a bit mask of alternating 4 0s and 4 1s (b'00001111...)
+            bitFlag = (bitFlag + (bitFlag >> 4)) & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F;
+
+            // Sum bytes
+            // This final step sums up all the byte counts to get the total count
+            // The magic number 0x0101... when multiplied, causes each byte's count to be added together
+            // The >> 248 at the end shifts the final sum to the least significant byte
+            return (bitFlag * 0x0101010101010101010101010101010101010101010101010101010101010101) >> 248;
+        }
     }
 }
