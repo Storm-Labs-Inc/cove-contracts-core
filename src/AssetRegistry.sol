@@ -140,17 +140,6 @@ contract AssetRegistry is AccessControlEnumerable {
         return assetData.status;
     }
 
-    /// @dev Counts the number of set bits in a bit flag using Brian Kernighan's algorithm.
-    /// @param bitFlag The bit flag to count the number of set bits.
-    /// @return count The number of set bits in the bit flag.
-    function _popCount(uint256 bitFlag) private pure returns (uint256 count) {
-        unchecked {
-            for (; bitFlag != 0; ++count) {
-                bitFlag &= bitFlag - 1;
-            }
-        }
-    }
-
     /// @notice Retrieves the list of assets in the registry. Parameter bitFlag is used to filter the assets.
     /// @param bitFlag The bit flag to filter the assets.
     /// @return assets The list of assets in the registry.
@@ -180,5 +169,39 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return assets The list of addresses of all assets in the registry.
     function getAllAssets() external view returns (address[] memory) {
         return _assetList;
+    }
+
+    /// @dev Counts the number of set bits in a bit flag using parallel counting.
+    /// This algorithm is based on the "Counting bits set, in parallel" technique from:
+    /// https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
+    /// @param bitFlag The bit flag to count the number of set bits.
+    /// @return count The number of set bits in the bit flag.
+    function _popCount(uint256 bitFlag) private pure returns (uint256) {
+        unchecked {
+            // Mask to 255 bits which is the maximum number of assets
+            // This step ensures we only count up to 255 bits, as that's our max asset count
+            bitFlag &= type(uint256).max >> 1;
+
+            // Parallel count for 16 4-bit nibbles
+            // This step counts bits in parallel, processing 2 bits at a time
+            // The magic number 0x5555... is a bit mask of alternating 0s and 1s (b'01010101...)
+            bitFlag = bitFlag - ((bitFlag >> 1) & 0x5555555555555555555555555555555555555555555555555555555555555555);
+
+            // This step continues the parallel counting, now processing 4 bits at a time
+            // The magic number 0x3333... is a bit mask of alternating pairs of 0s and 1s (b'00110011...)
+            bitFlag = (bitFlag & 0x3333333333333333333333333333333333333333333333333333333333333333)
+                + ((bitFlag >> 2) & 0x3333333333333333333333333333333333333333333333333333333333333333);
+
+            // Sum nibbles (4-bit groups)
+            // This step sums up the counts in each nibble (4-bit group)
+            // The magic number 0x0F0F... is a bit mask of alternating 4 0s and 4 1s (b'00001111...)
+            bitFlag = (bitFlag + (bitFlag >> 4)) & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F;
+
+            // Sum bytes
+            // This final step sums up all the byte counts to get the total count
+            // The magic number 0x0101... when multiplied, causes each byte's count to be added together
+            // The >> 248 at the end shifts the final sum to the least significant byte
+            return (bitFlag * 0x0101010101010101010101010101010101010101010101010101010101010101) >> 248;
+        }
     }
 }
