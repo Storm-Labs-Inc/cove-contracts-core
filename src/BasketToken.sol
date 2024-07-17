@@ -27,7 +27,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// CONSTANTS ///
     bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
 
-
     /// ENUMS ///
     /// @notice Enum representing the status of a redeem epoch.
     ///   - OPEN: Default status of an epoch.
