@@ -588,7 +588,7 @@ contract BasketManagerTest is BaseTest {
         /// Setup fuzzing bounds
         TradeTestParams memory params;
         params.sellWeight = bound(sellWeight, 0, 1e18);
-        params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
+        params.depositAmount = bound(depositAmount, 0, type(uint256).max / 1e36);
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
@@ -745,6 +745,66 @@ contract BasketManagerTest is BaseTest {
         });
         vm.prank(rebalancer);
         vm.expectRevert(BasketManager.ElementIndexNotFound.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
+    }
+
+    function testFuzz_proposeTokenSwap_revertWhen_internalTradeAmmountTooBig(
+        uint256 sellWeight,
+        uint256 depositAmount,
+        uint256 sellAmount
+    )
+        public
+    {
+        /// Setup fuzzing bounds
+        TradeTestParams memory params;
+        params.sellWeight = bound(sellWeight, 0, 1e18);
+        params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36 - 1;
+        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = address(new ERC20Mock());
+        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+
+        /// Setup basket and target weights
+        address[][] memory basketAssets = new address[][](2);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        basketAssets[1] = new address[](2);
+        basketAssets[1][0] = params.pairAsset;
+        basketAssets[1][1] = rootAsset;
+        uint256[] memory depositAmounts = new uint256[](2);
+        depositAmounts[0] = params.depositAmount;
+        depositAmounts[1] = params.depositAmount;
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
+        initialWeights[0][0] = params.baseAssetWeight;
+        initialWeights[0][1] = params.sellWeight;
+        initialWeights[1] = new uint256[](2);
+        initialWeights[1][0] = params.baseAssetWeight;
+        initialWeights[1][1] = params.sellWeight;
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, depositAmounts);
+
+        /// Propose the rebalance
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(baskets);
+
+        /// Setup the trade and propose token swap
+        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
+        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
+        vm.assume(sellAmount > params.depositAmount * params.sellWeight / 1e18);
+        internalTrades[0] = BasketManager.InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: sellAmount,
+            minAmount: sellAmount * 0.995e18 / 1e18,
+            maxAmount: sellAmount * 1.005e18 / 1e18
+        });
+        vm.prank(rebalancer);
+        vm.expectRevert(stdError.arithmeticError); // does not work?
+        // vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11)); // does not work?
+        // vm.expectRevert(); // does not work??
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -1027,7 +1087,7 @@ contract BasketManagerTest is BaseTest {
         // vm.expectRevert(stdError.arithmeticError); // does not work?
         // vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11)); // does not work?
         // vm.expectRevert(); // does not work??
-        // basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
     function testFuzz_proposeTokenSwap_externalTrade_revertWhen_TargetWeightsNotMet(
