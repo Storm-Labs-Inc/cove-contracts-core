@@ -32,11 +32,9 @@ abstract contract BaseTest is Test {
 
     //// HELPERS ////
 
-    /**
-     * @dev Generates a user, labels its address, and funds it with test assets.
-     * @param name The name of the user.
-     * @return The address of the user.
-     */
+    /// @dev Generates a user, labels its address, and funds it with test assets.
+    /// @param name The name of the user.
+    /// @return The address of the user.
     function createUser(string memory name) public returns (address payable) {
         address payable user = payable(makeAddr(name));
         if (users[name] != address(0)) {
@@ -48,11 +46,9 @@ abstract contract BaseTest is Test {
         return user;
     }
 
-    /**
-     * @dev Approves a list of contracts to spend the maximum of funds for a user.
-     * @param contractAddresses The list of contracts to approve.
-     * @param userAddresses The users to approve the contracts for.
-     */
+    /// @dev Approves a list of contracts to spend the maximum of funds for a user.
+    /// @param contractAddresses The list of contracts to approve.
+    /// @param userAddresses The users to approve the contracts for.
     function _approveProtocol(address[] calldata contractAddresses, address[] calldata userAddresses) internal {
         for (uint256 i = 0; i < contractAddresses.length; i++) {
             for (uint256 n = 0; n < userAddresses.length; n++) {
@@ -65,12 +61,10 @@ abstract contract BaseTest is Test {
 
     //// FORKING UTILS ////
 
-    /**
-     * @dev Creates a fork at a given block.
-     * @param network The name of the network, matches an entry in the foundry.toml
-     * @param blockNumber The block number to fork from.
-     * @return The fork id.
-     */
+    /// @dev Creates a fork at a given block.
+    /// @param network The name of the network, matches an entry in the foundry.toml
+    /// @param blockNumber The block number to fork from.
+    /// @return The fork id.
     function forkNetworkAt(string memory network, uint256 blockNumber) public returns (uint256) {
         string memory rpcURL = vm.rpcUrl(network);
         uint256 forkId = vm.createSelectFork(rpcURL, blockNumber);
@@ -80,11 +74,9 @@ abstract contract BaseTest is Test {
         return forkId;
     }
 
-    /**
-     * @dev Creates a fork at the latest block number.
-     * @param network The name of the network, matches an entry in the foundry.toml
-     * @return The fork id.
-     */
+    /// @dev Creates a fork at the latest block number.
+    /// @param network The name of the network, matches an entry in the foundry.toml
+    /// @return The fork id.
     function forkNetwork(string memory network) public returns (uint256) {
         string memory rpcURL = vm.rpcUrl(network);
         uint256 forkId = vm.createSelectFork(rpcURL);
