@@ -252,11 +252,18 @@ contract AssetRegistry_Test is BaseTest {
 
     function _setupAssets(uint256 assetCount) internal returns (address[] memory) {
         address[] memory testAssets = new address[](assetCount);
+        vm.stopPrank();
         for (uint256 i = 0; i < assetCount; i++) {
             testAssets[i] = address(uint160(i + 1));
-            assetRegistry.addAsset(testAssets[i]);
+            this.addAsset(testAssets[i]);
         }
+        vm.startPrank(users["admin"]);
         return testAssets;
+    }
+
+    function addAsset(address asset) public {
+        vm.prank(users["admin"]);
+        assetRegistry.addAsset(asset);
     }
 
     function testFuzz_getAllAssets(uint256 assetCount) public {
@@ -311,5 +318,67 @@ contract AssetRegistry_Test is BaseTest {
 
         // Verify all assets are returned
         assertEq(returnedAssets, testAssets);
+    }
+
+    function testFuzz_getAssetsBitFlag(uint256 assetCount, uint256[] memory assetIndices) public {
+        vm.assume(assetCount > 0 && assetCount <= MAX_ASSETS);
+        vm.assume(assetIndices.length > 0 && assetIndices.length <= assetCount);
+
+        address[] memory testAssets = _setupAssets(assetCount);
+        address[] memory selectedAssets = new address[](assetIndices.length);
+        uint256 expectedBitFlag;
+
+        for (uint256 i = 0; i < assetIndices.length; i++) {
+            uint256 index = assetIndices[i] % assetCount;
+            selectedAssets[i] = testAssets[index];
+            expectedBitFlag |= 1 << index;
+        }
+
+        uint256 returnedBitFlag = assetRegistry.getAssetsBitFlag(selectedAssets);
+
+        assertEq(returnedBitFlag, expectedBitFlag, "Returned bit flag does not match expected");
+    }
+
+    function testFuzz_getAssetsBitFlag_revertWhenAssetNotEnabled(uint256 assetCount, address invalidAsset) public {
+        vm.assume(assetCount > 0 && assetCount < MAX_ASSETS);
+        vm.assume(invalidAsset != address(0));
+
+        address[] memory testAssets = _setupAssets(assetCount);
+
+        // Ensure invalidAsset is not in testAssets
+        bool isInvalid = true;
+        for (uint256 i = 0; i < assetCount; i++) {
+            if (testAssets[i] == invalidAsset) {
+                isInvalid = false;
+                break;
+            }
+        }
+        vm.assume(isInvalid);
+
+        address[] memory assetsWithInvalid = new address[](assetCount);
+        for (uint256 i = 0; i < assetCount - 1; i++) {
+            assetsWithInvalid[i] = testAssets[i];
+        }
+        assetsWithInvalid[assetCount] = invalidAsset;
+
+        vm.expectRevert(AssetRegistry.AssetNotEnabled.selector);
+        assetRegistry.getAssetsBitFlag(assetsWithInvalid);
+    }
+
+    function testFuzz_getAssetsBitFlag_revertWhenExceedsMaximum(uint256 excessCount) public {
+        vm.assume(excessCount > 0);
+
+        address[] memory testAssets = _setupAssets(MAX_ASSETS);
+        address[] memory excessAssets = new address[](MAX_ASSETS + excessCount);
+
+        for (uint256 i = 0; i < MAX_ASSETS; i++) {
+            excessAssets[i] = testAssets[i];
+        }
+        for (uint256 i = MAX_ASSETS; i < excessAssets.length; i++) {
+            excessAssets[i] = address(uint160(i + 1));
+        }
+
+        vm.expectRevert(AssetRegistry.AssetExceedsMaximum.selector);
+        assetRegistry.getAssetsBitFlag(excessAssets);
     }
 }
