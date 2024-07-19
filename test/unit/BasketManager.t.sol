@@ -5,9 +5,8 @@ import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
-import { console } from "forge-std/console.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -16,12 +15,14 @@ import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 contract BasketManagerTest is BaseTest {
     BasketManager public basketManager;
     MockPriceOracle public mockPriceOracle;
+    EulerRouter public eulerRouter;
     address public alice;
     address public admin;
     address public manager;
     address public rebalancer;
     address public pauser;
     address public rootAsset;
+    address public toAsset;
     address public basketTokenImplementation;
     address public allocationResolver;
 
@@ -44,13 +45,16 @@ contract BasketManagerTest is BaseTest {
         manager = createUser("manager");
         rebalancer = createUser("rebalancer");
         rootAsset = address(new ERC20Mock());
+        toAsset = address(new ERC20Mock());
         basketTokenImplementation = createUser("basketTokenImplementation");
         mockPriceOracle = new MockPriceOracle();
         vm.label(address(mockPriceOracle), "mockPriceOracle");
-        mockPriceOracle.setPrice(rootAsset, rootAsset, 1e18); // set price to 1e18
+        eulerRouter = new EulerRouter(admin);
+        mockPriceOracle.setPrice(rootAsset, toAsset, 1e18); // set price to 1e18
         allocationResolver = createUser("allocationResolver");
         basketManager = new BasketManager(basketTokenImplementation, address(0x1), allocationResolver, admin);
         vm.startPrank(admin);
+        eulerRouter.govSetConfig(rootAsset, toAsset, address(mockPriceOracle));
         basketManager.grantRole(MANAGER_ROLE, manager);
         basketManager.grantRole(REBALANCER_ROLE, rebalancer);
         basketManager.grantRole(basketManager.PAUSER_ROLE(), pauser);
@@ -61,20 +65,20 @@ contract BasketManagerTest is BaseTest {
 
     function testFuzz_constructor(
         address basketTokenImplementation_,
-        address oracleRegistry_,
+        address eulerRouter_,
         address allocationResolver_,
         address admin_
     )
         public
     {
         vm.assume(basketTokenImplementation_ != address(0));
-        vm.assume(oracleRegistry_ != address(0));
+        vm.assume(eulerRouter_ != address(0));
         vm.assume(allocationResolver_ != address(0));
         vm.assume(admin_ != address(0));
 
-        BasketManager bm = new BasketManager(basketTokenImplementation_, oracleRegistry_, allocationResolver_, admin_);
+        BasketManager bm = new BasketManager(basketTokenImplementation_, eulerRouter_, allocationResolver_, admin_);
         assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
-        assertEq(bm.oracleRegistry(), oracleRegistry_);
+        assertEq(bm.eulerRouter(), eulerRouter_);
         assertEq(address(bm.allocationResolver()), allocationResolver_);
         assertEq(bm.hasRole(bm.DEFAULT_ADMIN_ROLE(), admin_), true);
         assertEq(bm.getRoleMemberCount(bm.DEFAULT_ADMIN_ROLE()), 1);
@@ -85,7 +89,7 @@ contract BasketManagerTest is BaseTest {
 
     function testFuzz_constructor_revertWhen_ZeroAddress(
         address basketTokenImplementation_,
-        address oracleRegistry_,
+        address eulerRouter_,
         address allocationResolver_,
         address admin_,
         uint256 flag
@@ -98,7 +102,7 @@ contract BasketManagerTest is BaseTest {
             basketTokenImplementation_ = address(0);
         }
         if (flag & 2 == 0) {
-            oracleRegistry_ = address(0);
+            eulerRouter_ = address(0);
         }
         if (flag & 4 == 0) {
             allocationResolver_ = address(0);
@@ -108,7 +112,7 @@ contract BasketManagerTest is BaseTest {
         }
 
         vm.expectRevert(BasketManager.ZeroAddress.selector);
-        new BasketManager(basketTokenImplementation_, oracleRegistry_, allocationResolver_, admin_);
+        new BasketManager(basketTokenImplementation_, eulerRouter_, allocationResolver_, admin_);
     }
 
     function testFuzz_createNewBasket(uint256 bitFlag, uint256 strategyId) public {

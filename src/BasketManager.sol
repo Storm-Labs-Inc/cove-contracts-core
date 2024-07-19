@@ -14,12 +14,9 @@ import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
 import { MathUtils } from "src/libraries/MathUtils.sol";
+import { IPriceOracle } from "src/deps/euler-price-oracle/BaseAdapter.sol";
 
 import { console } from "forge-std/console.sol";
-
-interface IPriceOracle {
-    function getQuote(uint256 inAmount, address base, address quote) external view returns (uint256);
-}
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
@@ -136,6 +133,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     }
 
     /// CONSTANTS ///
+    /// @notice ISO 4217 numeric code for USD, used as a constant address representation
+    address public constant USD_ISO_4217_CODE = address(840);
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
@@ -172,10 +171,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     // TODO: add setter function for basketTokenImplementation
     // slither-disable-next-line immutable-states
     address public basketTokenImplementation;
-    /// @notice Address of the OracleRegistry contract used to fetch oracle values for assets.
-    // TODO: add setter function for oracleRegistry
+    /// @notice Address of the EulerRouter contract used to fetch oracle quotes for swaps.
+    // TODO: add setter function for EulerRouter
     // slither-disable-next-line immutable-states
-    address public oracleRegistry;
+    address public eulerRouter;
     /// @notice Address of the AllocationResolver contract used to resolve allocations.
     // TODO: add setter function for allocationResolver
     // slither-disable-next-line immutable-states
@@ -212,11 +211,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation_ Address of the basket token implementation.
-    /// @param oracleRegistry_ Address of the oracle registry.
+    /// @param eulerRouter_ Address of the oracle registry.
     /// @param allocationResolver_ Address of the allocation resolver.
     constructor(
         address basketTokenImplementation_,
-        address oracleRegistry_,
+        address eulerRouter_,
         address allocationResolver_,
         address admin
     )
@@ -224,14 +223,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     {
         // Checks
         if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
-        if (oracleRegistry_ == address(0)) revert ZeroAddress();
+        if (eulerRouter_ == address(0)) revert ZeroAddress();
         if (allocationResolver_ == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         basketTokenImplementation = basketTokenImplementation_;
-        oracleRegistry = oracleRegistry_;
+        eulerRouter = eulerRouter_;
         allocationResolver = AllocationResolver(allocationResolver_);
     }
 
@@ -385,7 +384,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             }
             uint256[] memory balances = new uint256[](assetsLength);
             uint256[] memory targetBalances = new uint256[](assetsLength);
-            uint256[] memory priceOfAssets = new uint256[](assetsLength);
             uint256 basketValue = 0;
 
             // Calculate current basket value
@@ -393,7 +391,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 balances[j] = basketBalanceOf[basket][assets[j]];
                 // TODO: Replace with an oracle call once the oracle is implemented
-                // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
+                // uint256 usdPrice = eulerRouter.getPrice(assets[j]);
                 // if (usdPrice == 0) {
                 //     revert PriceOutOfSafeBounds();
                 // }
@@ -600,7 +598,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 balances[j] = basketBalanceOf[basket][assets[j]];
                 // TODO: Replace with an oracle call once the oracle is implemented
-                // uint256 usdPrice = oracleRegistry.getPrice(assets[j]);
+                // uint256 usdPrice = eulerRouter.getPrice(assets[j]);
                 // if (usdPrice == 0) {
                 //     revert PriceOutOfSafeBounds();
                 // }
