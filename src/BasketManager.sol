@@ -10,7 +10,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
-import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
@@ -593,6 +593,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 balances[j] = basketBalanceOf[basket][assets[j]];
                 // Rounding direction: down
+                // slither-disable-start calls-loop
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 basketValue += eulerRouter.getQuote(balances[j], assets[j], USD_ISO_4217_CODE);
                 unchecked {
@@ -611,11 +612,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // Rounding direction: down
                 // Division-by-zero is not possible: priceOfAssets[0] is greater than 0, totalSupply is greater than 0
                 // when pendingRedeems is greater than 0
-                // slither-disable-next-line calls-loop
                 uint256 rawAmount =
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems_, BasketToken(basket).totalSupply());
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 withdrawAmount = eulerRouter.getQuote(rawAmount, USD_ISO_4217_CODE, assets[0]);
+                // slither-disable-end calls-loop
                 if (withdrawAmount <= balances[0]) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[0]
