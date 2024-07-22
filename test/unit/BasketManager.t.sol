@@ -55,16 +55,10 @@ contract BasketManagerTest is BaseTest {
         vm.startPrank(admin);
         mockPriceOracle.setPrice(rootAsset, toAsset, 1e18); // set price to 1e18
         mockPriceOracle.setPrice(rootAsset, address(840), 1e18); // set price to 1e18
-        mockPriceOracle.setPrice(toAsset, rootAsset, 1e18); // set price to 1e18
         mockPriceOracle.setPrice(toAsset, address(840), 1e18); // set price to 1e18
-        mockPriceOracle.setPrice(address(840), rootAsset, 1e18); // set price to 1e18
-        mockPriceOracle.setPrice(address(840), toAsset, 1e18); // set price to 1e18
         eulerRouter.govSetConfig(rootAsset, toAsset, address(mockPriceOracle));
         eulerRouter.govSetConfig(rootAsset, address(840), address(mockPriceOracle));
-        eulerRouter.govSetConfig(toAsset, rootAsset, address(mockPriceOracle));
         eulerRouter.govSetConfig(toAsset, address(840), address(mockPriceOracle));
-        eulerRouter.govSetConfig(address(840), rootAsset, address(mockPriceOracle));
-        eulerRouter.govSetConfig(address(840), toAsset, address(mockPriceOracle));
         basketManager.grantRole(MANAGER_ROLE, manager);
         basketManager.grantRole(REBALANCER_ROLE, rebalancer);
         basketManager.grantRole(basketManager.PAUSER_ROLE(), pauser);
