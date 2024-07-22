@@ -10,9 +10,9 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
-import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
