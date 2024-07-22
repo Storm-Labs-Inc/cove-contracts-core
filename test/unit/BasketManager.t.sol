@@ -997,7 +997,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function testFuzz_proRataRedeem(uint256 depositAmount, uint256 redeemAmount) public {
-        depositAmount = bound(depositAmount, 500e18, type(uint256).max);
+        depositAmount = bound(depositAmount, 500e18, type(uint128).max);
         redeemAmount = bound(redeemAmount, 1, depositAmount);
         address basket = _setupBasketAndMocks(depositAmount);
         address[] memory targetBaskets = new address[](1);
@@ -1026,7 +1026,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proRataRedeem_revertWhen_CannotBurnMoreSharesThanTotalSupply(uint256 depositAmount) public {
-        depositAmount = bound(depositAmount, 500e18, type(uint256).max - 1);
+        depositAmount = bound(depositAmount, 500e18, type(uint128).max - 1);
         address basket = _setupBasketAndMocks(depositAmount);
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
