@@ -543,58 +543,59 @@ contract BasketManagerTest is BaseTest {
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
     }
 
-    // TODO: fix once the new eulerregistry and oracles are added
-    // function testFuzz_proposeTokenSwap_revertWhen_externalTrade_ExternalTradeSlippage(
-    //     uint256 sellWeight,
-    //     uint256 depositAmount
-    // )
-    //     public
-    // {
-    //     /// Setup fuzzing bounds
-    //     TradeTestParams memory params;
-    //     params.sellWeight = bound(sellWeight, 0, 1e18);
-    //     // Below bound is due to deposit amount being scaled by price and target weight
-    //     params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
-    //     // With price set at 1e18 this is the threshold for a rebalance to be valid
-    //     vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+    function testFuzz_proposeTokenSwap_revertWhen_externalTrade_ExternalTradeSlippage(
+        uint256 sellWeight,
+        uint256 depositAmount
+    )
+        public
+    {
+        // Setup fuzzing bounds
+        TradeTestParams memory params;
+        params.sellWeight = bound(sellWeight, 1, 1e18 - 1); // Ensure non-zero sell weight
+        params.depositAmount = bound(depositAmount, 1000, type(uint256).max / 1e36); // Ensure non-zero deposit
+        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
 
-    //     /// Setup basket and target weights
-    //     params.baseAssetWeight = 1e18 - params.sellWeight;
-    //     params.pairAsset = address(new ERC20Mock());
-    //     mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 2e18);
-    //     address[][] memory basketAssets = new address[][](1);
-    //     basketAssets[0] = new address[](2);
-    //     basketAssets[0][0] = rootAsset;
-    //     basketAssets[0][1] = params.pairAsset;
-    //     uint256[] memory initialDepositAmounts = new uint256[](1);
-    //     initialDepositAmounts[0] = params.depositAmount;
-    //     uint256[][] memory targetWeights = new uint256[][](2);
-    //     targetWeights[0] = new uint256[](2);
-    //     targetWeights[0][0] = params.baseAssetWeight;
-    //     targetWeights[0][1] = params.sellWeight;
-    //     address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
+        // Setup basket and target weights
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = address(new ERC20Mock());
+        _setPrices(params.pairAsset);
+        address[][] memory basketAssets = new address[][](1);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](1);
+        initialDepositAmounts[0] = params.depositAmount;
+        uint256[][] memory targetWeights = new uint256[][](2);
+        targetWeights[0] = new uint256[](2);
+        targetWeights[0][0] = params.baseAssetWeight;
+        targetWeights[0][1] = params.sellWeight;
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
 
-    //     /// Propose the rebalance
-    //     vm.prank(rebalancer);
-    //     basketManager.proposeRebalance(baskets);
+        // Propose the rebalance
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(baskets);
 
-    //     /// Setup the trade and propose token swap
-    //     BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
-    //     BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
-    //     BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
-    //     tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18)
-    // });
-    //     externalTrades[0] = BasketManager.ExternalTrade({
-    //         sellToken: rootAsset,
-    //         buyToken: params.pairAsset,
-    //         sellAmount: params.depositAmount * params.sellWeight / 1e18,
-    //         minAmount: (params.depositAmount * params.sellWeight / 1e18) * 0.995e18 / 1e18,
-    //         basketTradeOwnership: tradeOwnerships
-    //     });
-    //     vm.prank(rebalancer);
-    //     vm.expectRevert(BasketManager.ExternalTradeSlippage.selector);
-    //     basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
-    // }
+        // Setup the trade and propose token swap
+        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
+        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
+        BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+
+        uint256 sellAmount = params.depositAmount * params.sellWeight / 1e18;
+        uint256 minAmount = sellAmount * 1.06e18 / 1e18; // Set minAmount 6% higher than sellAmount
+
+        externalTrades[0] = BasketManager.ExternalTrade({
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            sellAmount: sellAmount,
+            minAmount: minAmount,
+            basketTradeOwnership: tradeOwnerships
+        });
+
+        vm.prank(rebalancer);
+        vm.expectRevert(BasketManager.ExternalTradeSlippage.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
+    }
 
     function _setPrices(address asset) internal {
         mockPriceOracle.setPrice(rootAsset, asset, 1e18);
