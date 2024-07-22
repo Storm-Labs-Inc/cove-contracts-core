@@ -911,11 +911,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 address asset = assets[j];
                 uint256 assetValueInUSD =
                     eulerRouter.getQuote(afterTradeBasketAssetAmounts_[i][j], asset, USD_ISO_4217_CODE);
-                uint256 afterTradeWeight = assetValueInUSD * 1e18 / totalBasketValue_[i];
+                // TODO: what's the proper way to deal with the 1e36?
+                uint256 afterTradeWeight = assetValueInUSD * 1e36 / totalBasketValue_[i];
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
                     console.log("basket, asset: ", basket, asset);
                     console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
-                    console.log("afterTradeWeight: %s", afterTradeWeight);
+                    console.log("afterTradeWeight: %s, usdValue: %s, totalValue: %s", afterTradeWeight, assetValueInUSD);
                     revert TargetWeightsNotMet();
                 }
                 unchecked {

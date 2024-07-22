@@ -50,11 +50,21 @@ contract BasketManagerTest is BaseTest {
         mockPriceOracle = new MockPriceOracle();
         vm.label(address(mockPriceOracle), "mockPriceOracle");
         eulerRouter = new EulerRouter(admin);
-        mockPriceOracle.setPrice(rootAsset, toAsset, 1e18); // set price to 1e18
         allocationResolver = createUser("allocationResolver");
-        basketManager = new BasketManager(basketTokenImplementation, address(0x1), allocationResolver, admin);
+        basketManager = new BasketManager(basketTokenImplementation, address(eulerRouter), allocationResolver, admin);
         vm.startPrank(admin);
+        mockPriceOracle.setPrice(rootAsset, toAsset, 1e18); // set price to 1e18
+        mockPriceOracle.setPrice(rootAsset, address(840), 1e18); // set price to 1e18
+        mockPriceOracle.setPrice(toAsset, rootAsset, 1e18); // set price to 1e18
+        mockPriceOracle.setPrice(toAsset, address(840), 1e18); // set price to 1e18
+        mockPriceOracle.setPrice(address(840), rootAsset, 1e18); // set price to 1e18
+        mockPriceOracle.setPrice(address(840), toAsset, 1e18); // set price to 1e18
         eulerRouter.govSetConfig(rootAsset, toAsset, address(mockPriceOracle));
+        eulerRouter.govSetConfig(rootAsset, address(840), address(mockPriceOracle));
+        eulerRouter.govSetConfig(toAsset, rootAsset, address(mockPriceOracle));
+        eulerRouter.govSetConfig(toAsset, address(840), address(mockPriceOracle));
+        eulerRouter.govSetConfig(address(840), rootAsset, address(mockPriceOracle));
+        eulerRouter.govSetConfig(address(840), toAsset, address(mockPriceOracle));
         basketManager.grantRole(MANAGER_ROLE, manager);
         basketManager.grantRole(REBALANCER_ROLE, rebalancer);
         basketManager.grantRole(basketManager.PAUSER_ROLE(), pauser);
@@ -337,7 +347,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proposeRebalance_processesDeposits() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -348,7 +358,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proposeRebalance_revertWhen_depositTooLittle_RebalanceNotRequired() public {
-        (address basket,) = _setupBasketAndMocks(100);
+        address basket = _setupBasketAndMocks(100);
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
 
@@ -358,7 +368,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proposeRebalance_revertWhen_noDeposits_RebalanceNotRequired() public {
-        (address basket,) = _setupBasketAndMocks(0);
+        address basket = _setupBasketAndMocks(0);
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
 
@@ -368,7 +378,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proposeRebalance_revertWhen_MustWaitForRebalanceToComplete() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.startPrank(rebalancer);
@@ -395,7 +405,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_completeRebalance() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -418,7 +428,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_completeRebalance_passWhen_redeemingShares() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -461,7 +471,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_completeRebalance_revertWhen_BasketsMismatch() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -473,7 +483,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_completeRebalance_revertWhen_TooEarlyToCompleteRebalance() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -496,7 +506,10 @@ contract BasketManagerTest is BaseTest {
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+        mockPriceOracle.setPrice(params.pairAsset, address(840), 1e18);
+        mockPriceOracle.setPrice(address(840), params.pairAsset, 1e18);
+        vm.prank(admin);
+        eulerRouter.govSetConfig(params.pairAsset, address(840), address(mockPriceOracle));
         address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -981,7 +994,7 @@ contract BasketManagerTest is BaseTest {
     function testFuzz_proRataRedeem(uint256 depositAmount, uint256 redeemAmount) public {
         depositAmount = bound(depositAmount, 500e18, type(uint256).max);
         redeemAmount = bound(redeemAmount, 1, depositAmount);
-        (address basket,) = _setupBasketAndMocks(depositAmount);
+        address basket = _setupBasketAndMocks(depositAmount);
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -1009,7 +1022,7 @@ contract BasketManagerTest is BaseTest {
 
     function test_proRataRedeem_revertWhen_CannotBurnMoreSharesThanTotalSupply(uint256 depositAmount) public {
         depositAmount = bound(depositAmount, 500e18, type(uint256).max - 1);
-        (address basket,) = _setupBasketAndMocks(depositAmount);
+        address basket = _setupBasketAndMocks(depositAmount);
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -1040,14 +1053,14 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proRataRedeem_revertWhen_ZeroTotalSupply() public {
-        (address basket,) = _setupBasketAndMocks(10_000);
+        address basket = _setupBasketAndMocks(10_000);
         vm.expectRevert(BasketManager.ZeroTotalSupply.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(0, 0, address(0));
     }
 
     function test_proRataRedeem_revertWhen_ZeroBurnedShares() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         vm.expectRevert(BasketManager.ZeroBurnedShares.selector);
         vm.prank(basket);
@@ -1055,7 +1068,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proRataRedeem_revertWhen_ZeroAddress() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(basket);
@@ -1063,7 +1076,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proRataRedeem_revertWhen_MustWaitForRebalanceToComplete() public {
-        (address basket,) = _setupBasketAndMocks();
+        address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalancer);
@@ -1095,7 +1108,8 @@ contract BasketManagerTest is BaseTest {
             address[] memory assets = assetsPerBasket[i];
             uint256[] memory weights = weightsPerBasket[i];
             address baseAsset = assets[0];
-            mockPriceOracle.setPrice(assets[i], assets[i], 1e18);
+            mockPriceOracle.setPrice(assets[i], baseAsset, 1e18);
+            mockPriceOracle.setPrice(baseAsset, assets[i], 1e18);
             bitFlag = bitFlag + i;
             strategyId = strategyId + i;
             vm.mockCall(
@@ -1126,12 +1140,11 @@ contract BasketManagerTest is BaseTest {
         }
     }
 
-    function _setupBasketAndMocks() internal returns (address basket, address mockAsset) {
+    function _setupBasketAndMocks() internal returns (address basket) {
         address[][] memory assetsPerBasket = new address[][](1);
         assetsPerBasket[0] = new address[](2);
         assetsPerBasket[0][0] = rootAsset;
-        mockAsset = address(new ERC20Mock());
-        assetsPerBasket[0][1] = mockAsset;
+        assetsPerBasket[0][1] = toAsset;
         uint256[][] memory weightsPerBasket = new uint256[][](1);
         weightsPerBasket[0] = new uint256[](2);
         weightsPerBasket[0][0] = 0.05e18;
@@ -1142,12 +1155,11 @@ contract BasketManagerTest is BaseTest {
         basket = baskets[0];
     }
 
-    function _setupBasketAndMocks(uint256 depositAmount) internal returns (address basket, address mockAsset) {
+    function _setupBasketAndMocks(uint256 depositAmount) internal returns (address basket) {
         address[][] memory assetsPerBasket = new address[][](1);
         assetsPerBasket[0] = new address[](2);
         assetsPerBasket[0][0] = rootAsset;
-        mockAsset = address(new ERC20Mock());
-        assetsPerBasket[0][1] = mockAsset;
+        assetsPerBasket[0][1] = toAsset;
         uint256[][] memory weightsPerBasket = new uint256[][](1);
         weightsPerBasket[0] = new uint256[](2);
         weightsPerBasket[0][0] = 0.05e18;
