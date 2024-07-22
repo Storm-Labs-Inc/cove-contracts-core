@@ -78,7 +78,7 @@ contract BasketManagerTest is BaseTest {
 
         BasketManager bm = new BasketManager(basketTokenImplementation_, eulerRouter_, allocationResolver_, admin_);
         assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
-        assertEq(bm.eulerRouter(), eulerRouter_);
+        assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.allocationResolver()), allocationResolver_);
         assertEq(bm.hasRole(bm.DEFAULT_ADMIN_ROLE(), admin_), true);
         assertEq(bm.getRoleMemberCount(bm.DEFAULT_ADMIN_ROLE()), 1);
