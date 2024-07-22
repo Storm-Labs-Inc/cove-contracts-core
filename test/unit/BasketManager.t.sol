@@ -600,6 +600,17 @@ contract BasketManagerTest is BaseTest {
     //     basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     // }
 
+    function _setPrices(address asset) internal {
+        mockPriceOracle.setPrice(rootAsset, asset, 1e18);
+        mockPriceOracle.setPrice(asset, rootAsset, 1e18);
+        mockPriceOracle.setPrice(asset, address(840), 1e18);
+        mockPriceOracle.setPrice(address(840), asset, 1e18);
+        vm.startPrank(admin);
+        eulerRouter.govSetConfig(asset, address(840), address(mockPriceOracle));
+        eulerRouter.govSetConfig(rootAsset, asset, address(mockPriceOracle));
+        vm.stopPrank();
+    }
+
     function testFuzz_proposeTokenSwap_internalTrade(uint256 sellWeight, uint256 depositAmount) public {
         /// Setup fuzzing bounds
         TradeTestParams memory params;
@@ -608,7 +619,7 @@ contract BasketManagerTest is BaseTest {
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+        _setPrices(params.pairAsset);
 
         /// Setup basket and target weights
         address[][] memory basketAssets = new address[][](2);
@@ -723,7 +734,7 @@ contract BasketManagerTest is BaseTest {
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+        _setPrices(params.pairAsset);
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -781,7 +792,7 @@ contract BasketManagerTest is BaseTest {
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+        _setPrices(params.pairAsset);
         address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -834,7 +845,7 @@ contract BasketManagerTest is BaseTest {
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+        _setPrices(params.pairAsset);
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -889,7 +900,7 @@ contract BasketManagerTest is BaseTest {
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+        _setPrices(params.pairAsset);
         /// Setup basket and target weights
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
@@ -943,7 +954,7 @@ contract BasketManagerTest is BaseTest {
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+        _setPrices(params.pairAsset);
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
