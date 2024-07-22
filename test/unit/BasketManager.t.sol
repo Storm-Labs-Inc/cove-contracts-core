@@ -26,6 +26,8 @@ contract BasketManagerTest is BaseTest {
     address public basketTokenImplementation;
     address public allocationResolver;
 
+    address public constant USD_ISO_4217_CODE = address(840);
+
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -54,11 +56,11 @@ contract BasketManagerTest is BaseTest {
         basketManager = new BasketManager(basketTokenImplementation, address(eulerRouter), allocationResolver, admin);
         vm.startPrank(admin);
         mockPriceOracle.setPrice(rootAsset, toAsset, 1e18); // set price to 1e18
-        mockPriceOracle.setPrice(rootAsset, address(840), 1e18); // set price to 1e18
-        mockPriceOracle.setPrice(toAsset, address(840), 1e18); // set price to 1e18
+        mockPriceOracle.setPrice(rootAsset, USD_ISO_4217_CODE, 1e18); // set price to 1e18
+        mockPriceOracle.setPrice(toAsset, USD_ISO_4217_CODE, 1e18); // set price to 1e18
         eulerRouter.govSetConfig(rootAsset, toAsset, address(mockPriceOracle));
-        eulerRouter.govSetConfig(rootAsset, address(840), address(mockPriceOracle));
-        eulerRouter.govSetConfig(toAsset, address(840), address(mockPriceOracle));
+        eulerRouter.govSetConfig(rootAsset, USD_ISO_4217_CODE, address(mockPriceOracle));
+        eulerRouter.govSetConfig(toAsset, USD_ISO_4217_CODE, address(mockPriceOracle));
         basketManager.grantRole(MANAGER_ROLE, manager);
         basketManager.grantRole(REBALANCER_ROLE, rebalancer);
         basketManager.grantRole(basketManager.PAUSER_ROLE(), pauser);
@@ -500,10 +502,10 @@ contract BasketManagerTest is BaseTest {
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
-        mockPriceOracle.setPrice(params.pairAsset, address(840), 1e18);
-        mockPriceOracle.setPrice(address(840), params.pairAsset, 1e18);
+        mockPriceOracle.setPrice(params.pairAsset, USD_ISO_4217_CODE, 1e18);
+        mockPriceOracle.setPrice(USD_ISO_4217_CODE, params.pairAsset, 1e18);
         vm.prank(admin);
-        eulerRouter.govSetConfig(params.pairAsset, address(840), address(mockPriceOracle));
+        eulerRouter.govSetConfig(params.pairAsset, USD_ISO_4217_CODE, address(mockPriceOracle));
         address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -597,10 +599,10 @@ contract BasketManagerTest is BaseTest {
     function _setPrices(address asset) internal {
         mockPriceOracle.setPrice(rootAsset, asset, 1e18);
         mockPriceOracle.setPrice(asset, rootAsset, 1e18);
-        mockPriceOracle.setPrice(asset, address(840), 1e18);
-        mockPriceOracle.setPrice(address(840), asset, 1e18);
+        mockPriceOracle.setPrice(asset, USD_ISO_4217_CODE, 1e18);
+        mockPriceOracle.setPrice(USD_ISO_4217_CODE, asset, 1e18);
         vm.startPrank(admin);
-        eulerRouter.govSetConfig(asset, address(840), address(mockPriceOracle));
+        eulerRouter.govSetConfig(asset, USD_ISO_4217_CODE, address(mockPriceOracle));
         eulerRouter.govSetConfig(rootAsset, asset, address(mockPriceOracle));
         vm.stopPrank();
     }
