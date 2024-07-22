@@ -597,17 +597,6 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
-    function _setPrices(address asset) internal {
-        mockPriceOracle.setPrice(rootAsset, asset, 1e18);
-        mockPriceOracle.setPrice(asset, rootAsset, 1e18);
-        mockPriceOracle.setPrice(asset, USD_ISO_4217_CODE, 1e18);
-        mockPriceOracle.setPrice(USD_ISO_4217_CODE, asset, 1e18);
-        vm.startPrank(admin);
-        eulerRouter.govSetConfig(asset, USD_ISO_4217_CODE, address(mockPriceOracle));
-        eulerRouter.govSetConfig(rootAsset, asset, address(mockPriceOracle));
-        vm.stopPrank();
-    }
-
     function testFuzz_proposeTokenSwap_internalTrade(uint256 sellWeight, uint256 depositAmount) public {
         /// Setup fuzzing bounds
         TradeTestParams memory params;
@@ -1176,5 +1165,16 @@ contract BasketManagerTest is BaseTest {
         initialDepositAmounts[0] = depositAmount;
         address[] memory baskets = _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts);
         basket = baskets[0];
+    }
+
+    function _setPrices(address asset) internal {
+        mockPriceOracle.setPrice(rootAsset, asset, 1e18);
+        mockPriceOracle.setPrice(asset, rootAsset, 1e18);
+        mockPriceOracle.setPrice(asset, USD_ISO_4217_CODE, 1e18);
+        mockPriceOracle.setPrice(USD_ISO_4217_CODE, asset, 1e18);
+        vm.startPrank(admin);
+        eulerRouter.govSetConfig(asset, USD_ISO_4217_CODE, address(mockPriceOracle));
+        eulerRouter.govSetConfig(rootAsset, asset, address(mockPriceOracle));
+        vm.stopPrank();
     }
 }
