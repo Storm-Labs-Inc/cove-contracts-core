@@ -456,8 +456,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
                 for (uint256 j = 0; j < assetsLength;) {
                     targetBalances[j] =
-                        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                        eulerRouter.getQuote(proposedTargetWeights[j] * basketValue, USD_ISO_4217_CODE, assets[j]);
+                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                     eulerRouter.getQuote(proposedTargetWeights[j] * basketValue, USD_ISO_4217_CODE, assets[j]);
 
                     unchecked {
                         // Overflow not possible: j is less than assetsLength
@@ -477,10 +477,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 console.log("balances[%s]: %s", j, balances[j]);
                 console.log("targetBalances[%s]: %s", j, targetBalances[j]);
                 // TODO: verify what scale pyth returns for USD denominated value
+                // TODO: is there a way to move this into the if statement that works with semgrep
+                uint256 diff = MathUtils.diff(balances[j], targetBalances[j]);
                 if (
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    eulerRouter.getQuote(MathUtils.diff(balances[j], targetBalances[j]), assets[j], USD_ISO_4217_CODE)
-                        > 500
+                    eulerRouter.getQuote(diff, assets[j], USD_ISO_4217_CODE) > 500 // nosemgrep
                 ) {
                     shouldRebalance = true;
                     break;
@@ -866,10 +866,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                     + ownershipBuyAmount;
                 // Update total basket value
                 totalBasketValue_[ownershipInfo.basketIndex] = totalBasketValue_[ownershipInfo.basketIndex]
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, USD_ISO_4217_CODE)
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    + eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, USD_ISO_4217_CODE);
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, USD_ISO_4217_CODE)
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                + eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, USD_ISO_4217_CODE);
                 unchecked {
                     ++j;
                 }
@@ -921,8 +921,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
                 address asset = assets[j];
                 uint256 assetValueInUSD =
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    eulerRouter.getQuote(afterTradeBasketAssetAmounts_[i][j], asset, USD_ISO_4217_CODE);
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                 eulerRouter.getQuote(afterTradeBasketAssetAmounts_[i][j], asset, USD_ISO_4217_CODE);
                 // TODO: what's the proper way to deal with the 1e36?
                 uint256 afterTradeWeight = assetValueInUSD * 1e36 / totalBasketValue_[i];
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
