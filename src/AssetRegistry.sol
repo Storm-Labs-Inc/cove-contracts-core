@@ -57,6 +57,8 @@ contract AssetRegistry is AccessControlEnumerable {
     error AssetInvalidStatusUpdate();
     /// @notice Thrown when attempting to add an asset when the maximum number of assets has been reached.
     error MaxAssetsReached();
+    /// @notice Thrown when length of the requested assets exceeds the maximum number of assets.
+    error AssetExceedsMaximum();
 
     /// @notice Initializes the AssetRegistry contract
     /// @dev Sets up initial roles for admin and manager
@@ -149,6 +151,37 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return assets The list of addresses of all assets in the registry.
     function getAllAssets() external view returns (address[] memory) {
         return _assetList;
+    }
+
+    /// @notice Retrieves the bit flag for a given list of assets.
+    /// @param assets The list of assets to get the bit flag for.
+    /// @return bitFlag The bit flag representing the list of assets.
+    /// @dev This function is for off-chain usage to get the bit flag for a list of assets.
+    ///    Reverts if:
+    ///     - the number of assets exceeds the maximum number of assets
+    ///     - an asset is not enabled in the registry
+    function getAssetsBitFlag(address[] memory assets) external view returns (uint256) {
+        uint256 bitFlag;
+        uint256 assetsLength = assets.length;
+
+        if (assetsLength > _assetList.length) {
+            revert AssetExceedsMaximum();
+        }
+
+        for (uint256 i; i < assetsLength;) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            uint256 indexPlusOne = _assetRegistry[assets[i]].indexPlusOne;
+            if (indexPlusOne == 0) {
+                revert AssetNotEnabled();
+            }
+
+            unchecked {
+                bitFlag |= 1 << (indexPlusOne - 1);
+                ++i;
+            }
+        }
+
+        return bitFlag;
     }
 
     /// @dev Counts the number of set bits in a bit flag using parallel counting.
