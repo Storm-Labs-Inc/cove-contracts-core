@@ -96,7 +96,7 @@ contract AssetRegistry_Test is BaseTest {
         assertTrue(assetRegistry.hasRole(managerRole, users["admin"]));
     }
 
-    function testFuzz_revokeRoleF_adminRole(address user) public {
+    function testFuzz_revokeRole_adminRole(address user) public {
         vm.assume(user != address(0) && user != users["admin"]);
 
         // Check the user does not have the admin role initially
@@ -117,7 +117,7 @@ contract AssetRegistry_Test is BaseTest {
         assertFalse(assetRegistry.hasRole(adminRole, user));
     }
 
-    function testFuzz_revokeRole_adminRole(address user) public {
+    function testFuzz_revokeRoleF_adminRole(address user) public {
         vm.assume(user != address(0) && user != users["admin"]);
 
         // Check the user does not have the admin role initially
