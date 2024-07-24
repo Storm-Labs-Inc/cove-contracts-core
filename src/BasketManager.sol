@@ -10,9 +10,9 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
-import { AllocationResolver } from "src/AllocationResolver.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
+import { AggregatedResolver } from "src/allocation/AggregatedResolver.sol";
 
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
@@ -175,10 +175,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     // TODO: add setter function for EulerRouter
     // slither-disable-next-line immutable-states
     EulerRouter public eulerRouter;
-    /// @notice Address of the AllocationResolver contract used to resolve allocations.
-    // TODO: add setter function for allocationResolver
+    /// @notice Address of the AggregatedResolver contract used to resolve allocations.
+    // TODO: add setter function for aggregatedResolver
     // slither-disable-next-line immutable-states
-    AllocationResolver public allocationResolver;
+    AggregatedResolver public aggregatedResolver;
     /// @notice Rebalance status.
     RebalanceStatus private _rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
@@ -204,7 +204,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error BasketTokenAlreadyExists();
     error BasketTokenMaxExceeded();
     error ElementIndexNotFound();
-    error AllocationResolverDoesNotSupportStrategy();
+    error AggregatedResolverDoesNotSupportStrategy();
     error BasketsMismatch();
     error BaseAssetMismatch();
     error AssetListEmpty();
@@ -221,11 +221,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation_ Address of the basket token implementation.
     /// @param eulerRouter_ Address of the oracle registry.
-    /// @param allocationResolver_ Address of the allocation resolver.
+    /// @param aggregatedResolver_ Address of the allocation resolver.
     constructor(
         address basketTokenImplementation_,
         address eulerRouter_,
-        address allocationResolver_,
+        address aggregatedResolver_,
         address admin
     )
         payable
@@ -233,14 +233,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         // Checks
         if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
         if (eulerRouter_ == address(0)) revert ZeroAddress();
-        if (allocationResolver_ == address(0)) revert ZeroAddress();
+        if (aggregatedResolver_ == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         basketTokenImplementation = basketTokenImplementation_;
         eulerRouter = EulerRouter(eulerRouter_);
-        allocationResolver = AllocationResolver(allocationResolver_);
+        aggregatedResolver = AggregatedResolver(aggregatedResolver_);
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -249,13 +249,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @param basketName Name of the basket.
     /// @param symbol Symbol of the basket.
     /// @param bitFlag Asset selection bitFlag for the basket.
-    /// @param strategyId Strategy id for the basket.
+    /// @param strategy Address of the strategy contract for the basket.
     function createNewBasket(
         string calldata basketName,
         string calldata symbol,
         address baseAsset,
         uint256 bitFlag,
-        uint256 strategyId
+        address strategy
     )
         external
         payable
@@ -270,15 +270,15 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (basketTokensLength >= MAX_NUM_OF_BASKET_TOKENS) {
             revert BasketTokenMaxExceeded();
         }
-        bytes32 basketId = keccak256(abi.encodePacked(bitFlag, strategyId));
+        bytes32 basketId = keccak256(abi.encodePacked(bitFlag, strategy));
         if (basketIdToAddress[basketId] != address(0)) {
             revert BasketTokenAlreadyExists();
         }
         // Checks with external view calls
-        if (!allocationResolver.supportsStrategy(bitFlag, strategyId)) {
-            revert AllocationResolverDoesNotSupportStrategy();
+        if (!aggregatedResolver.supportsBitFlag(strategy, bitFlag)) {
+            revert AggregatedResolverDoesNotSupportStrategy();
         }
-        address[] memory assets = allocationResolver.getAssets(bitFlag);
+        address[] memory assets = aggregatedResolver.getAssets(bitFlag);
         if (assets.length == 0) {
             revert AssetListEmpty();
         }
@@ -307,7 +307,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
         // Interactions
         // TODO: have owner address to pass to basket tokens on initialization
-        BasketToken(basket).initialize(IERC20(baseAsset), basketName, symbol, bitFlag, strategyId, address(0));
+        BasketToken(basket).initialize(IERC20(baseAsset), basketName, symbol, bitFlag, strategy, address(0));
     }
 
     /// @notice Returns the index of the basket token in the basketTokens array.
@@ -434,7 +434,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
             // Pre-process redeems and calculate target balances
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket);
+            uint256[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights();
             {
                 // Advances redeem epoch if there are pending redeems
                 uint256 pendingRedeems_ = BasketToken(basket).preFulfillRedeem();
@@ -920,8 +920,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         for (uint256 i = 0; i < basketsToRebalance.length;) {
             address basket = basketsToRebalance[i];
             // slither-disable-next-line calls-loop
-            uint256[] memory proposedTargetWeights = allocationResolver.getTargetWeight(basket); // nosemgrep:
-                // solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            uint256[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights();
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop

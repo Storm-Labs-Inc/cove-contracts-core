@@ -12,11 +12,12 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
+import { AllocationResolver } from "src/allocation/AllocationResolver.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 // TODO: interfaces will be removed in the future
 interface IBasketManager {
-    function totalAssetValue(uint256 strategyId) external view returns (uint256);
+    function totalAssetValue(address strategyId) external view returns (uint256);
 }
 
 /// @title BasketToken
@@ -85,7 +86,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Bitflag representing the selection of assets
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
-    uint256 public strategyId;
+    address public strategy;
 
     /// EVENTS ///
     /// @notice Emitted when a deposit request is made
@@ -144,7 +145,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
-        strategyId = strategyId_;
+        strategy = strategy_;
         _currentRedeemEpoch = 1;
         _currentDepositEpoch = 1;
         _epochRedeemStatus[0] = RedemptionStatus.REDEEM_FULFILLED;
@@ -181,7 +182,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     function totalAssets() public view override returns (uint256) {
         // Below will not be effected by pending assets
         // TODO: Replace this with value of the basket divided by the value of the asset
-        return IBasketManager(basketManager).totalAssetValue(strategyId);
+        return IBasketManager(basketManager).totalAssetValue(strategy);
+    }
+
+    function getTargetWeights() external view returns (uint256[] memory) {
+        return AllocationResolver(strategy).getTargetWeights(bitFlag);
     }
 
     /// @notice Returns the current redemption epoch.
