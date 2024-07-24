@@ -139,8 +139,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
     uint256 private constant _MAX_SLIPPAGE_BPS = 0.05e18; // .05%
-    // @notice Maximum deviation from target weights allowed for token swaps.
+    /// @notice Maximum deviation from target weights allowed for token swaps.
     uint256 private constant _MAX_WEIGHT_DEVIATION_BPS = 0.05e18; // .05%
+    /// @notice Precision used for weight calculations.
+    uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Manager role. Managers can create new baskets.
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @notice Pauser role.
@@ -457,7 +459,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 for (uint256 j = 0; j < assetsLength;) {
                     targetBalances[j] =
                     // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                     eulerRouter.getQuote(proposedTargetWeights[j] * basketValue, USD_ISO_4217_CODE, assets[j]);
+                    eulerRouter.getQuote(
+                        FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, _WEIGHT_PRECISION),
+                        USD_ISO_4217_CODE,
+                        assets[j]
+                    );
 
                     unchecked {
                         // Overflow not possible: j is less than assetsLength
@@ -924,12 +930,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 uint256 assetValueInUSD =
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                  eulerRouter.getQuote(afterTradeBasketAssetAmounts_[i][j], asset, USD_ISO_4217_CODE);
-                // TODO: what's the proper way to deal with the 1e36?
-                uint256 afterTradeWeight = assetValueInUSD * 1e36 / totalBasketValue_[i];
+                // Rounding direction: down
+                uint256 afterTradeWeight =
+                    FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalBasketValue_[i]);
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
                     console.log("basket, asset: ", basket, asset);
                     console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
-                    console.log("afterTradeWeight: %s, usdValue: %s, totalValue: %s", afterTradeWeight, assetValueInUSD);
+                    console.log("afterTradeWeight: %s, usdValue: %s", afterTradeWeight, assetValueInUSD);
                     revert TargetWeightsNotMet();
                 }
                 unchecked {
