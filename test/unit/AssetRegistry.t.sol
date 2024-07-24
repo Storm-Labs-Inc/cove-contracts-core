@@ -2,6 +2,7 @@
 
 pragma solidity 0.8.23;
 
+import { console } from "forge-std/console.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -17,13 +18,12 @@ contract AssetRegistry_Test is BaseTest {
         super.setUp();
         createUser("admin");
         createUser("alice");
-        vm.startPrank(users["admin"]);
         assetRegistry = new AssetRegistry(users["admin"]);
         adminRole = assetRegistry.DEFAULT_ADMIN_ROLE();
         managerRole = keccak256("MANAGER_ROLE");
     }
 
-    function test_init() public view {
+    function test_constructor() public {
         assert(assetRegistry.hasRole(adminRole, users["admin"]));
         assert(assetRegistry.hasRole(managerRole, users["admin"]));
     }
@@ -34,90 +34,109 @@ contract AssetRegistry_Test is BaseTest {
     }
 
     // Try granting manager role from an account without admin role
-    function test_grantRole_revertWhen_CalledByNonAdmin() public {
-        vm.stopPrank();
-        vm.startPrank(users["alice"]);
-        // account is users["alice"]'s address, role is bytes(0) as defined in the contract
-        // TODO: fix issue with format of access control error
-        // vm.expectRevert(_formatAccessControlError(users["alice"], adminRole));
-        vm.expectRevert();
-        assetRegistry.grantRole(managerRole, users["alice"]);
+    function testFuzz_grantRole_revertWhen_CalledByNonAdmin(address nonAdmin, address recipient) public {
+        vm.assume(nonAdmin != users["admin"] && nonAdmin != address(0));
+        vm.assume(recipient != address(0));
+
+        vm.expectRevert(_formatAccessControlError(nonAdmin, adminRole));
+        vm.prank(nonAdmin);
+        assetRegistry.grantRole(managerRole, recipient);
+
+        assertFalse(assetRegistry.hasRole(managerRole, recipient));
     }
 
     // Try granting manager role from an account with admin role
-    function test_grantRole_managerRole() public {
-        // Check the user does not have the manager role
-        assert(!assetRegistry.hasRole(managerRole, users["alice"]));
+    function testFuzz_grantRole_managerRole(address recipient) public {
+        vm.assume(recipient != address(0));
+        vm.assume(!assetRegistry.hasRole(managerRole, recipient));
 
-        // Grant the manager role to the user from the owner
-        assetRegistry.grantRole(managerRole, users["alice"]);
+        // Grant the manager role to the recipient from the admin
+        vm.prank(users["admin"]);
+        assetRegistry.grantRole(managerRole, recipient);
 
-        // Check the user now has the manager role
-        assert(assetRegistry.hasRole(managerRole, users["alice"]));
+        // Check the recipient now has the manager role
+        assertTrue(assetRegistry.hasRole(managerRole, recipient));
     }
 
-    function test_grantRole_adminRole() public {
-        // Check the user does not have the admin role
-        assert(!assetRegistry.hasRole(adminRole, users["alice"]));
+    function testFuzz_grantRole_adminRole(address newAdmin, address newManager) public {
+        vm.assume(newAdmin != address(0) && newAdmin != users["admin"]);
+        vm.assume(newManager != address(0) && newManager != newAdmin);
+
+        // Check the new admin does not have the admin role
+        assertFalse(assetRegistry.hasRole(adminRole, newAdmin));
+
+        // Grant the admin role to the new admin from the owner
+        vm.prank(users["admin"]);
+        assetRegistry.grantRole(adminRole, newAdmin);
+
+        // Check the new admin now has the admin role
+        assertTrue(assetRegistry.hasRole(adminRole, newAdmin));
+
+        // Verify the new admin can grant the manager role
+        vm.prank(newAdmin);
+        assetRegistry.grantRole(managerRole, newManager);
+
+        // Check that the new manager has the manager role
+        assertTrue(assetRegistry.hasRole(managerRole, newManager));
+    }
+
+    function testFuzz_revokeRole_managerRole_revertWhen_RevokeRoleWithoutAdmin(
+        address nonAdmin,
+        address targetUser
+    )
+        public
+    {
+        vm.assume(nonAdmin != users["admin"] && nonAdmin != address(0));
+        vm.assume(targetUser != address(0));
+
+        vm.prank(nonAdmin);
+        vm.expectRevert(_formatAccessControlError(nonAdmin, adminRole));
+        assetRegistry.revokeRole(managerRole, targetUser);
+
+        // Verify that the role was not revoked
+        assertTrue(assetRegistry.hasRole(managerRole, users["admin"]));
+    }
+
+    function testFuzz_revokeRoleF_adminRole(address user) public {
+        vm.assume(user != address(0) && user != users["admin"]);
+
+        // Check the user does not have the admin role initially
+        assertFalse(assetRegistry.hasRole(adminRole, user));
 
         // Grant the admin role to the user from the owner
-        assetRegistry.grantRole(adminRole, users["alice"]);
+        vm.prank(users["admin"]);
+        assetRegistry.grantRole(adminRole, user);
 
         // Check the user now has the admin role
-        assert(assetRegistry.hasRole(adminRole, users["alice"]));
-
-        // Verify the user can grant the manager role
-        vm.stopPrank();
-        vm.prank(users["alice"]);
-        assetRegistry.grantRole(managerRole, users["bob"]);
-    }
-
-    function test_revokeRole_managerRole_revertWhen_RevokeRoleWithoutAdmin() public {
-        vm.stopPrank();
-        vm.startPrank(users["alice"]);
-        // account is users["alice"]'s address, role is bytes(0) as defined in the contract
-        // TODO: fix issue with format of access control error
-        // vm.expectRevert(_formatAccessControlError(users["alice"], adminRole));
-        vm.expectRevert();
-        assetRegistry.revokeRole(managerRole, users["admin"]);
-        vm.stopPrank();
-    }
-
-    function test_revokeRole_adminRole() public {
-        // Check the user does not have the admin role
-        assert(!assetRegistry.hasRole(adminRole, users["alice"]));
-
-        // Grant the admin role to the user from the owner
-        assetRegistry.grantRole(adminRole, users["alice"]);
-
-        // Check the user now has the admin role
-        assert(assetRegistry.hasRole(adminRole, users["alice"]));
+        assertTrue(assetRegistry.hasRole(adminRole, user));
 
         // Revoke the admin role from the user from the owner
-        assetRegistry.revokeRole(adminRole, users["alice"]);
+        vm.prank(users["admin"]);
+        assetRegistry.revokeRole(adminRole, user);
 
         // Check the user no longer has the admin role
-        assert(!assetRegistry.hasRole(adminRole, users["alice"]));
+        assertFalse(assetRegistry.hasRole(adminRole, user));
     }
 
-    function test_revokeRoleF_adminRole() public {
-        // Check the user does not have the admin role
-        assert(!assetRegistry.hasRole(adminRole, users["alice"]));
+    function testFuzz_revokeRole_adminRole(address user) public {
+        vm.assume(user != address(0) && user != users["admin"]);
+
+        // Check the user does not have the admin role initially
+        assertFalse(assetRegistry.hasRole(adminRole, user));
 
         // Grant the admin role to the user from the owner
-
-        assetRegistry.grantRole(adminRole, users["alice"]);
+        vm.prank(users["admin"]);
+        assetRegistry.grantRole(adminRole, user);
 
         // Check the user now has the admin role
-        assert(assetRegistry.hasRole(adminRole, users["alice"]));
+        assertTrue(assetRegistry.hasRole(adminRole, user));
 
-        // Revoke the admin role from the user from the owner
-        vm.stopPrank();
-        vm.prank(users["alice"]);
-        assetRegistry.revokeRole(adminRole, users["alice"]);
+        // Revoke the admin role from the user
+        vm.prank(user);
+        assetRegistry.revokeRole(adminRole, user);
 
         // Check the user no longer has the admin role
-        assert(!assetRegistry.hasRole(adminRole, users["alice"]));
+        assertFalse(assetRegistry.hasRole(adminRole, user));
     }
 
     function test_renounceRole_managerRole() public {
@@ -125,6 +144,7 @@ contract AssetRegistry_Test is BaseTest {
         assert(assetRegistry.hasRole(managerRole, users["admin"]));
 
         // Renounce the manager role from the admin
+        vm.prank(users["admin"]);
         assetRegistry.renounceRole(managerRole, users["admin"]);
 
         // Check the user no longer has the manager role
@@ -136,6 +156,7 @@ contract AssetRegistry_Test is BaseTest {
         assert(assetRegistry.hasRole(adminRole, users["admin"]));
 
         // Renounce the admin role from the admin
+        vm.prank(users["admin"]);
         assetRegistry.renounceRole(adminRole, users["admin"]);
 
         // Check the user no longer has the admin role
@@ -144,26 +165,26 @@ contract AssetRegistry_Test is BaseTest {
 
     function test_addAsset_revertWhen_zeroAddress() public {
         vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.prank(users["admin"]);
         assetRegistry.addAsset(address(0));
     }
 
     function test_addAsset_revertWhen_maxAssetsReached() public {
         for (uint256 i = 0; i < MAX_ASSETS; i++) {
-            assetRegistry.addAsset(address(uint160(i + 1)));
+            testFuzz_addAsset(address(uint160(i + 1)));
         }
 
         vm.expectRevert(AssetRegistry.MaxAssetsReached.selector);
+        vm.prank(users["admin"]);
         assetRegistry.addAsset(address(uint160(MAX_ASSETS + 1)));
     }
 
     function testFuzz_addAsset_revertWhen_alreadyEnabled(address asset) public {
         vm.assume(asset != address(0));
-
-        vm.expectEmit();
-        emit AssetRegistry.AddAsset(asset);
-        assetRegistry.addAsset(asset);
+        testFuzz_addAsset(asset);
 
         vm.expectRevert(AssetRegistry.AssetAlreadyEnabled.selector);
+        vm.prank(users["admin"]);
         assetRegistry.addAsset(asset);
     }
 
@@ -172,30 +193,35 @@ contract AssetRegistry_Test is BaseTest {
 
         vm.expectEmit();
         emit AssetRegistry.AddAsset(asset);
+        vm.prank(users["admin"]);
         assetRegistry.addAsset(asset);
 
         _assertAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
     }
 
-    function test_setAssetStatus_revertWhen_zeroAddress() public {
+    function testFuzz_setAssetStatus_revertWhen_zeroAddress(uint8 status) public {
+        vm.assume(status <= uint8(type(AssetRegistry.AssetStatus).max));
         vm.expectRevert(Errors.ZeroAddress.selector);
-        assetRegistry.setAssetStatus(address(0), AssetRegistry.AssetStatus.PAUSED);
+        vm.prank(users["admin"]);
+        assetRegistry.setAssetStatus(address(0), AssetRegistry.AssetStatus(status));
     }
 
     function testFuzz_setAssetStatus_revertWhen_notEnabled(address asset) public {
         vm.assume(asset != address(0));
 
         vm.expectRevert(AssetRegistry.AssetNotEnabled.selector);
+        vm.prank(users["admin"]);
         assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
     }
 
     function testFuzz_setAssetStatus_pause(address asset) public {
         vm.assume(asset != address(0));
 
-        assetRegistry.addAsset(asset);
+        testFuzz_addAsset(asset);
 
         vm.expectEmit();
         emit AssetRegistry.SetAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
+        vm.prank(users["admin"]);
         assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
 
         _assertAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
@@ -203,6 +229,7 @@ contract AssetRegistry_Test is BaseTest {
 
     function testFuzz_setAssetStatus_unpause(address asset) public {
         vm.assume(asset != address(0));
+        vm.startPrank(users["admin"]);
 
         assetRegistry.addAsset(asset);
         assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
@@ -216,6 +243,7 @@ contract AssetRegistry_Test is BaseTest {
 
     function testFuzz_setAssetStatus_revertWhen_noStatusChange(address asset) public {
         vm.assume(asset != address(0));
+        vm.startPrank(users["admin"]);
 
         assetRegistry.addAsset(asset);
 
@@ -237,10 +265,10 @@ contract AssetRegistry_Test is BaseTest {
 
     function testFuzz_setAssetStatus_revertWhen_settingToDisabled(address asset) public {
         vm.assume(asset != address(0));
-
-        assetRegistry.addAsset(asset);
+        testFuzz_addAsset(asset);
 
         vm.expectRevert(AssetRegistry.AssetInvalidStatusUpdate.selector);
+        vm.prank(users["admin"]);
         assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.DISABLED);
 
         _assertAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
@@ -251,19 +279,14 @@ contract AssetRegistry_Test is BaseTest {
     }
 
     function _setupAssets(uint256 assetCount) internal returns (address[] memory) {
+        vm.startPrank(users["admin"]);
         address[] memory testAssets = new address[](assetCount);
-        vm.stopPrank();
         for (uint256 i = 0; i < assetCount; i++) {
             testAssets[i] = address(uint160(i + 1));
-            this.addAsset(testAssets[i]);
+            assetRegistry.addAsset(testAssets[i]);
         }
-        vm.startPrank(users["admin"]);
+        vm.stopPrank();
         return testAssets;
-    }
-
-    function addAsset(address asset) public {
-        vm.prank(users["admin"]);
-        assetRegistry.addAsset(asset);
     }
 
     function testFuzz_getAllAssets(uint256 assetCount) public {
@@ -346,38 +369,34 @@ contract AssetRegistry_Test is BaseTest {
         address[] memory testAssets = _setupAssets(assetCount);
 
         // Ensure invalidAsset is not in testAssets
-        bool isInvalid = true;
+        bool isAssetAdded = false;
         for (uint256 i = 0; i < assetCount; i++) {
             if (testAssets[i] == invalidAsset) {
-                isInvalid = false;
+                isAssetAdded = true;
                 break;
             }
         }
-        vm.assume(isInvalid);
+        vm.assume(!isAssetAdded);
 
         address[] memory assetsWithInvalid = new address[](assetCount);
         for (uint256 i = 0; i < assetCount - 1; i++) {
             assetsWithInvalid[i] = testAssets[i];
         }
-        assetsWithInvalid[assetCount] = invalidAsset;
+        assetsWithInvalid[assetCount - 1] = invalidAsset;
 
         vm.expectRevert(AssetRegistry.AssetNotEnabled.selector);
         assetRegistry.getAssetsBitFlag(assetsWithInvalid);
     }
 
     function testFuzz_getAssetsBitFlag_revertWhenExceedsMaximum(uint256 excessCount) public {
-        vm.assume(excessCount > 0);
+        // test upto 255 * 2 addresses in parameters exceeding the maximum limit (255)
+        vm.assume(excessCount > 0 && excessCount <= MAX_ASSETS);
 
-        address[] memory testAssets = _setupAssets(MAX_ASSETS);
+        _setupAssets(MAX_ASSETS);
         address[] memory excessAssets = new address[](MAX_ASSETS + excessCount);
-
-        for (uint256 i = 0; i < MAX_ASSETS; i++) {
-            excessAssets[i] = testAssets[i];
-        }
         for (uint256 i = MAX_ASSETS; i < excessAssets.length; i++) {
             excessAssets[i] = address(uint160(i + 1));
         }
-
         vm.expectRevert(AssetRegistry.AssetExceedsMaximum.selector);
         assetRegistry.getAssetsBitFlag(excessAssets);
     }

@@ -156,7 +156,8 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @notice Retrieves the bit flag for a given list of assets.
     /// @param assets The list of assets to get the bit flag for.
     /// @return bitFlag The bit flag representing the list of assets.
-    /// @dev Reverts if:
+    /// @dev This function is for off-chain usage to get the bit flag for a list of assets.
+    ///    Reverts if:
     ///     - the number of assets exceeds the maximum number of assets
     ///     - an asset is not enabled in the registry
     function getAssetsBitFlag(address[] memory assets) external view returns (uint256) {
