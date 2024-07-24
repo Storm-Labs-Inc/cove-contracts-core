@@ -753,13 +753,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 currentAssetAmount = basketBalanceOf[basket][asset];
                 afterTradeBasketAssetAmounts_[i][j] = currentAssetAmount;
-                // TODO: Replace production oracle behavior
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 usdPrice = 1e18;
-                if (usdPrice == 0) {
-                    revert PriceOutOfSafeBounds();
-                }
-                totalBasketValue_[i] = totalBasketValue_[i] + (currentAssetAmount * usdPrice);
+                totalBasketValue_[i] += eulerRouter.getQuote(currentAssetAmount, asset, USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
