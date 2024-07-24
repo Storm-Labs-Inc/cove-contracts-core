@@ -214,6 +214,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /**
      * Events
      */
+    event InternalTradeSettled(InternalTrade internalTrade, uint256 buyAmount);
 
     /**
      * Errors
@@ -909,6 +910,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             unchecked {
                 ++i;
             }
+            emit InternalTradeSettled(trade, info.buyAmount);
         }
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
