@@ -169,8 +169,8 @@ contract AssetRegistry is AccessControlEnumerable {
         }
 
         for (uint256 i; i < assetsLength;) {
-            AssetData storage assetData = _assetRegistry[assets[i]];
-            uint256 indexPlusOne = assetData.indexPlusOne;
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            uint256 indexPlusOne = _assetRegistry[assets[i]].indexPlusOne;
             if (indexPlusOne == 0) {
                 revert AssetNotEnabled();
             }
