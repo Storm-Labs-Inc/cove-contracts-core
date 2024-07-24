@@ -278,6 +278,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (!aggregatedResolver.supportsBitFlag(strategy, bitFlag)) {
             revert AggregatedResolverDoesNotSupportStrategy();
         }
+        // TODO: replace with AssetRegistry.getAssets(bitFlag) once AssetRegistry is implemented
         address[] memory assets = aggregatedResolver.getAssets(bitFlag);
         if (assets.length == 0) {
             revert AssetListEmpty();

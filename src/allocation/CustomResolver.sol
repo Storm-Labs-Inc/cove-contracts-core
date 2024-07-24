@@ -11,6 +11,7 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
     /// @dev Mapping to store target weights for each asset index in the bit flag
     mapping(uint256 assetIndexInBitFlag => uint256) private _targetWeight;
 
+    /// @notice The target weights for all assets in the supported bit flag
     uint256[] public targetWeights;
 
     /// @notice The supported bit flag for this resolver
