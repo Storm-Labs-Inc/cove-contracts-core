@@ -2,7 +2,6 @@
 
 pragma solidity 0.8.23;
 
-import { console } from "forge-std/console.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -274,18 +273,34 @@ contract AssetRegistry_Test is BaseTest {
         _assertAssetStatus(asset, AssetRegistry.AssetStatus.ENABLED);
     }
 
+    function testFuzz_getAssetStatus(address asset) public {
+        vm.assume(asset != address(0));
+
+        // Test for non-existent asset
+        assertEq(uint256(assetRegistry.getAssetStatus(asset)), uint256(AssetRegistry.AssetStatus.DISABLED));
+
+        // Add asset and check status
+        vm.prank(users["admin"]);
+        assetRegistry.addAsset(asset);
+        assertEq(uint256(assetRegistry.getAssetStatus(asset)), uint256(AssetRegistry.AssetStatus.ENABLED));
+
+        // Pause asset and check status
+        vm.prank(users["admin"]);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus.PAUSED);
+        assertEq(uint256(assetRegistry.getAssetStatus(asset)), uint256(AssetRegistry.AssetStatus.PAUSED));
+    }
+
     function _assertAssetStatus(address asset, AssetRegistry.AssetStatus expectedStatus) internal view {
         assertEq(uint256(assetRegistry.getAssetStatus(asset)), uint256(expectedStatus));
     }
 
     function _setupAssets(uint256 assetCount) internal returns (address[] memory) {
-        vm.startPrank(users["admin"]);
         address[] memory testAssets = new address[](assetCount);
         for (uint256 i = 0; i < assetCount; i++) {
             testAssets[i] = address(uint160(i + 1));
+            vm.prank(users["admin"]);
             assetRegistry.addAsset(testAssets[i]);
         }
-        vm.stopPrank();
         return testAssets;
     }
 
@@ -341,6 +356,16 @@ contract AssetRegistry_Test is BaseTest {
 
         // Verify all assets are returned
         assertEq(returnedAssets, testAssets);
+    }
+
+    function testFuzz_getAssets_nonExistentAssets(uint256 bitFlag) public {
+        vm.assume(bitFlag != 0);
+
+        // Get assets with no assets added
+        address[] memory returnedAssets = assetRegistry.getAssets(bitFlag);
+
+        // Verify that an empty array is returned
+        assertEq(returnedAssets.length, 0);
     }
 
     function testFuzz_getAssetsBitFlag(uint256 assetCount, uint256[] memory assetIndices) public {
