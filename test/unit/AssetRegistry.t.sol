@@ -414,7 +414,7 @@ contract AssetRegistry_Test is BaseTest {
     }
 
     function testFuzz_getAssetsBitFlag_revertWhenExceedsMaximum(uint256 excessCount) public {
-        // test upto 255 * 2 addresses in parameters exceeding the maximum limit (255)
+        // test up to 255 * 2 addresses in parameters exceeding the maximum limit (255)
         vm.assume(excessCount > 0 && excessCount <= MAX_ASSETS);
 
         _setupAssets(MAX_ASSETS);
