@@ -17,46 +17,67 @@ contract CustomAllocationResolverTest is BaseTest {
         vm.label(address(customResolver), "customResolver");
     }
 
-    function test_setTargetWeights() public {
+    function testFuzz_setTargetWeights(uint256[3] memory weights) public {
         uint256[] memory newTargetWeights = new uint256[](3);
-        newTargetWeights[0] = 5e17; // 0.5 in fixed-point
-        newTargetWeights[1] = 3e17; // 0.3 in fixed-point
-        newTargetWeights[2] = 2e17; // 0.2 in fixed-point
+        uint256 limit = 1e18;
+        for (uint256 i = 0; i < 3; i++) {
+            if (i < 2) {
+                limit -= newTargetWeights[i] = bound(weights[i], 0, limit);
+            } else {
+                newTargetWeights[i] = limit;
+            }
+        }
 
         vm.prank(admin);
         customResolver.setTargetWeights(newTargetWeights);
 
-        assertEq(customResolver.targetWeights(0), 5e17, "First weight should be set to 0.5");
-        assertEq(customResolver.targetWeights(1), 3e17, "Second weight should be set to 0.3");
-        assertEq(customResolver.targetWeights(2), 2e17, "Third weight should be set to 0.2");
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(
+                customResolver.targetWeights(i),
+                newTargetWeights[i],
+                string(abi.encodePacked("Weight ", i, " should be set correctly"))
+            );
+        }
     }
 
-    function test_setTargetWeights_InvalidLength() public {
-        uint256[] memory newTargetWeights = new uint256[](2);
-        newTargetWeights[0] = 5e17;
-        newTargetWeights[1] = 5e17;
+    function testFuzz_setTargetWeights_InvalidLength(uint256 length) public {
+        vm.assume(length != 3 && length < type(uint16).max);
+        uint256[] memory newTargetWeights = new uint256[](length);
 
         vm.prank(admin);
         vm.expectRevert(CustomAllocationResolver.InvalidWeightsLength.selector);
         customResolver.setTargetWeights(newTargetWeights);
     }
 
-    function test_setTargetWeights_InvalidSum() public {
+    function testFuzz_setTargetWeights_InvalidSum(uint256[3] memory weights, uint256 sum) public {
         uint256[] memory newTargetWeights = new uint256[](3);
-        newTargetWeights[0] = 6e17;
-        newTargetWeights[1] = 3e17;
-        newTargetWeights[2] = 2e17;
+        vm.assume(sum != 1e18);
+        for (uint256 i = 0; i < 3; i++) {
+            if (i < 2) {
+                weights[i] = bound(weights[i], 0, sum);
+                sum -= weights[i];
+            } else {
+                newTargetWeights[i] = sum;
+            }
+        }
 
         vm.prank(admin);
         vm.expectRevert(CustomAllocationResolver.WeightsSumMismatch.selector);
         customResolver.setTargetWeights(newTargetWeights);
     }
 
-    function test_getTargetWeights() public {
+    function testFuzz_getTargetWeights(uint256[3] memory weights) public {
         uint256[] memory setWeights = new uint256[](3);
-        setWeights[0] = 5e17;
-        setWeights[1] = 3e17;
-        setWeights[2] = 2e17;
+        uint256 totalWeight = 0;
+        for (uint256 i = 0; i < 3; i++) {
+            weights[i] = bound(weights[i], 1, 1e18);
+            totalWeight += weights[i];
+        }
+        for (uint256 i = 0; i < 2; i++) {
+            setWeights[i] = (weights[i] * 1e18) / totalWeight;
+        }
+        // Ensure the sum is exactly 1e18
+        setWeights[2] = 1e18 - setWeights[0] - setWeights[1];
 
         vm.prank(admin);
         customResolver.setTargetWeights(setWeights);
@@ -64,9 +85,11 @@ contract CustomAllocationResolverTest is BaseTest {
         uint256[] memory retrievedWeights = customResolver.getTargetWeights(SUPPORTED_BIT_FLAG);
 
         assertEq(retrievedWeights.length, 3, "Retrieved weights should have length 3");
-        assertEq(retrievedWeights[0], 5e17, "First weight should be 0.5");
-        assertEq(retrievedWeights[1], 3e17, "Second weight should be 0.3");
-        assertEq(retrievedWeights[2], 2e17, "Third weight should be 0.2");
+        for (uint256 i = 0; i < 3; i++) {
+            assertEq(
+                retrievedWeights[i], setWeights[i], string(abi.encodePacked("Weight ", i, " should match set weight"))
+            );
+        }
     }
 
     function testFuzz_supportsBitFlag(uint256 bitFlag) public {
@@ -74,7 +97,7 @@ contract CustomAllocationResolverTest is BaseTest {
         assertTrue(customResolver.supportsBitFlag(bitFlag), "Should support the configured bit flag or lower");
     }
 
-    function test_getTargetWeights_UnsupportedBitFlag(uint256 bitFlag) public {
+    function testFuzz_getTargetWeights_UnsupportedBitFlag(uint256 bitFlag) public {
         vm.assume(bitFlag > SUPPORTED_BIT_FLAG);
         vm.expectRevert(CustomAllocationResolver.UnsupportedBitFlag.selector);
         customResolver.getTargetWeights(bitFlag);
