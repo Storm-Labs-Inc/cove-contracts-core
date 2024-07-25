@@ -6,18 +6,14 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 
 import { Errors } from "src/libraries/Errors.sol";
 
-/**
- * @title AssetRegistry
- * @dev Manages the registration and status of assets in the system.
- * @notice This contract provides functionality to add, enable, pause, and manage assets, with role-based access
- * control.
- * @dev Utilizes OpenZeppelin's AccessControlEnumerable for granular permission management.
- * @dev Supports three asset states: DISABLED -> ENABLED <-> PAUSED.
- */
+/// @title AssetRegistry
+/// @dev Manages the registration and status of assets in the system.
+/// @notice This contract provides functionality to add, enable, pause, and manage assets, with role-based access
+/// control.
+/// @dev Utilizes OpenZeppelin's AccessControlEnumerable for granular permission management.
+/// @dev Supports three asset states: DISABLED -> ENABLED <-> PAUSED.
 contract AssetRegistry is AccessControlEnumerable {
-    /**
-     * Enums
-     */
+    /// ENUMS ///
     enum AssetStatus {
         /// @notice Asset is disabled and cannot be used in the system
         DISABLED,
@@ -27,44 +23,48 @@ contract AssetRegistry is AccessControlEnumerable {
         PAUSED
     }
 
-    /**
-     * Constants
-     */
+    /// STRUCTS ///
+    /// @notice Contains the index and status of an asset in the registry.
+    struct AssetData {
+        uint32 indexPlusOne;
+        AssetStatus status;
+    }
+
+    /// CONSTANTS ///
     /// @notice Role responsible for managing assets in the registry.
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    /// @dev Maximum number of assets that can be registered in the system.
+    uint256 private constant _MAX_ASSETS = 255;
 
-    /**
-     * State variables
-     */
-    // slither-disable-next-line uninitialized-state
-    /// @dev Mapping from asset address to its status in the registry.
-    mapping(address => AssetStatus) private _assetRegistry;
+    /// STATE VARIABLES ///
+    /// @dev Array of assets registered in the system.
+    address[] private _assetList;
+    /// @dev Mapping from asset address to AssetData struct containing the asset's index and status.
+    mapping(address asset => AssetData) private _assetRegistry;
 
-    /**
-     * Events
-     */
+    /// EVENTS ///
     /// @dev Emitted when a new asset is added to the registry.
     event AddAsset(address indexed asset);
     /// @dev Emitted when an asset's status is updated.
     event SetAssetStatus(address indexed asset, AssetStatus status);
 
-    /**
-     * Errors
-     */
+    /// ERRORS ///
     /// @notice Thrown when attempting to add an asset that is already enabled in the registry.
     error AssetAlreadyEnabled();
     /// @notice Thrown when attempting to perform an operation on an asset that is not enabled in the registry.
     error AssetNotEnabled();
     /// @notice Thrown when attempting to set the asset status to an invalid status.
     error AssetInvalidStatusUpdate();
+    /// @notice Thrown when attempting to add an asset when the maximum number of assets has been reached.
+    error MaxAssetsReached();
+    /// @notice Thrown when length of the requested assets exceeds the maximum number of assets.
+    error AssetExceedsMaximum();
 
-    /**
-     * @notice Initializes the AssetRegistry contract
-     * @dev Sets up initial roles for admin and manager
-     * @param admin The address to be granted the DEFAULT_ADMIN_ROLE
-     * @dev Reverts if:
-     *      - The admin address is zero (Errors.ZeroAddress)
-     */
+    /// @notice Initializes the AssetRegistry contract
+    /// @dev Sets up initial roles for admin and manager
+    /// @param admin The address to be granted the DEFAULT_ADMIN_ROLE
+    /// @dev Reverts if:
+    ///      - The admin address is zero (Errors.ZeroAddress)
     // slither-disable-next-line locked-ether
     constructor(address admin) payable {
         if (admin == address(0)) revert Errors.ZeroAddress();
@@ -72,51 +72,149 @@ contract AssetRegistry is AccessControlEnumerable {
         _grantRole(_MANAGER_ROLE, admin);
     }
 
-    /**
-     * @notice Adds a new asset to the registry
-     * @dev Only callable by accounts with the MANAGER_ROLE
-     * @param asset The address of the asset to be added
-     * @dev Reverts if:
-     *      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
-     *      - The asset address is zero (Errors.ZeroAddress)
-     *      - The asset is already enabled (AssetAlreadyEnabled)
-     */
+    /// @notice Adds a new asset to the registry
+    /// @dev Only callable by accounts with the MANAGER_ROLE
+    /// @param asset The address of the asset to be added
+    /// @dev Reverts if:
+    ///      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
+    ///      - The asset address is zero (Errors.ZeroAddress)
+    ///      - The asset is already enabled (AssetAlreadyEnabled)
+    ///      - The maximum number of assets has been reached (MaxAssetsReached)
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        if (_assetRegistry[asset] != AssetStatus.DISABLED) revert AssetAlreadyEnabled();
+        AssetData storage assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne > 0) revert AssetAlreadyEnabled();
+        uint256 assetLength = _assetList.length;
+        if (assetLength == _MAX_ASSETS) revert MaxAssetsReached();
 
-        _assetRegistry[asset] = AssetStatus.ENABLED;
+        _assetList.push(asset);
+        assetData.indexPlusOne = uint32(assetLength + 1);
+        assetData.status = AssetStatus.ENABLED;
         emit AddAsset(asset);
     }
 
-    /**
-     * @notice Sets the status of an asset in the registry
-     * @dev Only callable by accounts with the MANAGER_ROLE
-     * @param asset The address of the asset to update
-     * @param newStatus The new status to set (ENABLED or PAUSED)
-     * @dev Reverts if:
-     *      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
-     *      - The asset address is zero (Errors.ZeroAddress)
-     *      - The asset is not enabled in the registry (AssetNotEnabled)
-     *      - The new status is invalid (AssetInvalidStatusUpdate)
-     */
+    /// @notice Sets the status of an asset in the registry
+    /// @dev Only callable by accounts with the MANAGER_ROLE
+    /// @param asset The address of the asset to update
+    /// @param newStatus The new status to set (ENABLED or PAUSED)
+    /// @dev Reverts if:
+    ///      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
+    ///      - The asset address is zero (Errors.ZeroAddress)
+    ///      - The asset is not enabled in the registry (AssetNotEnabled)
+    ///      - The new status is invalid (AssetInvalidStatusUpdate)
     function setAssetStatus(address asset, AssetStatus newStatus) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
-        AssetStatus currentStatus = _assetRegistry[asset];
-        if (currentStatus == AssetStatus.DISABLED) revert AssetNotEnabled();
-        if (newStatus == AssetStatus.DISABLED || newStatus == currentStatus) revert AssetInvalidStatusUpdate();
+        AssetData storage assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne == 0) revert AssetNotEnabled();
+        if (newStatus == AssetStatus.DISABLED || assetData.status == newStatus) revert AssetInvalidStatusUpdate();
 
-        _assetRegistry[asset] = newStatus;
+        assetData.status = newStatus;
         emit SetAssetStatus(asset, newStatus);
     }
 
-    /**
-     * @notice Retrieves the status of an asset
-     * @dev Returns the status of the asset. For non-existent assets, returns status as DISABLED
-     * @param asset The address of the asset to query
-     * @return AssetStatus The status of the asset
-     */
+    /// @notice Retrieves the status of an asset
+    /// @dev Returns the status of the asset. For non-existent assets, returns status as DISABLED
+    /// @param asset The address of the asset to query
+    /// @return AssetStatus The status of the asset
     function getAssetStatus(address asset) external view returns (AssetStatus) {
-        return _assetRegistry[asset];
+        AssetData storage assetData = _assetRegistry[asset];
+        if (assetData.indexPlusOne == 0) return AssetStatus.DISABLED;
+        return assetData.status;
+    }
+
+    /// @notice Retrieves the list of assets in the registry. Parameter bitFlag is used to filter the assets.
+    /// @param bitFlag The bit flag to filter the assets.
+    /// @return assets The list of assets in the registry.
+    function getAssets(uint256 bitFlag) external view returns (address[] memory assets) {
+        uint256 maxLength = _assetList.length;
+        // If the bit flag is longer than the number of assets, truncate it
+        bitFlag = bitFlag & ((1 << maxLength) - 1);
+
+        // Initialize the return array
+        assets = new address[](_popCount(bitFlag));
+        uint256 index = 0;
+
+        // Iterate through the assets and populate the return array
+        for (uint256 i; i < maxLength && bitFlag != 0;) {
+            if (bitFlag & 1 != 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                assets[index++] = _assetList[i];
+            }
+            bitFlag >>= 1;
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Retrieves the addresses of all assets in the registry without any filtering.
+    /// @return assets The list of addresses of all assets in the registry.
+    function getAllAssets() external view returns (address[] memory) {
+        return _assetList;
+    }
+
+    /// @notice Retrieves the bit flag for a given list of assets.
+    /// @param assets The list of assets to get the bit flag for.
+    /// @return bitFlag The bit flag representing the list of assets.
+    /// @dev This function is for off-chain usage to get the bit flag for a list of assets.
+    ///    Reverts if:
+    ///     - the number of assets exceeds the maximum number of assets
+    ///     - an asset is not enabled in the registry
+    function getAssetsBitFlag(address[] memory assets) external view returns (uint256) {
+        uint256 bitFlag;
+        uint256 assetsLength = assets.length;
+
+        if (assetsLength > _assetList.length) {
+            revert AssetExceedsMaximum();
+        }
+
+        for (uint256 i; i < assetsLength;) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            uint256 indexPlusOne = _assetRegistry[assets[i]].indexPlusOne;
+            if (indexPlusOne == 0) {
+                revert AssetNotEnabled();
+            }
+
+            unchecked {
+                bitFlag |= 1 << (indexPlusOne - 1);
+                ++i;
+            }
+        }
+
+        return bitFlag;
+    }
+
+    /// @dev Counts the number of set bits in a bit flag using parallel counting.
+    /// This algorithm is based on the "Counting bits set, in parallel" technique from:
+    /// https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
+    /// @param bitFlag The bit flag to count the number of set bits.
+    /// @return count The number of set bits in the bit flag.
+    function _popCount(uint256 bitFlag) private pure returns (uint256) {
+        unchecked {
+            // Mask to 255 bits which is the maximum number of assets
+            // This step ensures we only count up to 255 bits, as that's our max asset count
+            bitFlag &= type(uint256).max >> 1;
+
+            // Parallel count for 16 4-bit nibbles
+            // This step counts bits in parallel, processing 2 bits at a time
+            // The magic number 0x5555... is a bit mask of alternating 0s and 1s (b'01010101...)
+            bitFlag = bitFlag - ((bitFlag >> 1) & 0x5555555555555555555555555555555555555555555555555555555555555555);
+
+            // This step continues the parallel counting, now processing 4 bits at a time
+            // The magic number 0x3333... is a bit mask of alternating pairs of 0s and 1s (b'00110011...)
+            bitFlag = (bitFlag & 0x3333333333333333333333333333333333333333333333333333333333333333)
+                + ((bitFlag >> 2) & 0x3333333333333333333333333333333333333333333333333333333333333333);
+
+            // Sum nibbles (4-bit groups)
+            // This step sums up the counts in each nibble (4-bit group)
+            // The magic number 0x0F0F... is a bit mask of alternating 4 0s and 4 1s (b'00001111...)
+            bitFlag = (bitFlag + (bitFlag >> 4)) & 0x0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F;
+
+            // Sum bytes
+            // This final step sums up all the byte counts to get the total count
+            // The magic number 0x0101... when multiplied, causes each byte's count to be added together
+            // The >> 248 at the end shifts the final sum to the least significant byte
+            return (bitFlag * 0x0101010101010101010101010101010101010101010101010101010101010101) >> 248;
+        }
     }
 }

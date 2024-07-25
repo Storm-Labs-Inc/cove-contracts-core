@@ -75,11 +75,9 @@ contract AllocationResolver is AccessControl {
         return basketAllocationResolver[basket] == proposer;
     }
 
-    /**
-     * @notice Gets the assets from the bitFlag.
-     * @param bitFlag The bitFlag representing the set of assets.
-     * @return address[] The assets from the bitFlag.
-     */
+    /// @notice Gets the assets from the bitFlag.
+    /// @param bitFlag The bitFlag representing the set of assets.
+    /// @return address[] The assets from the bitFlag.
     function getAssets(uint256 bitFlag) public view returns (address[] memory) {
         // TODO: Implement getting the assets from the bitFlag
         // workaround for slither for unused variables
@@ -88,12 +86,10 @@ contract AllocationResolver is AccessControl {
         return new address[](0);
     }
 
-    /**
-     * @notice Checks if the strategy supports the set of assets represented as a bitFlag
-     * @param bitFlag The bitFlag representing the set of assets
-     * @param strategyId The strategy ID to check if it supports the bitFlag
-     * @return bool True if the strategy supports the bitFlag, false otherwise
-     */
+    /// @notice Checks if the strategy supports the set of assets represented as a bitFlag
+    /// @param bitFlag The bitFlag representing the set of assets
+    /// @param strategyId The strategy ID to check if it supports the bitFlag
+    /// @return bool True if the strategy supports the bitFlag, false otherwise
     function supportsStrategy(uint256 bitFlag, uint256 strategyId) public view returns (bool) {
         // TODO: Implement checking if the strategy supports the given bitFlag
         // workaround for slither for unused variables

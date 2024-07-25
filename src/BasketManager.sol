@@ -21,24 +21,15 @@ interface IPriceOracle {
     function getQuote(uint256 inAmount, address base, address quote) external view returns (uint256);
 }
 
-/**
- * @title BasketManager
- * @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
- * here.
- */
+/// @title BasketManager
+/// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
+/// here.
 contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
-    /**
-     * Libraries
-     */
+    /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
-    /**
-     * Structs
-     */
-
-    /**
-     * @notice Enum representing the status of a rebalance.
-     */
+    /// STRUCTS ///
+    /// @notice Enum representing the status of a rebalance.
     enum Status {
         // Rebalance has not started.
         NOT_STARTED,
@@ -50,11 +41,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         TOKEN_SWAP_EXECUTED
     }
 
-    /**
-     * @notice Struct representing the rebalance status.
-     */
+    /// @notice Struct representing the rebalance status.
     struct RebalanceStatus {
-        //Hash of the baskets proposed for rebalance.
+        // Hash of the baskets proposed for rebalance.
         bytes32 basketHash;
         // Timestamp of the last action.
         uint40 timestamp;
@@ -62,104 +51,90 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         Status status;
     }
 
-    /**
-     * @notice Struct representing a baskets ownership of an external trade.
-     */
+    /// @notice Struct representing a baskets ownership of an external trade.
     struct BasketTradeOwnership {
-        /// Address of the basket.
+        // Address of the basket.
         address basket;
-        /// Ownership of the trade with a base of 1e18. An ownershipe of 1e18 means the basket owns the entire trade.
+        // Ownership of the trade with a base of 1e18. An ownershipe of 1e18 means the basket owns the entire trade.
         uint96 tradeOwnership;
     }
 
-    /**
-     * @notice Struct containing data for an internal trade.
-     */
+    /// @notice Struct containing data for an internal trade.
     struct InternalTrade {
-        /// Address of the basket that is selling.
+        // Address of the basket that is selling.
         address fromBasket;
-        /// Address of the token to sell.
+        // Address of the token to sell.
         address sellToken;
-        /// Address of the token to buy.
+        // Address of the token to buy.
         address buyToken;
-        /// Address of the basket that is buying.
+        // Address of the basket that is buying.
         address toBasket;
-        /// Amount of the token to sell.
+        // Amount of the token to sell.
         uint256 sellAmount;
-        /// Minimum amount of the buy token that the trade results in. Used to check that the proposers oracle prices
-        /// are correct.
+        // Minimum amount of the buy token that the trade results in. Used to check that the proposers oracle prices
+        // are correct.
         uint256 minAmount;
-        /// Maximum amount of the buy token that the trade can result in.
+        // Maximum amount of the buy token that the trade can result in.
         uint256 maxAmount;
     }
 
-    /**
-     * @notice Struct containing data for an external trade.
-     */
+    /// @notice Struct containing data for an external trade.
     struct ExternalTrade {
-        /// Address of the token to sell.
+        // Address of the token to sell.
         address sellToken;
-        /// Address of the token to buy.
+        // Address of the token to buy.
         address buyToken;
-        /// Amount of the token to sell.
+        // Amount of the token to sell.
         uint256 sellAmount;
-        /// Minimum amount of the buy token that the trade results in.
+        // Minimum amount of the buy token that the trade results in.
         uint256 minAmount;
-        /// Array of basket trade ownerships.
+        // Array of basket trade ownerships.
         BasketTradeOwnership[] basketTradeOwnership;
     }
 
-    /**
-     * @notice Struct containing data for an internal trade.
-     */
+    /// @notice Struct containing data for an internal trade.
     struct InternalTradeInfo {
-        /// Index of the basket that is selling.
+        // Index of the basket that is selling.
         uint256 fromBasketIndex;
-        /// Index of the basket that is buying.
+        // Index of the basket that is buying.
         uint256 toBasketIndex;
-        /// Index of the token to sell.
+        // Index of the token to sell.
         uint256 sellTokenAssetIndex;
-        /// Index of the token to buy.
+        // Index of the token to buy.
         uint256 buyTokenAssetIndex;
-        /// Index of the buy token in the buying basket.
+        // Index of the buy token in the buying basket.
         uint256 toBasketBuyTokenIndex;
-        /// Index of the sell token in the buying basket.
+        // Index of the sell token in the buying basket.
         uint256 toBasketSellTokenIndex;
-        /// Amount of the buy token.
+        // Amount of the buy token.
         uint256 buyAmount;
     }
 
-    /**
-     * @notice Struct containing data for an external trade.
-     */
+    /// @notice Struct containing data for an external trade.
     struct ExternalTradeInfo {
-        /// Price of the sell token.
+        // Price of the sell token.
         uint256 sellTokenPrice;
-        /// Price of the buy token.
+        // Price of the buy token.
         uint256 buyTokenPrice;
-        /// Value of the sell token.
+        // Value of the sell token.
         uint256 sellValue;
-        /// Minimum amount of the buy token that the trade results in.
+        // Minimum amount of the buy token that the trade results in.
         uint256 internalMinAmount;
-        /// Difference between the internalMinAmount and the minAmount.
+        // Difference between the internalMinAmount and the minAmount.
         uint256 diff;
     }
 
-    /**
-     * @notice Struct containing data for basket ownership of an external trade.
-     */
+    /// @notice Struct containing data for basket ownership of an external trade.
     struct BasketOwnershipInfo {
-        /// Index of the basket.
+        // Index of the basket.
         uint256 basketIndex;
-        /// Index of the buy token asset.
+        // Index of the buy token asset.
         uint256 buyTokenAssetIndex;
-        /// Index of the sell token asset.
+        // Index of the sell token asset.
         uint256 sellTokenAssetIndex;
     }
 
-    /**
-     * Constants
-     */
+    /// CONSTANTS ///
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
@@ -175,9 +150,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
 
-    /**
-     * State variables
-     */
+    /// STATE VARIABLES ///
     /// @notice Array of all basket tokens.
     address[] public basketTokens;
     /// @notice Mapping of basket token to asset to balance.
@@ -193,7 +166,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
     /// @notice Mapping of basket token to pending redeeming shares.
     mapping(address basketToken => uint256 pendingRedeems) public pendingRedeems;
-
     /// @notice Address of the BasketToken implementation.
     // TODO: add setter function for basketTokenImplementation
     // slither-disable-next-line immutable-states
@@ -211,9 +183,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
     bytes32 private _externalTradesHash;
 
-    /**
-     * Events
-     */
+    /// EVENTS ///
     /// @notice Emitted when an internal trade is settled.
     /// @param internalTrade Internal trade that was settled.
     /// @param buyAmount Amount of the the from token that is traded.
@@ -223,9 +193,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @param minAmount Minimum amount of the buy token that the trade results in.
     event ExternalTradeSettled(ExternalTrade externalTrade, uint256 minAmount);
 
-    /**
-     * Errors
-     */
+    /// ERRORS ///
     error ZeroAddress();
     error ZeroTotalSupply();
     error ZeroBurnedShares();
@@ -249,12 +217,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error PriceOutOfSafeBounds();
     error IncorrectTradeTokenAmount();
 
-    /**
-     * @notice Initializes the contract with the given parameters.
-     * @param basketTokenImplementation_ Address of the basket token implementation.
-     * @param oracleRegistry_ Address of the oracle registry.
-     * @param allocationResolver_ Address of the allocation resolver.
-     */
+    /// @notice Initializes the contract with the given parameters.
+    /// @param basketTokenImplementation_ Address of the basket token implementation.
+    /// @param oracleRegistry_ Address of the oracle registry.
+    /// @param allocationResolver_ Address of the allocation resolver.
     constructor(
         address basketTokenImplementation_,
         address oracleRegistry_,
@@ -276,17 +242,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         allocationResolver = AllocationResolver(allocationResolver_);
     }
 
-    /**
-     * Public functions
-     */
+    /// PUBLIC FUNCTIONS ///
 
-    /**
-     * @notice Creates a new basket token with the given parameters.
-     * @param basketName Name of the basket.
-     * @param symbol Symbol of the basket.
-     * @param bitFlag Asset selection bitFlag for the basket.
-     * @param strategyId Strategy id for the basket.
-     */
+    /// @notice Creates a new basket token with the given parameters.
+    /// @param basketName Name of the basket.
+    /// @param symbol Symbol of the basket.
+    /// @param bitFlag Asset selection bitFlag for the basket.
+    /// @param strategyId Strategy id for the basket.
     function createNewBasket(
         string calldata basketName,
         string calldata symbol,
@@ -347,12 +309,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         BasketToken(basket).initialize(IERC20(baseAsset), basketName, symbol, bitFlag, strategyId, address(0));
     }
 
-    /**
-     * @notice Returns the index of the basket token in the basketTokens array.
-     * @dev Reverts if the basket token does not exist.
-     * @param basketToken Address of the basket token.
-     * @return index Index of the basket token.
-     */
+    /// @notice Returns the index of the basket token in the basketTokens array.
+    /// @dev Reverts if the basket token does not exist.
+    /// @param basketToken Address of the basket token.
+    /// @return index Index of the basket token.
     function basketTokenToIndex(address basketToken) public view returns (uint256 index) {
         index = _basketTokenToIndexPlusOne[basketToken];
         if (index == 0) {
@@ -364,13 +324,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    /**
-     * @notice Returns the index of the basket asset in the basketAssets array.
-     * @dev Reverts if the basket asset does not exist.
-     * @param basketToken Address of the basket token.
-     * @param asset Address of the asset.
-     * @return index Index of the basket asset.
-     */
+    /// @notice Returns the index of the basket asset in the basketAssets array.
+    /// @dev Reverts if the basket asset does not exist.
+    /// @param basketToken Address of the basket token.
+    /// @param asset Address of the asset.
+    /// @return index Index of the basket asset.
     function basketTokenToRebalanceAssetToIndex(
         address basketToken,
         address asset
@@ -389,38 +347,30 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    /**
-     * @notice Returns the number of basket tokens.
-     * @return Number of basket tokens.
-     */
+    /// @notice Returns the number of basket tokens.
+    /// @return Number of basket tokens.
     function numOfBasketTokens() public view returns (uint256) {
         return basketTokens.length;
     }
 
-    /**
-     * @notice Returns the current rebalance status.
-     * @return Rebalance status struct with the following fields:
-     *   - basketHash: Hash of the baskets proposed for rebalance.
-     *   - timestamp: Timestamp of the last action.
-     *   - status: Status enum of the rebalance.
-     */
+    /// @notice Returns the current rebalance status.
+    /// @return Rebalance status struct with the following fields:
+    ///   - basketHash: Hash of the baskets proposed for rebalance.
+    ///   - timestamp: Timestamp of the last action.
+    ///   - status: Status enum of the rebalance.
     function rebalanceStatus() external view returns (RebalanceStatus memory) {
         return _rebalanceStatus;
     }
 
-    /**
-     * @notice Returns the hash of the external trades stored during proposeTokenSwap
-     * @return Hash of the external trades
-     */
+    /// @notice Returns the hash of the external trades stored during proposeTokenSwap
+    /// @return Hash of the external trades
     function externalTradesHash() external view returns (bytes32) {
         return _externalTradesHash;
     }
 
-    /**
-     * @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
-     * target balance and the current balance of any asset in the basket is more than 500 USD.
-     * @param basketsToRebalance Array of basket addresses to rebalance.
-     */
+    /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
+    /// target balance and the current balance of any asset in the basket is more than 500 USD.
+    /// @param basketsToRebalance Array of basket addresses to rebalance.
     // slither-disable-next-line cyclomatic-complexity
     function proposeRebalance(address[] calldata basketsToRebalance) external onlyRole(REBALANCER_ROLE) nonReentrant {
         // Checks
@@ -563,14 +513,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         _rebalanceStatus.status = Status.REBALANCE_PROPOSED;
     }
 
-    /**
-     * @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
-     * If the proposed token swap results are not close to the target balances, this function will revert.
-     * @dev This function can only be called after proposeRebalance.
-     * @param internalTrades Array of internal trades to execute.
-     * @param externalTrades Array of external trades to execute.
-     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
-     */
+    /// @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
+    /// If the proposed token swap results are not close to the target balances, this function will revert.
+    /// @dev This function can only be called after proposeRebalance.
+    /// @param internalTrades Array of internal trades to execute.
+    /// @param externalTrades Array of external trades to execute.
+    /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     // slither-disable-next-line cyclomatic-complexity
     function proposeTokenSwap(
         InternalTrade[] calldata internalTrades,
@@ -611,19 +559,15 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         _externalTradesHash = keccak256(abi.encode(externalTrades));
     }
 
-    /**
-     * @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
-     * @dev This function can only be called after proposeTokenSwap.
-     */
+    /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
+    /// @dev This function can only be called after proposeTokenSwap.
     function executeTokenSwap() external onlyRole(REBALANCER_ROLE) nonReentrant {
         // TODO: Implement the logic to execute token swap
     }
 
-    /**
-     * @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than 15
-     * minutes since the last action.
-     * @param basketsToRebalance Array of basket addresses proposed for rebalance.
-     */
+    /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
+    /// 15 minutes since the last action.
+    /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
     function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant {
         // Check if there is any rebalance in progress
         // slither-disable-next-line incorrect-equality
@@ -716,17 +660,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    /*//////////////////////////////////////////////////////////////
-                        FALLBACK REDEEM LOGIC
-    //////////////////////////////////////////////////////////////*/
+    /// FALLBACK REDEEM LOGIC ///
 
-    /**
-     * @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
-     * each underlying asset in the basket pro-rata to the amount of shares redeemed.
-     * @param totalSupplyBefore Total supply of the basket token before the shares were burned.
-     * @param burnedShares Amount of shares burned.
-     * @param to Address to send the redeemed assets to.
-     */
+    /// @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
+    /// each underlying asset in the basket pro-rata to the amount of shares redeemed.
+    /// @param totalSupplyBefore Total supply of the basket token before the shares were burned.
+    /// @param burnedShares Amount of shares burned.
+    /// @param to Address to send the redeemed assets to.
     function proRataRedeem(
         uint256 totalSupplyBefore,
         uint256 burnedShares,
@@ -779,17 +719,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         }
     }
 
-    /**
-     * Internal functions
-     */
+    /// INTERNAL FUNCTIONS ///
 
-    /**
-     * @notice Returns the index of the element in the array.
-     * @dev Reverts if the element does not exist in the array.
-     * @param array Array to find the element in.
-     * @param element Element to find in the array.
-     * @return index Index of the element in the array.
-     */
+    /// @notice Returns the index of the element in the array.
+    /// @dev Reverts if the element does not exist in the array.
+    /// @param array Array to find the element in.
+    /// @param element Element to find in the array.
+    /// @return index Index of the element in the array.
     function _indexOf(address[] memory array, address element) internal view returns (uint256 index) {
         uint256 length = array.length;
         for (uint256 i = 0; i < length;) {
@@ -804,17 +740,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         revert ElementIndexNotFound();
     }
 
-    /**
-     * Private functions
-     */
+    /// PRIVATE FUNCTIONS ///
 
-    /**
-     * @notice Internal function to initialize the basket data to be used while proposing a token swap.
-     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
-     * @return totalBasketValue_ Array of total basket values in USD.
-     * @return afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
-     * @return tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
-     */
+    /// @notice Internal function to initialize the basket data to be used while proposing a token swap.
+    /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
+    /// @return totalBasketValue_ Array of total basket values in USD.
+    /// @return afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
+    /// @return tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
     function _initializeBasketData(address[] calldata basketsToRebalance)
         private
         view
@@ -859,20 +791,17 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         return (totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_);
     }
 
-    /**
-     * @notice Internal function to settle internal trades.
-     * @param internalTrades Array of internal trades to execute.
-     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
-     * @param totalBasketValue_ Array of total basket values in USD.
-     * @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
-     * @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
-     * @return totalBasketValue_ Updated array of total basket values in USD.
-     * @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after the
-     * trades have been accounted for.
-     * @dev If the result of an internal trade is not within the provided minAmount or maxAmount, this function will
-     * revert.
-     *
-     */
+    /// @notice Internal function to settle internal trades.
+    /// @param internalTrades Array of internal trades to execute.
+    /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
+    /// @param totalBasketValue_ Array of total basket values in USD.
+    /// @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
+    /// @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
+    /// @return totalBasketValue_ Updated array of total basket values in USD.
+    /// @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after the
+    /// trades have been accounted for.
+    /// @dev If the result of an internal trade is not within the provided minAmount or maxAmount, this function will
+    /// revert.
     function _settleInternalTrades(
         InternalTrade[] calldata internalTrades,
         address[] calldata basketsToRebalance,
@@ -929,21 +858,17 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
 
-    /**
-     * @notice Internal function to settle external trades.
-     * @param externalTrades Array of external trades to execute.
-     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
-     * @param totalBasketValue_ Array of total basket values in USD.
-     * @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
-     * @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
-     * @return totalBasketValue_ Updated array of total basket values in USD.
-     * @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after
-     * trades
-     * have been accounted for.
-     * @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
-     * function will revert.
-     *
-     */
+    /// @notice Internal function to settle external trades.
+    /// @param externalTrades Array of external trades to execute.
+    /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
+    /// @param totalBasketValue_ Array of total basket values in USD.
+    /// @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
+    /// @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
+    /// @return totalBasketValue_ Updated array of total basket values in USD.
+    /// @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after
+    /// trades have been accounted for.
+    /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
+    /// function will revert.
     function _settleExternalTrades(
         ExternalTrade[] calldata externalTrades,
         address[] calldata basketsToRebalance,
@@ -1013,17 +938,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
 
-    /**
-     * @notice Internal function to validate the target weights for each basket have been met after all trades have been
-     * settled.
-     * @param basketsToRebalance Array of basket addresses currently being rebalanced.
-     * @param afterTradeBasketAssetAmounts_ Array of asset amounts for each basket as updated with the results from both
-     * external and internal trades.
-     * @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
-     * @param totalBasketValue_ Array of total basket values in USD.
-     * @dev If target weights are not within the _MAX_WEIGHT_DEVIATION_BPS threshold, this function will revert.
-     *
-     */
+    /// @notice Internal function to validate the target weights for each basket have been met after all trades have
+    /// been settled.
+    /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
+    /// @param afterTradeBasketAssetAmounts_ Array of asset amounts for each basket as updated with the results from
+    /// both external and internal trades.
+    /// @param tokenPrices_ Array of token prices for each asset in each basket being rebalanced.
+    /// @param totalBasketValue_ Array of total basket values in USD.
+    /// @dev If target weights are not within the _MAX_WEIGHT_DEVIATION_BPS threshold, this function will revert.
     function _validateTargetWeights(
         address[] calldata basketsToRebalance,
         uint256[][] memory afterTradeBasketAssetAmounts_,
