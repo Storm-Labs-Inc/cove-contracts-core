@@ -548,7 +548,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         (totalBasketValue_, afterTradeBasketAssetAmounts_) = _settleInternalTrades(
             internalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_
         );
-        (totalBasketValue_, afterTradeBasketAssetAmounts_) = _settleExternalTrades(
+        (totalBasketValue_, afterTradeBasketAssetAmounts_) = _validateExternalTrades(
             externalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_
         );
         _validateTargetWeights(basketsToRebalance, afterTradeBasketAssetAmounts_, tokenPrices_, totalBasketValue_);
@@ -858,8 +858,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
 
-    /// @notice Internal function to settle external trades.
-    /// @param externalTrades Array of external trades to execute.
+    /// @notice Internal function to validate external trades.
+    /// @param externalTrades Array of external trades to be validated.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     /// @param totalBasketValue_ Array of total basket values in USD.
     /// @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
@@ -868,8 +868,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after
     /// trades have been accounted for.
     /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
-    /// function will revert.
-    function _settleExternalTrades(
+    function _validateExternalTrades(
         ExternalTrade[] calldata externalTrades,
         address[] calldata basketsToRebalance,
         uint256[] memory totalBasketValue_,
