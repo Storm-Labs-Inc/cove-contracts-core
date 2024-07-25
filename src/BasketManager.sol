@@ -214,7 +214,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /**
      * Events
      */
+    /// @notice Emitted when an internal trade is settled.
+    /// @param internalTrade Internal trade that was settled.
+    /// @param buyAmount Amount of the the from token that is traded.
     event InternalTradeSettled(InternalTrade internalTrade, uint256 buyAmount);
+    /// @notice Emitted when an external trade is settled.
+    /// @param externalTrade External trade that was settled.
+    /// @param minAmount Minimum amount of the buy token that the trade results in.
+    event ExternalTradeSettled(ExternalTrade externalTrade, uint256 minAmount);
 
     /**
      * Errors
@@ -240,6 +247,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error TargetWeightsNotMet();
     error InternalTradeMinMaxAmountNotReached();
     error PriceOutOfSafeBounds();
+    error IncorrectTradeTokenAmount();
 
     /**
      * @notice Initializes the contract with the given parameters.
@@ -889,12 +897,18 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             // TODO: will be replaced with quotes instead of stored prices
             uint256 sellTokenPrice = tokenPrices_[info.fromBasketIndex][info.sellTokenAssetIndex];
             uint256 buyTokenPrice = tokenPrices_[info.fromBasketIndex][info.buyTokenAssetIndex];
-            info.buyAmount = (trade.sellAmount * sellTokenPrice) / buyTokenPrice;
+            info.buyAmount = FixedPointMathLib.fullMulDiv(trade.sellAmount, sellTokenPrice, buyTokenPrice);
 
             if (info.buyAmount < trade.minAmount || trade.maxAmount < info.buyAmount) {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             // Settle the internal trades and track the balance changes
+            if (trade.sellAmount > afterTradeBasketAssetAmounts_[info.fromBasketIndex][info.sellTokenAssetIndex]) {
+                revert IncorrectTradeTokenAmount();
+            }
+            if (info.buyAmount > afterTradeBasketAssetAmounts_[info.toBasketIndex][info.toBasketBuyTokenIndex]) {
+                revert IncorrectTradeTokenAmount();
+            }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             basketBalanceOf[trade.fromBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
                 .sellTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.sellToken] - trade.sellAmount; // nosemgrep
@@ -957,6 +971,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 uint256 ownershipBuyAmount =
                     FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
                 // Record changes in basket asset holdings due to the external trade
+                if (
+                    ownershipSellAmount
+                        > afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
+                ) {
+                    revert IncorrectTradeTokenAmount();
+                }
                 afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] =
                 afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
                     - ownershipSellAmount;
@@ -988,6 +1008,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             unchecked {
                 ++i;
             }
+            emit ExternalTradeSettled(trade, info.internalMinAmount);
         }
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
@@ -1024,8 +1045,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
                 address asset = assets[j];
-                uint256 afterTradeWeight =
-                    afterTradeBasketAssetAmounts_[i][j] * tokenPrices_[i][j] * 1e18 / totalBasketValue_[i];
+                uint256 afterTradeWeight = FixedPointMathLib.fullMulDiv(
+                    afterTradeBasketAssetAmounts_[i][j], tokenPrices_[i][j] * 1e18, totalBasketValue_[i]
+                );
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
                     console.log("basket, asset: ", basket, asset);
                     console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);

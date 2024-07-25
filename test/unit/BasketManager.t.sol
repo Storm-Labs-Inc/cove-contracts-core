@@ -764,7 +764,7 @@ contract BasketManagerTest is BaseTest {
         params.sellWeight = bound(sellWeight, 0, 1e18);
         params.depositAmount = bound(depositAmount, 0, type(uint256).max / 1e36 - 1);
         // Minimum deposit amount must be greater than 500 for a rebalance to be valid
-        vm.assume(depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
+        vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = address(new ERC20Mock());
         mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
@@ -809,7 +809,7 @@ contract BasketManagerTest is BaseTest {
             maxAmount: type(uint256).max
         });
         vm.prank(rebalancer);
-        vm.expectRevert(); // TODO: THIS SHOULD NOT HAPPEN! MUST BE CAUGHT WITH EXPLICIT ERROR SELECTORS
+        vm.expectRevert(BasketManager.IncorrectTradeTokenAmount.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -924,21 +924,25 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
-    function testFuzz_proposeTokenSwap_revertWhen_TargetWeightsNotMet(
+    function testFuzz_proposeTokenSwap_internalTrade_revertWhen_TargetWeightsNotMet(
         uint256 sellWeight,
-        uint256 depositAmount
+        uint256 depositAmount,
+        uint256 deviation
     )
         public
     {
+        uint256 max_weight_deviation = 0.05e18 + 1;
         /// Setup fuzzing bounds
-        uint256 max_weight_deviation = 0.051e18 / 2;
         TradeTestParams memory params;
-        params.sellWeight = bound(sellWeight, max_weight_deviation, 1e18);
-        params.depositAmount = bound(depositAmount, 1e18, type(uint256).max) / 1e36;
-        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+        params.sellWeight = bound(sellWeight, 0, 1e18 - max_weight_deviation);
+        params.depositAmount = bound(depositAmount, 0, type(uint256).max / 1e36);
+        vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
+        deviation = bound(deviation, max_weight_deviation, params.baseAssetWeight);
+        vm.assume(params.baseAssetWeight + deviation < 1e18);
         params.pairAsset = address(new ERC20Mock());
         mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
+
         /// Setup basket and target weights
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
@@ -947,17 +951,17 @@ contract BasketManagerTest is BaseTest {
         basketAssets[1] = new address[](2);
         basketAssets[1][0] = params.pairAsset;
         basketAssets[1][1] = rootAsset;
-        uint256[][] memory weightsPerBasket = new uint256[][](2);
-        weightsPerBasket[0] = new uint256[](2);
-        weightsPerBasket[0][0] = params.baseAssetWeight - max_weight_deviation;
-        weightsPerBasket[0][1] = 1e18 - params.baseAssetWeight - max_weight_deviation;
-        weightsPerBasket[1] = new uint256[](2);
-        weightsPerBasket[1][0] = params.baseAssetWeight - max_weight_deviation;
-        weightsPerBasket[1][1] = 1e18 - params.baseAssetWeight - max_weight_deviation;
-        uint256[] memory initialDepositAmounts = new uint256[](2);
-        initialDepositAmounts[0] = params.depositAmount;
-        initialDepositAmounts[1] = params.depositAmount;
-        address[] memory baskets = _setupBasketsAndMocks(basketAssets, weightsPerBasket, initialDepositAmounts);
+        uint256[] memory depositAmounts = new uint256[](2);
+        depositAmounts[0] = params.depositAmount;
+        depositAmounts[1] = params.depositAmount;
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
+        initialWeights[0][0] = params.baseAssetWeight;
+        initialWeights[0][1] = params.sellWeight;
+        initialWeights[1] = new uint256[](2);
+        initialWeights[1][0] = params.baseAssetWeight;
+        initialWeights[1][1] = params.sellWeight;
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, depositAmounts);
 
         /// Propose the rebalance
         vm.prank(rebalancer);
@@ -966,14 +970,15 @@ contract BasketManagerTest is BaseTest {
         /// Setup the trade and propose token swap
         BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
         BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
+        uint256 deviatedTradeAmount = params.depositAmount.fullMulDiv(1e18 - params.baseAssetWeight - deviation, 1e18);
         internalTrades[0] = BasketManager.InternalTrade({
             fromBasket: baskets[0],
             sellToken: rootAsset,
             buyToken: params.pairAsset,
             toBasket: baskets[1],
-            sellAmount: params.depositAmount * (1e18 - (params.sellWeight + max_weight_deviation)) / 1e18,
-            minAmount: (params.depositAmount * (1e18 - (params.sellWeight + max_weight_deviation)) / 1e18) * 0.995e18 / 1e18,
-            maxAmount: (params.depositAmount * (1e18 - (params.sellWeight + max_weight_deviation)) / 1e18) * 1.005e18 / 1e18
+            sellAmount: deviatedTradeAmount,
+            minAmount: deviatedTradeAmount.fullMulDiv(0.995e18, 1e18),
+            maxAmount: deviatedTradeAmount.fullMulDiv(1.005e18, 1e18)
         });
         vm.prank(rebalancer);
         vm.expectRevert(BasketManager.TargetWeightsNotMet.selector);
@@ -1053,7 +1058,7 @@ contract BasketManagerTest is BaseTest {
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
         // With price set at 1e18 this is the threshold for a rebalance to be valid
-        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+        vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
 
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
@@ -1079,58 +1084,50 @@ contract BasketManagerTest is BaseTest {
         BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
         BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
         BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
-        vm.assume(sellAmount > params.depositAmount * params.sellWeight / 1e18);
+        vm.assume(sellAmount > basketManager.basketBalanceOf(baskets[0], rootAsset));
         tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
         externalTrades[0] = BasketManager.ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
             sellAmount: sellAmount,
-            minAmount: sellAmount * 0.995e18 / 1e18,
+            minAmount: sellAmount.fullMulDiv(0.995e18, 1e18),
             basketTradeOwnership: tradeOwnerships
         });
         vm.prank(rebalancer);
-        // vm.expectRevert(stdError.arithmeticError); // does not work?
-        // vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11)); // does not work?
-        // vm.expectRevert(); // does not work??
+        vm.expectRevert(BasketManager.IncorrectTradeTokenAmount.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
     function testFuzz_proposeTokenSwap_externalTrade_revertWhen_TargetWeightsNotMet(
         uint256 sellWeight,
         uint256 depositAmount,
-        uint256 weightDeviation
+        uint256 deviation
     )
         public
     {
         /// Setup fuzzing bounds
-        uint256 max_weight_deviation = 0.051e18 / 2;
+        uint256 max_weight_deviation = 0.05e18 + 1;
         TradeTestParams memory params;
-        params.sellWeight = bound(sellWeight, max_weight_deviation, 1e18 - max_weight_deviation);
-        weightDeviation = bound(weightDeviation, max_weight_deviation, params.sellWeight);
+        params.sellWeight = bound(sellWeight, 0, 1e18 - max_weight_deviation);
         params.depositAmount = bound(depositAmount, 1e18, type(uint256).max) / 1e36;
-        vm.assume(params.depositAmount * (params.sellWeight - weightDeviation) / 1e18 > 500);
+        vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
+        deviation = bound(deviation, max_weight_deviation, params.baseAssetWeight);
+        vm.assume(params.baseAssetWeight + deviation < 1e18);
         params.pairAsset = address(new ERC20Mock());
         mockPriceOracle.setPrice(params.pairAsset, params.pairAsset, 1e18);
         /// Setup basket and target weights
-        address[][] memory basketAssets = new address[][](2);
+        address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
         basketAssets[0][1] = params.pairAsset;
-        basketAssets[1] = new address[](2);
-        basketAssets[1][0] = params.pairAsset;
-        basketAssets[1][1] = rootAsset;
-        uint256[][] memory weightsPerBasket = new uint256[][](2);
+        uint256[][] memory weightsPerBasket = new uint256[][](1);
         // Deviate from the target weights
         weightsPerBasket[0] = new uint256[](2);
-        weightsPerBasket[0][0] = params.baseAssetWeight + max_weight_deviation;
-        weightsPerBasket[0][1] = 1e18 - params.baseAssetWeight - max_weight_deviation;
-        weightsPerBasket[1] = new uint256[](2);
-        weightsPerBasket[1][0] = params.baseAssetWeight + max_weight_deviation;
-        weightsPerBasket[1][1] = 1e18 - params.baseAssetWeight - max_weight_deviation;
-        uint256[] memory initialDepositAmounts = new uint256[](2);
+        weightsPerBasket[0][0] = params.baseAssetWeight;
+        weightsPerBasket[0][1] = params.sellWeight;
+        uint256[] memory initialDepositAmounts = new uint256[](1);
         initialDepositAmounts[0] = params.depositAmount;
-        initialDepositAmounts[1] = params.depositAmount;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, weightsPerBasket, initialDepositAmounts);
 
         /// Propose the rebalance
@@ -1142,11 +1139,12 @@ contract BasketManagerTest is BaseTest {
         BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
         BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
         tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        uint256 deviatedTradeAmount = params.depositAmount.fullMulDiv(1e18 - params.baseAssetWeight - deviation, 1e18);
         externalTrades[0] = BasketManager.ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
-            sellAmount: params.depositAmount * (1e18 - params.sellWeight) / 1e18,
-            minAmount: (params.depositAmount * (1e18 - params.sellWeight) / 1e18) * 0.995e18 / 1e18,
+            sellAmount: deviatedTradeAmount,
+            minAmount: deviatedTradeAmount.fullMulDiv(0.995e18, 1e18),
             basketTradeOwnership: tradeOwnerships
         });
         vm.prank(rebalancer);
