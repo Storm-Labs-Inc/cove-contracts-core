@@ -10,6 +10,7 @@ contract CustomAllocationResolverTest is BaseTest {
     CustomAllocationResolver public customResolver;
     address public admin;
     uint256 public constant SUPPORTED_BIT_FLAG = 1 << 0 | 1 << 1 | 1 << 2; // b111
+    uint256 private constant _WEIGHT_PRECISION = 1e18;
 
     function setUp() public override {
         super.setUp();
@@ -19,9 +20,18 @@ contract CustomAllocationResolverTest is BaseTest {
         vm.label(address(customResolver), "customResolver");
     }
 
+    function testFuzz_constructor(address admin_, uint256 bitFlag) public {
+        CustomAllocationResolver customResolver_ = new CustomAllocationResolver(admin_, bitFlag);
+        assertTrue(
+            customResolver_.hasRole(customResolver_.DEFAULT_ADMIN_ROLE(), admin_),
+            "Admin should have default admin role"
+        );
+        assertEq(customResolver_.supportedBitFlag(), bitFlag, "Supported bit flag should be set correctly");
+    }
+
     function testFuzz_setTargetWeights(uint256[3] memory weights) public returns (uint256[] memory newTargetWeights) {
         newTargetWeights = new uint256[](3);
-        uint256 limit = 1e18;
+        uint256 limit = _WEIGHT_PRECISION;
         for (uint256 i = 0; i < 3; i++) {
             if (i < 2) {
                 limit -= newTargetWeights[i] = weights[i] = bound(weights[i], 0, limit);
@@ -53,7 +63,7 @@ contract CustomAllocationResolverTest is BaseTest {
 
     function testFuzz_setTargetWeights_InvalidSum(uint256[3] memory weights, uint256 sum) public {
         uint256[] memory newTargetWeights = new uint256[](3);
-        vm.assume(sum != 1e18);
+        vm.assume(sum != _WEIGHT_PRECISION);
         for (uint256 i = 0; i < 3; i++) {
             if (i < 2) {
                 weights[i] = bound(weights[i], 0, sum);
@@ -80,12 +90,12 @@ contract CustomAllocationResolverTest is BaseTest {
         bitFlag = bound(bitFlag, 1, SUPPORTED_BIT_FLAG);
         uint256[] memory retrievedWeights = customResolver.getTargetWeights(bitFlag);
 
-        // Verify the sum of the weights equals 1e18
+        // Verify the sum of the weights equals _WEIGHT_PRECISION
         uint256 sum = 0;
         for (uint256 i = 0; i < retrievedWeights.length; i++) {
             sum += retrievedWeights[i];
         }
-        assertEq(sum, 1e18, "Sum of weights should be 1e18");
+        assertEq(sum, _WEIGHT_PRECISION, "Sum of weights should be _WEIGHT_PRECISION");
     }
 
     function test_getTargetWeights_Zero(uint256[3] memory weights) public {

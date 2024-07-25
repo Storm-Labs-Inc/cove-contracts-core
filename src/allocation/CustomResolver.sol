@@ -21,12 +21,14 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
 
     /// @dev Role identifier for the manager role
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    /// @dev Precision for weights. All getTargetWeights() results should sum up to _WEIGHT_PRECISION.
+    uint256 private constant _WEIGHT_PRECISION = 1e18;
 
     /// @dev Error thrown when an unsupported bit flag is used
     error UnsupportedBitFlag();
     /// @dev Error thrown when the length of weights array doesn't match the number of assets
     error InvalidWeightsLength();
-    /// @dev Error thrown when the sum of weights doesn't equal 1e18 (100%)
+    /// @dev Error thrown when the sum of weights doesn't equal _WEIGHT_PRECISION (100%)
     error WeightsSumMismatch();
 
     /// @notice Constructs the CustomAllocationResolver
@@ -41,17 +43,20 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
     /// @notice Sets the target weights for the assets
     /// @param newTargetWeights Array of target weights corresponding to each asset
     /// @dev Only callable by accounts with MANAGER_ROLE
-    function setTargetWeights(uint256[] memory newTargetWeights) public onlyRole(_MANAGER_ROLE) {
+    function setTargetWeights(uint256[] calldata newTargetWeights) external onlyRole(_MANAGER_ROLE) {
         if (newTargetWeights.length != BitFlag.popCount(supportedBitFlag)) {
             revert InvalidWeightsLength();
         }
 
         uint256 sum = 0;
 
-        for (uint256 i = 0; i < newTargetWeights.length; i++) {
-            sum = sum + newTargetWeights[i];
+        for (uint256 i = 0; i < newTargetWeights.length;) {
+            sum += newTargetWeights[i];
+            unchecked {
+                ++i;
+            }
         }
-        if (sum != 1e18) {
+        if (sum != _WEIGHT_PRECISION) {
             revert WeightsSumMismatch();
         }
 
@@ -60,39 +65,50 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
 
     /// @notice Returns the raw target weights for a given bit flag
     /// @param bitFlag The bit flag representing a list of assets
-    /// @return An array of target weights corresponding to the assets in the bit flag
-    function getTargetWeights(uint256 bitFlag) public view override returns (uint256[] memory) {
+    /// @return filteredWeights An array of target weights corresponding to the assets in the bit flag
+    function getTargetWeights(uint256 bitFlag) public view override returns (uint256[] memory filteredWeights) {
         if (!supportsBitFlag(bitFlag)) {
             revert UnsupportedBitFlag();
         }
 
-        uint256[] memory filteredWeights = new uint256[](BitFlag.popCount(bitFlag));
         if (bitFlag == 0) {
             return filteredWeights;
         }
+
+        filteredWeights = new uint256[](BitFlag.popCount(bitFlag));
+
         uint256 filteredIndex = 0;
         uint256 sum = 0;
 
-        for (uint256 i = 0; i < 256; i++) {
-            if ((bitFlag & (1 << i)) != 0) {
-                sum += filteredWeights[filteredIndex] = targetWeights[i];
-                filteredIndex++;
+        for (uint256 i = 0; i < 256;) {
+            unchecked {
+                if ((bitFlag & (1 << i)) != 0) {
+                    // Overflow not possible: maximum value of sum <= _WEIGHT_PRECISION
+                    sum += filteredWeights[filteredIndex] = targetWeights[i];
+                    ++filteredIndex;
+                }
+                ++i;
             }
         }
 
-        if (sum != 1e18) {
+        if (sum != _WEIGHT_PRECISION) {
             if (sum != 0) {
                 // TODO: Implement a more sophisticated way to handle this case
                 // For now, we distribute the remaining weight to the first asset
-                uint256 remaining = 1e18;
-                for (uint256 i = 1; i < filteredWeights.length; i++) {
-                    remaining -= filteredWeights[i] = (filteredWeights[i] * 1e18) / sum;
+                uint256 remaining = _WEIGHT_PRECISION;
+                for (uint256 i = 1; i < filteredWeights.length;) {
+                    unchecked {
+                        // Overflow not possible: filteredWeights[i] <= remaining <= _WEIGHT_PRECISION
+                        // Divisiion by zero not possible: sum != 0
+                        remaining -= filteredWeights[i] = (filteredWeights[i] * _WEIGHT_PRECISION) / sum;
+                        ++i;
+                    }
                 }
                 filteredWeights[0] = remaining;
             } else {
                 // TODO: Implement a more sophisticated way to handle this case
                 // If the sum of weights is 0, we set the first asset to 100%
-                filteredWeights[0] = 1e18;
+                filteredWeights[0] = _WEIGHT_PRECISION;
             }
         }
 
