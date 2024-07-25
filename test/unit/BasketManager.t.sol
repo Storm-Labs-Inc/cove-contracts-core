@@ -135,7 +135,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(
             aggregatedResolver,
-            abi.encodeCall(AggregatedResolver.supportsBitFlag, (strategy, bitFlag)),
+            abi.encodeCall(AggregatedResolver.supportsBitFlag, (bitFlag, strategy)),
             abi.encode(true)
         );
         address[] memory assets = new address[](1);
@@ -186,7 +186,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(
             aggregatedResolver,
-            abi.encodeCall(AggregatedResolver.supportsBitFlag, (strategy, bitFlag)),
+            abi.encodeCall(AggregatedResolver.supportsBitFlag, (bitFlag, strategy)),
             abi.encode(true)
         );
         address[] memory assets = new address[](1);
@@ -215,7 +215,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(
             aggregatedResolver,
-            abi.encodeCall(AggregatedResolver.supportsBitFlag, (strategy, bitFlag)),
+            abi.encodeCall(AggregatedResolver.supportsBitFlag, (bitFlag, strategy)),
             abi.encode(false)
         );
         vm.expectRevert(BasketManager.AggregatedResolverDoesNotSupportStrategy.selector);
@@ -247,7 +247,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(
             aggregatedResolver,
-            abi.encodeCall(AggregatedResolver.supportsBitFlag, (strategy, bitFlag)),
+            abi.encodeCall(AggregatedResolver.supportsBitFlag, (bitFlag, strategy)),
             abi.encode(true)
         );
         vm.mockCall(aggregatedResolver, abi.encodeCall(AggregatedResolver.getAssets, (bitFlag)), abi.encode(assets));
@@ -272,7 +272,7 @@ contract BasketManagerTest is BaseTest {
         );
         vm.mockCall(
             aggregatedResolver,
-            abi.encodeCall(AggregatedResolver.supportsBitFlag, (strategy, bitFlag)),
+            abi.encodeCall(AggregatedResolver.supportsBitFlag, (bitFlag, strategy)),
             abi.encode(true)
         );
         vm.mockCall(aggregatedResolver, abi.encodeCall(AggregatedResolver.getAssets, (bitFlag)), abi.encode(assets));
@@ -1308,7 +1308,7 @@ contract BasketManagerTest is BaseTest {
             );
             vm.mockCall(
                 aggregatedResolver,
-                abi.encodeCall(AggregatedResolver.supportsBitFlag, (strategy, bitFlag)),
+                abi.encodeCall(AggregatedResolver.supportsBitFlag, (bitFlag, strategy)),
                 abi.encode(true)
             );
             vm.mockCall(aggregatedResolver, abi.encodeCall(AggregatedResolver.getAssets, (bitFlag)), abi.encode(assets));

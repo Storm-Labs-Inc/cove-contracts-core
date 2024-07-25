@@ -4,6 +4,8 @@ pragma solidity 0.8.23;
 import { AllocationResolver } from "./AllocationResolver.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
+import { BitFlag } from "src/libraries/BitFlag.sol";
+
 /// @title CustomAllocationResolver
 /// @notice A custom allocation resolver that allows manually setting target weights for a basket.
 /// @dev Inherits from AllocationResolver and AccessControlEnumerable for role-based access control.
@@ -40,7 +42,7 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
     /// @param newTargetWeights Array of target weights corresponding to each asset
     /// @dev Only callable by accounts with MANAGER_ROLE
     function setTargetWeights(uint256[] memory newTargetWeights) public onlyRole(_MANAGER_ROLE) {
-        if (newTargetWeights.length != _popCount(supportedBitFlag)) {
+        if (newTargetWeights.length != BitFlag.popCount(supportedBitFlag)) {
             revert InvalidWeightsLength();
         }
 
@@ -64,7 +66,10 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
             revert UnsupportedBitFlag();
         }
 
-        uint256[] memory filteredWeights = new uint256[](_popCount(bitFlag));
+        uint256[] memory filteredWeights = new uint256[](BitFlag.popCount(bitFlag));
+        if (bitFlag == 0) {
+            return filteredWeights;
+        }
         uint256 filteredIndex = 0;
         uint256 sum = 0;
 
@@ -81,7 +86,7 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
                 // For now, we distribute the remaining weight to the first asset
                 uint256 remaining = 1e18;
                 for (uint256 i = 1; i < filteredWeights.length; i++) {
-                    remaining -= filteredWeights[i] = (targetWeights[i] * 1e18) / sum;
+                    remaining -= filteredWeights[i] = (filteredWeights[i] * 1e18) / sum;
                 }
                 filteredWeights[0] = remaining;
             } else {
@@ -99,16 +104,5 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
     /// @return A boolean indicating whether the resolver supports the given bit flag
     function supportsBitFlag(uint256 bitFlag) public view override returns (bool) {
         return (supportedBitFlag & bitFlag) == bitFlag;
-    }
-
-    /// @dev Counts the number of set bits in a uint256
-    /// @param x The uint256 to count set bits in
-    /// @return The number of set bits
-    function _popCount(uint256 x) private pure returns (uint256) {
-        x -= (x >> 1) & 0x5555555555555555555555555555555555555555555555555555555555555555;
-        x = (x & 0x3333333333333333333333333333333333333333333333333333333333333333)
-            + ((x >> 2) & 0x3333333333333333333333333333333333333333333333333333333333333333);
-        x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f;
-        return (x * 0x0101010101010101010101010101010101010101010101010101010101010101) >> 248;
     }
 }

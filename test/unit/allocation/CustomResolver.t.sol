@@ -2,6 +2,8 @@
 pragma solidity 0.8.23;
 
 import { CustomAllocationResolver } from "src/allocation/CustomResolver.sol";
+
+import { BitFlag } from "src/libraries/BitFlag.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract CustomAllocationResolverTest is BaseTest {
@@ -17,14 +19,14 @@ contract CustomAllocationResolverTest is BaseTest {
         vm.label(address(customResolver), "customResolver");
     }
 
-    function testFuzz_setTargetWeights(uint256[3] memory weights) public {
-        uint256[] memory newTargetWeights = new uint256[](3);
+    function testFuzz_setTargetWeights(uint256[3] memory weights) public returns (uint256[] memory newTargetWeights) {
+        newTargetWeights = new uint256[](3);
         uint256 limit = 1e18;
         for (uint256 i = 0; i < 3; i++) {
             if (i < 2) {
-                limit -= newTargetWeights[i] = bound(weights[i], 0, limit);
+                limit -= newTargetWeights[i] = weights[i] = bound(weights[i], 0, limit);
             } else {
-                newTargetWeights[i] = limit;
+                newTargetWeights[i] = weights[i] = limit;
             }
         }
 
@@ -35,7 +37,7 @@ contract CustomAllocationResolverTest is BaseTest {
             assertEq(
                 customResolver.targetWeights(i),
                 newTargetWeights[i],
-                string(abi.encodePacked("Weight ", i, " should be set correctly"))
+                string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
             );
         }
     }
@@ -67,29 +69,31 @@ contract CustomAllocationResolverTest is BaseTest {
     }
 
     function testFuzz_getTargetWeights(uint256[3] memory weights) public {
-        uint256[] memory setWeights = new uint256[](3);
-        uint256 totalWeight = 0;
-        for (uint256 i = 0; i < 3; i++) {
-            weights[i] = bound(weights[i], 1, 1e18);
-            totalWeight += weights[i];
-        }
-        for (uint256 i = 0; i < 2; i++) {
-            setWeights[i] = (weights[i] * 1e18) / totalWeight;
-        }
-        // Ensure the sum is exactly 1e18
-        setWeights[2] = 1e18 - setWeights[0] - setWeights[1];
-
-        vm.prank(admin);
-        customResolver.setTargetWeights(setWeights);
-
+        uint256[] memory newTargetWeights = testFuzz_setTargetWeights(weights);
         uint256[] memory retrievedWeights = customResolver.getTargetWeights(SUPPORTED_BIT_FLAG);
 
-        assertEq(retrievedWeights.length, 3, "Retrieved weights should have length 3");
-        for (uint256 i = 0; i < 3; i++) {
-            assertEq(
-                retrievedWeights[i], setWeights[i], string(abi.encodePacked("Weight ", i, " should match set weight"))
-            );
+        assertEq(retrievedWeights, newTargetWeights, "Retrieved weights should match set weights");
+    }
+
+    function testFuzz_getTargetWeights_SubSet(uint256[3] memory weights, uint256 bitFlag) public {
+        testFuzz_setTargetWeights(weights);
+        bitFlag = bound(bitFlag, 1, SUPPORTED_BIT_FLAG);
+        uint256[] memory retrievedWeights = customResolver.getTargetWeights(bitFlag);
+
+        // Verify the sum of the weights equals 1e18
+        uint256 sum = 0;
+        for (uint256 i = 0; i < retrievedWeights.length; i++) {
+            sum += retrievedWeights[i];
         }
+        assertEq(sum, 1e18, "Sum of weights should be 1e18");
+    }
+
+    function test_getTargetWeights_Zero(uint256[3] memory weights) public {
+        testFuzz_setTargetWeights(weights);
+        uint256[] memory retrievedWeights = customResolver.getTargetWeights(0);
+
+        // Verify its empty
+        assertEq(retrievedWeights.length, 0, "Retrieved weights should be empty");
     }
 
     function testFuzz_supportsBitFlag(uint256 bitFlag) public {

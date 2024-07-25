@@ -275,7 +275,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             revert BasketTokenAlreadyExists();
         }
         // Checks with external view calls
-        if (!aggregatedResolver.supportsBitFlag(strategy, bitFlag)) {
+        if (!aggregatedResolver.supportsBitFlag(bitFlag, strategy)) {
             revert AggregatedResolverDoesNotSupportStrategy();
         }
         // TODO: replace with AssetRegistry.getAssets(bitFlag) once AssetRegistry is implemented
