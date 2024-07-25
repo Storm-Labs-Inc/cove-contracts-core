@@ -191,7 +191,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Emitted when an external trade is settled.
     /// @param externalTrade External trade that was settled.
     /// @param minAmount Minimum amount of the buy token that the trade results in.
-    event ExternalTradeSettled(ExternalTrade externalTrade, uint256 minAmount);
+    event ExternalTradeValidated(ExternalTrade externalTrade, uint256 minAmount);
 
     /// ERRORS ///
     error ZeroAddress();
@@ -933,7 +933,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             unchecked {
                 ++i;
             }
-            emit ExternalTradeSettled(trade, info.internalMinAmount);
+            emit ExternalTradeValidated(trade, info.internalMinAmount);
         }
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
