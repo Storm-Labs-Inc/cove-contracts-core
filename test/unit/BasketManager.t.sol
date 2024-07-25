@@ -763,6 +763,7 @@ contract BasketManagerTest is BaseTest {
         TradeTestParams memory params;
         params.sellWeight = bound(sellWeight, 0, 1e18);
         params.depositAmount = bound(depositAmount, 0, type(uint256).max / 1e36 - 1);
+        sellAmount = bound(sellAmount, 0, type(uint256).max / 1e36 - 1);
         // Minimum deposit amount must be greater than 500 for a rebalance to be valid
         vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
@@ -779,7 +780,7 @@ contract BasketManagerTest is BaseTest {
         basketAssets[1][1] = rootAsset;
         uint256[] memory depositAmounts = new uint256[](2);
         depositAmounts[0] = params.depositAmount;
-        depositAmounts[1] = params.depositAmount;
+        depositAmounts[1] = params.depositAmount - 1;
         uint256[][] memory initialWeights = new uint256[][](2);
         initialWeights[0] = new uint256[](2);
         initialWeights[0][0] = params.baseAssetWeight;
@@ -796,8 +797,8 @@ contract BasketManagerTest is BaseTest {
         /// Setup the trade and propose token swap
         BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
         BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        // Assume for the case where the sell amount is greater than the balance of the basket, thus providing invalid
-        // input to the function
+        // Assume for the case where the sell amount is greater than the balance of the from basket, thus providing
+        // invalid input to the function
         vm.assume(sellAmount > basketManager.basketBalanceOf(baskets[0], rootAsset));
         internalTrades[0] = BasketManager.InternalTrade({
             fromBasket: baskets[0],
@@ -805,6 +806,20 @@ contract BasketManagerTest is BaseTest {
             buyToken: params.pairAsset,
             toBasket: baskets[1],
             sellAmount: sellAmount,
+            minAmount: 0,
+            maxAmount: type(uint256).max
+        });
+        vm.prank(rebalancer);
+        vm.expectRevert(BasketManager.IncorrectTradeTokenAmount.selector);
+        // Assume for the case where the amount bought is greater than the balance of the to basket, thus providing
+        // invalid input to the function
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
+        internalTrades[0] = BasketManager.InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: basketManager.basketBalanceOf(baskets[0], rootAsset),
             minAmount: 0,
             maxAmount: type(uint256).max
         });
