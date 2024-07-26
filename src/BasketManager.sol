@@ -29,7 +29,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     using SafeERC20 for IERC20;
 
     /// STRUCTS ///
-
     /// @notice Enum representing the status of a rebalance.
     enum Status {
         // Rebalance has not started.
@@ -167,7 +166,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
     /// @notice Mapping of basket token to pending redeeming shares.
     mapping(address basketToken => uint256 pendingRedeems) public pendingRedeems;
-
     /// @notice Address of the BasketToken implementation.
     // TODO: add setter function for basketTokenImplementation
     // slither-disable-next-line immutable-states
@@ -186,6 +184,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     bytes32 private _externalTradesHash;
 
     /// EVENTS ///
+    /// @notice Emitted when an internal trade is settled.
+    /// @param internalTrade Internal trade that was settled.
+    /// @param buyAmount Amount of the the from token that is traded.
+    event InternalTradeSettled(InternalTrade internalTrade, uint256 buyAmount);
+    /// @notice Emitted when an external trade is settled.
+    /// @param externalTrade External trade that was settled.
+    /// @param minAmount Minimum amount of the buy token that the trade results in.
+    event ExternalTradeValidated(ExternalTrade externalTrade, uint256 minAmount);
 
     /// ERRORS ///
     error ZeroAddress();
@@ -209,6 +215,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error TargetWeightsNotMet();
     error InternalTradeMinMaxAmountNotReached();
     error PriceOutOfSafeBounds();
+    error IncorrectTradeTokenAmount();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation_ Address of the basket token implementation.
@@ -541,7 +548,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         (totalBasketValue_, afterTradeBasketAssetAmounts_) = _settleInternalTrades(
             internalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_
         );
-        (totalBasketValue_, afterTradeBasketAssetAmounts_) = _settleExternalTrades(
+        (totalBasketValue_, afterTradeBasketAssetAmounts_) = _validateExternalTrades(
             externalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_, tokenPrices_
         );
         _validateTargetWeights(basketsToRebalance, afterTradeBasketAssetAmounts_, tokenPrices_, totalBasketValue_);
@@ -819,12 +826,18 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             // TODO: will be replaced with quotes instead of stored prices
             uint256 sellTokenPrice = tokenPrices_[info.fromBasketIndex][info.sellTokenAssetIndex];
             uint256 buyTokenPrice = tokenPrices_[info.fromBasketIndex][info.buyTokenAssetIndex];
-            info.buyAmount = (trade.sellAmount * sellTokenPrice) / buyTokenPrice;
+            info.buyAmount = FixedPointMathLib.fullMulDiv(trade.sellAmount, sellTokenPrice, buyTokenPrice);
 
             if (info.buyAmount < trade.minAmount || trade.maxAmount < info.buyAmount) {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             // Settle the internal trades and track the balance changes
+            if (trade.sellAmount > afterTradeBasketAssetAmounts_[info.fromBasketIndex][info.sellTokenAssetIndex]) {
+                revert IncorrectTradeTokenAmount();
+            }
+            if (info.buyAmount > afterTradeBasketAssetAmounts_[info.toBasketIndex][info.toBasketBuyTokenIndex]) {
+                revert IncorrectTradeTokenAmount();
+            }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             basketBalanceOf[trade.fromBasket][trade.sellToken] = afterTradeBasketAssetAmounts_[info.fromBasketIndex][info
                 .sellTokenAssetIndex] = basketBalanceOf[trade.fromBasket][trade.sellToken] - trade.sellAmount; // nosemgrep
@@ -840,12 +853,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             unchecked {
                 ++i;
             }
+            emit InternalTradeSettled(trade, info.buyAmount);
         }
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
 
-    /// @notice Internal function to settle external trades.
-    /// @param externalTrades Array of external trades to execute.
+    /// @notice Internal function to validate external trades.
+    /// @param externalTrades Array of external trades to be validated.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     /// @param totalBasketValue_ Array of total basket values in USD.
     /// @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
@@ -854,8 +868,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @return afterTradeBasketAssetAmounts_ Updated array of asset amounts for each basket being rebalanced after
     /// trades have been accounted for.
     /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
-    /// function will revert.
-    function _settleExternalTrades(
+    function _validateExternalTrades(
         ExternalTrade[] calldata externalTrades,
         address[] calldata basketsToRebalance,
         uint256[] memory totalBasketValue_,
@@ -882,6 +895,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 uint256 ownershipBuyAmount =
                     FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
                 // Record changes in basket asset holdings due to the external trade
+                if (
+                    ownershipSellAmount
+                        > afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
+                ) {
+                    revert IncorrectTradeTokenAmount();
+                }
                 afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] =
                 afterTradeBasketAssetAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
                     - ownershipSellAmount;
@@ -913,6 +932,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             unchecked {
                 ++i;
             }
+            emit ExternalTradeValidated(trade, info.internalMinAmount);
         }
         return (totalBasketValue_, afterTradeBasketAssetAmounts_);
     }
@@ -946,8 +966,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
                 address asset = assets[j];
-                uint256 afterTradeWeight =
-                    afterTradeBasketAssetAmounts_[i][j] * tokenPrices_[i][j] * 1e18 / totalBasketValue_[i];
+                uint256 afterTradeWeight = FixedPointMathLib.fullMulDiv(
+                    afterTradeBasketAssetAmounts_[i][j], tokenPrices_[i][j] * 1e18, totalBasketValue_[i]
+                );
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
                     console.log("basket, asset: ", basket, asset);
                     console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
