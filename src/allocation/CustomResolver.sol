@@ -49,7 +49,6 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
 
         uint256 sum = 0;
         for (uint256 i = 0; i < assetCount;) {
-            // solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             sum += newTargetWeights[i];
             unchecked {
                 ++i;
@@ -88,6 +87,7 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
             unchecked {
                 if ((bitFlag & (1 << i)) != 0) {
                     // Overflow not possible: maximum value of sum <= _WEIGHT_PRECISION
+                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                     sum += filteredWeights[filteredIndex] = targetWeights[i];
                     ++filteredIndex;
                 }

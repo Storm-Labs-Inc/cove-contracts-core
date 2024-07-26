@@ -10,8 +10,8 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 /// Setters should not be implemented in this contract as the data is expected to be external and read-only.
 contract MarketCapResolver is AllocationResolver, AccessControlEnumerable {
     // slither-disable-next-line locked-ether
-    constructor() payable {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor(address admin) payable {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
     function getTargetWeights(uint256 bitFlag) public view override returns (uint256[] memory) { }
