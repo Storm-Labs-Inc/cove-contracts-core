@@ -124,20 +124,20 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param name_ Name of the token. All names will be prefixed with "CoveBasket-".
     /// @param symbol_ Symbol of the token. All symbols will be prefixed with "cb".
     /// @param bitFlag_  Bitflag representing the selection of assets.
-    /// @param strategyId_ Strategy ID.
+    /// @param strategy_ Strategy address.
     /// @param admin_ Admin of the contract. Capable of setting the basketManager and AssetRegistry.
     function initialize(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         uint256 bitFlag_,
-        uint256 strategyId_,
+        address strategy_,
         address admin_
     )
         public
         initializer
     {
-        if (admin_ == address(0)) {
+        if (admin_ == address(0) || strategy_ == address(0)) {
             revert Errors.ZeroAddress();
         }
         admin = admin_;

@@ -10,9 +10,6 @@ import { BitFlag } from "src/libraries/BitFlag.sol";
 /// @notice A custom allocation resolver that allows manually setting target weights for a basket.
 /// @dev Inherits from AllocationResolver and AccessControlEnumerable for role-based access control.
 contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable {
-    /// @dev Mapping to store target weights for each asset index in the bit flag
-    mapping(uint256 assetIndexInBitFlag => uint256) private _targetWeight;
-
     /// @notice The target weights for all assets in the supported bit flag
     uint256[] public targetWeights;
 
@@ -34,7 +31,8 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
     /// @notice Constructs the CustomAllocationResolver
     /// @param admin Address of the admin who will have DEFAULT_ADMIN_ROLE and MANAGER_ROLE
     /// @param bitFlag The supported bit flag for this resolver
-    constructor(address admin, uint256 bitFlag) payable AllocationResolver() {
+    // slither-disable-next-line locked-ether
+    constructor(address admin, uint256 bitFlag) payable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, admin);
         supportedBitFlag = bitFlag;
@@ -44,13 +42,14 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
     /// @param newTargetWeights Array of target weights corresponding to each asset
     /// @dev Only callable by accounts with MANAGER_ROLE
     function setTargetWeights(uint256[] calldata newTargetWeights) external onlyRole(_MANAGER_ROLE) {
-        if (newTargetWeights.length != BitFlag.popCount(supportedBitFlag)) {
+        uint256 assetCount = BitFlag.popCount(supportedBitFlag);
+        if (newTargetWeights.length != assetCount) {
             revert InvalidWeightsLength();
         }
 
         uint256 sum = 0;
-
-        for (uint256 i = 0; i < newTargetWeights.length;) {
+        for (uint256 i = 0; i < assetCount;) {
+            // solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             sum += newTargetWeights[i];
             unchecked {
                 ++i;
@@ -75,7 +74,12 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
             return filteredWeights;
         }
 
-        filteredWeights = new uint256[](BitFlag.popCount(bitFlag));
+        // If there are no assets in the bit flag, return an empty array
+        if (bitFlag == 0) {
+            return filteredWeights;
+        }
+        uint256 assetCount = BitFlag.popCount(bitFlag);
+        filteredWeights = new uint256[](assetCount);
 
         uint256 filteredIndex = 0;
         uint256 sum = 0;
@@ -96,7 +100,7 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
                 // TODO: Implement a more sophisticated way to handle this case
                 // For now, we distribute the remaining weight to the first asset
                 uint256 remaining = _WEIGHT_PRECISION;
-                for (uint256 i = 1; i < filteredWeights.length;) {
+                for (uint256 i = 1; i < assetCount;) {
                     unchecked {
                         // Overflow not possible: filteredWeights[i] <= remaining <= _WEIGHT_PRECISION
                         // Divisiion by zero not possible: sum != 0
