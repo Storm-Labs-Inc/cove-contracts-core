@@ -152,7 +152,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function testFuzz_setBasketManager_revertsWhen_notOwner(address from, address newBasketManager) public {
-        vm.assume(newBasketManager != address(0));
+        vm.assume(newBasketManager != address(0) && from != address(owner));
         vm.prank(from);
         vm.expectRevert(_formatAccessControlError(from, DEFAULT_ADMIN_ROLE));
         basket.setBasketManager(newBasketManager);
