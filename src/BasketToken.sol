@@ -311,6 +311,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
 
     /// @notice Returns the pending redeem request amount for an operator.
     /// @dev If the epoch has been advanced then the request has been fulfilled and is no longer pending.
+    /// @param requestId The id of the request.
     /// @param operator The address of the operator.
     /// @return shares The amount of shares pending redemption.
     function pendingRedeemRequest(uint256 requestId, address operator) public view returns (uint256 shares) {
@@ -326,6 +327,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         return pendingRedeemRequest(0, operator);
     }
 
+    /// @notice Returns the amount of requested shares in Claimable state for the controller with the given requestId.
+    /// @param requestId The id of the request.
+    /// @param controller The address of the controller.
+    /// @return shares The amount of shares claimable.
     function claimableRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
         // TODO: implement requestId logic
         return maxRedeem(controller);
@@ -356,6 +361,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
     /// current epoch. Records the total amount of shares pending redemption. This is called at the first step of the
     /// rebalance process. When there are no pending redeems, the epoch is not advanced.
+    /// @return The total amount of shares pending redemption.
     function preFulfillRedeem() public onlyRole(BASKET_MANAGER_ROLE) returns (uint256) {
         uint256 redeemEpoch = _currentRedeemEpoch;
         if (_epochRedeemStatus[redeemEpoch - 1] < RedemptionStatus.REDEEM_FULFILLED) {
@@ -434,16 +440,27 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
+    /// @notice Returns whether an operator is approved by a controller.
+    /// @param controller The address of the controller.
+    /// @param operator The address of the operator.
+    /// @return True if the operator is approved by the controller, false otherwise.
     function isOperator(address controller, address operator) public view returns (bool) {
         return _isOperator[controller][operator];
     }
 
+    /// @notice Sets a status for an operator's ability to act on behalf of a controller.
+    /// @param operator The address of the operator.
+    /// @param approved The status of the operator.
+    /// @return True if the operator status was set, false otherwise.
     function setOperator(address operator, bool approved) public returns(bool success){
         _isOperator[msg.sender][operator] = approved;
         emit OperatorSet(msg.sender, operator, approved);
         return true;
     }
 
+    /// @notice Returns the address of the share token as per ERC-7575.
+    /// @return shareTokenAddress The address of the share token.
+    /// @dev For non-multi asset vaults this should always return address(this).
     function share() public view returns (address shareTokenAddress) {
         shareTokenAddress = address(this);
     }
@@ -462,6 +479,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
 
     /// @notice Claims shares given for a previous redemption request in the event a redemption fulfillment for a
     /// given epoch fails.
+    /// @return shares The amount of shares claimed.
     function claimFallbackShares() public returns (uint256 shares) {
         // Effects
         shares = claimableFallbackShares(msg.sender);
@@ -644,9 +662,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///
+    /// @notice Checks if the contract supports the given interface.
+    /// @param interfaceID The interface ID.
+    /// @return True if the contract supports the interface, false otherwise.
     function supportsInterface(bytes4 interfaceID) public view virtual override(AccessControlEnumerableUpgradeable, ERC165) returns (bool) {
-        // Do I add an interface for BasketToken?
-        // return interfaceID == type(IBasketToken).interfaceId || super.supportsInterface(interfaceId) || _supportedInterfaces[interfaceID];
         return super.supportsInterface(interfaceID) || _supportedInterfaces[interfaceID];
     }
 }
