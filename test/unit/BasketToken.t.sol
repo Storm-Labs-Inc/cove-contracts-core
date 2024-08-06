@@ -107,7 +107,6 @@ contract BasketTokenTest is BaseTest {
         public
     {
         vm.assume(tokenAdmin != address(0));
-        vm.assume(asset != address(0));
         vm.assume(strategy != address(0));
         BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
         // Added mock due to foundry test issue
