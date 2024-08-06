@@ -70,7 +70,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @dev You must not set element 0xffffffff to true
     mapping(bytes4 => bool) internal _supportedInterfaces;
     /// @notice Mapping of operator to operator status
-    mapping(address controller => mapping(address operator => bool)) internal _isOperator;
+    mapping(address controller => mapping(address operator => bool)) public isOperator;
     /// @notice Latest deposit epoch, initialized as 1
     uint256 internal _currentDepositEpoch;
     /// @notice Latest redemption epoch, initialized as 1
@@ -236,12 +236,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         IERC20(asset()).safeTransferFrom(owner, address(this), assets);
     }
 
-    /// @notice Requests a deposit of assets to the basket for the caller.
-    /// @param assets The amount of assets to deposit.
-    function requestDeposit(uint256 assets) public returns (uint256 requestId) {
-        requestId = requestDeposit(assets, msg.sender, msg.sender);
-    }
-
     /// @notice Returns the pending deposit request amount for an operator.
     /// @dev If the epoch has been advanced then the request has been fulfilled and is no longer pending.
     /// @param requestId The id of the request.
@@ -275,7 +269,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     function requestRedeem(uint256 shares, address controller, address owner) public returns (uint256 requestId) {
         // Checks
         if (msg.sender != owner) {
-            if (!_isOperator[owner][msg.sender]) {
+            if (!isOperator[owner][msg.sender]) {
                 _spendAllowance(owner, msg.sender, shares);
             }
         }
@@ -445,20 +439,12 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
-    /// @notice Returns whether an operator is approved by a controller.
-    /// @param controller The address of the controller.
-    /// @param operator The address of the operator.
-    /// @return True if the operator is approved by the controller, false otherwise.
-    function isOperator(address controller, address operator) public view returns (bool) {
-        return _isOperator[controller][operator];
-    }
-
     /// @notice Sets a status for an operator's ability to act on behalf of a controller.
     /// @param operator The address of the operator.
     /// @param approved The status of the operator.
     /// @return success True if the operator status was set, false otherwise.
     function setOperator(address operator, bool approved) public returns (bool success) {
-        _isOperator[msg.sender][operator] = approved;
+        isOperator[msg.sender][operator] = approved;
         emit OperatorSet(msg.sender, operator, approved);
         return true;
     }
@@ -536,7 +522,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            if (!_isOperator[controller][msg.sender]) {
+            if (!isOperator[controller][msg.sender]) {
                 revert NotAuthorizedOperator();
             }
         }
@@ -546,9 +532,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         // Effects
         // maxMint returns shares at the fulfilled rate only if the deposit has been fulfilled
         shares = maxMint(controller);
-        delete _pendingDeposit[controller];
-        _transfer(address(this), receiver, shares);
-        emit Deposit(controller, receiver, assets, shares);
+        _claimDeposit(assets, shares, receiver, controller);
     }
 
     /// @notice Transfers a users shares owed for a previously fulfilled redeem request.
@@ -573,7 +557,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            if (!_isOperator[controller][msg.sender]) {
+            if (!isOperator[controller][msg.sender]) {
                 revert NotAuthorizedOperator();
             }
         }
@@ -582,9 +566,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         }
         // Effects
         assets = _pendingDeposit[controller];
-        delete _pendingDeposit[controller];
-        _transfer(address(this), receiver, shares);
-        emit Deposit(controller, receiver, assets, shares);
+        _claimDeposit(assets, shares, receiver, controller);
     }
 
     /// @notice Transfers a users shares owed for a previously fulfilled deposit request.
@@ -607,7 +589,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            if (!_isOperator[controller][msg.sender]) {
+            if (!isOperator[controller][msg.sender]) {
                 revert NotAuthorizedOperator();
             }
         }
@@ -616,10 +598,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         }
         // Effects
         shares = _pendingRedeem[controller];
-        delete _pendingRedeem[controller];
-        emit Withdraw(msg.sender, receiver, controller, assets, shares);
-        // Interactions
-        IERC20(asset()).safeTransfer(receiver, assets);
+        _claimRedemption(assets, shares, receiver, controller);
     }
 
     /// @notice Transfers the receiver shares owed for a previously fulfilled redeem request.
@@ -633,17 +612,14 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            if (!_isOperator[controller][msg.sender]) revert NotAuthorizedOperator();
+            if (!isOperator[controller][msg.sender]) revert NotAuthorizedOperator();
         }
         if (shares != maxRedeem(controller)) {
             revert MustClaimFullAmount();
         }
         // Effects
         assets = maxWithdraw(controller);
-        delete _pendingRedeem[controller];
-        emit Withdraw(msg.sender, receiver, controller, assets, shares);
-        // Interactions
-        IERC20(asset()).safeTransfer(receiver, assets);
+        _claimRedemption(assets, shares, receiver, controller);
     }
 
     /// @notice Returns an operator's amount of assets fulfilled for redemption.
@@ -694,6 +670,33 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     // Preview functions always revert for async flows
     function previewMint(uint256) public pure override returns (uint256) {
         revert();
+    }
+
+    /// @notice Internal function to claim redemption for a given amount of assets and shares.
+    /// @param assets The amount of assets to claim.
+    /// @param shares The amount of shares to claim.
+    /// @param receiver The address of the receiver of the claimed assets.
+    /// @param controller The address of the controller of the redemption request.
+    function _claimRedemption(uint256 assets, uint256 shares, address receiver, address controller) internal {
+        // Effects
+        delete _pendingRedeem[controller];
+        // Interactions
+        IERC20(asset()).safeTransfer(receiver, assets);
+        emit Withdraw(msg.sender, receiver, controller, assets, shares);
+    }
+
+    /// @notice Internal function to claim deposit for a given amount of assets and shares.
+    /// @param assets The amount of assets to claim.
+    /// @param shares The amount of shares to claim.
+    /// @param receiver The address of the receiver of the claimed assets.
+    /// @param controller The address of the controller of the deposit request.
+
+    function _claimDeposit(uint256 assets, uint256 shares, address receiver, address controller) internal {
+        // Effects
+        delete _pendingDeposit[controller];
+        // Interactions
+        _transfer(address(this), receiver, shares);
+        emit Deposit(controller, receiver, assets, shares);
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///

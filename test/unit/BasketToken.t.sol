@@ -260,12 +260,12 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.approve(address(basket), amount);
 
         // Call requestDeposit twice
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
         assertEq(basket.pendingDepositRequest(alice), amount);
         assertEq(basket.totalPendingDeposits(), amount);
         dummyAsset.mint(alice, amount2);
         dummyAsset.approve(address(basket), amount2);
-        basket.requestDeposit(amount2);
+        basket.requestDeposit(amount2, alice, alice);
         assertEq(basket.pendingDepositRequest(alice), amount + amount2);
         assertEq(basket.totalPendingDeposits(), amount + amount2);
     }
@@ -275,7 +275,7 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.approve(address(basket), 0);
         vm.expectRevert(Errors.ZeroAmount.selector);
         vm.prank(alice);
-        basket.requestDeposit(0);
+        basket.requestDeposit(0, alice, alice);
     }
 
     function test_requestDeposit_revertWhen_claimableDepositOutstanding() public {
@@ -284,7 +284,7 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares);
@@ -292,7 +292,7 @@ contract BasketTokenTest is BaseTest {
         // Call requestDeposit while there is an outstanding deposit
         vm.expectRevert(BasketToken.MustClaimOutstandingDeposit.selector);
         vm.startPrank(alice);
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
     }
 
     function test_requestDeposit_revertWhen_assetPaused() public {
@@ -308,7 +308,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
     }
 
     function test_requestDeposit_revertWhen_assetDisabled() public {
@@ -324,7 +324,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
     }
 
     function testFuzz_requestDeposit_revertWhen_invalidAssetStatus(uint8 status) public {
@@ -341,7 +341,7 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert();
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
     }
 
     function testFuzz_fulfillDeposit(uint256 totalAmount, uint256 issuedShares) public {
@@ -854,7 +854,7 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares);
@@ -1394,7 +1394,7 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.mint(alice, amount);
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
-        basket.requestDeposit(amount);
+        basket.requestDeposit(amount, alice, alice);
         vm.stopPrank();
         vm.prank(address(basketManager));
         basket.fulfillDeposit(issuedShares);
