@@ -111,6 +111,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     error CannotFulfillWithZeroShares();
     error ZeroClaimableFallbackShares();
     error MustWaitForPreviousRedeemEpoch();
+    error NotAuthorizedOperator();
 
     /// @notice Disables the ability to call initializers.
     constructor() payable {
@@ -273,8 +274,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param owner The address of the request owner.
     function requestRedeem(uint256 shares, address controller, address owner) public returns (uint256 requestId) {
         // Checks
-        if (msg.sender != owner && !_isOperator[owner][msg.sender]) {
-            _spendAllowance(owner, msg.sender, shares);
+        if (msg.sender != owner) {
+            if (!_isOperator[owner][msg.sender]) {
+                _spendAllowance(owner, msg.sender, shares);
+            }
         }
 
         if (shares == 0) {
@@ -533,7 +536,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            require(_isOperator[controller][msg.sender]);
+            if (!_isOperator[controller][msg.sender]) {
+                revert NotAuthorizedOperator();
+            }
         }
         if (assets != maxDeposit(controller)) {
             revert MustClaimFullAmount();
@@ -568,7 +573,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            require(_isOperator[controller][msg.sender]);
+            if (!_isOperator[controller][msg.sender]) {
+                revert NotAuthorizedOperator();
+            }
         }
         if (shares != claimableShares) {
             revert MustClaimFullAmount();
@@ -600,7 +607,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            require(_isOperator[controller][msg.sender]);
+            if (!_isOperator[controller][msg.sender]) {
+                revert NotAuthorizedOperator();
+            }
         }
         if (assets != maxWithdraw(controller)) {
             revert MustClaimFullAmount();
@@ -624,7 +633,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert Errors.ZeroAmount();
         }
         if (msg.sender != controller) {
-            require(_isOperator[controller][msg.sender]);
+            if (!_isOperator[controller][msg.sender]) revert NotAuthorizedOperator();
         }
         if (shares != maxRedeem(controller)) {
             revert MustClaimFullAmount();
