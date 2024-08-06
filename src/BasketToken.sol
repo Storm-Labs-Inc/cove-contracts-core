@@ -27,7 +27,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     using SafeERC20 for IERC20;
 
     /// CONSTANTS ///
-    bytes32 private constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
+    bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes4 private constant _OPERATOR7540_INTERFACE = 0xe3bc4e65;
     bytes4 private constant _ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
     bytes4 private constant _ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
@@ -142,7 +142,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         admin = admin_;
         basketManager = msg.sender;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(BASKET_MANAGER_ROLE, basketManager);
+        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
         strategyId = strategyId_;
         _currentRedeemEpoch = 1;
@@ -161,9 +161,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         if (basketManager_ == address(0)) {
             revert Errors.ZeroAddress();
         }
-        _revokeRole(BASKET_MANAGER_ROLE, basketManager);
+        _revokeRole(_BASKET_MANAGER_ROLE, basketManager);
         basketManager = basketManager_;
-        _grantRole(BASKET_MANAGER_ROLE, basketManager_);
+        _grantRole(_BASKET_MANAGER_ROLE, basketManager_);
     }
 
     /// @notice Sets the asset registry address. Only callable by the contract admin.
@@ -344,7 +344,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Fulfills all pending deposit requests. Only callable by the basket manager. Assets are held by the
     /// basket manager. Locks in the rate at which users can claim their shares for deposited assets.
     /// @param shares The amount of shares the deposit was fulfilled with.
-    function fulfillDeposit(uint256 shares) public onlyRole(BASKET_MANAGER_ROLE) {
+    function fulfillDeposit(uint256 shares) public onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
         uint256 depositEpoch = _currentDepositEpoch;
         Request storage depositRequest = _epochDepositRequests[depositEpoch];
@@ -367,7 +367,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// current epoch. Records the total amount of shares pending redemption. This is called at the first step of the
     /// rebalance process. When there are no pending redeems, the epoch is not advanced.
     /// @return The total amount of shares pending redemption.
-    function preFulfillRedeem() public onlyRole(BASKET_MANAGER_ROLE) returns (uint256) {
+    function preFulfillRedeem() public onlyRole(_BASKET_MANAGER_ROLE) returns (uint256) {
         uint256 redeemEpoch = _currentRedeemEpoch;
         if (_epochRedeemStatus[redeemEpoch - 1] < RedemptionStatus.REDEEM_FULFILLED) {
             revert MustWaitForPreviousRedeemEpoch();
@@ -386,7 +386,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// pending redemption. Locks in the rate at which users can claim their assets for redeemed shares.
     /// @dev preFulfillRedeem must be called before this function.
     /// @param assets The amount of assets the redemption was fulfilled with.
-    function fulfillRedeem(uint256 assets) public onlyRole(BASKET_MANAGER_ROLE) {
+    function fulfillRedeem(uint256 assets) public onlyRole(_BASKET_MANAGER_ROLE) {
         uint256 redeemEpoch = _currentRedeemEpoch - 1;
         Request storage redeemRequest = _epochRedeemRequests[redeemEpoch];
         uint256 shares = redeemRequest.shares;
@@ -474,7 +474,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
 
     /// @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
     /// users to claim their shares back for a redemption in the future and advances the redemption epoch.
-    function fallbackRedeemTrigger() public onlyRole(BASKET_MANAGER_ROLE) {
+    function fallbackRedeemTrigger() public onlyRole(_BASKET_MANAGER_ROLE) {
         uint256 previousRedeemEpoch = _currentRedeemEpoch - 1;
         if (_epochRedeemStatus[previousRedeemEpoch] != RedemptionStatus.REDEEM_PREFULFILLED) {
             revert PreFulFillRedeemNotCalled();
