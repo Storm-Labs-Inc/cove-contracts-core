@@ -27,10 +27,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     using SafeERC20 for IERC20;
 
     /// CONSTANTS ///
-    bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
-    bytes4 public constant OPERATOR7540_INTERFACE = 0xe3bc4e65;
-    bytes4 public constant ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
-    bytes4 public constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
+    bytes32 private constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
+    bytes4 private constant OPERATOR7540_INTERFACE = 0xe3bc4e65;
+    bytes4 private constant ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
+    bytes4 private constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
     /// ENUMS ///
     /// @notice Enum representing the status of a redeem epoch.
