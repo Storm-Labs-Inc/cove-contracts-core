@@ -28,9 +28,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
 
     /// CONSTANTS ///
     bytes32 private constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
-    bytes4 private constant OPERATOR7540_INTERFACE = 0xe3bc4e65;
-    bytes4 private constant ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
-    bytes4 private constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
+    bytes4 private constant _OPERATOR7540_INTERFACE = 0xe3bc4e65;
+    bytes4 private constant _ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
+    bytes4 private constant _ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
     /// ENUMS ///
     /// @notice Enum representing the status of a redeem epoch.
@@ -148,9 +148,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         _currentRedeemEpoch = 1;
         _currentDepositEpoch = 1;
         _epochRedeemStatus[0] = RedemptionStatus.REDEEM_FULFILLED;
-        _supportedInterfaces[OPERATOR7540_INTERFACE] = true;
-        _supportedInterfaces[ASYNCHRONOUS_DEPOSIT_INTERFACE] = true;
-        _supportedInterfaces[ASYNCHRONOUS_REDEMPTION_INTERFACE] = true;
+        _supportedInterfaces[_OPERATOR7540_INTERFACE] = true;
+        _supportedInterfaces[_ASYNCHRONOUS_DEPOSIT_INTERFACE] = true;
+        _supportedInterfaces[_ASYNCHRONOUS_REDEMPTION_INTERFACE] = true;
         __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
