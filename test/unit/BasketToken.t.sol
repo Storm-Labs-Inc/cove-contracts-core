@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-import { BasketManager } from "./../../src/BasketManager.sol";
+import { BasketManager } from "src/BasketManager.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
@@ -51,7 +52,7 @@ contract BasketTokenTest is BaseTest {
         basketTokenImplementation = new BasketToken();
         basketManager = new MockBasketManager(address(basketTokenImplementation));
         vm.label(address(basketManager), "basketManager");
-        basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, 1, address(owner));
+        basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, address(1), address(owner));
         vm.label(address(basket), "basketToken");
         assetRegistry = createUser("assetRegistry");
         vm.label(address(assetRegistry), "assetRegistry");
@@ -71,14 +72,14 @@ contract BasketTokenTest is BaseTest {
         string memory name,
         string memory symbol,
         uint256 bitFlag,
-        uint256 strategyId,
+        address strategy,
         address owner_
     )
         public
     {
         BasketToken tokenImpl = new BasketToken();
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        tokenImpl.initialize(ERC20(asset), name, symbol, bitFlag, strategyId, owner_);
+        tokenImpl.initialize(ERC20(asset), name, symbol, bitFlag, strategy, owner_);
     }
 
     function testFuzz_initialize_revertWhen_alreadyInitialized(
@@ -86,13 +87,13 @@ contract BasketTokenTest is BaseTest {
         string memory name,
         string memory symbol,
         uint256 bitFlag,
-        uint256 strategyId,
+        address strategy,
         address owner_
     )
         public
     {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        basket.initialize(ERC20(asset), name, symbol, bitFlag, strategyId, owner_);
+        basket.initialize(ERC20(asset), name, symbol, bitFlag, strategy, owner_);
     }
 
     function testFuzz_initialize(
@@ -101,18 +102,19 @@ contract BasketTokenTest is BaseTest {
         string memory name,
         string memory symbol,
         uint256 bitFlag,
-        uint256 strategyId,
+        address strategy,
         address tokenAdmin
     )
         public
     {
         vm.assume(tokenAdmin != address(0));
+        vm.assume(strategy != address(0));
         BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
         // Added mock due to foundry test issue
         ERC20DecimalsMockImpl mockERC20 = new ERC20DecimalsMockImpl(assetDecimals, "test", "TST");
         // Call initialize
         vm.prank(from);
-        token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategyId, tokenAdmin);
+        token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategy, tokenAdmin);
 
         // Check state
         assertEq(token.asset(), address(mockERC20));
@@ -120,7 +122,7 @@ contract BasketTokenTest is BaseTest {
         assertEq(token.symbol(), string.concat("covb", symbol));
         assertEq(token.decimals(), assetDecimals);
         assertEq(token.bitFlag(), bitFlag);
-        assertEq(token.strategyId(), strategyId);
+        assertEq(token.strategy(), strategy);
         assertEq(token.admin(), tokenAdmin);
         assertEq(token.basketManager(), from);
         assertEq(token.supportsInterface(type(IERC165).interfaceId), true);
@@ -135,7 +137,7 @@ contract BasketTokenTest is BaseTest {
         string memory name,
         string memory symbol,
         uint256 bitFlag,
-        uint256 strategyId
+        address strategy
     )
         public
     {
@@ -146,7 +148,29 @@ contract BasketTokenTest is BaseTest {
         // Call initialize
         vm.prank(from);
         vm.expectRevert(Errors.ZeroAddress.selector);
-        token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategyId, address(0));
+        token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategy, address(0));
+    }
+
+    function testFuzz_initialize_revertsWhen_strategyZero(
+        address from,
+        address asset,
+        uint8 assetDecimals,
+        string memory name,
+        string memory symbol,
+        uint256 bitFlag,
+        address owner_
+    )
+        public
+    {
+        vm.assume(asset != address(0));
+        vm.assume(owner_ != address(0));
+        BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
+        vm.mockCall(asset, abi.encodeWithSelector(ERC20.decimals.selector), abi.encode(assetDecimals));
+
+        // Call initialize
+        vm.prank(from);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        token.initialize(ERC20(asset), name, symbol, bitFlag, address(0), owner_);
     }
 
     function testFuzz_setBasketManager(address newBasketManager) public {
@@ -194,7 +218,7 @@ contract BasketTokenTest is BaseTest {
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
-        uint256 totalAssetsBefore = basket.totalAssets();
+        // uint256 totalAssetsBefore = basket.totalAssets();
         uint256 balanceBefore = basket.balanceOf(from);
         uint256 dummyAssetBalanceBefore = dummyAsset.balanceOf(from);
         uint256 pendingDepositRequestBefore = basket.pendingDepositRequest(from);
@@ -210,7 +234,7 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
-        assertEq(basket.totalAssets(), totalAssetsBefore);
+        // assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(from), balanceBefore);
         assertEq(basket.maxDeposit(from), maxDepositBefore);
         assertEq(basket.maxMint(from), maxMintBefore);
@@ -226,7 +250,8 @@ contract BasketTokenTest is BaseTest {
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
-        uint256 totalAssetsBefore = basket.totalAssets();
+        // TODO: enable totalAssets check when totalAssets is implemented
+        // uint256 totalAssetsBefore = basket.totalAssets();
         uint256 balanceBefore = basket.balanceOf(from);
         uint256 dummyAssetBalanceBefore = dummyAsset.balanceOf(from);
         uint256 pendingDepositRequestBefore = basket.pendingDepositRequest(from);
@@ -244,7 +269,8 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
-        assertEq(basket.totalAssets(), totalAssetsBefore);
+        // TODO: enable totalAssets check when totalAssets is implemented
+        // assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(controller), balanceBefore);
         assertEq(basket.maxDeposit(controller), maxDepositBefore);
         assertEq(basket.maxMint(controller), maxMintBefore);
@@ -1595,5 +1621,21 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.isOperator(controller, operator), true);
         basket.setOperator(operator, false);
         assertEq(basket.isOperator(controller, operator), false);
+    }
+
+    function test_getTargetWeights(uint256[] memory expectedRet) public {
+        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())));
+        vm.mockCall(
+            address(basket.strategy()),
+            abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())),
+            abi.encode(expectedRet)
+        );
+        uint256[] memory ret = basket.getTargetWeights();
+        assertEq(expectedRet, ret);
+    }
+
+    // TODO: implement this test after `totalAssets` is implemented
+    function test_totalAssets() public {
+        assertEq(basket.totalAssets(), 0);
     }
 }

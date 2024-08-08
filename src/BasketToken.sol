@@ -12,11 +12,13 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
+
 import { Errors } from "src/libraries/Errors.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 // TODO: interfaces will be removed in the future
 interface IBasketManager {
-    function totalAssetValue(uint256 strategyId) external view returns (uint256);
+    function totalAssetValue(address strategyId) external view returns (uint256);
 }
 
 /// @title BasketToken
@@ -85,7 +87,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Bitflag representing the selection of assets
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
-    uint256 public strategyId;
+    address public strategy;
 
     /// EVENTS ///
     /// @notice Emitted when a deposit request is made
@@ -123,20 +125,20 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param name_ Name of the token. All names will be prefixed with "CoveBasket-".
     /// @param symbol_ Symbol of the token. All symbols will be prefixed with "cb".
     /// @param bitFlag_  Bitflag representing the selection of assets.
-    /// @param strategyId_ Strategy ID.
+    /// @param strategy_ Strategy address.
     /// @param admin_ Admin of the contract. Capable of setting the basketManager and AssetRegistry.
     function initialize(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         uint256 bitFlag_,
-        uint256 strategyId_,
+        address strategy_,
         address admin_
     )
         public
         initializer
     {
-        if (admin_ == address(0)) {
+        if (admin_ == address(0) || strategy_ == address(0)) {
             revert Errors.ZeroAddress();
         }
         admin = admin_;
@@ -144,7 +146,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
-        strategyId = strategyId_;
+        strategy = strategy_;
         _currentRedeemEpoch = 1;
         _currentDepositEpoch = 1;
         _epochRedeemStatus[0] = RedemptionStatus.REDEEM_FULFILLED;
@@ -179,9 +181,14 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// factors that may affect the swap rates.
     /// @return The total value of the basket in assets.
     function totalAssets() public view override returns (uint256) {
-        // Below will not be effected by pending assets
         // TODO: Replace this with value of the basket divided by the value of the asset
-        return IBasketManager(basketManager).totalAssetValue(strategyId);
+        return 0;
+    }
+
+    /// @notice Returns the target weights for this basket.
+    /// @return The target weights for the basket.
+    function getTargetWeights() external view returns (uint256[] memory) {
+        return WeightStrategy(strategy).getTargetWeights(bitFlag);
     }
 
     /// @notice Returns the current redemption epoch.
