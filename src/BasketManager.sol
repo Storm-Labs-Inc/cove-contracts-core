@@ -11,8 +11,9 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { BasketToken } from "src/BasketToken.sol";
+
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
-import { AggregatedResolver } from "src/allocation/AggregatedResolver.sol";
+import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
@@ -150,6 +151,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
+    /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
+    StrategyRegistry public immutable strategyRegistry;
 
     /// STATE VARIABLES ///
     /// @notice Array of all basket tokens.
@@ -175,10 +178,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     // TODO: add setter function for EulerRouter
     // slither-disable-next-line immutable-states
     EulerRouter public eulerRouter;
-    /// @notice Address of the AggregatedResolver contract used to resolve allocations.
-    // TODO: add setter function for aggregatedResolver
-    // slither-disable-next-line immutable-states
-    AggregatedResolver public aggregatedResolver;
     /// @notice Rebalance status.
     RebalanceStatus private _rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
@@ -204,7 +203,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error BasketTokenAlreadyExists();
     error BasketTokenMaxExceeded();
     error ElementIndexNotFound();
-    error AggregatedResolverDoesNotSupportStrategy();
+    error StrategyRegistryDoesNotSupportStrategy();
     error BasketsMismatch();
     error BaseAssetMismatch();
     error AssetListEmpty();
@@ -221,11 +220,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation_ Address of the basket token implementation.
     /// @param eulerRouter_ Address of the oracle registry.
-    /// @param aggregatedResolver_ Address of the allocation resolver.
+    /// @param strategyRegistry_ Address of the allocation resolver.
     constructor(
         address basketTokenImplementation_,
         address eulerRouter_,
-        address aggregatedResolver_,
+        address strategyRegistry_,
         address admin
     )
         payable
@@ -233,14 +232,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         // Checks
         if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
         if (eulerRouter_ == address(0)) revert ZeroAddress();
-        if (aggregatedResolver_ == address(0)) revert ZeroAddress();
+        if (strategyRegistry_ == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         basketTokenImplementation = basketTokenImplementation_;
         eulerRouter = EulerRouter(eulerRouter_);
-        aggregatedResolver = AggregatedResolver(aggregatedResolver_);
+        strategyRegistry = StrategyRegistry(strategyRegistry_);
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -275,11 +274,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             revert BasketTokenAlreadyExists();
         }
         // Checks with external view calls
-        if (!aggregatedResolver.supportsBitFlag(bitFlag, strategy)) {
-            revert AggregatedResolverDoesNotSupportStrategy();
+        if (!strategyRegistry.supportsBitFlag(bitFlag, strategy)) {
+            revert StrategyRegistryDoesNotSupportStrategy();
         }
         // TODO: replace with AssetRegistry.getAssets(bitFlag) once AssetRegistry is implemented
-        address[] memory assets = aggregatedResolver.getAssets(bitFlag);
+        address[] memory assets = strategyRegistry.getAssets(bitFlag);
         if (assets.length == 0) {
             revert AssetListEmpty();
         }

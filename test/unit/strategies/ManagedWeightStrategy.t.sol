@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { CustomAllocationResolver } from "src/allocation/CustomResolver.sol";
+import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 
 import { BitFlag } from "src/libraries/BitFlag.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
-contract CustomAllocationResolverTest is BaseTest {
-    CustomAllocationResolver public customResolver;
+contract ManagedWeightStrategyTest is BaseTest {
+    ManagedWeightStrategy public customStrategy;
     address public admin;
     uint256 public constant SUPPORTED_BIT_FLAG = 1 << 0 | 1 << 1 | 1 << 2; // b111
     uint256 private constant _WEIGHT_PRECISION = 1e18;
@@ -16,17 +16,17 @@ contract CustomAllocationResolverTest is BaseTest {
         super.setUp();
         admin = createUser("admin");
         vm.prank(admin);
-        customResolver = new CustomAllocationResolver(admin, SUPPORTED_BIT_FLAG);
-        vm.label(address(customResolver), "customResolver");
+        customStrategy = new ManagedWeightStrategy(admin, SUPPORTED_BIT_FLAG);
+        vm.label(address(customStrategy), "ManagedWeightStrategy");
     }
 
     function testFuzz_constructor(address admin_, uint256 bitFlag) public {
-        CustomAllocationResolver customResolver_ = new CustomAllocationResolver(admin_, bitFlag);
+        ManagedWeightStrategy customStrategy_ = new ManagedWeightStrategy(admin_, bitFlag);
         assertTrue(
-            customResolver_.hasRole(customResolver_.DEFAULT_ADMIN_ROLE(), admin_),
+            customStrategy_.hasRole(customStrategy_.DEFAULT_ADMIN_ROLE(), admin_),
             "Admin should have default admin role"
         );
-        assertEq(customResolver_.supportedBitFlag(), bitFlag, "Supported bit flag should be set correctly");
+        assertEq(customStrategy_.supportedBitFlag(), bitFlag, "Supported bit flag should be set correctly");
     }
 
     function testFuzz_setTargetWeights(uint256[3] memory weights) public returns (uint256[] memory newTargetWeights) {
@@ -41,11 +41,11 @@ contract CustomAllocationResolverTest is BaseTest {
         }
 
         vm.prank(admin);
-        customResolver.setTargetWeights(newTargetWeights);
+        customStrategy.setTargetWeights(newTargetWeights);
 
         for (uint256 i = 0; i < 3; i++) {
             assertEq(
-                customResolver.targetWeights(i),
+                customStrategy.targetWeights(i),
                 newTargetWeights[i],
                 string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
             );
@@ -57,8 +57,8 @@ contract CustomAllocationResolverTest is BaseTest {
         uint256[] memory newTargetWeights = new uint256[](length);
 
         vm.prank(admin);
-        vm.expectRevert(CustomAllocationResolver.InvalidWeightsLength.selector);
-        customResolver.setTargetWeights(newTargetWeights);
+        vm.expectRevert(ManagedWeightStrategy.InvalidWeightsLength.selector);
+        customStrategy.setTargetWeights(newTargetWeights);
     }
 
     function testFuzz_setTargetWeights_InvalidSum(uint256[3] memory weights, uint256 sum) public {
@@ -74,13 +74,13 @@ contract CustomAllocationResolverTest is BaseTest {
         }
 
         vm.prank(admin);
-        vm.expectRevert(CustomAllocationResolver.WeightsSumMismatch.selector);
-        customResolver.setTargetWeights(newTargetWeights);
+        vm.expectRevert(ManagedWeightStrategy.WeightsSumMismatch.selector);
+        customStrategy.setTargetWeights(newTargetWeights);
     }
 
     function testFuzz_getTargetWeights(uint256[3] memory weights) public {
         uint256[] memory newTargetWeights = testFuzz_setTargetWeights(weights);
-        uint256[] memory retrievedWeights = customResolver.getTargetWeights(SUPPORTED_BIT_FLAG);
+        uint256[] memory retrievedWeights = customStrategy.getTargetWeights(SUPPORTED_BIT_FLAG);
 
         assertEq(retrievedWeights, newTargetWeights, "Retrieved weights should match set weights");
     }
@@ -88,7 +88,7 @@ contract CustomAllocationResolverTest is BaseTest {
     function testFuzz_getTargetWeights_SubSet(uint256[3] memory weights, uint256 bitFlag) public {
         testFuzz_setTargetWeights(weights);
         bitFlag = bound(bitFlag, 1, SUPPORTED_BIT_FLAG);
-        uint256[] memory retrievedWeights = customResolver.getTargetWeights(bitFlag);
+        uint256[] memory retrievedWeights = customStrategy.getTargetWeights(bitFlag);
 
         // Verify the sum of the weights equals _WEIGHT_PRECISION
         uint256 sum = 0;
@@ -100,7 +100,7 @@ contract CustomAllocationResolverTest is BaseTest {
 
     function test_getTargetWeights_Zero(uint256[3] memory weights) public {
         testFuzz_setTargetWeights(weights);
-        uint256[] memory retrievedWeights = customResolver.getTargetWeights(0);
+        uint256[] memory retrievedWeights = customStrategy.getTargetWeights(0);
 
         // Verify its empty
         assertEq(retrievedWeights.length, 0, "Retrieved weights should be empty");
@@ -108,12 +108,12 @@ contract CustomAllocationResolverTest is BaseTest {
 
     function testFuzz_supportsBitFlag(uint256 bitFlag) public {
         vm.assume(bitFlag <= SUPPORTED_BIT_FLAG);
-        assertTrue(customResolver.supportsBitFlag(bitFlag), "Should support the configured bit flag or lower");
+        assertTrue(customStrategy.supportsBitFlag(bitFlag), "Should support the configured bit flag or lower");
     }
 
     function testFuzz_getTargetWeights_UnsupportedBitFlag(uint256 bitFlag) public {
         vm.assume(bitFlag > SUPPORTED_BIT_FLAG);
-        vm.expectRevert(CustomAllocationResolver.UnsupportedBitFlag.selector);
-        customResolver.getTargetWeights(bitFlag);
+        vm.expectRevert(ManagedWeightStrategy.UnsupportedBitFlag.selector);
+        customStrategy.getTargetWeights(bitFlag);
     }
 }

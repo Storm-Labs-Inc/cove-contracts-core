@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { AllocationResolver } from "./AllocationResolver.sol";
+import { WeightStrategy } from "./WeightStrategy.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 import { BitFlag } from "src/libraries/BitFlag.sol";
 
-/// @title CustomAllocationResolver
-/// @notice A custom allocation resolver that allows manually setting target weights for a basket.
-/// @dev Inherits from AllocationResolver and AccessControlEnumerable for role-based access control.
-contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable {
+/// @title ManagedWeightStrategy
+/// @notice A custom weight strategy that allows manually setting target weights for a basket.
+/// @dev Inherits from WeightStrategy and AccessControlEnumerable for role-based access control.
+contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     /// @notice The target weights for all assets in the supported bit flag
     uint256[] public targetWeights;
 
-    /// @notice The supported bit flag for this resolver
+    /// @notice The supported bit flag for this strategy
     uint256 public immutable supportedBitFlag;
 
     /// @dev Role identifier for the manager role
@@ -28,9 +28,9 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
     /// @dev Error thrown when the sum of weights doesn't equal _WEIGHT_PRECISION (100%)
     error WeightsSumMismatch();
 
-    /// @notice Constructs the CustomAllocationResolver
+    /// @notice Constructs the ManagedWeightStrategy
     /// @param admin Address of the admin who will have DEFAULT_ADMIN_ROLE and MANAGER_ROLE
-    /// @param bitFlag The supported bit flag for this resolver
+    /// @param bitFlag The supported bit flag for this strategy
     // slither-disable-next-line locked-ether
     constructor(address admin, uint256 bitFlag) payable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -119,9 +119,9 @@ contract CustomAllocationResolver is AllocationResolver, AccessControlEnumerable
         return filteredWeights;
     }
 
-    /// @notice Returns whether the resolver supports the given bit flag, representing a list of assets
+    /// @notice Returns whether the strategy supports the given bit flag, representing a list of assets
     /// @param bitFlag The bit flag representing a list of assets
-    /// @return A boolean indicating whether the resolver supports the given bit flag
+    /// @return A boolean indicating whether the strategy supports the given bit flag
     function supportsBitFlag(uint256 bitFlag) public view override returns (bool) {
         return (supportedBitFlag & bitFlag) == bitFlag;
     }

@@ -2,21 +2,22 @@
 pragma solidity 0.8.23;
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
-import { AggregatedResolver } from "src/allocation/AggregatedResolver.sol";
-import { AllocationResolver } from "src/allocation/AllocationResolver.sol";
-import { CustomAllocationResolver } from "src/allocation/CustomResolver.sol";
+
+import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
+import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 import { BitFlag } from "src/libraries/BitFlag.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
-contract AggregatedResolverTest is BaseTest {
-    AggregatedResolver public aggregatedResolver;
-    CustomAllocationResolver public customResolver;
+contract StrategyRegistryTest is BaseTest {
+    StrategyRegistry public aggregatedResolver;
+    ManagedWeightStrategy public customResolver;
     address public admin;
     address public assetRegistry;
 
-    bytes32 private constant _ALLOCATION_RESOLVER_ROLE = keccak256("ALLOCATION_RESOLVER");
+    bytes32 private constant _WEIGHT_STRATEGY_ROLE = keccak256("WEIGHT_STRATEGY");
 
     function setUp() public override {
         super.setUp();
@@ -24,37 +25,37 @@ contract AggregatedResolverTest is BaseTest {
         vm.startPrank(admin);
 
         assetRegistry = createUser("assetRegistry");
-        aggregatedResolver = new AggregatedResolver(admin);
+        aggregatedResolver = new StrategyRegistry(admin);
         vm.stopPrank();
     }
 
     function testFuzz_constructor(address admin_) public {
-        AggregatedResolver aggregatedResolver_ = new AggregatedResolver(admin_);
+        StrategyRegistry aggregatedResolver_ = new StrategyRegistry(admin_);
         assertTrue(
             aggregatedResolver_.hasRole(aggregatedResolver_.DEFAULT_ADMIN_ROLE(), admin_),
             "Admin should have default admin role"
         );
     }
 
-    function testFuzz_grantRole_AllocationResolver(address resolver) public {
+    function testFuzz_grantRole_WeightStrategy(address resolver) public {
         vm.prank(admin);
-        aggregatedResolver.grantRole(_ALLOCATION_RESOLVER_ROLE, resolver);
-        assertTrue(aggregatedResolver.hasRole(_ALLOCATION_RESOLVER_ROLE, resolver));
+        aggregatedResolver.grantRole(_WEIGHT_STRATEGY_ROLE, resolver);
+        assertTrue(aggregatedResolver.hasRole(_WEIGHT_STRATEGY_ROLE, resolver));
     }
 
     function testFuzz_supportsBitFlag(uint256 bitFlag, string memory resolverName) public {
         address resolver = createUser(resolverName);
-        testFuzz_grantRole_AllocationResolver(resolver);
+        testFuzz_grantRole_WeightStrategy(resolver);
 
-        vm.expectCall(resolver, abi.encodeWithSelector(AllocationResolver.supportsBitFlag.selector, bitFlag));
+        vm.expectCall(resolver, abi.encodeWithSelector(WeightStrategy.supportsBitFlag.selector, bitFlag));
         vm.mockCall(
-            resolver, abi.encodeWithSelector(AllocationResolver.supportsBitFlag.selector, bitFlag), abi.encode(true)
+            resolver, abi.encodeWithSelector(WeightStrategy.supportsBitFlag.selector, bitFlag), abi.encode(true)
         );
         aggregatedResolver.supportsBitFlag(bitFlag, resolver);
     }
 
     function testFuzz_supportsBitFlag_ResolverNotSupported(uint256 bitFlag, address resolver) public {
-        vm.expectRevert(AggregatedResolver.ResolverNotSupported.selector);
+        vm.expectRevert(StrategyRegistry.ResolverNotSupported.selector);
         aggregatedResolver.supportsBitFlag(bitFlag, resolver);
     }
 

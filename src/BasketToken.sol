@@ -12,8 +12,9 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
-import { AllocationResolver } from "src/allocation/AllocationResolver.sol";
+
 import { Errors } from "src/libraries/Errors.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 // TODO: interfaces will be removed in the future
 interface IBasketManager {
@@ -186,7 +187,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     }
 
     function getTargetWeights() external view returns (uint256[] memory) {
-        return AllocationResolver(strategy).getTargetWeights(bitFlag);
+        return WeightStrategy(strategy).getTargetWeights(bitFlag);
     }
 
     /// @notice Returns the current redemption epoch.

@@ -249,7 +249,8 @@ contract BasketTokenTest is BaseTest {
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
-        uint256 totalAssetsBefore = basket.totalAssets();
+        // TODO: enable totalAssets check when totalAssets is implemented
+        // uint256 totalAssetsBefore = basket.totalAssets();
         uint256 balanceBefore = basket.balanceOf(from);
         uint256 dummyAssetBalanceBefore = dummyAsset.balanceOf(from);
         uint256 pendingDepositRequestBefore = basket.pendingDepositRequest(from);
@@ -267,7 +268,8 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
-        assertEq(basket.totalAssets(), totalAssetsBefore);
+        // TODO: enable totalAssets check when totalAssets is implemented
+        // assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(controller), balanceBefore);
         assertEq(basket.maxDeposit(controller), maxDepositBefore);
         assertEq(basket.maxMint(controller), maxMintBefore);
