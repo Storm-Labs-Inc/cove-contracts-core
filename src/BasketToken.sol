@@ -241,6 +241,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param requestId The id of the request.
     /// @param operator The address of the operator.
     /// @return assets The amount of assets pending deposit.
+    // solhint-disable-next-line no-unused-vars
     function pendingDepositRequest(uint256 requestId, address operator) public view returns (uint256 assets) {
         // TODO: implement requestId logic
         if (_lastDepositedEpoch[operator] != _currentDepositEpoch) {
@@ -257,6 +258,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Returns the amount of requested assets in Claimable state for the controller with the given requestId.
     /// @param requestId The id of the request.
     /// @param controller The address of the controller.
+    // solhint-disable-next-line no-unused-vars
     function claimableDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
         // TODO: implement requestId logic
         assets = maxDeposit(controller);
@@ -313,6 +315,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param requestId The id of the request.
     /// @param operator The address of the operator.
     /// @return shares The amount of shares pending redemption.
+    // solhint-disable-next-line no-unused-vars
     function pendingRedeemRequest(uint256 requestId, address operator) public view returns (uint256 shares) {
         // TODO: implement requestId logic
         if (_lastRedeemEpoch[operator] != _currentRedeemEpoch) {
@@ -330,6 +333,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param requestId The id of the request.
     /// @param controller The address of the controller.
     /// @return shares The amount of shares claimable.
+    // solhint-disable-next-line no-unused-vars
     function claimableRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
         // TODO: implement requestId logic
         return maxRedeem(controller);
