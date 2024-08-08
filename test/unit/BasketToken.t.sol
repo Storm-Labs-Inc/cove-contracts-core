@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-import { BasketManager } from "./../../src/BasketManager.sol";
+import { BasketManager } from "src/BasketManager.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
@@ -1620,5 +1621,21 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.isOperator(controller, operator), true);
         basket.setOperator(operator, false);
         assertEq(basket.isOperator(controller, operator), false);
+    }
+
+    function test_getTargetWeights(uint256[] memory expectedRet) public {
+        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())));
+        vm.mockCall(
+            address(basket.strategy()),
+            abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())),
+            abi.encode(expectedRet)
+        );
+        uint256[] memory ret = basket.getTargetWeights();
+        assertEq(expectedRet, ret);
+    }
+
+    // TODO: implement this test after `totalAssets` is implemented
+    function test_totalAssets() public {
+        assertEq(basket.totalAssets(), 0);
     }
 }

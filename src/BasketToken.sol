@@ -181,11 +181,12 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// factors that may affect the swap rates.
     /// @return The total value of the basket in assets.
     function totalAssets() public view override returns (uint256) {
-        // Below will not be effected by pending assets
         // TODO: Replace this with value of the basket divided by the value of the asset
-        return IBasketManager(basketManager).totalAssetValue(strategy);
+        return 0;
     }
 
+    /// @notice Returns the target weights for this basket.
+    /// @return The target weights for the basket.
     function getTargetWeights() external view returns (uint256[] memory) {
         return WeightStrategy(strategy).getTargetWeights(bitFlag);
     }

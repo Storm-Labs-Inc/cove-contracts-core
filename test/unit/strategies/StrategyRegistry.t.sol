@@ -3,7 +3,6 @@ pragma solidity 0.8.23;
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 
-import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
@@ -12,8 +11,7 @@ import { BitFlag } from "src/libraries/BitFlag.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract StrategyRegistryTest is BaseTest {
-    StrategyRegistry public aggregatedResolver;
-    ManagedWeightStrategy public customResolver;
+    StrategyRegistry public strategyRegistry;
     address public admin;
     address public assetRegistry;
 
@@ -25,43 +23,43 @@ contract StrategyRegistryTest is BaseTest {
         vm.startPrank(admin);
 
         assetRegistry = createUser("assetRegistry");
-        aggregatedResolver = new StrategyRegistry(admin);
+        strategyRegistry = new StrategyRegistry(admin);
         vm.stopPrank();
     }
 
     function testFuzz_constructor(address admin_) public {
-        StrategyRegistry aggregatedResolver_ = new StrategyRegistry(admin_);
+        StrategyRegistry strategyRegistry_ = new StrategyRegistry(admin_);
         assertTrue(
-            aggregatedResolver_.hasRole(aggregatedResolver_.DEFAULT_ADMIN_ROLE(), admin_),
+            strategyRegistry_.hasRole(strategyRegistry_.DEFAULT_ADMIN_ROLE(), admin_),
             "Admin should have default admin role"
         );
     }
 
-    function testFuzz_grantRole_WeightStrategy(address resolver) public {
+    function testFuzz_grantRole_WeightStrategy(address strategy) public {
         vm.prank(admin);
-        aggregatedResolver.grantRole(_WEIGHT_STRATEGY_ROLE, resolver);
-        assertTrue(aggregatedResolver.hasRole(_WEIGHT_STRATEGY_ROLE, resolver));
+        strategyRegistry.grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
+        assertTrue(strategyRegistry.hasRole(_WEIGHT_STRATEGY_ROLE, strategy));
     }
 
-    function testFuzz_supportsBitFlag(uint256 bitFlag, string memory resolverName) public {
-        address resolver = createUser(resolverName);
-        testFuzz_grantRole_WeightStrategy(resolver);
+    function testFuzz_supportsBitFlag(uint256 bitFlag, string memory strategyName) public {
+        address strategy = createUser(strategyName);
+        testFuzz_grantRole_WeightStrategy(strategy);
 
-        vm.expectCall(resolver, abi.encodeWithSelector(WeightStrategy.supportsBitFlag.selector, bitFlag));
+        vm.expectCall(strategy, abi.encodeWithSelector(WeightStrategy.supportsBitFlag.selector, bitFlag));
         vm.mockCall(
-            resolver, abi.encodeWithSelector(WeightStrategy.supportsBitFlag.selector, bitFlag), abi.encode(true)
+            strategy, abi.encodeWithSelector(WeightStrategy.supportsBitFlag.selector, bitFlag), abi.encode(true)
         );
-        aggregatedResolver.supportsBitFlag(bitFlag, resolver);
+        strategyRegistry.supportsBitFlag(bitFlag, strategy);
     }
 
-    function testFuzz_supportsBitFlag_ResolverNotSupported(uint256 bitFlag, address resolver) public {
-        vm.expectRevert(StrategyRegistry.ResolverNotSupported.selector);
-        aggregatedResolver.supportsBitFlag(bitFlag, resolver);
+    function testFuzz_supportsBitFlag_StrategyNotSupported(uint256 bitFlag, address strategy) public {
+        vm.expectRevert(StrategyRegistry.StrategyNotSupported.selector);
+        strategyRegistry.supportsBitFlag(bitFlag, strategy);
     }
 
     // TODO: remove this after BasketManager is refactored to use AssetRegistry.getAssets(bitFlag)
     function test_getAssets() public {
-        address[] memory ret = aggregatedResolver.getAssets(0);
+        address[] memory ret = strategyRegistry.getAssets(0);
         assertEq(ret.length, 0, "Should return empty array");
     }
 }

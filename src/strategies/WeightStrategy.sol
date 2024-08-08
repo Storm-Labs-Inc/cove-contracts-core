@@ -10,8 +10,8 @@ abstract contract WeightStrategy {
     /// @return The target weights of the assets in the basket.
     function getTargetWeights(uint256 bitFlag) public view virtual returns (uint256[] memory) { }
 
-    /// @notice Returns whether the resolver supports the given bit flag, representing a list of assets.
+    /// @notice Returns whether the strategy supports the given bit flag, representing a list of assets.
     /// @param bitFlag The bit flag representing a list of assets.
-    /// @return Whether the resolver supports the given bit flag.
+    /// @return Whether the strategy supports the given bit flag.
     function supportsBitFlag(uint256 bitFlag) public view virtual returns (bool) { }
 }

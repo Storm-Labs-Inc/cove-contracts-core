@@ -5,7 +5,7 @@ import { WeightStrategy } from "./WeightStrategy.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
 /// @title StrategyRegistry
-/// @notice An aggregated resolver that acts as a registry of supported resolvers.
+/// @notice A registry for weight strategies that allows checking if a strategy supports a specific bit flag.
 /// @dev Inherits from AccessControlEnumerable for role-based access control.
 /// Roles:
 /// - DEFAULT_ADMIN_ROLE: The default role given to an address at creation. Can grant and revoke roles.
@@ -14,8 +14,8 @@ contract StrategyRegistry is AccessControlEnumerable {
     /// @dev Role identifier for weight strategys
     bytes32 private constant _WEIGHT_STRATEGY_ROLE = keccak256("WEIGHT_STRATEGY");
 
-    /// @dev Error thrown when an unsupported resolver is used
-    error ResolverNotSupported();
+    /// @dev Error thrown when an unsupported strategy is used
+    error StrategyNotSupported();
 
     /// @notice Constructs the StrategyRegistry contract
     /// @param admin The address that will be granted the DEFAULT_ADMIN_ROLE
@@ -27,10 +27,10 @@ contract StrategyRegistry is AccessControlEnumerable {
     /// @notice Checks if a given weight strategy supports a specific bit flag
     /// @param bitFlag The bit flag to check support for
     /// @param weightStrategy The address of the weight strategy to check
-    /// @return bool True if the resolver supports the bit flag, false otherwise
+    /// @return bool True if the strategy supports the bit flag, false otherwise
     function supportsBitFlag(uint256 bitFlag, address weightStrategy) external view returns (bool) {
         if (!hasRole(_WEIGHT_STRATEGY_ROLE, weightStrategy)) {
-            revert ResolverNotSupported();
+            revert StrategyNotSupported();
         }
         return WeightStrategy(weightStrategy).supportsBitFlag(bitFlag);
     }

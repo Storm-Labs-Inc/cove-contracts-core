@@ -220,7 +220,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation_ Address of the basket token implementation.
     /// @param eulerRouter_ Address of the oracle registry.
-    /// @param strategyRegistry_ Address of the allocation resolver.
+    /// @param strategyRegistry_ Address of the strategy registry.
     constructor(
         address basketTokenImplementation_,
         address eulerRouter_,
