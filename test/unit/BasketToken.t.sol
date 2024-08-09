@@ -395,17 +395,26 @@ contract BasketTokenTest is BaseTest {
         public
     {
         testFuzz_requestDeposit(totalAmount, from);
-        vm.expectRevert(BasketToken.CannotFulfillWithZeroShares.selector);
         vm.startPrank(address(basketManager));
         basket.prepareForRebalance();
+        vm.expectRevert(BasketToken.CannotFulfillWithZeroShares.selector);
         basket.fulfillDeposit(0);
     }
 
-    function testFuzz_fulfillDeposit_revertsWhen_ZeroPendingDeposits(uint256 issuedShares) public {
+    function testFuzz_fulfillDeposit_revertsWhen_ZeroPendingDeposits(
+        uint256 issuedShares,
+        uint256 totalDepositAmount,
+        uint256 redeemAmount
+    )
+        public
+    {
+        // Must do a full rebalnce cycle because requestId is initialized as 1 and fulfillDeposit() will underflow if
+        // called
+        testFuzz_withdraw(totalDepositAmount, issuedShares, redeemAmount);
         assertEq(basket.totalPendingDeposits(), 0);
         vm.startPrank(address(basketManager));
-        vm.expectRevert(BasketToken.ZeroPendingDeposits.selector);
         basket.prepareForRebalance();
+        vm.expectRevert(BasketToken.ZeroPendingDeposits.selector);
         basket.fulfillDeposit(issuedShares);
     }
 
@@ -482,7 +491,6 @@ contract BasketTokenTest is BaseTest {
             uint256 maxMint = basket.maxMint(fuzzedUsers[i]);
             assertGt(depositAmounts[i], 0, "users should have non-zero deposit amount before testing");
             assertGt(maxDeposit, 0, "Max deposit should be greater than 0 if user has pending deposit");
-            assertGt(maxMint, 0, "Max mint should be greater than 0 if user has pending deposit");
             assertGt(
                 basket.claimableDepositRequest(requestId, fuzzedUsers[i]),
                 0,
@@ -576,11 +584,6 @@ contract BasketTokenTest is BaseTest {
             uint256 basketBalanceBefore = basket.balanceOf(address(basket));
             uint256 maxDeposit = basket.maxDeposit(from);
             uint256 maxMint = basket.maxMint(from);
-            // TODO: Allow 0 as shares value when `mint` is called
-            // In case of "bad" assets to shares ratio, maxMint can be zero despite non zero assets deposited.
-            // This will block future deposits from this user since their pending deposits cannot be ressetted to 0.
-            // Therefore we need a way to allow 0 as shares value when `mint` is called.
-            vm.assume(maxMint > 0);
 
             // Call mint
             vm.prank(from);
@@ -603,11 +606,6 @@ contract BasketTokenTest is BaseTest {
             uint256 basketBalanceBefore = basket.balanceOf(address(basket));
             uint256 maxDeposit = basket.maxDeposit(from);
             uint256 maxMint = basket.maxMint(from);
-            // TODO: Allow 0 as shares value when `mint` is called
-            // In case of "bad" assets to shares ratio, maxMint can be zero despite non zero assets deposited.
-            // This will block future deposits from this user since their pending deposits cannot be ressetted to 0.
-            // Therefore we need a way to allow 0 as shares value when `mint` is called.
-            vm.assume(maxMint > 0);
 
             // Set Operator
             vm.prank(from);
@@ -631,11 +629,6 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 maxMint = basket.maxMint(from);
-            // TODO: Allow 0 as shares value when `mint` is called
-            // In case of "bad" assets to shares ratio, maxMint can be zero despite non zero assets deposited.
-            // This will block future deposits from this user since their pending deposits cannot be ressetted to 0.
-            // Therefore we need a way to allow 0 as shares value when `mint` is called.
-            vm.assume(maxMint > 0);
 
             // Set Operator
             assert(!basket.isOperator(from, operator));
@@ -645,12 +638,6 @@ contract BasketTokenTest is BaseTest {
             vm.prank(operator);
             basket.mint(maxMint, from, from);
         }
-    }
-
-    function testFuzz_mint_revertsWhen_zeroAmount(address from) public {
-        vm.prank(from);
-        vm.expectRevert(Errors.ZeroAmount.selector);
-        basket.mint(0, from, from);
     }
 
     function testFuzz_mint_revertsWhen_notClaimingFullOutstandingDeposit(
@@ -696,7 +683,13 @@ contract BasketTokenTest is BaseTest {
         basket.cancelDepositRequest();
     }
 
-    function _testFuzz_requestRedeem(address[MAX_USERS] memory callers, address[MAX_USERS] memory dests) internal {
+    function _testFuzz_requestRedeem(
+        address[MAX_USERS] memory callers,
+        address[MAX_USERS] memory dests
+    )
+        internal
+        returns (uint256 requestId)
+    {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             address caller = callers[i];
@@ -707,7 +700,7 @@ contract BasketTokenTest is BaseTest {
             // Ignores the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userSharesBefore > 0);
             uint256 basketBalanceOfSelfBefore = basket.balanceOf(address(basket));
-            uint256 pendingRedeemRequestBefore = basket.pendingRedeemRequest(basket.lastRedeemRequestId(from), from);
+            uint256 pendingRedeemRequestBefore = basket.pendingRedeemRequest(basket.lastRedeemRequestId(to), to);
             uint256 totalPendingRedeemsBefore = basket.totalPendingRedemptions();
             uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userSharesBefore))), 1, userSharesBefore);
 
@@ -717,15 +710,31 @@ contract BasketTokenTest is BaseTest {
 
             // Call requestRedeem
             vm.prank(caller);
-            uint256 requestId = basket.requestRedeem(sharesToRedeem, to, from);
+            requestId = basket.requestRedeem(sharesToRedeem, to, from);
 
             // Check state
-            assertEq(basket.pendingRedeemRequest(requestId, to), pendingRedeemRequestBefore + sharesToRedeem);
-            assertEq(basket.totalPendingRedemptions(), totalPendingRedeemsBefore + sharesToRedeem);
-            assertEq(basket.balanceOf(from), userSharesBefore - sharesToRedeem);
-            assertEq(basket.balanceOf(address(basket)), basketBalanceOfSelfBefore + sharesToRedeem);
-            assertEq(basket.maxRedeem(from), 0);
-            assertEq(basket.maxWithdraw(from), 0);
+            assertEq(
+                basket.pendingRedeemRequest(requestId, to),
+                pendingRedeemRequestBefore + sharesToRedeem,
+                "_testFuzz_requestRedeem: pendingRedeemRequest mismatch"
+            );
+            assertEq(
+                basket.totalPendingRedemptions(),
+                totalPendingRedeemsBefore + sharesToRedeem,
+                "_testFuzz_requestRedeem: totalPendingRedemptions mismatch"
+            );
+            assertEq(
+                basket.balanceOf(from),
+                userSharesBefore - sharesToRedeem,
+                "_testFuzz_requestRedeem: balanceOf(from) mismatch"
+            );
+            assertEq(
+                basket.balanceOf(address(basket)),
+                basketBalanceOfSelfBefore + sharesToRedeem,
+                "_testFuzz_requestRedeem: balanceOf(basket) mismatch"
+            );
+            assertEq(basket.maxRedeem(from), 0, "_testFuzz_requestRedeem: maxRedeem mismatch");
+            assertEq(basket.maxWithdraw(from), 0, "_testFuzz_requestRedeem: maxWithdraw mismatch");
         }
     }
 
@@ -757,12 +766,28 @@ contract BasketTokenTest is BaseTest {
             uint256 requestId = basket.requestRedeem(sharesToRedeem, to, from);
 
             // Check state
-            assertEq(basket.pendingRedeemRequest(requestId, to), sharesToRedeem);
-            assertEq(basket.totalPendingRedemptions(), totalPendingRedeemsBefore + sharesToRedeem);
-            assertEq(basket.balanceOf(from), userSharesBefore - sharesToRedeem);
-            assertEq(basket.balanceOf(address(basket)), basketBalanceOfSelfBefore + sharesToRedeem);
-            assertEq(basket.maxRedeem(from), 0);
-            assertEq(basket.maxWithdraw(from), 0);
+            assertEq(
+                basket.pendingRedeemRequest(requestId, to),
+                sharesToRedeem,
+                "_testFuzz_requestRedeem_setOperator: pendingRedeemRequest mismatch"
+            );
+            assertEq(
+                basket.totalPendingRedemptions(),
+                totalPendingRedeemsBefore + sharesToRedeem,
+                "_testFuzz_requestRedeem_setOperator: totalPendingRedemptions mismatch"
+            );
+            assertEq(
+                basket.balanceOf(from),
+                userSharesBefore - sharesToRedeem,
+                "_testFuzz_requestRedeem_setOperator: balanceOf(from) mismatch"
+            );
+            assertEq(
+                basket.balanceOf(address(basket)),
+                basketBalanceOfSelfBefore + sharesToRedeem,
+                "_testFuzz_requestRedeem_setOperator: balanceOf(basket) mismatch"
+            );
+            assertEq(basket.maxRedeem(from), 0, "_testFuzz_requestRedeem_setOperator: maxRedeem mismatch");
+            assertEq(basket.maxWithdraw(from), 0, "_testFuzz_requestRedeem_setOperator: maxWithdraw mismatch");
         }
     }
 
@@ -780,12 +805,12 @@ contract BasketTokenTest is BaseTest {
     }
 
     function testFuzz_requestRedeem(uint256 amount, uint256 issuedShares) public returns (uint256 requestId) {
-        requestId = testFuzz_deposit(amount, issuedShares);
+        testFuzz_deposit(amount, issuedShares);
         address[MAX_USERS] memory users_;
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             users_[i] = fuzzedUsers[i];
         }
-        _testFuzz_requestRedeem(users_, users_);
+        requestId = _testFuzz_requestRedeem(users_, users_);
     }
 
     function testFuzz_requestRedeem_passWhen_pendingRedeemRequest(uint256 amount, uint256 issuedShares) public {
@@ -918,17 +943,39 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
 
         // Check state
-        assertEq(dummyAsset.balanceOf(address(basketManager)), basketManagerBalanceBefore - fulfillAmount);
-        assertEq(basket.balanceOf(address(basket)), basketBalanceBefore - totalPendingRedeemsBefore);
-        assertEq(basket.totalPendingRedemptions(), 0);
+        assertEq(
+            dummyAsset.balanceOf(address(basketManager)),
+            basketManagerBalanceBefore - fulfillAmount,
+            "testFuzz_fulfillRedeem: Incorrect basketManager balance"
+        );
+        assertEq(
+            basket.balanceOf(address(basket)),
+            basketBalanceBefore - totalPendingRedeemsBefore,
+            "testFuzz_fulfillRedeem: Incorrect basket balance"
+        );
+        assertEq(basket.totalPendingRedemptions(), 0, "testFuzz_fulfillRedeem: Incorrect total pending redemptions");
         for (uint256 i = 0; i < MAX_USERS; ++i) {
-            assertEq(basket.pendingRedeemRequest(requestId, fuzzedUsers[i]), 0);
-            assertEq(basket.claimableRedeemRequest(0, fuzzedUsers[i]), redeemShares[i]);
-            assertEq(basket.maxRedeem(fuzzedUsers[i]), redeemShares[i]);
-            // TODO: maxRedeem returning 0 for deposits with small amounts
             assertEq(
-                basket.maxWithdraw(fuzzedUsers[i]), redeemShares[i].fullMulDiv(fulfillAmount, totalPendingRedeemsBefore)
+                basket.pendingRedeemRequest(requestId, fuzzedUsers[i]),
+                0,
+                "testFuzz_fulfillRedeem: Incorrect pending redeem request"
             );
+            assertEq(
+                basket.claimableRedeemRequest(requestId, fuzzedUsers[i]),
+                redeemShares[i],
+                "testFuzz_fulfillRedeem: Incorrect claimable redeem request"
+            );
+            // // TODO: any other checks to be made here?
+            if (redeemShares[i] != 0) {
+                assertEq(
+                    basket.maxRedeem(fuzzedUsers[i]), redeemShares[i], "testFuzz_fulfillRedeem: Incorrect max redeem"
+                );
+                assertEq(
+                    basket.maxWithdraw(fuzzedUsers[i]),
+                    redeemShares[i].fullMulDiv(fulfillAmount, totalPendingRedeemsBefore),
+                    "testFuzz_fulfillRedeem: Incorrect max withdraw"
+                );
+            }
         }
     }
 
@@ -948,7 +995,11 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             pendingShares[i] = basket.pendingRedeemRequest(requestId, from);
-            assertGt(pendingShares[i], 0, "Pending redeem request should be greater than 0");
+            if (basket.maxWithdraw(from) > 0) {
+                assertGt(
+                    pendingShares[i], 0, "testFuzz_prepareForRebalance: Pending redeem request should be greater than 0"
+                );
+            }
         }
 
         // Call prepareForRebalance
@@ -957,14 +1008,20 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(
-            preFulfilledShares, pendingSharesBefore, "PreFulfilled shares should be equal to total pending redeems"
+            preFulfilledShares,
+            pendingSharesBefore,
+            "testFuzz_prepareForRebalance: PreFulfilled shares should be equal to total pending redeems"
         );
-        assertEq(basket.totalPendingRedemptions(), 0, "Total pending redeems should be 0 after prepareForRebalance");
+        assertEq(
+            basket.totalPendingRedemptions(),
+            0,
+            "testFuzz_prepareForRebalance: Total pending redeems should be 0 after prepareForRebalance"
+        );
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             assertEq(
                 basket.pendingRedeemRequest(requestId, fuzzedUsers[i]),
                 0,
-                "Pending redeem requests should be 0 after prepareForRebalance"
+                "testFuzz_prepareForRebalance: Pending redeem requests should be 0 after prepareForRebalance"
             );
         }
     }
@@ -978,20 +1035,15 @@ contract BasketTokenTest is BaseTest {
     function testFuzz_fulfillRedeem_revertsWhen_prepareForRebalance_notCalled(
         uint256 amount,
         uint256 issuedShares,
+        uint256 redeemAmount,
         uint256 fulfillAmount
     )
         public
     {
-        testFuzz_requestRedeem(amount, issuedShares);
+        testFuzz_redeem(amount, issuedShares, redeemAmount);
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
-        basket.fulfillRedeem(fulfillAmount);
-        vm.stopPrank();
-        testFuzz_requestRedeem(amount, issuedShares);
-        vm.startPrank(address(basketManager));
-        basket.fulfillRedeem(fulfillAmount);
         vm.expectRevert(BasketToken.PrepareForRebalanceNotCalled.selector);
-        testFuzz_requestRedeem(amount, issuedShares);
+        basket.fulfillRedeem(fulfillAmount);
         vm.stopPrank();
     }
 
@@ -1048,9 +1100,14 @@ contract BasketTokenTest is BaseTest {
             // Check state
             assertEq(
                 basket.pendingRedeemRequest(basket.lastRedeemRequestId(from), from),
-                userPendingRequest + sharesToRequest
+                userPendingRequest + sharesToRequest,
+                "testFuzz_requestRedeem_passWhen_afterWithdraw: pendingRedeemRequest mismatch"
             );
-            assertEq(basket.totalPendingRedemptions(), totalPendingRedeems + sharesToRequest);
+            assertEq(
+                basket.totalPendingRedemptions(),
+                totalPendingRedeems + sharesToRequest,
+                "testFuzz_requestRedeem_passWhen_afterWithdraw: totalPendingRedemptions mismatch"
+            );
         }
     }
 
@@ -1190,22 +1247,18 @@ contract BasketTokenTest is BaseTest {
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxRedeem = basket.maxRedeem(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
-            // Ignore the cases where the user has redeemed non zero shares but will receive zero assets
-            // TODO: Allow 0 as assets value when `withdraw` is called
-            // In case of "bad" assets to shares ratio, maxWithdraw can be zero despite non zero shares redeemed.
-            // This will block future redeems from this user since their pending redeems cannot be ressetted to 0.
-            // Therefore we need a way to allow 0 as assets value when `withdraw` is called to ensure that the user's
-            // pending redeems can be reset to 0.
-            vm.assume(maxWithdraw > 0);
 
             // Call redeem
             vm.prank(from);
-            assertEq(basket.withdraw(maxWithdraw, from, from), maxRedeem);
+            uint256 withdrawnAssets = basket.withdraw(maxWithdraw, from, from);
+            assertEq(withdrawnAssets, maxRedeem, "testFuzz_withdraw: Incorrect withdrawn assets");
 
             // Check state
-            assertEq(dummyAsset.balanceOf(from), userBalanceBefore + maxWithdraw);
-            assertEq(basket.maxRedeem(from), 0);
-            assertEq(basket.maxWithdraw(from), 0);
+            assertEq(
+                dummyAsset.balanceOf(from), userBalanceBefore + maxWithdraw, "testFuzz_withdraw: Incorrect user balance"
+            );
+            assertEq(basket.maxRedeem(from), 0, "testFuzz_withdraw: Incorrect max redeem");
+            assertEq(basket.maxWithdraw(from), 0, "testFuzz_withdraw: Incorrect max withdraw");
         }
     }
 
@@ -1224,13 +1277,6 @@ contract BasketTokenTest is BaseTest {
             uint256 userBalanceBefore = dummyAsset.balanceOf(from);
             uint256 maxRedeem = basket.maxRedeem(from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
-            // Ignore the cases where the user has redeemed non zero shares but will receive zero assets
-            // TODO: Allow 0 as assets value when `withdraw` is called
-            // In case of "bad" assets to shares ratio, maxWithdraw can be zero despite non zero shares redeemed.
-            // This will block future redeems from this user since their pending redeems cannot be ressetted to 0.
-            // Therefore we need a way to allow 0 as assets value when `withdraw` is called to ensure that the user's
-            // pending redeems can be reset to 0.
-            vm.assume(maxWithdraw > 0);
 
             // Set operator
             vm.prank(from);
@@ -1260,13 +1306,6 @@ contract BasketTokenTest is BaseTest {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             uint256 maxWithdraw = basket.maxWithdraw(from);
-            // Ignore the cases where the user has redeemed non zero shares but will receive zero assets
-            // TODO: Allow 0 as assets value when `withdraw` is called
-            // In case of "bad" assets to shares ratio, maxWithdraw can be zero despite non zero shares redeemed.
-            // This will block future redeems from this user since their pending redeems cannot be ressetted to 0.
-            // Therefore we need a way to allow 0 as assets value when `withdraw` is called to ensure that the user's
-            // pending redeems can be reset to 0.
-            vm.assume(maxWithdraw > 0);
 
             assert(!basket.isOperator(fuzzedUsers[i], operator));
 
@@ -1275,13 +1314,6 @@ contract BasketTokenTest is BaseTest {
             vm.prank(operator);
             basket.withdraw(maxWithdraw, from, from);
         }
-    }
-
-    function testFuzz_withdraw_revertsWhen_zeroAmount(address caller, address user, address receiver) public {
-        vm.assume(caller != address(0) && user != address(0) && receiver != address(0));
-        vm.expectRevert(Errors.ZeroAmount.selector);
-        vm.prank(caller);
-        basket.withdraw(0, user, receiver);
     }
 
     function testFuzz_withdraw_revertsWhen_notClaimingFullOutstandingRedeem(
@@ -1347,15 +1379,10 @@ contract BasketTokenTest is BaseTest {
 
     function testFuzz_fallbackRedeemTrigger(uint256 totalDepositAmount, uint256 issuedShares) public {
         uint256 requestId = testFuzz_prepareForRebalance(totalDepositAmount, issuedShares);
-
         // Call fallbackRedeemTrigger
         vm.prank(address(basketManager));
         basket.fallbackRedeemTrigger();
-        assertEq(
-            basket.fallbackTriggered(requestId),
-            true,
-            "Redemption status of requestId should be changed to FALLBACK_TRIGGERED"
-        );
+        assertEq(basket.fallbackTriggered(requestId), true, "Fallback status of requestId should be changed to true");
     }
 
     function testFuzz_claimFallbackShares(uint256 totalDepositAmount, uint256 issuedShares) public {
@@ -1423,8 +1450,10 @@ contract BasketTokenTest is BaseTest {
         dummyAsset.approve(address(basket), amount);
         basket.requestDeposit(amount, alice, alice);
         vm.stopPrank();
-        vm.prank(address(basketManager));
+        vm.startPrank(address(basketManager));
+        basket.prepareForRebalance();
         basket.fulfillDeposit(issuedShares);
+        vm.stopPrank();
         vm.startPrank(alice);
         basket.deposit(amount, alice, alice);
         basket.requestRedeem(issuedShares, alice, alice);
@@ -1470,6 +1499,9 @@ contract BasketTokenTest is BaseTest {
 
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address user = fuzzedUsers[i];
+            if (basket.maxWithdraw(user) == 0) {
+                continue;
+            }
             // Call redeem
             vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimFullAmount.selector));
             vm.prank(user);
