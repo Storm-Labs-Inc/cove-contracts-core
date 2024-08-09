@@ -7,6 +7,7 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
@@ -151,10 +152,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
+    bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
     /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
     StrategyRegistry public immutable strategyRegistry;
 
     /// STATE VARIABLES ///
+    /// @notice Address of the TokenSwapAdapter contract used to execute token swaps.
+    address public tokenSwapAdapter;
     /// @notice Array of all basket tokens.
     address[] public basketTokens;
     /// @notice Mapping of basket token to asset to balance.
@@ -559,8 +563,17 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
     /// @dev This function can only be called after proposeTokenSwap.
-    function executeTokenSwap() external onlyRole(REBALANCER_ROLE) nonReentrant {
-        // TODO: Implement the logic to execute token swap
+    function executeTokenSwap(bytes calldata data) external onlyRole(REBALANCER_ROLE) nonReentrant {
+        (bool success, bytes memory data) =
+            tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, data));
+    }
+
+    /// @notice Sets the address of the TokenSwapAdapter contract used to execute token swaps.
+    function setTokenSwapAdapter(address tokenSwapAdapter_) external onlyRole(_TIMELOCK_ROLE) {
+        if (tokenSwapAdapter_ == address(0)) {
+            revert ZeroAddress();
+        }
+        tokenSwapAdapter = tokenSwapAdapter_;
     }
 
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
