@@ -12,7 +12,7 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 /// - WEIGHT_STRATEGY_ROLE: Role given to approved weight strategys.
 contract StrategyRegistry is AccessControlEnumerable {
     /// @dev Role identifier for weight strategys
-    bytes32 private constant _WEIGHT_STRATEGY_ROLE = keccak256("WEIGHT_STRATEGY_ROLE");
+    bytes32 private constant _WEIGHT_STRATEGY_ROLE = keccak256("WEIGHT_STRATEGY");
 
     /// @dev Error thrown when an unsupported strategy is used
     error StrategyNotSupported();
