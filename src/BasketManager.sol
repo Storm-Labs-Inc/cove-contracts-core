@@ -284,7 +284,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             revert BaseAssetMismatch();
         }
         // Effects
-        basket = Clones.clone(basketTokenImplementation);
+        basket = Clones.clone(_basketTokenImplementation);
         _grantRole(_BASKET_TOKEN_ROLE, basket);
         basketTokens.push(basket);
         basketAssets[basket] = assets;
