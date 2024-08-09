@@ -487,7 +487,7 @@ contract BasketTokenTest is BaseTest {
 
             // Call deposit
             vm.prank(fuzzedUsers[i]);
-            uint256 shares = basket.deposit(maxDeposit, fuzzedUsers[i], fuzzedUsers[i]);
+            uint256 shares = basket.deposit(maxDeposit, fuzzedUsers[i]);
 
             // Check state
             assertEq(shares, maxMint);
@@ -572,14 +572,14 @@ contract BasketTokenTest is BaseTest {
             // Call deposit from operator
             vm.expectRevert();
             vm.prank(operator);
-            basket.deposit(maxDeposit, fuzzedUsers[i], fuzzedUsers[i]);
+            basket.deposit(maxDeposit, fuzzedUsers[i]);
         }
     }
 
     function testFuzz_deposit_revertsWhen_zeroAmount(address from) public {
         vm.prank(from);
         vm.expectRevert(Errors.ZeroAmount.selector);
-        basket.deposit(0, from, from);
+        basket.deposit(0, from);
     }
 
     function testFuzz_deposit_revertsWhen_notClaimingFullOutstandingDeposit(
@@ -598,7 +598,7 @@ contract BasketTokenTest is BaseTest {
             // Call deposit with partial amount
             vm.expectRevert(BasketToken.MustClaimFullAmount.selector);
             vm.prank(from);
-            basket.deposit(claimingAmount, from, from);
+            basket.deposit(claimingAmount, from);
         }
     }
 
@@ -613,7 +613,7 @@ contract BasketTokenTest is BaseTest {
 
             // Call mint
             vm.prank(from);
-            assertEq(basket.mint(maxMint, from, from), maxDeposit);
+            assertEq(basket.mint(maxMint, from), maxDeposit);
 
             // Check state
             assertEq(basket.balanceOf(from), userBalanceBefore + maxMint);
@@ -662,7 +662,7 @@ contract BasketTokenTest is BaseTest {
             // Call mint
             vm.expectRevert();
             vm.prank(operator);
-            basket.mint(maxMint, from, from);
+            basket.mint(maxMint, operator, from);
         }
     }
 
@@ -928,7 +928,7 @@ contract BasketTokenTest is BaseTest {
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
         vm.startPrank(alice);
-        basket.deposit(amount, alice, alice);
+        basket.deposit(amount, alice);
         basket.requestRedeem(issuedShares / 2, alice, alice);
         vm.stopPrank();
         vm.startPrank(address(basketManager));
@@ -1481,7 +1481,7 @@ contract BasketTokenTest is BaseTest {
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
         vm.startPrank(alice);
-        basket.deposit(amount, alice, alice);
+        basket.deposit(amount, alice);
         basket.requestRedeem(issuedShares, alice, alice);
         vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroClaimableFallbackShares.selector));
         basket.claimFallbackShares();

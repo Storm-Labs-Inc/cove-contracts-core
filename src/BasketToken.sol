@@ -202,7 +202,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             _requestIdControllerRequest[requestId][controller].assetsForDeposit + assets;
         // update total pending deposits for the current requestId
         _totalPendingAssets[requestId] = _totalPendingAssets[requestId] + assets;
-        // update controllers lastest deposit request id
+        // update controllers latest deposit request id
         lastDepositRequestId[controller] = requestId;
         emit DepositRequest(controller, owner, requestId, msg.sender, assets);
         // Interactions
