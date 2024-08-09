@@ -251,7 +251,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert AssetPaused();
         }
         // Effects
-        requestId = _currentRedemtionRequestId();
+        requestId = _currentRedemptionRequestId();
         _totalPendingRedemptions[requestId] = _totalPendingRedemptions[requestId] + shares;
         lastRedeemRequestId[controller] = requestId;
         // update controllers balance of assets pending deposit
@@ -267,7 +267,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param controller The address of the controller of the redemption request.
     /// @return shares The amount of shares pending redemption.
     function pendingRedeemRequest(uint256 requestId, address controller) public returns (uint256 shares) {
-        shares = requestId == _currentRedemtionRequestId()
+        shares = requestId == _currentRedemptionRequestId()
             ? _requestIdControllerRequest[requestId][controller].sharesForRedemption
             : 0;
     }
@@ -347,7 +347,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Returns the total number of shares pending redemption.
     /// @return The total pending redeem amount.
     function totalPendingRedemptions() public returns (uint256) {
-        return _totalPendingRedemptions[_currentRedemtionRequestId()];
+        return _totalPendingRedemptions[_currentRedemptionRequestId()];
     }
 
     /// @notice Cancels a pending deposit request.
@@ -369,7 +369,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
 
     /// @notice Cancels a pending redeem request.
     function cancelRedeemRequest() public {
-        uint256 currentRequestId = _currentRedemtionRequestId();
+        uint256 currentRequestId = _currentRedemptionRequestId();
         // Checks
         uint256 pendingRedeem = pendingRedeemRequest(currentRequestId, msg.sender);
         if (pendingRedeem == 0) {
@@ -647,7 +647,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Returns the current requestId for redemptions. This is staggered by 1 from the current deposit requestId
     /// to ensure all requests with the same id are fungible
     /// @return requestId The current requestId to be used for redemptions.
-    function _currentRedemtionRequestId() internal returns (uint256 requestId) {
+    function _currentRedemptionRequestId() internal returns (uint256 requestId) {
         requestId = _currentRequestId + 1;
     }
 
