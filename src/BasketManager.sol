@@ -1,29 +1,25 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
-
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
-
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-
 import { BasketToken } from "src/BasketToken.sol";
-
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
-import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
-
 import { MathUtils } from "src/libraries/MathUtils.sol";
-
+import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
+// TODO: Remove console import after testing
 import { console } from "forge-std/console.sol";
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// here.
-contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
+contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
@@ -144,6 +140,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     uint256 private constant _MAX_WEIGHT_DEVIATION_BPS = 0.05e18; // .05%
     /// @notice Precision used for weight calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
+    /// @notice Magic value for ERC1271 signature validation.
+    uint256 private constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
     /// @notice Manager role. Managers can create new baskets.
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @notice Pauser role.
@@ -220,6 +218,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error InternalTradeMinMaxAmountNotReached();
     error PriceOutOfSafeBounds();
     error IncorrectTradeTokenAmount();
+    error ExecuteTokenSwapFailed();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation_ Address of the basket token implementation.
@@ -562,10 +561,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     }
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
+    /// @param data Encoded data for the token swap.
     /// @dev This function can only be called after proposeTokenSwap.
     function executeTokenSwap(bytes calldata data) external onlyRole(REBALANCER_ROLE) nonReentrant {
-        (bool success, bytes memory data) =
-            tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, data));
+        (bool success,) = tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, data));
+        if (!success) {
+            revert ExecuteTokenSwapFailed();
+        }
     }
 
     /// @notice Sets the address of the TokenSwapAdapter contract used to execute token swaps.
@@ -960,5 +962,25 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 ++i;
             }
         }
+    }
+
+    // ERC1271: CoWSwap will rely on this function to check if a submitted order is valid
+    function isValidSignature(
+        bytes32 hash,
+        bytes calldata /* signature */
+    )
+        external
+        view
+        returns (bytes4 magicValue)
+    {
+        // make a delegate call to swap adapter to check if the hash is valid
+        bool isHashVerified = false;
+        if (_basketManagerStorage().verifiedCowswapOrders[hash]) {
+            // This hash is for CowSwap
+        } else {
+            // This hash is not valid in any context
+            revert("unrecognized signature");
+        }
+        magicValue = _ERC1271_MAGIC_VALUE;
     }
 }
