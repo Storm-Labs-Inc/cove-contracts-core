@@ -215,8 +215,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param controller The address of the controller of the deposit request.
     /// @return assets The amount of assets pending deposit.
     function pendingDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
-        assets =
-            requestId == _currentRequestId ? _requestIdControllerRequest[requestId][controller].assetsForDeposit : 0;
+        assets = _fulfilledRate[requestId].shares == 0
+            ? _requestIdControllerRequest[requestId][controller].assetsForDeposit
+            : 0;
     }
 
     /// @notice Returns the amount of requested assets in Claimable state for the controller with the given requestId.
