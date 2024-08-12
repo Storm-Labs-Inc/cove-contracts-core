@@ -5,14 +5,10 @@ import { AccessControlEnumerableUpgradeable } from
     "@openzeppelin-upgradeable/contracts/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ERC165 } from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
-
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
@@ -24,7 +20,7 @@ interface IBasketManager {
 /// @title BasketToken
 /// @notice Contract responsible for accounting for users deposit and redemption requests, which are asynchronously
 /// fulfilled by the Basket Manager
-contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, ERC165 {
+contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
@@ -654,15 +650,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Checks if the contract supports the given interface.
     /// @param interfaceID The interface ID.
     /// @return True if the contract supports the interface, false otherwise.
-    function supportsInterface(
-        bytes4 interfaceID
-    )
-        public
-        view
-        virtual
-        override(AccessControlEnumerableUpgradeable, ERC165)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceID) public view virtual override returns (bool) {
         return super.supportsInterface(interfaceID) || _supportedInterfaces[interfaceID];
     }
 }
