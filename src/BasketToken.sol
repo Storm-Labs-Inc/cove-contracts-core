@@ -656,7 +656,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Checks if the contract supports the given interface.
     /// @param interfaceID The interface ID.
     /// @return True if the contract supports the interface, false otherwise.
-    function supportsInterface(bytes4 interfaceID)
+    function supportsInterface(
+        bytes4 interfaceID
+    )
         public
         view
         virtual
