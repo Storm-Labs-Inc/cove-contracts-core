@@ -982,7 +982,7 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.totalPendingRedemptions(), 0, "testFuzz_fulfillRedeem: Incorrect total pending redemptions");
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             // A redeem request will return a pending balance until claimed
-            assertGt(
+            assertEq(
                 basket.pendingRedeemRequest(requestId, fuzzedUsers[i]),
                 0,
                 "testFuzz_fulfillRedeem: Incorrect pending redeem request"
@@ -1044,9 +1044,9 @@ contract BasketTokenTest is BaseTest {
             "testFuzz_prepareForRebalance: Total pending redeems should be 0 after prepareForRebalance"
         );
         for (uint256 i = 0; i < MAX_USERS; ++i) {
-            assertGt(
+            assertEq(
                 basket.pendingRedeemRequest(requestId, fuzzedUsers[i]),
-                0,
+                pendingShares[i],
                 "testFuzz_prepareForRebalance: Pending redeem requests should be greater than 0 after prepareForRebalance"
             );
         }

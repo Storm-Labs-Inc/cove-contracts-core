@@ -234,7 +234,14 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param shares The amount of shares to redeem.
     /// @param controller The address of the controller of the redeemed shares.
     /// @param owner The address of the request owner.
-    function requestRedeem(uint256 shares, address controller, address owner) public returns (uint256 requestId) {
+    function requestRedeem(
+        uint256 shares,
+        address controller,
+        address owner
+    )
+        public
+        returns (uint256 currentRedeemRequestId)
+    {
         // Checks
         if (shares == 0) {
             revert Errors.ZeroAmount();
@@ -251,23 +258,25 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
             revert AssetPaused();
         }
         // Effects
-        requestId = _currentRedemptionRequestId();
-        _totalPendingRedemptions[requestId] = _totalPendingRedemptions[requestId] + shares;
-        lastRedeemRequestId[controller] = requestId;
+        currentRedeemRequestId = _currentRequestId + 1;
+        _totalPendingRedemptions[currentRedeemRequestId] = _totalPendingRedemptions[currentRedeemRequestId] + shares;
+        lastRedeemRequestId[controller] = currentRedeemRequestId;
         // update controllers balance of assets pending deposit
-        _requestIdControllerRequest[requestId][controller].sharesForRedemption =
-            _requestIdControllerRequest[requestId][controller].sharesForRedemption + shares;
+        _requestIdControllerRequest[currentRedeemRequestId][controller].sharesForRedemption =
+            _requestIdControllerRequest[currentRedeemRequestId][controller].sharesForRedemption + shares;
         _transfer(owner, address(this), shares);
-        emit RedeemRequest(controller, owner, requestId, msg.sender, shares);
-        return requestId;
+        emit RedeemRequest(controller, owner, currentRedeemRequestId, msg.sender, shares);
+        return currentRedeemRequestId;
     }
 
     /// @notice Returns the pending redeem request amount for an operator.
     /// @param requestId The id of the request.
     /// @param controller The address of the controller of the redemption request.
     /// @return shares The amount of shares pending redemption.
-    function pendingRedeemRequest(uint256 requestId, address controller) public returns (uint256 shares) {
-        return _requestIdControllerRequest[requestId][controller].sharesForRedemption;
+    function pendingRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
+        shares = _fulfilledRate[requestId].assets == 0
+            ? _requestIdControllerRequest[requestId][controller].sharesForRedemption
+            : 0;
     }
 
     /// @notice Returns the amount of requested shares in Claimable state for the controller with the given requestId.
@@ -344,8 +353,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
 
     /// @notice Returns the total number of shares pending redemption.
     /// @return The total pending redeem amount.
-    function totalPendingRedemptions() public returns (uint256) {
-        return _totalPendingRedemptions[_currentRedemptionRequestId()];
+    function totalPendingRedemptions() public view returns (uint256) {
+        return _totalPendingRedemptions[_currentRequestId + 1];
     }
 
     /// @notice Cancels a pending deposit request.
@@ -367,15 +376,16 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
 
     /// @notice Cancels a pending redeem request.
     function cancelRedeemRequest() public {
-        uint256 currentRequestId = _currentRedemptionRequestId();
+        uint256 currentRedeemRequestId = _currentRequestId + 1;
         // Checks
-        uint256 pendingRedeem = pendingRedeemRequest(currentRequestId, msg.sender);
+        uint256 pendingRedeem = pendingRedeemRequest(currentRedeemRequestId, msg.sender);
         if (pendingRedeem == 0) {
             revert ZeroPendingRedeems();
         }
         // Effects
-        _requestIdControllerRequest[currentRequestId][msg.sender].sharesForRedemption = 0;
-        _totalPendingRedemptions[currentRequestId] = _totalPendingRedemptions[currentRequestId] - pendingRedeem;
+        _requestIdControllerRequest[currentRedeemRequestId][msg.sender].sharesForRedemption = 0;
+        _totalPendingRedemptions[currentRedeemRequestId] =
+            _totalPendingRedemptions[currentRedeemRequestId] - pendingRedeem;
         // Interactions
         _transfer(address(this), msg.sender, pendingRedeem);
     }
@@ -640,13 +650,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         // Interactions
         _transfer(address(this), receiver, shares);
         emit Deposit(controller, receiver, assets, shares);
-    }
-
-    /// @notice Returns the current requestId for redemptions. This is staggered by 1 from the current deposit requestId
-    /// to ensure all requests with the same id are fungible
-    /// @return requestId The current requestId to be used for redemptions.
-    function _currentRedemptionRequestId() internal view returns (uint256 requestId) {
-        requestId = _currentRequestId + 1;
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///
