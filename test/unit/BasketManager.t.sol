@@ -129,7 +129,7 @@ contract BasketManagerTest is BaseTest {
         if (flag & 8 == 0) {
             admin_ = address(0);
         }
-        if (flag & 10 == 0) {
+        if (flag & 14 == 0) {
             pauser_ = address(0);
         }
 
