@@ -198,10 +198,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         // next requestId
         requestId = _currentRequestId;
         // update controllers balance of assets pending deposit
-        _requestIdControllerRequest[requestId][controller].assetsForDeposit =
-            _requestIdControllerRequest[requestId][controller].assetsForDeposit + assets;
+        _requestIdControllerRequest[requestId][controller].assetsForDeposit += assets;
         // update total pending deposits for the current requestId
-        _totalPendingAssets[requestId] = _totalPendingAssets[requestId] + assets;
+        _totalPendingAssets[requestId] += assets;
         // update controllers latest deposit request id
         lastDepositRequestId[controller] = requestId;
         emit DepositRequest(controller, owner, requestId, msg.sender, assets);
@@ -259,11 +258,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         }
         // Effects
         currentRedeemRequestId = _currentRequestId + 1;
-        _totalPendingRedemptions[currentRedeemRequestId] = _totalPendingRedemptions[currentRedeemRequestId] + shares;
+        _totalPendingRedemptions[currentRedeemRequestId] += shares;
         lastRedeemRequestId[controller] = currentRedeemRequestId;
         // update controllers balance of assets pending deposit
-        _requestIdControllerRequest[currentRedeemRequestId][controller].sharesForRedemption =
-            _requestIdControllerRequest[currentRedeemRequestId][controller].sharesForRedemption + shares;
+        _requestIdControllerRequest[currentRedeemRequestId][controller].sharesForRedemption += shares;
         _transfer(owner, address(this), shares);
         emit RedeemRequest(controller, owner, currentRedeemRequestId, msg.sender, shares);
         return currentRedeemRequestId;
@@ -369,7 +367,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         // @dev since the above check did not return 0, the last deposit request id of the sender will be the current
         // request id
         _requestIdControllerRequest[currentRequestId][msg.sender].assetsForDeposit = 0;
-        _totalPendingAssets[currentRequestId] = _totalPendingAssets[currentRequestId] - pendingDeposit;
+        _totalPendingAssets[currentRequestId] -= pendingDeposit;
         // Interactions
         IERC20(asset()).safeTransfer(msg.sender, pendingDeposit);
     }
@@ -384,8 +382,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
         }
         // Effects
         _requestIdControllerRequest[currentRedeemRequestId][msg.sender].sharesForRedemption = 0;
-        _totalPendingRedemptions[currentRedeemRequestId] =
-            _totalPendingRedemptions[currentRedeemRequestId] - pendingRedeem;
+        _totalPendingRedemptions[currentRedeemRequestId] -= pendingRedeem;
         // Interactions
         _transfer(address(this), msg.sender, pendingRedeem);
     }
