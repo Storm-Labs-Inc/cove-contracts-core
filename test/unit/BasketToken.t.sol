@@ -567,12 +567,12 @@ contract BasketTokenTest is BaseTest {
                 0,
                 "User should have claimable deposit request"
             );
-
+            vm.assume(operator != fuzzedUsers[i]);
             assert(!basket.isOperator(fuzzedUsers[i], operator));
             // Call deposit from operator
-            vm.expectRevert();
+            vm.expectRevert(BasketToken.NotAuthorizedOperator.selector);
             vm.prank(operator);
-            basket.deposit(maxDeposit, fuzzedUsers[i]);
+            basket.deposit(maxDeposit, fuzzedUsers[i], fuzzedUsers[i]);
         }
     }
 
@@ -660,7 +660,7 @@ contract BasketTokenTest is BaseTest {
             assert(!basket.isOperator(from, operator));
 
             // Call mint
-            vm.expectRevert();
+            vm.expectRevert(BasketToken.NotAuthorizedOperator.selector);
             vm.prank(operator);
             basket.mint(maxMint, operator, from);
         }
@@ -1232,9 +1232,9 @@ contract BasketTokenTest is BaseTest {
             assert(!basket.isOperator(from, operator));
 
             // Call redeem
-            vm.expectRevert();
+            vm.expectRevert(BasketToken.NotAuthorizedOperator.selector);
             vm.prank(operator);
-            basket.redeem(maxRedeem, from, from);
+            basket.redeem(maxRedeem, operator, from);
         }
     }
 
@@ -1336,9 +1336,9 @@ contract BasketTokenTest is BaseTest {
             assert(!basket.isOperator(fuzzedUsers[i], operator));
 
             // Call redeem
-            vm.expectRevert();
+            vm.expectRevert(BasketToken.NotAuthorizedOperator.selector);
             vm.prank(operator);
-            basket.withdraw(maxWithdraw, from, from);
+            basket.withdraw(maxWithdraw, operator, from);
         }
     }
 
