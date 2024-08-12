@@ -380,7 +380,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
     // slither-disable-next-line cyclomatic-complexity
-    function proposeRebalance(address[] calldata basketsToRebalance)
+    function proposeRebalance(
+        address[] calldata basketsToRebalance
+    )
         external
         onlyRole(REBALANCER_ROLE)
         nonReentrant
