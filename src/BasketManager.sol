@@ -134,9 +134,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /// CONSTANTS ///
     /// @notice ISO 4217 numeric code for USD, used as a constant address representation
-    address public constant USD_ISO_4217_CODE = address(840);
+    address private constant _USD_ISO_4217_CODE = address(840);
     /// @notice Maximum number of basket tokens allowed to be created.
-    uint256 public constant MAX_NUM_OF_BASKET_TOKENS = 256;
+    uint256 private constant _MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
     uint256 private constant _MAX_SLIPPAGE_BPS = 0.05e18; // .05%
     /// @notice Maximum deviation from target weights allowed for token swaps.
@@ -144,15 +144,21 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Precision used for weight calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Manager role. Managers can create new baskets.
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @notice Pauser role.
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 private constant _PAUSER_ROLE = keccak256("PAUSER_ROLE");
     /// @notice Rebalancer role. Rebalancers can propose rebalance, propose token swap, and execute token swap.
-    bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
+    bytes32 private constant _REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
     /// @notice Basket token role. Given to the basket token contracts when they are created.
-    bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
+    bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
+
+    /// IMMUTABLES ///
     /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
     StrategyRegistry public immutable strategyRegistry;
+    /// @notice Address of the EulerRouter contract used to fetch oracle quotes for swaps.
+    EulerRouter public immutable eulerRouter;
+    /// @notice Address of the BasketToken implementation.
+    address private immutable _basketTokenImplementation;
 
     /// STATE VARIABLES ///
     /// @notice Array of all basket tokens.
@@ -170,14 +176,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
     /// @notice Mapping of basket token to pending redeeming shares.
     mapping(address basketToken => uint256 pendingRedeems) public pendingRedeems;
-    /// @notice Address of the BasketToken implementation.
-    // TODO: add setter function for basketTokenImplementation
-    // slither-disable-next-line immutable-states
-    address public basketTokenImplementation;
-    /// @notice Address of the EulerRouter contract used to fetch oracle quotes for swaps.
-    // TODO: add setter function for EulerRouter
-    // slither-disable-next-line immutable-states
-    EulerRouter public eulerRouter;
     /// @notice Rebalance status.
     RebalanceStatus private _rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
@@ -218,11 +216,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error IncorrectTradeTokenAmount();
 
     /// @notice Initializes the contract with the given parameters.
-    /// @param basketTokenImplementation_ Address of the basket token implementation.
+    /// @param basketTokenImplementation Address of the basket token implementation.
     /// @param eulerRouter_ Address of the oracle registry.
     /// @param strategyRegistry_ Address of the strategy registry.
     constructor(
-        address basketTokenImplementation_,
+        address basketTokenImplementation,
         address eulerRouter_,
         address strategyRegistry_,
         address admin
@@ -230,14 +228,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         payable
     {
         // Checks
-        if (basketTokenImplementation_ == address(0)) revert ZeroAddress();
+        if (basketTokenImplementation == address(0)) revert ZeroAddress();
         if (eulerRouter_ == address(0)) revert ZeroAddress();
         if (strategyRegistry_ == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        basketTokenImplementation = basketTokenImplementation_;
+        _basketTokenImplementation = basketTokenImplementation;
         eulerRouter = EulerRouter(eulerRouter_);
         strategyRegistry = StrategyRegistry(strategyRegistry_);
     }
@@ -258,7 +256,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     )
         external
         payable
-        onlyRole(MANAGER_ROLE)
+        onlyRole(_MANAGER_ROLE)
         returns (address basket)
     {
         // Checks
@@ -266,7 +264,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             revert ZeroAddress();
         }
         uint256 basketTokensLength = basketTokens.length;
-        if (basketTokensLength >= MAX_NUM_OF_BASKET_TOKENS) {
+        if (basketTokensLength >= _MAX_NUM_OF_BASKET_TOKENS) {
             revert BasketTokenMaxExceeded();
         }
         bytes32 basketId = keccak256(abi.encodePacked(bitFlag, strategy));
@@ -286,8 +284,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
             revert BaseAssetMismatch();
         }
         // Effects
-        basket = Clones.clone(basketTokenImplementation);
-        _grantRole(BASKET_TOKEN_ROLE, basket);
+        basket = Clones.clone(_basketTokenImplementation);
+        _grantRole(_BASKET_TOKEN_ROLE, basket);
         basketTokens.push(basket);
         basketAssets[basket] = assets;
         uint256 assetsLength = assets.length;
@@ -302,7 +300,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         // Interactions
         basketIdToAddress[basketId] = basket;
         unchecked {
-            // Overflow not possible: basketTokensLength is less than the constant MAX_NUM_OF_BASKET_TOKENS
+            // Overflow not possible: basketTokensLength is less than the constant _MAX_NUM_OF_BASKET_TOKENS
             _basketTokenToIndexPlusOne[basket] = basketTokensLength + 1;
         }
         // Interactions
@@ -373,7 +371,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
     // slither-disable-next-line cyclomatic-complexity
-    function proposeRebalance(address[] calldata basketsToRebalance) external onlyRole(REBALANCER_ROLE) nonReentrant {
+    function proposeRebalance(address[] calldata basketsToRebalance) external onlyRole(_REBALANCER_ROLE) nonReentrant {
         // Checks
         // Revert if a rebalance is already in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
@@ -402,7 +400,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
                 // Rounding direction: down
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                basketValue += eulerRouter.getQuote(balances[j], assets[j], USD_ISO_4217_CODE);
+                basketValue += eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -419,7 +417,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                     // Assume the first asset listed in the basket is the base asset
                     // Round direction: down
                     // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    uint256 pendingDepositValue = eulerRouter.getQuote(pendingDeposit, assets[0], USD_ISO_4217_CODE);
+                    uint256 pendingDepositValue = eulerRouter.getQuote(pendingDeposit, assets[0], _USD_ISO_4217_CODE);
                     // Rounding direction: down
                     // Division-by-zero is not possible: basketValue is greater than 0
                     uint256 requiredDepositShares = basketValue > 0
@@ -469,7 +467,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                     // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                     eulerRouter.getQuote(
                         FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, _WEIGHT_PRECISION),
-                        USD_ISO_4217_CODE,
+                        _USD_ISO_4217_CODE,
                         assets[j]
                     );
 
@@ -479,7 +477,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                     }
                 }
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                targetBalances[0] += eulerRouter.getQuote(requiredWithdrawValue, USD_ISO_4217_CODE, assets[0]);
+                targetBalances[0] += eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[0]);
             }
 
             // Check if rebalance is needed
@@ -494,7 +492,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // TODO: is there a way to move this into the if statement that works with semgrep
                 uint256 diff = MathUtils.diff(balances[j], targetBalances[j]);
                 if (
-                    eulerRouter.getQuote(diff, assets[j], USD_ISO_4217_CODE) > 500 // nosemgrep
+                    eulerRouter.getQuote(diff, assets[j], _USD_ISO_4217_CODE) > 500 // nosemgrep
                 ) {
                     shouldRebalance = true;
                     break;
@@ -531,7 +529,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         address[] calldata basketsToRebalance
     )
         external
-        onlyRole(REBALANCER_ROLE)
+        onlyRole(_REBALANCER_ROLE)
         nonReentrant
     {
         RebalanceStatus memory status = _rebalanceStatus;
@@ -560,7 +558,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
     /// @dev This function can only be called after proposeTokenSwap.
-    function executeTokenSwap() external onlyRole(REBALANCER_ROLE) nonReentrant {
+    function executeTokenSwap() external onlyRole(_REBALANCER_ROLE) nonReentrant {
         // TODO: Implement the logic to execute token swap
     }
 
@@ -607,7 +605,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // Rounding direction: down
                 // slither-disable-start calls-loop
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                basketValue += eulerRouter.getQuote(balances[j], assets[j], USD_ISO_4217_CODE);
+                basketValue += eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -627,7 +625,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 uint256 rawAmount =
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems_, BasketToken(basket).totalSupply());
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 withdrawAmount = eulerRouter.getQuote(rawAmount, USD_ISO_4217_CODE, assets[0]);
+                uint256 withdrawAmount = eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[0]);
                 // slither-disable-end calls-loop
                 if (withdrawAmount <= balances[0]) {
                     unchecked {
@@ -666,7 +664,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     )
         public
         nonReentrant
-        onlyRole(BASKET_TOKEN_ROLE)
+        onlyRole(_BASKET_TOKEN_ROLE)
     {
         // Checks
         if (totalSupplyBefore == 0) {
@@ -718,7 +716,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// @param array Array to find the element in.
     /// @param element Element to find in the array.
     /// @return index Index of the element in the array.
-    function _indexOf(address[] memory array, address element) internal view returns (uint256 index) {
+    function _indexOf(address[] memory array, address element) internal pure returns (uint256 index) {
         uint256 length = array.length;
         for (uint256 i = 0; i < length;) {
             if (array[i] == element) {
@@ -761,7 +759,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 uint256 currentAssetAmount = basketBalanceOf[basket][asset];
                 afterTradeBasketAssetAmounts_[i][j] = currentAssetAmount;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                totalBasketValue_[i] += eulerRouter.getQuote(currentAssetAmount, asset, USD_ISO_4217_CODE);
+                totalBasketValue_[i] += eulerRouter.getQuote(currentAssetAmount, asset, _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -876,17 +874,17 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 // Update total basket value
                 totalBasketValue_[ownershipInfo.basketIndex] = totalBasketValue_[ownershipInfo.basketIndex]
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, USD_ISO_4217_CODE)
+                - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, _USD_ISO_4217_CODE)
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                + eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, USD_ISO_4217_CODE);
+                + eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, _USD_ISO_4217_CODE);
                 unchecked {
                     ++j;
                 }
             }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            info.sellValue = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, USD_ISO_4217_CODE);
+            info.sellValue = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE);
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            info.internalMinAmount = eulerRouter.getQuote(info.sellValue, USD_ISO_4217_CODE, trade.buyToken);
+            info.internalMinAmount = eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
 
             // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
@@ -930,7 +928,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 address asset = assets[j];
                 uint256 assetValueInUSD =
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                 eulerRouter.getQuote(afterTradeBasketAssetAmounts_[i][j], asset, USD_ISO_4217_CODE);
+                 eulerRouter.getQuote(afterTradeBasketAssetAmounts_[i][j], asset, _USD_ISO_4217_CODE);
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalBasketValue_[i]);
