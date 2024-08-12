@@ -981,7 +981,8 @@ contract BasketTokenTest is BaseTest {
         );
         assertEq(basket.totalPendingRedemptions(), 0, "testFuzz_fulfillRedeem: Incorrect total pending redemptions");
         for (uint256 i = 0; i < MAX_USERS; ++i) {
-            assertEq(
+            // A redeem request will return a pending balance until claimed
+            assertGt(
                 basket.pendingRedeemRequest(requestId, fuzzedUsers[i]),
                 0,
                 "testFuzz_fulfillRedeem: Incorrect pending redeem request"
@@ -991,7 +992,6 @@ contract BasketTokenTest is BaseTest {
                 redeemShares[i],
                 "testFuzz_fulfillRedeem: Incorrect claimable redeem request"
             );
-            // // TODO: any other checks to be made here?
             if (redeemShares[i] != 0) {
                 assertEq(
                     basket.maxRedeem(fuzzedUsers[i]), redeemShares[i], "testFuzz_fulfillRedeem: Incorrect max redeem"
@@ -1044,10 +1044,10 @@ contract BasketTokenTest is BaseTest {
             "testFuzz_prepareForRebalance: Total pending redeems should be 0 after prepareForRebalance"
         );
         for (uint256 i = 0; i < MAX_USERS; ++i) {
-            assertEq(
+            assertGt(
                 basket.pendingRedeemRequest(requestId, fuzzedUsers[i]),
                 0,
-                "testFuzz_prepareForRebalance: Pending redeem requests should be 0 after prepareForRebalance"
+                "testFuzz_prepareForRebalance: Pending redeem requests should be greater than 0 after prepareForRebalance"
             );
         }
     }
@@ -1419,33 +1419,41 @@ contract BasketTokenTest is BaseTest {
             uint256 userBalanceBefore = basket.balanceOf(user);
             uint256 basketBalanceBefore = basket.balanceOf(address(basket));
             uint256 userClaimable = basket.claimableFallbackShares(user);
-            assertEq(
+            assertGt(
                 basket.pendingRedeemRequest(basket.lastRedeemRequestId(user), user),
                 0,
-                "Pending redeem request after preFulFill should be 0"
+                "testFuzz_claimFallbackShares: Pending redeem request should be greater than 0 still"
             );
-            assertGt(userClaimable, 0, "Claimable shares should be greater than 0");
+            assertGt(userClaimable, 0, "testFuzz_claimFallbackShares: Claimable shares should be greater than 0");
 
             // Claim fallback shares
             vm.prank(user);
-            assertEq(basket.claimFallbackShares(), userClaimable, "Claimed shares should be equal to claimable shares");
+            assertEq(
+                basket.claimFallbackShares(),
+                userClaimable,
+                "testFuzz_claimFallbackShares: Claimed shares should be equal to claimable shares"
+            );
 
             // Check state
             assertEq(
                 basket.balanceOf(user),
                 userBalanceBefore + userClaimable,
-                "User balance should increase by claimable shares"
+                "testFuzz_claimFallbackShares: User balance should increase by claimable shares"
             );
             assertEq(
                 basket.balanceOf(address(basket)),
                 basketBalanceBefore - userClaimable,
-                "Basket balance should decrease by claimable shares"
+                "testFuzz_claimFallbackShares: Basket balance should decrease by claimable shares"
             );
-            assertEq(basket.claimableFallbackShares(user), 0, "Claimable shares should be 0 after claim");
+            assertEq(
+                basket.claimableFallbackShares(user),
+                0,
+                "testFuzz_claimFallbackShares: Claimable shares should be 0 after claim"
+            );
             assertEq(
                 basket.pendingRedeemRequest(basket.lastRedeemRequestId(user), user),
                 0,
-                "Pending redeem request should remain 0 after claim"
+                "testFuzz_claimFallbackShares: Pending redeem request should be 0 after claim"
             );
         }
     }

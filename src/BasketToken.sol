@@ -267,9 +267,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @param controller The address of the controller of the redemption request.
     /// @return shares The amount of shares pending redemption.
     function pendingRedeemRequest(uint256 requestId, address controller) public returns (uint256 shares) {
-        shares = requestId == _currentRedemptionRequestId()
-            ? _requestIdControllerRequest[requestId][controller].sharesForRedemption
-            : 0;
+        return _requestIdControllerRequest[requestId][controller].sharesForRedemption;
     }
 
     /// @notice Returns the amount of requested shares in Claimable state for the controller with the given requestId.
@@ -647,7 +645,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable, 
     /// @notice Returns the current requestId for redemptions. This is staggered by 1 from the current deposit requestId
     /// to ensure all requests with the same id are fungible
     /// @return requestId The current requestId to be used for redemptions.
-    function _currentRedemptionRequestId() internal returns (uint256 requestId) {
+    function _currentRedemptionRequestId() internal view returns (uint256 requestId) {
         requestId = _currentRequestId + 1;
     }
 
