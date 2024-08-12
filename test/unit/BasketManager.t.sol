@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { BaseTest } from "test/utils/BaseTest.t.sol";
-
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { stdError } from "forge-std/StdError.sol";
-import { console } from "forge-std/console.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
-
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
-
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+
+import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
+import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 
 contract BasketManagerTest is BaseTest {
@@ -507,11 +505,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
-        BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
-        tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
-        externalTrades[0] = BasketManager.ExternalTrade({
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
             sellAmount: params.depositAmount * params.sellWeight / 1e18,
@@ -560,15 +558,15 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
-        BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
-        tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
 
         uint256 sellAmount = params.depositAmount * params.sellWeight / 1e18;
         uint256 minAmount = sellAmount * 1.06e18 / 1e18; // Set minAmount 6% higher than sellAmount
 
-        externalTrades[0] = BasketManager.ExternalTrade({
+        externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
             sellAmount: sellAmount,
@@ -616,9 +614,9 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        internalTrades[0] = BasketManager.InternalTrade({
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
             fromBasket: baskets[0],
             sellToken: rootAsset,
             buyToken: params.pairAsset,
@@ -657,8 +655,8 @@ contract BasketManagerTest is BaseTest {
     }
 
     function testFuzz_proposeTokenSwap_revertWhen_CallerIsNotRebalancer(address caller) public {
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
         address[] memory targetBaskets = new address[](1);
         vm.assume(!basketManager.hasRole(REBALANCER_ROLE, caller));
         vm.expectRevert(_formatAccessControlError(caller, REBALANCER_ROLE));
@@ -667,8 +665,8 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_proposeTokenSwap_revertWhen_MustWaitForRebalance() public {
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
         address[] memory targetBaskets = new address[](1);
         vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
         vm.prank(rebalancer);
@@ -677,8 +675,8 @@ contract BasketManagerTest is BaseTest {
 
     function test_proposeTokenSwap_revertWhen_BaketMisMatch() public {
         test_proposeRebalance_processesDeposits();
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
         address[] memory targetBaskets = new address[](1);
         vm.expectRevert(BasketManager.BasketsMismatch.selector);
         vm.prank(rebalancer);
@@ -729,9 +727,9 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        internalTrades[0] = BasketManager.InternalTrade({
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
             fromBasket: address(1), // add incorrect basket address
             sellToken: rootAsset,
             buyToken: params.pairAsset,
@@ -788,12 +786,12 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         /// Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
         // Assume for the case where the sell amount is greater than the balance of the from basket, thus providing
         // invalid input to the function
         vm.assume(sellAmount > basketManager.basketBalanceOf(baskets[0], rootAsset));
-        internalTrades[0] = BasketManager.InternalTrade({
+        internalTrades[0] = InternalTrade({
             fromBasket: baskets[0],
             sellToken: rootAsset,
             buyToken: params.pairAsset,
@@ -807,7 +805,7 @@ contract BasketManagerTest is BaseTest {
         // Assume for the case where the amount bought is greater than the balance of the to basket, thus providing
         // invalid input to the function
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
-        internalTrades[0] = BasketManager.InternalTrade({
+        internalTrades[0] = InternalTrade({
             fromBasket: baskets[0],
             sellToken: rootAsset,
             buyToken: params.pairAsset,
@@ -857,12 +855,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
-        BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
-        tradeOwnerships[0] =
-            BasketManager.BasketTradeOwnership({ basket: mismatchAssetAddress, tradeOwnership: uint96(1e18) });
-        externalTrades[0] = BasketManager.ExternalTrade({
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: mismatchAssetAddress, tradeOwnership: uint96(1e18) });
+        externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
             sellAmount: params.depositAmount * params.sellWeight / 1e18,
@@ -916,9 +913,9 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        internalTrades[0] = BasketManager.InternalTrade({
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
             fromBasket: baskets[0],
             sellToken: rootAsset,
             buyToken: params.pairAsset,
@@ -976,10 +973,10 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
         uint256 deviatedTradeAmount = params.depositAmount.fullMulDiv(1e18 - params.baseAssetWeight - deviation, 1e18);
-        internalTrades[0] = BasketManager.InternalTrade({
+        internalTrades[0] = InternalTrade({
             fromBasket: baskets[0],
             sellToken: rootAsset,
             buyToken: params.pairAsset,
@@ -1030,9 +1027,9 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         // Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](0);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](1);
-        internalTrades[0] = BasketManager.InternalTrade({
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
             fromBasket: baskets[0],
             sellToken: address(new ERC20Mock()),
             buyToken: params.pairAsset,
@@ -1050,7 +1047,7 @@ contract BasketManagerTest is BaseTest {
         vm.assume(!basketManager.hasRole(REBALANCER_ROLE, caller));
         vm.expectRevert(_formatAccessControlError(caller, REBALANCER_ROLE));
         vm.prank(caller);
-        basketManager.executeTokenSwap();
+        basketManager.executeTokenSwap(new ExternalTrade[](0), "");
     }
 
     function testFuzz_proposeTokenSwap_externalTrade_revertWhen_AmountsIncorrect(
@@ -1089,12 +1086,12 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         /// Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
-        BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
         vm.assume(sellAmount > basketManager.basketBalanceOf(baskets[0], rootAsset));
-        tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
-        externalTrades[0] = BasketManager.ExternalTrade({
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
             sellAmount: sellAmount,
@@ -1143,12 +1140,12 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         /// Setup the trade and propose token swap
-        BasketManager.ExternalTrade[] memory externalTrades = new BasketManager.ExternalTrade[](1);
-        BasketManager.InternalTrade[] memory internalTrades = new BasketManager.InternalTrade[](0);
-        BasketManager.BasketTradeOwnership[] memory tradeOwnerships = new BasketManager.BasketTradeOwnership[](1);
-        tradeOwnerships[0] = BasketManager.BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
         uint256 deviatedTradeAmount = params.depositAmount.fullMulDiv(1e18 - params.baseAssetWeight - deviation, 1e18);
-        externalTrades[0] = BasketManager.ExternalTrade({
+        externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
             sellAmount: deviatedTradeAmount,
