@@ -726,9 +726,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     /// PAUSING FUNCTIONS ///
 
-    /**
-     * @dev Pauses the contract. Only callable by _PAUSER_ROLE or DEFAULT_ADMIN_ROLE.
-     */
+    /// @notice Pauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
     function pause() external {
         if (!(hasRole(_PAUSER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender))) {
             revert Unauthorized();
@@ -736,9 +734,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _pause();
     }
 
-    /**
-     * @dev Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
-     */
+    /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
