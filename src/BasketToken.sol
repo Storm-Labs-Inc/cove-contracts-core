@@ -259,6 +259,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert AssetPaused();
         }
         // Effects
+        /// @dev currentRequestId + 1 is reserved for redemptions
         currentRedeemRequestId = _currentRequestId + 1;
         _totalPendingRedemptions[currentRedeemRequestId] += shares;
         lastRedeemRequestId[controller] = currentRedeemRequestId;
@@ -295,6 +296,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @param shares The amount of shares the deposit was fulfilled with.
     function fulfillDeposit(uint256 shares) public onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
+        /// @dev currentRequestId was advanced by 2 to prepare for rebalance
         uint256 currentRequestId = _currentRequestId - 2;
         uint256 assets = _totalPendingAssets[currentRequestId];
         if (assets == 0) {
@@ -324,6 +326,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 currentRequestId = _currentRequestId;
         sharesPendingRedemption = _totalPendingRedemptions[currentRequestId + 1];
         if (_totalPendingAssets[currentRequestId] > 0 || sharesPendingRedemption > 0) {
+            /// @notice currentRequestId is incremented by 2 as _currentRequestId + 1 is reserved for redemptions
             _currentRequestId = currentRequestId + 2;
         }
     }
@@ -354,6 +357,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Returns the total number of shares pending redemption.
     /// @return The total pending redeem amount.
     function totalPendingRedemptions() public view returns (uint256) {
+        /// @dev currentRequestId + 1 is reserved for redemptions
         return _totalPendingRedemptions[_currentRequestId + 1];
     }
 
@@ -376,6 +380,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
 
     /// @notice Cancels a pending redeem request.
     function cancelRedeemRequest() public {
+        /// @dev currentRequestId + 1 is reserved for redemptions
         uint256 currentRedeemRequestId = _currentRequestId + 1;
         // Checks
         uint256 pendingRedeem = pendingRedeemRequest(currentRedeemRequestId, msg.sender);
