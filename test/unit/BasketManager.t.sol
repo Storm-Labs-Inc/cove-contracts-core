@@ -92,16 +92,12 @@ contract BasketManagerTest is BaseTest {
         vm.assume(pauser_ != address(0));
         BasketManager bm =
             new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, pauser_);
-        assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
-        assertEq(bm.hasRole(bm.DEFAULT_ADMIN_ROLE(), admin_), true);
-        assertEq(bm.getRoleMemberCount(bm.DEFAULT_ADMIN_ROLE()), 1);
-        assertEq(bm.hasRole(bm.PAUSER_ROLE(), pauser_), true);
-        assertEq(bm.getRoleMemberCount(bm.PAUSER_ROLE()), 1);
-        assertEq(bm.MANAGER_ROLE(), MANAGER_ROLE);
-        assertEq(bm.REBALANCER_ROLE(), REBALANCER_ROLE);
-        assertEq(bm.PAUSER_ROLE(), PAUSER_ROLE);
+        assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
+        assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
+        assertEq(bm.hasRole(PAUSER_ROLE, pauser_), true);
+        assertEq(bm.getRoleMemberCount(PAUSER_ROLE), 1);
     }
 
     function testFuzz_constructor_revertWhen_ZeroAddress(

@@ -572,7 +572,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
     /// @dev This function can only be called after proposeTokenSwap.
-    function executeTokenSwap() external onlyRole(_REBALANCER_ROLE) nonReentrant {
+    function executeTokenSwap() external onlyRole(_REBALANCER_ROLE) nonReentrant whenNotPaused {
         // TODO: Implement the logic to execute token swap
     }
 
