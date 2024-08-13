@@ -64,7 +64,7 @@ contract BasketManagerTest is BaseTest, Constants {
         eulerRouter.govSetConfig(toAsset, USD_ISO_4217_CODE, address(mockPriceOracle));
         basketManager.grantRole(MANAGER_ROLE, manager);
         basketManager.grantRole(REBALANCER_ROLE, rebalancer);
-        basketManager.grantRole(basketManager.PAUSER_ROLE(), pauser);
+        basketManager.grantRole(PAUSER_ROLE, pauser);
         basketManager.grantRole(TIMELOCK_ROLE, timelock);
         vm.stopPrank();
 
@@ -89,14 +89,10 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.assume(admin_ != address(0));
 
         BasketManager bm = new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_);
-        assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
         assertEq(bm.hasRole(bm.DEFAULT_ADMIN_ROLE(), admin_), true);
         assertEq(bm.getRoleMemberCount(bm.DEFAULT_ADMIN_ROLE()), 1);
-        assertEq(bm.MANAGER_ROLE(), MANAGER_ROLE);
-        assertEq(bm.REBALANCER_ROLE(), REBALANCER_ROLE);
-        assertEq(bm.PAUSER_ROLE(), PAUSER_ROLE);
     }
 
     function testFuzz_constructor_revertWhen_ZeroAddress(
