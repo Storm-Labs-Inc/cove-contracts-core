@@ -423,6 +423,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
             // Process pending deposits and fulfill them
             uint256 totalSupply = BasketToken(basket).totalSupply();
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             {
                 uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits();
                 if (pendingDeposit > 0) {
@@ -449,7 +451,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
             uint256[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights();
             {
                 // Advances redeem epoch if there are pending redeems
-                uint256 pendingRedeems_ = BasketToken(basket).preFulfillRedeem();
                 uint256 requiredWithdrawValue = 0;
 
                 // If there are pending redeems, calculate the required withdraw value
