@@ -110,6 +110,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
+    /// @dev Role given to a timelock contract that can set critical parameters.
     bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
     /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
     StrategyRegistry public immutable strategyRegistry;
@@ -554,6 +555,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     }
 
     /// @notice Sets the address of the TokenSwapAdapter contract used to execute token swaps.
+    /// @param tokenSwapAdapter_ Address of the TokenSwapAdapter contract.
+    /// @dev Only callable by the timelock.
     function setTokenSwapAdapter(address tokenSwapAdapter_) external onlyRole(_TIMELOCK_ROLE) {
         if (tokenSwapAdapter_ == address(0)) {
             revert ZeroAddress();
@@ -962,6 +965,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
         // TODO: Add CowSwap specific signature validation logic
         if (!isOrderValid[hash]) {
             // This hash is not valid in any context
+            // TODO: Verify whether to return non magic value or revert
             revert InvalidHash();
         }
         magicValue = _ERC1271_MAGIC_VALUE;
