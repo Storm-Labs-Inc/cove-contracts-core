@@ -129,12 +129,26 @@ contract BasketManagerTest is BaseTest {
         if (flag & 8 == 0) {
             admin_ = address(0);
         }
-        if (flag & 14 == 0) {
-            pauser_ = address(0);
-        }
 
         vm.expectRevert(BasketManager.ZeroAddress.selector);
         new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, pauser_);
+    }
+
+    function testFuzz_constructor_revertWhen_pasuerZeroAddress(
+        address basketTokenImplementation_,
+        address eulerRouter_,
+        address strategyRegistry_,
+        address admin_
+    )
+        public
+    {
+        vm.assume(basketTokenImplementation_ != address(0));
+        vm.assume(eulerRouter_ != address(0));
+        vm.assume(strategyRegistry_ != address(0));
+        vm.assume(admin_ != address(0));
+
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, address(0));
     }
 
     function test_unpause() public {
