@@ -70,7 +70,7 @@ contract BasketManagerTest is BaseTest {
         eulerRouter.govSetConfig(toAsset, USD_ISO_4217_CODE, address(mockPriceOracle));
         basketManager.grantRole(MANAGER_ROLE, manager);
         basketManager.grantRole(REBALANCER_ROLE, rebalancer);
-        basketManager.grantRole(basketManager.PAUSER_ROLE(), pauser);
+        basketManager.grantRole(PAUSER_ROLE, pauser);
 
         vm.label(address(basketManager), "basketManager");
         vm.stopPrank();
@@ -90,7 +90,6 @@ contract BasketManagerTest is BaseTest {
         vm.assume(strategyRegistry_ != address(0));
         vm.assume(admin_ != address(0));
         vm.assume(pauser_ != address(0));
-
         BasketManager bm =
             new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, pauser_);
         assertEq(bm.basketTokenImplementation(), basketTokenImplementation_);
