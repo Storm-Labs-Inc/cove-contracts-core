@@ -544,7 +544,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
             revert ExecuteTokenSwapFailed();
         }
         (bytes32[] memory hashes) = abi.decode(ret, (bytes32[]));
-        for (uint256 i = 0; i < hashes.length;) {
+        uint256 length = hashes.length;
+        for (uint256 i = 0; i < length;) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             isOrderValid[hashes[i]] = true;
             unchecked {
                 ++i;
@@ -951,6 +953,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     // ERC1271: CoWSwap will rely on this function to check if a submitted order is valid
     /// @notice Returns the magic value if the hash and the signature is valid.
     /// @param hash Hash of the order
+    /// @return magicValue Magic value 0x1626ba7e if the hash and the signature is valid.
+    /// @dev Refer to https://eips.ethereum.org/EIPS/eip-1271 for details.
     function isValidSignature(
         bytes32 hash,
         bytes calldata /* signature */
@@ -959,7 +963,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
         view
         returns (bytes4 magicValue)
     {
-        hash;
         // TODO: Add CowSwap specific signature validation logic
         if (!isOrderValid[hash]) {
             // This hash is not valid in any context
