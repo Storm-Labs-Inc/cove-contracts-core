@@ -319,7 +319,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategy);
     }
 
-    function test_createNewBasket_revertWhen_Pasued() public {
+    function test_createNewBasket_revertWhen_paused() public {
         string memory name = "basket";
         string memory symbol = "b";
         uint256 bitFlag = 1;
@@ -541,7 +541,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.completeRebalance(targetBaskets);
     }
 
-    function test_completeRebalance_revertWhen_pasued() public {
+    function test_completeRebalance_revertWhen_paused() public {
         address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
@@ -552,7 +552,7 @@ contract BasketManagerTest is BaseTest {
         vm.warp(block.timestamp + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
-        vm.mockCall(basket, abi.encodeCall(BasketToken.preFulfillRedeem, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.prepareForRebalance, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
         vm.prank(pauser);
