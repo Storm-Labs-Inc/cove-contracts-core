@@ -33,17 +33,17 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// STRUCTS ///
     /// @notice Struct to hold the amount of assets and shares requested by a controller
     struct Requests {
-        /// Amount of assets requested for deposit
+        // Amount of assets requested for deposit
         uint256 depositAssets;
-        /// Amount of shares requested for redemption
+        // Amount of shares requested for redemption
         uint256 redemptionShares;
     }
 
     /// @notice Struct to hold the amount of assets and shares fulfilled for a given requestId
     struct FulfilledRate {
-        /// Amount of assets fulfilled for pending redemption requests
+        // Amount of assets fulfilled for pending redemption requests
         uint256 assets;
-        /// Amount of shares fulfilled for pending deposit requests
+        // Amount of shares fulfilled for pending deposit requests
         uint256 shares;
     }
 
