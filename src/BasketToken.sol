@@ -30,13 +30,20 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     bytes4 private constant _ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
     bytes4 private constant _ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
+    /// STRUCTS ///
+    /// @notice Struct to hold the amount of assets and shares requested by a controller
     struct Requests {
-        uint256 assetsForDeposit;
-        uint256 sharesForRedemption;
+        /// Amount of assets requested for deposit
+        uint256 depositAssets;
+        /// Amount of shares requested for redemption
+        uint256 redemptionShares;
     }
 
+    /// @notice Struct to hold the amount of assets and shares fulfilled for a given requestId
     struct FulfilledRate {
+        /// Amount of assets fulfilled for pending redemption requests
         uint256 assets;
+        /// Amount of shares fulfilled for pending deposit requests
         uint256 shares;
     }
 
@@ -48,17 +55,17 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     mapping(address controller => mapping(address operator => bool)) public isOperator;
     /// @notice Mapping of requestId to a controllers pending assets for deposit and shares for redemption
     mapping(uint256 requestId => mapping(address controller => Requests)) internal _requestIdControllerRequest;
-    // @notice Mapping of requestId to the total amount of assets pending deposit
+    /// @notice Mapping of requestId to the total amount of assets pending deposit
     mapping(uint256 requestId => uint256 assets) internal _totalPendingAssets;
-    // @notice Mapping of requestId to the total amount of shares pending redemption
+    /// @notice Mapping of requestId to the total amount of shares pending redemption
     mapping(uint256 requestId => uint256 assets) internal _totalPendingRedemptions;
-    // @notice Mapping of controller to the last requestId of a deposit request
+    /// @notice Mapping of controller to the last requestId of a deposit request
     mapping(address controller => uint256 requestId) public lastDepositRequestId;
-    // @notice Mapping of controller to the last requestId of a redemption request
+    /// @notice Mapping of controller to the last requestId of a redemption request
     mapping(address controller => uint256 requestId) public lastRedeemRequestId;
-    // @notice Mapping of requestId to the rate at which shares can be claimed for deposited assets
+    /// @notice Mapping of requestId to the rate at which shares can be claimed for deposited assets
     mapping(uint256 requestId => FulfilledRate) internal _fulfilledRate;
-    // @notice Mapping of requestId to a bool indicating if the fallback redeem trigger has been called
+    /// @notice Mapping of requestId to a bool indicating if the fallback redeem trigger has been called
     mapping(uint256 requestId => bool fallbackTriggered) public fallbackTriggered;
     /// @notice Latest requestId, initialized as 1
     uint256 internal _currentRequestId;
@@ -194,7 +201,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // next requestId
         requestId = _currentRequestId;
         // update controllers balance of assets pending deposit
-        _requestIdControllerRequest[requestId][controller].assetsForDeposit += assets;
+        _requestIdControllerRequest[requestId][controller].depositAssets += assets;
         // update total pending deposits for the current requestId
         _totalPendingAssets[requestId] += assets;
         // update controllers latest deposit request id
@@ -211,9 +218,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @param controller The address of the controller of the deposit request.
     /// @return assets The amount of assets pending deposit.
     function pendingDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
-        assets = _fulfilledRate[requestId].shares == 0
-            ? _requestIdControllerRequest[requestId][controller].assetsForDeposit
-            : 0;
+        assets =
+            _fulfilledRate[requestId].shares == 0 ? _requestIdControllerRequest[requestId][controller].depositAssets : 0;
     }
 
     /// @notice Returns the amount of requested assets in Claimable state for the controller with the given requestId.
@@ -221,9 +227,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @param controller The address of the controller.
     // solhint-disable-next-line no-unused-vars
     function claimableDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
-        assets = _fulfilledRate[requestId].shares == 0
-            ? 0
-            : _requestIdControllerRequest[requestId][controller].assetsForDeposit;
+        assets =
+            _fulfilledRate[requestId].shares == 0 ? 0 : _requestIdControllerRequest[requestId][controller].depositAssets;
     }
 
     /// @notice Requests a redemption of shares from the basket.
@@ -258,7 +263,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _totalPendingRedemptions[currentRedeemRequestId] += shares;
         lastRedeemRequestId[controller] = currentRedeemRequestId;
         // update controllers balance of assets pending deposit
-        _requestIdControllerRequest[currentRedeemRequestId][controller].sharesForRedemption += shares;
+        _requestIdControllerRequest[currentRedeemRequestId][controller].redemptionShares += shares;
         _transfer(owner, address(this), shares);
         emit RedeemRequest(controller, owner, currentRedeemRequestId, msg.sender, shares);
         return currentRedeemRequestId;
@@ -270,7 +275,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @return shares The amount of shares pending redemption.
     function pendingRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
         shares = _fulfilledRate[requestId].assets == 0
-            ? _requestIdControllerRequest[requestId][controller].sharesForRedemption
+            ? _requestIdControllerRequest[requestId][controller].redemptionShares
             : 0;
     }
 
@@ -282,7 +287,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function claimableRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
         shares = _fulfilledRate[requestId].assets == 0
             ? 0
-            : _requestIdControllerRequest[requestId][controller].sharesForRedemption;
+            : _requestIdControllerRequest[requestId][controller].redemptionShares;
     }
 
     /// @notice Fulfills all pending deposit requests. Only callable by the basket manager. Assets are held by the
@@ -361,9 +366,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert ZeroPendingDeposits();
         }
         // Effects
-        // @dev since the above check did not return 0, the last deposit request id of the sender will be the current
+        /// @dev since the above check did not return 0, the last deposit request id of the sender will be the current
         // request id
-        _requestIdControllerRequest[currentRequestId][msg.sender].assetsForDeposit = 0;
+        _requestIdControllerRequest[currentRequestId][msg.sender].depositAssets = 0;
         _totalPendingAssets[currentRequestId] -= pendingDeposit;
         // Interactions
         IERC20(asset()).safeTransfer(msg.sender, pendingDeposit);
@@ -378,7 +383,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert ZeroPendingRedeems();
         }
         // Effects
-        _requestIdControllerRequest[currentRedeemRequestId][msg.sender].sharesForRedemption = 0;
+        _requestIdControllerRequest[currentRedeemRequestId][msg.sender].redemptionShares = 0;
         _totalPendingRedemptions[currentRedeemRequestId] -= pendingRedeem;
         // Interactions
         _transfer(address(this), msg.sender, pendingRedeem);
@@ -404,7 +409,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// FALLBACK REDEEM LOGIC ///
 
     /// @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
-    // users to claim their shares back for a redemption in the future and advances the redemption epoch.
+    /// users to claim their shares back for a redemption in the future and advances the redemption epoch.
     function fallbackRedeemTrigger() public onlyRole(_BASKET_MANAGER_ROLE) {
         fallbackTriggered[_currentRequestId - 1] = true;
     }
@@ -418,7 +423,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (shares == 0) {
             revert ZeroClaimableFallbackShares();
         }
-        _requestIdControllerRequest[lastRedeemRequestId[msg.sender]][msg.sender].sharesForRedemption = 0;
+        _requestIdControllerRequest[lastRedeemRequestId[msg.sender]][msg.sender].redemptionShares = 0;
         _transfer(address(this), msg.sender, shares);
     }
 
@@ -431,7 +436,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (!fallbackTriggered[lastRedeemRequestId_]) {
             return 0;
         }
-        return _requestIdControllerRequest[lastRedeemRequestId_][operator].sharesForRedemption;
+        return _requestIdControllerRequest[lastRedeemRequestId_][operator].redemptionShares;
     }
 
     /// @notice Immediately redeems shares for all assets associated with this basket. This is synchronous and does not
@@ -467,7 +472,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
                 revert NotAuthorizedOperator();
             }
         }
-        if (assets != _requestIdControllerRequest[lastDepositRequestId[controller]][controller].assetsForDeposit) {
+        if (assets != _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets) {
             revert MustClaimFullAmount();
         }
         shares = maxMint(controller);
@@ -501,7 +506,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert MustClaimFullAmount();
         }
         // Effects
-        assets = _requestIdControllerRequest[lastDepositRequestId[controller]][controller].assetsForDeposit;
+        assets = _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets;
         _claimDeposit(assets, shares, receiver, controller);
     }
 
@@ -530,7 +535,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             revert MustClaimFullAmount();
         }
         // Effects
-        shares = _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].sharesForRedemption;
+        shares = _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares;
         _claimRedemption(assets, shares, receiver, controller);
     }
 
@@ -547,7 +552,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         if (msg.sender != controller) {
             if (!isOperator[controller][msg.sender]) revert NotAuthorizedOperator();
         }
-        if (shares != _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].sharesForRedemption) {
+        if (shares != _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares) {
             revert MustClaimFullAmount();
         }
         assets = maxWithdraw(controller);
@@ -566,7 +571,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             ? 0
             : FixedPointMathLib.fullMulDiv(
                 _fulfilledRate[lastRedeemRequestId_].assets,
-                _requestIdControllerRequest[lastRedeemRequestId_][operator].sharesForRedemption,
+                _requestIdControllerRequest[lastRedeemRequestId_][operator].redemptionShares,
                 totalPendingRedemptions_
             );
     }
@@ -579,7 +584,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 lastRedeemRequestId_ = lastRedeemRequestId[operator];
         return _fulfilledRate[lastRedeemRequestId_].assets == 0
             ? 0
-            : _requestIdControllerRequest[lastRedeemRequestId_][operator].sharesForRedemption;
+            : _requestIdControllerRequest[lastRedeemRequestId_][operator].redemptionShares;
     }
 
     /// @notice Returns an operator's amount of assets fulfilled for deposit.
@@ -590,7 +595,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         uint256 lastDepositRequestID_ = lastDepositRequestId[operator];
         return _fulfilledRate[lastDepositRequestID_].shares == 0
             ? 0
-            : _requestIdControllerRequest[lastDepositRequestID_][operator].assetsForDeposit;
+            : _requestIdControllerRequest[lastDepositRequestID_][operator].depositAssets;
     }
 
     /// @notice Returns an operator's amount of shares fulfilled for deposit.
@@ -604,7 +609,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             ? 0
             : FixedPointMathLib.fullMulDiv(
                 _fulfilledRate[lastDepositRequestID_].shares,
-                _requestIdControllerRequest[lastDepositRequestID_][operator].assetsForDeposit,
+                _requestIdControllerRequest[lastDepositRequestID_][operator].depositAssets,
                 totalPendingAssets
             );
     }
@@ -626,7 +631,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @param controller The address of the controller of the redemption request.
     function _claimRedemption(uint256 assets, uint256 shares, address receiver, address controller) internal {
         // Effects
-        _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].sharesForRedemption = 0;
+        _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares = 0;
         // Interactions
         IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, controller, assets, shares);
@@ -640,7 +645,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
 
     function _claimDeposit(uint256 assets, uint256 shares, address receiver, address controller) internal {
         // Effects
-        _requestIdControllerRequest[lastDepositRequestId[controller]][controller].assetsForDeposit = 0;
+        _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets = 0;
         // Interactions
         _transfer(address(this), receiver, shares);
         emit Deposit(controller, receiver, assets, shares);
