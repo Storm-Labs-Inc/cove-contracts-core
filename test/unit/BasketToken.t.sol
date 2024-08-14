@@ -21,10 +21,11 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
+import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20DecimalsMockImpl } from "test/utils/mocks/ERC20DecimalsMockImpl.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
-contract BasketTokenTest is BaseTest {
+contract BasketTokenTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;
 
     uint256 private constant MAX_USERS = 20;

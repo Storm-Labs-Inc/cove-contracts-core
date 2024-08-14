@@ -1,31 +1,28 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
-
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-
+import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-
 import { BasketToken } from "src/BasketToken.sol";
-
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
-import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
-
 import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
-
+import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
+import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
+// TODO: Remove console import after testing
 import { console } from "forge-std/console.sol";
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// here.
-contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
+contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pausable {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
@@ -50,47 +47,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         uint40 timestamp;
         // Status of the rebalance.
         Status status;
-    }
-
-    /// @notice Struct representing a baskets ownership of an external trade.
-    struct BasketTradeOwnership {
-        // Address of the basket.
-        address basket;
-        // Ownership of the trade with a base of 1e18. An ownershipe of 1e18 means the basket owns the entire trade.
-        uint96 tradeOwnership;
-    }
-
-    /// @notice Struct containing data for an internal trade.
-    struct InternalTrade {
-        // Address of the basket that is selling.
-        address fromBasket;
-        // Address of the token to sell.
-        address sellToken;
-        // Address of the token to buy.
-        address buyToken;
-        // Address of the basket that is buying.
-        address toBasket;
-        // Amount of the token to sell.
-        uint256 sellAmount;
-        // Minimum amount of the buy token that the trade results in. Used to check that the proposers oracle prices
-        // are correct.
-        uint256 minAmount;
-        // Maximum amount of the buy token that the trade can result in.
-        uint256 maxAmount;
-    }
-
-    /// @notice Struct containing data for an external trade.
-    struct ExternalTrade {
-        // Address of the token to sell.
-        address sellToken;
-        // Address of the token to buy.
-        address buyToken;
-        // Amount of the token to sell.
-        uint256 sellAmount;
-        // Minimum amount of the buy token that the trade results in.
-        uint256 minAmount;
-        // Array of basket trade ownerships.
-        BasketTradeOwnership[] basketTradeOwnership;
     }
 
     /// @notice Struct containing data for an internal trade.
@@ -138,6 +94,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// CONSTANTS ///
     /// @notice ISO 4217 numeric code for USD, used as a constant address representation
     address private constant _USD_ISO_4217_CODE = address(840);
+    /// @notice Magic value for ERC1271 signature validation.
+    bytes4 private constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 private constant _MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
@@ -154,6 +112,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     bytes32 private constant _REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
+    /// @dev Role given to a timelock contract that can set critical parameters.
+    bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
 
     /// IMMUTABLES ///
     /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
@@ -164,6 +124,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     address private immutable _basketTokenImplementation;
 
     /// STATE VARIABLES ///
+    /// @notice Address of the TokenSwapAdapter contract used to execute token swaps.
+    address public tokenSwapAdapter;
     /// @notice Array of all basket tokens.
     address[] public basketTokens;
     /// @notice Mapping of basket token to asset to balance.
@@ -179,6 +141,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     mapping(address basketToken => uint256 indexPlusOne) private _basketTokenToIndexPlusOne;
     /// @notice Mapping of basket token to pending redeeming shares.
     mapping(address basketToken => uint256 pendingRedeems) public pendingRedeems;
+    /// @notice Mapping of hash of submitted order to status of the order.
+    mapping(bytes32 => bool) public isOrderValid;
     /// @notice Rebalance status.
     RebalanceStatus private _rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
@@ -215,6 +179,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     error TargetWeightsNotMet();
     error InternalTradeMinMaxAmountNotReached();
     error IncorrectTradeTokenAmount();
+    error ExecuteTokenSwapFailed();
+    error InvalidHash();
+    error ExternalTradesHashMismatch();
     error Unauthorized();
 
     /// @notice Initializes the contract with the given parameters.
@@ -571,9 +538,45 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
+    /// @param data Encoded data for the token swap.
     /// @dev This function can only be called after proposeTokenSwap.
-    function executeTokenSwap() external onlyRole(_REBALANCER_ROLE) nonReentrant whenNotPaused {
-        // TODO: Implement the logic to execute token swap
+    function executeTokenSwap(
+        ExternalTrade[] calldata externalTrades,
+        bytes calldata data
+    )
+        external
+        onlyRole(_REBALANCER_ROLE)
+        nonReentrant
+        whenNotPaused
+    {
+        // Check if the external trades match the hash from proposeTokenSwap
+        if (keccak256(abi.encode(externalTrades)) != _externalTradesHash) {
+            revert ExternalTradesHashMismatch();
+        }
+        (bool success, bytes memory ret) =
+            tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, (externalTrades, data)));
+        if (!success) {
+            revert ExecuteTokenSwapFailed();
+        }
+        (bytes32[] memory hashes) = abi.decode(ret, (bytes32[]));
+        uint256 length = hashes.length;
+        for (uint256 i = 0; i < length;) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            isOrderValid[hashes[i]] = true;
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /// @notice Sets the address of the TokenSwapAdapter contract used to execute token swaps.
+    /// @param tokenSwapAdapter_ Address of the TokenSwapAdapter contract.
+    /// @dev Only callable by the timelock.
+    function setTokenSwapAdapter(address tokenSwapAdapter_) external onlyRole(_TIMELOCK_ROLE) {
+        if (tokenSwapAdapter_ == address(0)) {
+            revert Errors.ZeroAddress();
+        }
+        tokenSwapAdapter = tokenSwapAdapter_;
     }
 
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
@@ -976,5 +979,27 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
                 ++i;
             }
         }
+    }
+
+    // ERC1271: CoWSwap will rely on this function to check if a submitted order is valid
+    /// @notice Returns the magic value if the hash and the signature is valid.
+    /// @param hash Hash of the order
+    /// @return magicValue Magic value 0x1626ba7e if the hash and the signature is valid.
+    /// @dev Refer to https://eips.ethereum.org/EIPS/eip-1271 for details.
+    function isValidSignature(
+        bytes32 hash,
+        bytes calldata /* signature */
+    )
+        external
+        view
+        returns (bytes4 magicValue)
+    {
+        // TODO: Add CowSwap specific signature validation logic
+        if (!isOrderValid[hash]) {
+            // This hash is not valid in any context
+            // TODO: Verify whether to return non magic value or revert
+            revert InvalidHash();
+        }
+        magicValue = _ERC1271_MAGIC_VALUE;
     }
 }
