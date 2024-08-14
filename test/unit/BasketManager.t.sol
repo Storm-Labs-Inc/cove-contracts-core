@@ -9,6 +9,7 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { stdError } from "forge-std/StdError.sol";
 import { console } from "forge-std/console.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { Errors } from "src/libraries/Errors.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -117,7 +118,7 @@ contract BasketManagerTest is BaseTest {
             admin_ = address(0);
         }
 
-        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        vm.expectRevert(Errors.ZeroAddress.selector);
         new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_);
     }
 
@@ -269,7 +270,7 @@ contract BasketManagerTest is BaseTest {
         address[] memory assets = new address[](1);
         assets[0] = address(0);
 
-        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(manager);
         basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategy);
     }
@@ -1235,7 +1236,7 @@ contract BasketManagerTest is BaseTest {
     function test_proRataRedeem_revertWhen_ZeroAddress() public {
         address basket = _setupBasketAndMocks();
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
-        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(1, 1, address(0));
     }

@@ -2,43 +2,12 @@
 pragma solidity 0.8.23;
 
 /// @title Errors
-/// @notice Library containing all custom errors the protocol may revert with.
+/// @notice Library containing shared custom errors the protocol may revert with.
 // solhint-disable var-name-mixedcase
 library Errors {
-    /// ORACLE REGISTRY ///
-
-    /// @notice Thrown when the Oracle name given is empty.
-    error NameEmpty();
-
-    /// @notice Thrown when the Oracle address given is empty.
-    error AddressEmpty();
-
-    /// @notice Thrown when the Oracle name is found when calling addOracle().
-    error OracleNameFound(bytes32 name);
-
-    /// @notice Thrown when the Oracle name is not found but is expected to be.
-    error OracleNameNotFound(bytes32 name);
-
-    /// @notice Thrown when the Oracle address is not found but is expected to be.
-    error OracleAddressNotFound(address OracleAddress);
-
-    /// @notice Thrown when the Oracle name and version is not found but is expected to be.
-    error OracleNameVersionNotFound(bytes32 name, uint256 version);
-
-    /// @notice Thrown when the caller is not the protocol manager.
-    error CallerNotProtocolManager(address caller);
-
-    /// @notice Thrown when a duplicate Oracle address is found.
-    error DuplicateOracleAddress(address OracleAddress);
-
-    /// @notice Thrown when the 0 address is found.
+    /// @notice Thrown when an empty address is given as parameter to a function that does not allow it.
     error ZeroAddress();
 
-    /// @notice Thrown when an amount of 0 is found.
+    /// @notice Thrown when an 0 is given as amount parameter to a function that does not allow it.
     error ZeroAmount();
-
-    /// TESTING ///
-
-    /// @notice Thrown when attempting to take away more than the available balance.
-    error TakeAwayNotEnoughBalance();
 }
