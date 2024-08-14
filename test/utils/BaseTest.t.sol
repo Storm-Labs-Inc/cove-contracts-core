@@ -109,7 +109,7 @@ abstract contract BaseTest is Test {
     function takeAway(IERC20 _asset, address _from, uint256 _amount) public {
         uint256 balanceBefore = _asset.balanceOf(_from);
         if (balanceBefore < _amount) {
-            revert Errors.TakeAwayNotEnoughBalance();
+            revert("BaseTest:takeAway(): Insufficient balance");
         }
         deal(address(_asset), _from, balanceBefore - _amount);
     }

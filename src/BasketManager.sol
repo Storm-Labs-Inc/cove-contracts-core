@@ -6,10 +6,12 @@ import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
+import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
@@ -20,7 +22,7 @@ import { console } from "forge-std/console.sol";
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// here.
-contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
+contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pausable {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
@@ -157,7 +159,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     event ExternalTradeValidated(ExternalTrade externalTrade, uint256 minAmount);
 
     /// ERRORS ///
-    error ZeroAddress();
     error ZeroTotalSupply();
     error ZeroBurnedShares();
     error CannotBurnMoreSharesThanTotalSupply();
@@ -177,11 +178,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     error ExternalTradeSlippage();
     error TargetWeightsNotMet();
     error InternalTradeMinMaxAmountNotReached();
-    error PriceOutOfSafeBounds();
     error IncorrectTradeTokenAmount();
     error ExecuteTokenSwapFailed();
     error InvalidHash();
     error ExternalTradesHashMismatch();
+    error Unauthorized();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -191,18 +192,21 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
         address basketTokenImplementation,
         address eulerRouter_,
         address strategyRegistry_,
-        address admin
+        address admin,
+        address pauser
     )
         payable
     {
         // Checks
-        if (basketTokenImplementation == address(0)) revert ZeroAddress();
-        if (eulerRouter_ == address(0)) revert ZeroAddress();
-        if (strategyRegistry_ == address(0)) revert ZeroAddress();
-        if (admin == address(0)) revert ZeroAddress();
+        if (basketTokenImplementation == address(0)) revert Errors.ZeroAddress();
+        if (eulerRouter_ == address(0)) revert Errors.ZeroAddress();
+        if (strategyRegistry_ == address(0)) revert Errors.ZeroAddress();
+        if (admin == address(0)) revert Errors.ZeroAddress();
+        if (pauser == address(0)) revert Errors.ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(_PAUSER_ROLE, pauser);
         _basketTokenImplementation = basketTokenImplementation;
         eulerRouter = EulerRouter(eulerRouter_);
         strategyRegistry = StrategyRegistry(strategyRegistry_);
@@ -224,12 +228,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     )
         external
         payable
+        whenNotPaused
         onlyRole(_MANAGER_ROLE)
         returns (address basket)
     {
         // Checks
         if (baseAsset == address(0)) {
-            revert ZeroAddress();
+            revert Errors.ZeroAddress();
         }
         uint256 basketTokensLength = basketTokens.length;
         if (basketTokensLength >= _MAX_NUM_OF_BASKET_TOKENS) {
@@ -339,7 +344,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
     // slither-disable-next-line cyclomatic-complexity
-    function proposeRebalance(address[] calldata basketsToRebalance) external onlyRole(_REBALANCER_ROLE) nonReentrant {
+    function proposeRebalance(
+        address[] calldata basketsToRebalance
+    )
+        external
+        onlyRole(_REBALANCER_ROLE)
+        nonReentrant
+        whenNotPaused
+    {
         // Checks
         // Revert if a rebalance is already in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
@@ -499,6 +511,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
         external
         onlyRole(_REBALANCER_ROLE)
         nonReentrant
+        whenNotPaused
     {
         RebalanceStatus memory status = _rebalanceStatus;
         if (status.status != Status.REBALANCE_PROPOSED) {
@@ -534,6 +547,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
         external
         onlyRole(_REBALANCER_ROLE)
         nonReentrant
+        whenNotPaused
     {
         // Check if the external trades match the hash from proposeTokenSwap
         if (keccak256(abi.encode(externalTrades)) != _externalTradesHash) {
@@ -560,7 +574,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     /// @dev Only callable by the timelock.
     function setTokenSwapAdapter(address tokenSwapAdapter_) external onlyRole(_TIMELOCK_ROLE) {
         if (tokenSwapAdapter_ == address(0)) {
-            revert ZeroAddress();
+            revert Errors.ZeroAddress();
         }
         tokenSwapAdapter = tokenSwapAdapter_;
     }
@@ -568,7 +582,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
-    function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant {
+    function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant whenNotPaused {
         // Check if there is any rebalance in progress
         // slither-disable-next-line incorrect-equality
         if (_rebalanceStatus.status == Status.NOT_STARTED) {
@@ -667,6 +681,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
     )
         public
         nonReentrant
+        whenNotPaused
         onlyRole(_BASKET_TOKEN_ROLE)
     {
         // Checks
@@ -680,7 +695,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
             revert CannotBurnMoreSharesThanTotalSupply();
         }
         if (to == address(0)) {
-            revert ZeroAddress();
+            revert Errors.ZeroAddress();
         }
         // Revert if a rebalance is in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
@@ -710,6 +725,21 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271 {
                 ++i;
             }
         }
+    }
+
+    /// PAUSING FUNCTIONS ///
+
+    /// @notice Pauses the contract. Callable by DEFAULT_ADMIN_ROLE or PAUSER_ROLE.
+    function pause() external {
+        if (!(hasRole(_PAUSER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender))) {
+            revert Unauthorized();
+        }
+        _pause();
+    }
+
+    /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     /// INTERNAL FUNCTIONS ///

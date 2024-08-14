@@ -3,11 +3,14 @@ pragma solidity 0.8.23;
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { stdError } from "forge-std/StdError.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
+import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
@@ -47,6 +50,7 @@ contract BasketManagerTest is BaseTest, Constants {
         super.setUp();
         alice = createUser("alice");
         admin = createUser("admin");
+        pauser = createUser("pauser");
         manager = createUser("manager");
         rebalancer = createUser("rebalancer");
         rootAsset = address(new ERC20Mock());
@@ -56,7 +60,8 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.label(address(mockPriceOracle), "mockPriceOracle");
         eulerRouter = new EulerRouter(admin);
         strategyRegistry = createUser("strategyRegistry");
-        basketManager = new BasketManager(basketTokenImplementation, address(eulerRouter), strategyRegistry, admin);
+        basketManager =
+            new BasketManager(basketTokenImplementation, address(eulerRouter), strategyRegistry, admin, pauser);
         vm.startPrank(admin);
         mockPriceOracle.setPrice(rootAsset, USD_ISO_4217_CODE, 1e18); // set price to 1e18
         mockPriceOracle.setPrice(toAsset, USD_ISO_4217_CODE, 1e18); // set price to 1e18
@@ -79,7 +84,8 @@ contract BasketManagerTest is BaseTest, Constants {
         address basketTokenImplementation_,
         address eulerRouter_,
         address strategyRegistry_,
-        address admin_
+        address admin_,
+        address pauser_
     )
         public
     {
@@ -87,12 +93,15 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.assume(eulerRouter_ != address(0));
         vm.assume(strategyRegistry_ != address(0));
         vm.assume(admin_ != address(0));
-
-        BasketManager bm = new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_);
+        vm.assume(pauser_ != address(0));
+        BasketManager bm =
+            new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, pauser_);
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
-        assertEq(bm.hasRole(bm.DEFAULT_ADMIN_ROLE(), admin_), true);
-        assertEq(bm.getRoleMemberCount(bm.DEFAULT_ADMIN_ROLE()), 1);
+        assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
+        assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
+        assertEq(bm.hasRole(PAUSER_ROLE, pauser_), true);
+        assertEq(bm.getRoleMemberCount(PAUSER_ROLE), 1);
     }
 
     function testFuzz_constructor_revertWhen_ZeroAddress(
@@ -100,6 +109,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address eulerRouter_,
         address strategyRegistry_,
         address admin_,
+        address pauser_,
         uint256 flag
     )
         public
@@ -119,8 +129,45 @@ contract BasketManagerTest is BaseTest, Constants {
             admin_ = address(0);
         }
 
-        vm.expectRevert(BasketManager.ZeroAddress.selector);
-        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, pauser_);
+    }
+
+    function testFuzz_constructor_revertWhen_pasuerZeroAddress(
+        address basketTokenImplementation_,
+        address eulerRouter_,
+        address strategyRegistry_,
+        address admin_
+    )
+        public
+    {
+        vm.assume(basketTokenImplementation_ != address(0));
+        vm.assume(eulerRouter_ != address(0));
+        vm.assume(strategyRegistry_ != address(0));
+        vm.assume(admin_ != address(0));
+
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, address(0));
+    }
+
+    function test_unpause() public {
+        vm.prank(pauser);
+        basketManager.pause();
+        assertTrue(basketManager.paused(), "contract not paused");
+        vm.prank(admin);
+        basketManager.unpause();
+        assertFalse(basketManager.paused(), "contract not unpaused");
+    }
+
+    function test_pause_revertWhen_notPauser() public {
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BasketManager.Unauthorized.selector));
+        basketManager.pause();
+    }
+
+    function test_unpause_revertWhen_notAdmin() public {
+        vm.expectRevert(_formatAccessControlError(address(this), DEFAULT_ADMIN_ROLE));
+        basketManager.unpause();
     }
 
     function testFuzz_createNewBasket(uint256 bitFlag, address strategy) public {
@@ -271,7 +318,22 @@ contract BasketManagerTest is BaseTest, Constants {
         address[] memory assets = new address[](1);
         assets[0] = address(0);
 
-        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.prank(manager);
+        basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategy);
+    }
+
+    function test_createNewBasket_revertWhen_paused() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        address strategy = address(uint160(1));
+        address[] memory assets = new address[](1);
+        assets[0] = address(0);
+
+        vm.prank(pauser);
+        basketManager.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         vm.prank(manager);
         basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategy);
     }
@@ -382,6 +444,17 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(targetBaskets);
     }
 
+    function test_proposeRebalance_processesDeposits_revertWhen_paused() public {
+        address basket = _setupBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(pauser);
+        basketManager.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+    }
+
     function test_completeRebalance() public {
         address basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
@@ -468,6 +541,27 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(targetBaskets);
 
         vm.expectRevert(BasketManager.TooEarlyToCompleteRebalance.selector);
+        vm.prank(rebalancer);
+        basketManager.completeRebalance(targetBaskets);
+    }
+
+    function test_completeRebalance_revertWhen_paused() public {
+        address basket = _setupBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+
+        // Simulate the passage of time
+        vm.warp(block.timestamp + 15 minutes + 1);
+
+        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeCall(BasketToken.prepareForRebalance, ()), abi.encode(10_000));
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
+        vm.mockCall(basket, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
+        vm.prank(pauser);
+        basketManager.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         vm.prank(rebalancer);
         basketManager.completeRebalance(targetBaskets);
     }
@@ -1052,11 +1146,36 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
-    function testFuzz_executeTokenSwap_revertWhen_CallerIsNotRebalancer(address caller) public {
+    function testFuzz_proposeTokenSwap_revertWhen_Paused() public {
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        address[] memory targetBaskets = new address[](1);
+        vm.prank(pauser);
+        basketManager.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(rebalancer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
+    }
+
+    function testFuzz_executeTokenSwap_revertWhen_CallerIsNotRebalancer(
+        address caller,
+        ExternalTrade[] calldata trades,
+        bytes calldata data
+    )
+        public
+    {
         vm.assume(!basketManager.hasRole(REBALANCER_ROLE, caller));
         vm.expectRevert(_formatAccessControlError(caller, REBALANCER_ROLE));
         vm.prank(caller);
-        basketManager.executeTokenSwap(new ExternalTrade[](0), "");
+        basketManager.executeTokenSwap(trades, data);
+    }
+
+    function testFuzz_executeTokenSwap_revertWhen_Paused(ExternalTrade[] calldata trades, bytes calldata data) public {
+        vm.prank(pauser);
+        basketManager.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(rebalancer);
+        basketManager.executeTokenSwap(trades, data);
     }
 
     function testFuzz_proposeTokenSwap_externalTrade_revertWhen_AmountsIncorrect(
@@ -1245,7 +1364,7 @@ contract BasketManagerTest is BaseTest, Constants {
     function test_proRataRedeem_revertWhen_ZeroAddress() public {
         address basket = _setupBasketAndMocks();
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
-        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(1, 1, address(0));
     }
@@ -1260,6 +1379,17 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(1, 1, address(this));
+    }
+
+    function test_proRataRedeem_revertWhen_Paused() public {
+        address basket = _setupBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(pauser);
+        basketManager.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(basket);
+        basketManager.proRataRedeem(0, 0, address(0));
     }
 
     /// Internal functions
@@ -1358,7 +1488,7 @@ contract BasketManagerTest is BaseTest, Constants {
     }
 
     function test_setTokenSwapAdapter_revertWhen_ZeroAddress() public {
-        vm.expectRevert(BasketManager.ZeroAddress.selector);
+        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(timelock);
         basketManager.setTokenSwapAdapter(address(0));
     }
