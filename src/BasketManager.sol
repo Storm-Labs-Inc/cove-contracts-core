@@ -15,8 +15,8 @@ import { BasketToken } from "src/BasketToken.sol";
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
+import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
-import { Errors } from "src/libraries/Errors.sol"; 
 
 import { console } from "forge-std/console.sol";
 
