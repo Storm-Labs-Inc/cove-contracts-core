@@ -6,7 +6,7 @@
   "scripts": {
     "prepare": "husky && pnpm run forge-deploy:build",
     "clean": "rm -rf cache out crytic-export generated && forge clean",
-    "build": "./forge-deploy gen-deployer && forge build --sizes",
+    "build": "./forge-deploy gen-deployer && forge build",
     "test": "forge test -vvv --gas-report",
     "coverage": "forge coverage --report lcov",
     "slither": "forge clean && forge build --skip test script --build-info && slither . --ignore-compile",
