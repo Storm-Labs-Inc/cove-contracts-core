@@ -17,6 +17,7 @@ import { BasketToken } from "src/BasketToken.sol";
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
+import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 
 import { console } from "forge-std/console.sol";
@@ -194,7 +195,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     event ExternalTradeValidated(ExternalTrade externalTrade, uint256 minAmount);
 
     /// ERRORS ///
-    error ZeroAddress();
     error ZeroTotalSupply();
     error ZeroBurnedShares();
     error CannotBurnMoreSharesThanTotalSupply();
@@ -214,7 +214,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     error ExternalTradeSlippage();
     error TargetWeightsNotMet();
     error InternalTradeMinMaxAmountNotReached();
-    error PriceOutOfSafeBounds();
     error IncorrectTradeTokenAmount();
     error Unauthorized();
 
@@ -232,11 +231,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         payable
     {
         // Checks
-        if (basketTokenImplementation == address(0)) revert ZeroAddress();
-        if (eulerRouter_ == address(0)) revert ZeroAddress();
-        if (strategyRegistry_ == address(0)) revert ZeroAddress();
-        if (admin == address(0)) revert ZeroAddress();
-        if (pauser == address(0)) revert ZeroAddress();
+        if (basketTokenImplementation == address(0)) revert Errors.ZeroAddress();
+        if (eulerRouter_ == address(0)) revert Errors.ZeroAddress();
+        if (strategyRegistry_ == address(0)) revert Errors.ZeroAddress();
+        if (admin == address(0)) revert Errors.ZeroAddress();
+        if (pauser == address(0)) revert Errors.ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -268,7 +267,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     {
         // Checks
         if (baseAsset == address(0)) {
-            revert ZeroAddress();
+            revert Errors.ZeroAddress();
         }
         uint256 basketTokensLength = basketTokens.length;
         if (basketTokensLength >= _MAX_NUM_OF_BASKET_TOKENS) {
@@ -693,7 +692,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
             revert CannotBurnMoreSharesThanTotalSupply();
         }
         if (to == address(0)) {
-            revert ZeroAddress();
+            revert Errors.ZeroAddress();
         }
         // Revert if a rebalance is in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
