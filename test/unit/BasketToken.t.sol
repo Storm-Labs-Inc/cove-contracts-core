@@ -201,6 +201,7 @@ contract BasketTokenTest is BaseTest {
 
     function testFuzz_setAssetRegistry_revertsWhen_notOwner(address from, address newAssetRegistry) public {
         vm.assume(newAssetRegistry != address(0));
+        vm.assume(from != owner);
         vm.prank(from);
         vm.expectRevert(_formatAccessControlError(from, DEFAULT_ADMIN_ROLE));
         basket.setAssetRegistry(newAssetRegistry);
