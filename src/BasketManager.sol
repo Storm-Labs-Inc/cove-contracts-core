@@ -4,8 +4,10 @@ pragma solidity 0.8.23;
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
@@ -23,7 +25,7 @@ import { console } from "forge-std/console.sol";
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// here.
-contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
+contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
@@ -213,6 +215,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     error TargetWeightsNotMet();
     error InternalTradeMinMaxAmountNotReached();
     error IncorrectTradeTokenAmount();
+    error Unauthorized();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -222,7 +225,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         address basketTokenImplementation,
         address eulerRouter_,
         address strategyRegistry_,
-        address admin
+        address admin,
+        address pauser
     )
         payable
     {
@@ -231,9 +235,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         if (eulerRouter_ == address(0)) revert Errors.ZeroAddress();
         if (strategyRegistry_ == address(0)) revert Errors.ZeroAddress();
         if (admin == address(0)) revert Errors.ZeroAddress();
+        if (pauser == address(0)) revert Errors.ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(_PAUSER_ROLE, pauser);
         _basketTokenImplementation = basketTokenImplementation;
         eulerRouter = EulerRouter(eulerRouter_);
         strategyRegistry = StrategyRegistry(strategyRegistry_);
@@ -255,6 +261,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     )
         external
         payable
+        whenNotPaused
         onlyRole(_MANAGER_ROLE)
         returns (address basket)
     {
@@ -370,7 +377,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
     // slither-disable-next-line cyclomatic-complexity
-    function proposeRebalance(address[] calldata basketsToRebalance) external onlyRole(_REBALANCER_ROLE) nonReentrant {
+    function proposeRebalance(
+        address[] calldata basketsToRebalance
+    )
+        external
+        onlyRole(_REBALANCER_ROLE)
+        nonReentrant
+        whenNotPaused
+    {
         // Checks
         // Revert if a rebalance is already in progress
         if (_rebalanceStatus.status != Status.NOT_STARTED) {
@@ -530,6 +544,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
         external
         onlyRole(_REBALANCER_ROLE)
         nonReentrant
+        whenNotPaused
     {
         RebalanceStatus memory status = _rebalanceStatus;
         if (status.status != Status.REBALANCE_PROPOSED) {
@@ -557,14 +572,14 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
     /// @dev This function can only be called after proposeTokenSwap.
-    function executeTokenSwap() external onlyRole(_REBALANCER_ROLE) nonReentrant {
+    function executeTokenSwap() external onlyRole(_REBALANCER_ROLE) nonReentrant whenNotPaused {
         // TODO: Implement the logic to execute token swap
     }
 
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
-    function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant {
+    function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant whenNotPaused {
         // Check if there is any rebalance in progress
         // slither-disable-next-line incorrect-equality
         if (_rebalanceStatus.status == Status.NOT_STARTED) {
@@ -663,6 +678,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
     )
         public
         nonReentrant
+        whenNotPaused
         onlyRole(_BASKET_TOKEN_ROLE)
     {
         // Checks
@@ -706,6 +722,21 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable {
                 ++i;
             }
         }
+    }
+
+    /// PAUSING FUNCTIONS ///
+
+    /// @notice Pauses the contract. Callable by DEFAULT_ADMIN_ROLE or PAUSER_ROLE.
+    function pause() external {
+        if (!(hasRole(_PAUSER_ROLE, msg.sender) || hasRole(DEFAULT_ADMIN_ROLE, msg.sender))) {
+            revert Unauthorized();
+        }
+        _pause();
+    }
+
+    /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     /// INTERNAL FUNCTIONS ///
