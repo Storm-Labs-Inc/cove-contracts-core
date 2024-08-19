@@ -16,3 +16,6 @@
 [submodule "lib/euler-price-oracle"]
 	path = lib/euler-price-oracle
 	url = https://github.com/euler-xyz/euler-price-oracle
+[submodule "lib/contracts"]
+	path = lib/contracts
+	url = https://github.com/cowprotocol/contracts
