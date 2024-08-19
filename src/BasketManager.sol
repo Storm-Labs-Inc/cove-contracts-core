@@ -10,6 +10,7 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { BasketToken } from "src/BasketToken.sol";
+import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
@@ -18,6 +19,10 @@ import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 // TODO: Remove console import after testing
 import { console } from "forge-std/console.sol";
+
+interface IDelegatedValidSignature {
+    function delegatedIsValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4);
+}
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
@@ -96,6 +101,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     address private constant _USD_ISO_4217_CODE = address(840);
     /// @notice Magic value for ERC1271 signature validation.
     bytes4 private constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
+    /// @notice Non-magic value for ERC1271 signature validation.
+    bytes4 private constant _ERC1271_NON_MAGIC_VALUE = 0xffffffff;
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 private constant _MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
@@ -114,6 +121,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     /// @dev Role given to a timelock contract that can set critical parameters.
     bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
+    /// @notice Domain separator used for ERC1271 signature validation. This is the settlement contract's EIP-712 domain
+    /// separator.
+    bytes32 public constant DOMAIN_SEPARATOR = 0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
 
     /// IMMUTABLES ///
     /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
@@ -183,6 +193,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     error InvalidHash();
     error ExternalTradesHashMismatch();
     error Unauthorized();
+    error TokenSwapAdapterIsValidSignatureFailed();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -983,23 +994,44 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
 
     // ERC1271: CoWSwap will rely on this function to check if a submitted order is valid
     /// @notice Returns the magic value if the hash and the signature is valid.
-    /// @param hash Hash of the order
+    /// @param orderDigest Hash of the order
+    /// @param encodedOrder Encoded order data
     /// @return magicValue Magic value 0x1626ba7e if the hash and the signature is valid.
     /// @dev Refer to https://eips.ethereum.org/EIPS/eip-1271 for details.
     function isValidSignature(
-        bytes32 hash,
-        bytes calldata /* signature */
+        bytes32 orderDigest,
+        bytes calldata encodedOrder
     )
         external
         view
         returns (bytes4 magicValue)
     {
-        // TODO: Add CowSwap specific signature validation logic
-        if (!isOrderValid[hash]) {
-            // This hash is not valid in any context
-            // TODO: Verify whether to return non magic value or revert
-            revert InvalidHash();
+        // Workaround for using delegatecall within a view function
+        return IDelegatedValidSignature(address(this)).delegatedIsValidSignature(orderDigest, encodedOrder);
+    }
+
+    /// @notice Makes a delegate call to the swap adapter to check if the hash and the signature is valid.
+    /// @param orderDigest hash of the order
+    /// @param encodedOrder Encoded order data
+    /// @return magicValue Magic value 0x1626ba7e if the hash and the signature is valid.
+    /// @dev This is a workaround to use delegatecall within a view function. delegatedIsValidSignature is marked as
+    /// non-view because delegatecall is not allowed in view functions. This function is called by isValidSignature
+    /// using IDelegatedValidSignature to make it a static call.
+    /// https://ethereum.stackexchange.com/questions/142490/preserving-visibility-view-of-a-method-using-delegate-call-to-a-view-method/142712#142712
+    function delegatedIsValidSignature(
+        bytes32 orderDigest,
+        bytes calldata encodedOrder
+    )
+        external /* view */
+        returns (bytes4 magicValue)
+    {
+        // Make delegate call to the swap adapter
+        (bool success, bytes memory ret) = tokenSwapAdapter.delegatecall(
+            abi.encodeCall(TokenSwapAdapter.isValidSignature, (orderDigest, encodedOrder))
+        );
+        if (!success) {
+            revert TokenSwapAdapterIsValidSignatureFailed();
         }
-        magicValue = _ERC1271_MAGIC_VALUE;
+        return abi.decode(ret, (bytes4));
     }
 }
