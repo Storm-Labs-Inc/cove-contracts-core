@@ -5,7 +5,15 @@ import { TokenSwapAdapter } from "./TokenSwapAdapter.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
 contract CowswapAdapter is TokenSwapAdapter {
-    function isValidSignature(bytes32 orderDigest, bytes calldata encodedOrder) external view override returns (bool) {
+    function isValidSignature(
+        bytes32 orderDigest,
+        bytes calldata encodedOrder
+    )
+        external
+        view
+        override
+        returns (bytes4)
+    {
         (GPv2Order.Data memory _order, address _orderCreator, address _priceChecker, bytes memory _priceCheckerData) =
             decodeOrder(encodedOrder);
 

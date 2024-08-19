@@ -17,5 +17,5 @@ abstract contract TokenSwapAdapter {
         virtual
         returns (bytes32[] memory hashes);
 
-    function isValidSignature(bytes32 hash, bytes calldata signature) external view virtual returns (bool);
+    function isValidSignature(bytes32 hash, bytes calldata signature) external view virtual returns (bytes4);
 }
