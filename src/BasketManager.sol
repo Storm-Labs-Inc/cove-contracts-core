@@ -99,10 +99,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// CONSTANTS ///
     /// @notice ISO 4217 numeric code for USD, used as a constant address representation
     address private constant _USD_ISO_4217_CODE = address(840);
-    /// @notice Magic value for ERC1271 signature validation.
-    bytes4 private constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
-    /// @notice Non-magic value for ERC1271 signature validation.
-    bytes4 private constant _ERC1271_NON_MAGIC_VALUE = 0xffffffff;
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 private constant _MAX_NUM_OF_BASKET_TOKENS = 256;
     /// @notice Maximum slippage allowed for token swaps.
