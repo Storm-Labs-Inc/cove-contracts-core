@@ -194,6 +194,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address[] memory tokens = basketManager.basketTokens();
         assertEq(tokens[0], basket);
         assertEq(basketManager.basketIdToAddress(keccak256(abi.encodePacked(bitFlag, strategy))), basket);
+        assertEq(basketManager.basketTokenToRebalanceAssetToIndex(basket, address(rootAsset)), 0);
         assertEq(basketManager.basketTokenToIndex(basket), 0);
     }
 
