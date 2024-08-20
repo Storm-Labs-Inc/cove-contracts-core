@@ -6,6 +6,8 @@ import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { ExternalTrade } from "src/types/Trades.sol";
 
 contract CowswapAdapter is TokenSwapAdapter {
+    using GPv2Order for GPv2Order.Data;
+
     bytes32 internal constant _DOMAIN_SEPARATOR = 0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
     /// @dev Magic value for ERC1271 signature validation.
     bytes4 internal constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
@@ -30,7 +32,7 @@ contract CowswapAdapter is TokenSwapAdapter {
 
     function executeTokenSwap(
         ExternalTrade[] calldata externalTrades,
-        bytes calldata data
+        bytes calldata
     )
         external
         override
@@ -38,8 +40,18 @@ contract CowswapAdapter is TokenSwapAdapter {
     {
         CowswapAdapterStorage storage S = _cowswapAdapterStorage();
         // TODO: emit events for each trade
-        // TODO: save hashes of each external trade to verify later
-        S.orderValidTo = block.timestamp + 15 minutes;
+        for (uint256 i = 0; i < externalTrades.length; i++) {
+            // Hash format: sellToken, buyToken, sellAmount, minAmount, orderValidTo
+            S.isOrderValid[keccak256(
+                abi.encode(
+                    externalTrades[i].sellToken,
+                    externalTrades[i].buyToken,
+                    externalTrades[i].sellAmount,
+                    externalTrades[i].minAmount,
+                    S.orderValidTo
+                )
+            )] = true;
+        }
     }
 
     function isValidSignature(
@@ -83,10 +95,13 @@ contract CowswapAdapter is TokenSwapAdapter {
         if (_order.buyAmount > minAmount) revert OrderInvalidBuyAmount(_order.buyAmount);
 
         // TODO: check against proposed hash
-        bytes32 calculatedSwapHash =
-            keccak256(abi.encode(_order.sellToken, _order.buyToken, _order.sellAmount.add(_order.feeAmount), minAmount));
+        bytes32 calculatedSwapHash = keccak256(
+            abi.encode(
+                _order.sellToken, _order.buyToken, _order.sellAmount + _order.feeAmount, minAmount, _order.validTo
+            )
+        );
 
-        if (isOrderValid[calculatedSwapHash]) {
+        if (S.isOrderValid[calculatedSwapHash]) {
             // should be true as long as the keeper isn't submitting bad orders
             return _ERC1271_MAGIC_VALUE;
         } else {
