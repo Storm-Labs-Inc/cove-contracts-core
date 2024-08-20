@@ -14,8 +14,6 @@ import { MathUtils } from "src/libraries/MathUtils.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
-// TODO: visibility of these functions?
-
 library BasketManagerUtils {
     using SafeERC20 for IERC20;
 
@@ -772,6 +770,10 @@ library BasketManagerUtils {
     /// @param self StrategyData struct containing strategy data.
     /// @param basket Basket token address.
     /// @param basketValue Current value of the basket in USD.
+    /// @param baseAssetBalance Current balance of the base asset in the basket.
+    /// @return totalSupply Total supply of the basket token after processing pending deposits.
+    /// @return pendingDeposit pending deposits of the base asset.
+    /// @return pendingDepositValue Value of the pending deposits in USD.
     function _processPendingDeposits(
         StrategyData storage self,
         address basket,
@@ -798,7 +800,6 @@ library BasketManagerUtils {
             totalSupply += requiredDepositShares;
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.basketBalanceOf[basket][self.basketAssets[basket][0]] += baseAssetBalance + pendingDeposit;
-
             // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
             BasketToken(basket).fulfillDeposit(requiredDepositShares);
         }
@@ -808,6 +809,7 @@ library BasketManagerUtils {
     /// @param self StrategyData struct containing strategy data.
     /// @param basket Basket token address.
     /// @param basketValue Current value of the basket in USD.
+    /// @param requiredWithdrawValue Value of the assets to be withdrawn from the basket.
     /// @param assets Array of asset addresses in the basket.
     /// @return targetBalances Array of target balances for each asset in the basket.
     function _calculateTargetBalances(
@@ -825,12 +827,6 @@ library BasketManagerUtils {
         // Rounding direction: down
         // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
         for (uint256 j = 0; j < assets.length;) {
-            console.log("basketValue cuh: ", basketValue);
-            console.log("proposedTargetWeights[j] cuh: ", proposedTargetWeights[j]);
-            console.log(
-                "math: ", FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, _WEIGHT_PRECISION)
-            );
-            console.log("_WEIGHT_PRECISION: ", _WEIGHT_PRECISION);
             targetBalances[j] =
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.eulerRouter.getQuote(
@@ -838,7 +834,6 @@ library BasketManagerUtils {
                 _USD_ISO_4217_CODE,
                 assets[j]
             );
-            // console.log("targetbalance with quote: ", targetBalances[j]);
 
             unchecked {
                 // Overflow not possible: j is less than assetsLength
@@ -847,7 +842,6 @@ library BasketManagerUtils {
         }
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
         targetBalances[0] += self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[0]);
-        // console.log("requirewithdrawtargetbalance: ", targetBalances[0]);
     }
 
     /// @notice Internal function to calculate the current value of the basket and the balances of each asset in the
@@ -856,6 +850,7 @@ library BasketManagerUtils {
     /// @param basket Basket token address.
     /// @param assets Array of asset addresses in the basket.
     /// @return balances Array of balances of each asset in the basket.
+    /// @return basketValue Current value of the basket in USD.
     function _calculateBasketValue(
         StrategyData storage self,
         address basket,
@@ -878,6 +873,12 @@ library BasketManagerUtils {
         }
     }
 
+    /// @notice Internal function to check if a rebalance is required for the given basket.
+    /// @param self StrategyData struct containing strategy data.
+    /// @param assets Array of asset addresses in the basket.
+    /// @param balances Array of balances of each asset in the basket.
+    /// @param targetBalances Array of target balances for each asset in the basket.
+    /// @return shouldRebalance Boolean indicating if a rebalance is required.
     function _checkForRebalance(
         StrategyData storage self,
         address[] memory assets,

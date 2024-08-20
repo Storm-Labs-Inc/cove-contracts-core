@@ -15,11 +15,10 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
-/// here.
+/// in the BasketManagerUtils contract.
 contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pausable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerUtils.StrategyData;
-
     BasketManagerUtils.StrategyData public basketManagerUtils;
 
     /// CONSTANTS ///
@@ -130,14 +129,22 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         return basketManagerUtils.basketTokens.length;
     }
 
+    /// @notice Returns all basket token addresses.
+    /// @return Array of basket token addresses.
     function basketTokens() external view returns (address[] memory) {
         return basketManagerUtils.basketTokens;
     }
 
-    function basketIdToAddress(bytes32 bitflag) external view returns (address) {
-        return basketManagerUtils.basketIdToAddress[bitflag];
+    /// @notice Returns the basket token address with the given basketId.
+    /// @param basketId Basket ID.
+    function basketIdToAddress(bytes32 basketId) external view returns (address) {
+        return basketManagerUtils.basketIdToAddress[basketId];
     }
 
+    /// @notice Returns the balance of the given asset in the given basket.
+    /// @param basketToken Address of the basket token.
+    /// @param asset Address of the asset.
+    /// @return Balance of the asset in the basket.
     function basketBalanceOf(address basketToken, address asset) external view returns (uint256) {
         return basketManagerUtils.basketBalanceOf[basketToken][asset];
     }
@@ -205,7 +212,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
     /// @param data Encoded data for the token swap.
     /// @dev This function can only be called after proposeTokenSwap.
-    // TODO: should this de done in the library? will delegatecall cause any issues?
     function executeTokenSwap(
         ExternalTrade[] calldata externalTrades,
         bytes calldata data
