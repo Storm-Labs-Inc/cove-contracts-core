@@ -8,37 +8,16 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { console } from "forge-std/console.sol";
 import { BasketToken } from "src/BasketToken.sol";
-import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
-import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+
+import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 library BasketManagerUtils {
     using SafeERC20 for IERC20;
 
     /// STRUCTS ///
-    /// @notice Enum representing the status of a rebalance.
-    enum Status {
-        // Rebalance has not started.
-        NOT_STARTED,
-        // Rebalance has been proposed.
-        REBALANCE_PROPOSED,
-        // Token swap has been proposed.
-        TOKEN_SWAP_PROPOSED,
-        // Token swap has been executed.
-        TOKEN_SWAP_EXECUTED
-    }
-
-    /// @notice Struct representing the rebalance status.
-    struct RebalanceStatus {
-        // Hash of the baskets proposed for rebalance.
-        bytes32 basketHash;
-        // Timestamp of the last action.
-        uint40 timestamp;
-        // Status of the rebalance.
-        Status status;
-    }
 
     /// @notice Struct containing data for an internal trade.
     struct InternalTradeInfo {
@@ -80,33 +59,6 @@ library BasketManagerUtils {
         uint256 buyTokenAssetIndex;
         // Index of the sell token asset.
         uint256 sellTokenAssetIndex;
-    }
-
-    struct StrategyData {
-        /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
-        StrategyRegistry strategyRegistry;
-        /// @notice Address of the EulerRouter contract used to fetch oracle quotes for swaps.
-        EulerRouter eulerRouter;
-        /// @notice Address of the BasketToken implementation.
-        address basketTokenImplementation;
-        /// @notice Array of all basket tokens.
-        address[] basketTokens;
-        /// @notice Mapping of basket token to asset to balance.
-        mapping(address basketToken => mapping(address asset => uint256 balance)) basketBalanceOf;
-        /// @notice Mapping of basketId to basket address.
-        mapping(bytes32 basketId => address basketToken) basketIdToAddress;
-        /// @notice Mapping of basket token to assets.
-        mapping(address basketToken => address[] basketAssets) basketAssets;
-        /// @notice Mapping of basket token to basket asset to index plus one. 0 means the basket asset does not exist.
-        mapping(address basketToken => mapping(address basketAsset => uint256 indexPlusOne)) basketAssetToIndexPlusOne;
-        /// @notice Mapping of basket token to index plus one. 0 means the basket token does not exist.
-        mapping(address basketToken => uint256 indexPlusOne) basketTokenToIndexPlusOne;
-        /// @notice Mapping of basket token to pending redeeming shares.
-        mapping(address basketToken => uint256 pendingRedeems) pendingRedeems;
-        /// @notice Rebalance status.
-        RebalanceStatus rebalanceStatus;
-        /// @notice A hash of the latest external trades stored during proposeTokenSwap
-        bytes32 externalTradesHash;
     }
 
     /// CONSTANTS ///
@@ -154,14 +106,14 @@ library BasketManagerUtils {
     error IncorrectTradeTokenAmount();
 
     /// @notice Creates a new basket token with the given parameters.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketName Name of the basket.
     /// @param symbol Symbol of the basket.
     /// @param bitFlag Asset selection bitFlag for the basket.
     /// @param strategy Address of the strategy contract for the basket.
     /// @return basket Address of the newly created basket token.
     function createNewBasket(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         string calldata basketName,
         string calldata symbol,
         address baseAsset,
@@ -222,7 +174,7 @@ library BasketManagerUtils {
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
     // slither-disable-next-line cyclomatic-complexity
-    function proposeRebalance(StrategyData storage self, address[] calldata basketsToRebalance) external {
+    function proposeRebalance(BasketManagerStorage storage self, address[] calldata basketsToRebalance) external {
         // Checks
         // Revert if a rebalance is already in progress
         if (self.rebalanceStatus.status != Status.NOT_STARTED) {
@@ -290,13 +242,13 @@ library BasketManagerUtils {
     // @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
     /// If the proposed token swap results are not close to the target balances, this function will revert.
     /// @dev This function can only be called after proposeRebalance.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param internalTrades Array of internal trades to execute.
     /// @param externalTrades Array of external trades to execute.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     // slither-disable-next-line cyclomatic-complexity
     function proposeTokenSwap(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         InternalTrade[] calldata internalTrades,
         ExternalTrade[] calldata externalTrades,
         address[] calldata basketsToRebalance
@@ -331,9 +283,9 @@ library BasketManagerUtils {
 
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
-    function completeRebalance(StrategyData storage self, address[] calldata basketsToRebalance) external {
+    function completeRebalance(BasketManagerStorage storage self, address[] calldata basketsToRebalance) external {
         // Check if there is any rebalance in progress
         // slither-disable-next-line incorrect-equality
         if (self.rebalanceStatus.status == Status.NOT_STARTED) {
@@ -427,7 +379,7 @@ library BasketManagerUtils {
     /// @param burnedShares Amount of shares burned.
     /// @param to Address to send the redeemed assets to.
     function proRataRedeem(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         uint256 totalSupplyBefore,
         uint256 burnedShares,
         address to
@@ -478,12 +430,12 @@ library BasketManagerUtils {
     }
 
     /// @notice Returns the index of the asset in a given basket
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketToken Basket token address.
     /// @param asset Asset address.
     /// @return index Index of the asset in the basket.
     function basketTokenToRebalanceAssetToIndex(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         address basketToken,
         address asset
     )
@@ -502,10 +454,17 @@ library BasketManagerUtils {
     }
 
     /// @notice Returns the index of the basket token.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketToken Basket token address.
     /// @return index Index of the basket token.
-    function basketTokenToIndex(StrategyData storage self, address basketToken) public view returns (uint256 index) {
+    function basketTokenToIndex(
+        BasketManagerStorage storage self,
+        address basketToken
+    )
+        public
+        view
+        returns (uint256 index)
+    {
         index = self.basketTokenToIndexPlusOne[basketToken];
         if (index == 0) {
             revert BasketTokenNotFound();
@@ -540,12 +499,12 @@ library BasketManagerUtils {
     /// PRIVATE FUNCTIONS ///
 
     /// @notice Internal function to initialize the basket data to be used while proposing a token swap.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     /// @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
     /// @param totalBasketValue_ An initialized array of total basket values for each basket being rebalanced.
     function _initializeBasketData(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         address[] calldata basketsToRebalance,
         uint256[][] memory afterTradeBasketAssetAmounts_,
         uint256[] memory totalBasketValue_
@@ -581,14 +540,14 @@ library BasketManagerUtils {
     }
 
     /// @notice Internal function to settle internal trades.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param internalTrades Array of internal trades to execute.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     /// @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
     /// @dev If the result of an internal trade is not within the provided minAmount or maxAmount, this function will
     /// revert.
     function _settleInternalTrades(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         InternalTrade[] calldata internalTrades,
         address[] calldata basketsToRebalance,
         uint256[][] memory afterTradeBasketAssetAmounts_
@@ -640,14 +599,14 @@ library BasketManagerUtils {
     }
 
     /// @notice Internal function to validate external trades.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param externalTrades Array of external trades to be validated.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     /// @param totalBasketValue_ Array of total basket values in USD.
     /// @param afterTradeBasketAssetAmounts_ An initialized array of asset amounts for each basket being rebalanced.
     /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
     function _validateExternalTrades(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades,
         address[] calldata basketsToRebalance,
         uint256[] memory totalBasketValue_,
@@ -715,14 +674,14 @@ library BasketManagerUtils {
 
     /// @notice Internal function to validate the target weights for each basket have been met after all trades have
     /// been settled.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
     /// @param afterTradeBasketAssetAmounts_ Array of asset amounts for each basket as updated with the results from
     /// both external and internal trades.
     /// @param totalBasketValue_ Array of total basket values in USD.
     /// @dev If target weights are not within the _MAX_WEIGHT_DEVIATION_BPS threshold, this function will revert.
     function _validateTargetWeights(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         address[] calldata basketsToRebalance,
         uint256[][] memory afterTradeBasketAssetAmounts_,
         uint256[] memory totalBasketValue_
@@ -765,7 +724,7 @@ library BasketManagerUtils {
     }
 
     /// @notice Internal function to process pending deposits and fulfill them.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basket Basket token address.
     /// @param basketValue Current value of the basket in USD.
     /// @param baseAssetBalance Current balance of the base asset in the basket.
@@ -773,7 +732,7 @@ library BasketManagerUtils {
     /// @return pendingDeposit pending deposits of the base asset.
     /// @return pendingDepositValue Value of the pending deposits in USD.
     function _processPendingDeposits(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         address basket,
         uint256 basketValue,
         uint256 baseAssetBalance
@@ -805,14 +764,14 @@ library BasketManagerUtils {
     }
 
     /// @notice Internal function to calculate the target balances for each asset in a basket.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basket Basket token address.
     /// @param basketValue Current value of the basket in USD.
     /// @param requiredWithdrawValue Value of the assets to be withdrawn from the basket.
     /// @param assets Array of asset addresses in the basket.
     /// @return targetBalances Array of target balances for each asset in the basket.
     function _calculateTargetBalances(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         address basket,
         uint256 basketValue,
         uint256 requiredWithdrawValue,
@@ -846,13 +805,13 @@ library BasketManagerUtils {
 
     /// @notice Internal function to calculate the current value of the basket and the balances of each asset in the
     /// basket.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basket Basket token address.
     /// @param assets Array of asset addresses in the basket.
     /// @return balances Array of balances of each asset in the basket.
     /// @return basketValue Current value of the basket in USD.
     function _calculateBasketValue(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         address basket,
         address[] memory assets
     )
@@ -875,13 +834,13 @@ library BasketManagerUtils {
     }
 
     /// @notice Internal function to check if a rebalance is required for the given basket.
-    /// @param self StrategyData struct containing strategy data.
+    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param assets Array of asset addresses in the basket.
     /// @param balances Array of balances of each asset in the basket.
     /// @param targetBalances Array of target balances for each asset in the basket.
     /// @return shouldRebalance Boolean indicating if a rebalance is required.
     function _checkForRebalance(
-        StrategyData storage self,
+        BasketManagerStorage storage self,
         address[] memory assets,
         uint256[] memory balances,
         uint256[] memory targetBalances

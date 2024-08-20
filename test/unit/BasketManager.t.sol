@@ -16,6 +16,8 @@ import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
+
+import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -399,7 +401,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManagerUtils.Status.REBALANCE_PROPOSED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
     }
 
     function test_proposeRebalance_revertWhen_depositTooLittle_RebalanceNotRequired() public {
@@ -479,7 +481,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.completeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManagerUtils.Status.NOT_STARTED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assertEq(basketManager.rebalanceStatus().basketHash, bytes32(0));
     }
 
@@ -628,7 +630,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
         // Confirm end state
         assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManagerUtils.Status.TOKEN_SWAP_PROPOSED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
         return externalTrades;
     }
@@ -742,7 +744,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
         // Confirm end state
         assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManagerUtils.Status.TOKEN_SWAP_PROPOSED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
         assertEq(
             basketManager.basketBalanceOf(baskets[0], rootAsset),

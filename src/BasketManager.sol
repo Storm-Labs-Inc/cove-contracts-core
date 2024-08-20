@@ -11,6 +11,8 @@ import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
+
+import { BasketManagerStorage, RebalanceStatus } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 /// @title BasketManager
@@ -18,7 +20,7 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 /// in the BasketManagerUtils contract.
 contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pausable {
     /// LIBRARIES ///
-    using BasketManagerUtils for BasketManagerUtils.StrategyData;
+    using BasketManagerUtils for BasketManagerStorage;
 
     /// CONSTANTS ///
     /// @notice Manager role. Managers can create new baskets.
@@ -36,7 +38,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
 
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
-    BasketManagerUtils.StrategyData public basketManagerUtils;
+    BasketManagerStorage private _bmStorage;
     /// @notice Address of the TokenSwapAdapter contract used to execute token swaps.
     address public tokenSwapAdapter;
     /// @notice Mapping of order hashes to their validity status.
@@ -72,9 +74,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_PAUSER_ROLE, pauser);
         // Initialize the BasketManagerUtils struct
-        basketManagerUtils.strategyRegistry = StrategyRegistry(strategyRegistry_);
-        basketManagerUtils.eulerRouter = EulerRouter(eulerRouter_);
-        basketManagerUtils.basketTokenImplementation = basketTokenImplementation;
+        _bmStorage.strategyRegistry = StrategyRegistry(strategyRegistry_);
+        _bmStorage.eulerRouter = EulerRouter(eulerRouter_);
+        _bmStorage.basketTokenImplementation = basketTokenImplementation;
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -97,7 +99,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         onlyRole(_MANAGER_ROLE)
         returns (address basket)
     {
-        basket = basketManagerUtils.createNewBasket(basketName, symbol, baseAsset, bitFlag, strategy);
+        basket = _bmStorage.createNewBasket(basketName, symbol, baseAsset, bitFlag, strategy);
         _grantRole(_BASKET_TOKEN_ROLE, basket);
     }
 
@@ -106,7 +108,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// @param basketToken Address of the basket token.
     /// @return index Index of the basket token.
     function basketTokenToIndex(address basketToken) public view returns (uint256 index) {
-        index = basketManagerUtils.basketTokenToIndex(basketToken);
+        index = _bmStorage.basketTokenToIndex(basketToken);
     }
 
     /// @notice Returns the index of the basket asset in the basketAssets array.
@@ -122,25 +124,25 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         view
         returns (uint256 index)
     {
-        index = basketManagerUtils.basketTokenToRebalanceAssetToIndex(basketToken, asset);
+        index = _bmStorage.basketTokenToRebalanceAssetToIndex(basketToken, asset);
     }
 
     /// @notice Returns the number of basket tokens.
     /// @return Number of basket tokens.
     function numOfBasketTokens() public view returns (uint256) {
-        return basketManagerUtils.basketTokens.length;
+        return _bmStorage.basketTokens.length;
     }
 
     /// @notice Returns all basket token addresses.
     /// @return Array of basket token addresses.
     function basketTokens() external view returns (address[] memory) {
-        return basketManagerUtils.basketTokens;
+        return _bmStorage.basketTokens;
     }
 
     /// @notice Returns the basket token address with the given basketId.
     /// @param basketId Basket ID.
     function basketIdToAddress(bytes32 basketId) external view returns (address) {
-        return basketManagerUtils.basketIdToAddress[basketId];
+        return _bmStorage.basketIdToAddress[basketId];
     }
 
     /// @notice Returns the balance of the given asset in the given basket.
@@ -148,7 +150,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// @param asset Address of the asset.
     /// @return Balance of the asset in the basket.
     function basketBalanceOf(address basketToken, address asset) external view returns (uint256) {
-        return basketManagerUtils.basketBalanceOf[basketToken][asset];
+        return _bmStorage.basketBalanceOf[basketToken][asset];
     }
 
     /// @notice Returns the current rebalance status.
@@ -156,26 +158,26 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     ///   - basketHash: Hash of the baskets proposed for rebalance.
     ///   - timestamp: Timestamp of the last action.
     ///   - status: Status enum of the rebalance.
-    function rebalanceStatus() external view returns (BasketManagerUtils.RebalanceStatus memory) {
-        return basketManagerUtils.rebalanceStatus;
+    function rebalanceStatus() external view returns (RebalanceStatus memory) {
+        return _bmStorage.rebalanceStatus;
     }
 
     /// @notice Returns the hash of the external trades stored during proposeTokenSwap
     /// @return Hash of the external trades
     function externalTradesHash() external view returns (bytes32) {
-        return basketManagerUtils.externalTradesHash;
+        return _bmStorage.externalTradesHash;
     }
 
     /// @notice Returns the address of the basket token implementation.
     /// @return Address of the basket token implementation.
     function eulerRouter() external view returns (address) {
-        return address(basketManagerUtils.eulerRouter);
+        return address(_bmStorage.eulerRouter);
     }
 
     /// @notice Returns the address of the strategy registry.
     /// @return Address of the strategy registry.
     function strategyRegistry() external view returns (address) {
-        return address(basketManagerUtils.strategyRegistry);
+        return address(_bmStorage.strategyRegistry);
     }
 
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
@@ -189,7 +191,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         nonReentrant
         whenNotPaused
     {
-        basketManagerUtils.proposeRebalance(basketsToRebalance);
+        _bmStorage.proposeRebalance(basketsToRebalance);
     }
 
     /// @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
@@ -208,7 +210,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         nonReentrant
         whenNotPaused
     {
-        basketManagerUtils.proposeTokenSwap(internalTrades, externalTrades, basketsToRebalance);
+        _bmStorage.proposeTokenSwap(internalTrades, externalTrades, basketsToRebalance);
     }
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
@@ -224,7 +226,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         whenNotPaused
     {
         // Check if the external trades match the hash from proposeTokenSwap
-        if (keccak256(abi.encode(externalTrades)) != basketManagerUtils.externalTradesHash) {
+        if (keccak256(abi.encode(externalTrades)) != _bmStorage.externalTradesHash) {
             revert ExternalTradesHashMismatch();
         }
         (bool success, bytes memory ret) =
@@ -257,7 +259,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// 15 minutes since the last action.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
     function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant whenNotPaused {
-        basketManagerUtils.completeRebalance(basketsToRebalance);
+        _bmStorage.completeRebalance(basketsToRebalance);
     }
 
     /// FALLBACK REDEEM LOGIC ///
@@ -277,7 +279,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         whenNotPaused
         onlyRole(_BASKET_TOKEN_ROLE)
     {
-        basketManagerUtils.proRataRedeem(totalSupplyBefore, burnedShares, to);
+        _bmStorage.proRataRedeem(totalSupplyBefore, burnedShares, to);
     }
 
     /// PAUSING FUNCTIONS ///
