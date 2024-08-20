@@ -83,14 +83,12 @@ library BasketManagerUtils {
     }
 
     struct StrategyData {
-        /// IMMUTABLES ///
         /// @notice Address of the StrategyRegistry contract used to resolve and verify basket target weights.
         StrategyRegistry strategyRegistry;
         /// @notice Address of the EulerRouter contract used to fetch oracle quotes for swaps.
         EulerRouter eulerRouter;
         /// @notice Address of the BasketToken implementation.
         address basketTokenImplementation;
-        /// STATE VARIABLES ///
         /// @notice Array of all basket tokens.
         address[] basketTokens;
         /// @notice Mapping of basket token to asset to balance.
@@ -174,8 +172,6 @@ library BasketManagerUtils {
         returns (address basket)
     {
         // Checks
-        console.log("baseAsset: ", baseAsset);
-
         if (baseAsset == address(0)) {
             revert Errors.ZeroAddress();
         }
@@ -360,7 +356,8 @@ library BasketManagerUtils {
         self.rebalanceStatus.status = Status.NOT_STARTED;
 
         // Process the redeems for the given baskets
-        for (uint256 i = 0; i < basketsToRebalance.length;) {
+        uint256 basketsToRebalanceLength = basketsToRebalance.length;
+        for (uint256 i = 0; i < basketsToRebalanceLength;) {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -368,7 +365,7 @@ library BasketManagerUtils {
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 assetsLength = assets.length;
             uint256[] memory balances = new uint256[](assetsLength);
-            uint256 basketValue;
+            uint256 basketValue = 0;
 
             // Calculate current basket value
             for (uint256 j = 0; j < assetsLength;) {
@@ -557,7 +554,6 @@ library BasketManagerUtils {
         view
     {
         uint256 numBaskets = basketsToRebalance.length;
-
         for (uint256 i = 0; i < numBaskets;) {
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -599,7 +595,8 @@ library BasketManagerUtils {
     )
         private
     {
-        for (uint256 i = 0; i < internalTrades.length;) {
+        uint256 internalTradesLength = internalTrades.length;
+        for (uint256 i = 0; i < internalTradesLength;) {
             InternalTrade memory trade = internalTrades[i];
             InternalTradeInfo memory info = InternalTradeInfo({
                 fromBasketIndex: _indexOf(basketsToRebalance, trade.fromBasket),
@@ -734,7 +731,8 @@ library BasketManagerUtils {
         view
     {
         // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
-        for (uint256 i = 0; i < basketsToRebalance.length;) {
+        uint256 basketsToRebalanceLength = basketsToRebalance.length;
+        for (uint256 i = 0; i < basketsToRebalanceLength;) {
             address basket = basketsToRebalance[i];
             // slither-disable-next-line calls-loop
             uint256[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights();
@@ -785,6 +783,7 @@ library BasketManagerUtils {
     {
         pendingDeposit = BasketToken(basket).totalPendingDeposits();
         totalSupply = BasketToken(basket).totalSupply();
+
         if (pendingDeposit > 0) {
             // Assume the first asset listed in the basket is the base asset
             // Round direction: down
@@ -823,10 +822,11 @@ library BasketManagerUtils {
         returns (uint256[] memory targetBalances)
     {
         uint256[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights();
-        targetBalances = new uint256[](assets.length);
+        uint256 assetsLength = assets.length;
+        targetBalances = new uint256[](assetsLength);
         // Rounding direction: down
         // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
-        for (uint256 j = 0; j < assets.length;) {
+        for (uint256 j = 0; j < assetsLength;) {
             targetBalances[j] =
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.eulerRouter.getQuote(
@@ -859,8 +859,9 @@ library BasketManagerUtils {
         private
         returns (uint256[] memory balances, uint256 basketValue)
     {
-        balances = new uint256[](assets.length);
-        for (uint256 j = 0; j < assets.length;) {
+        uint256 assetsLength = assets.length;
+        balances = new uint256[](assetsLength);
+        for (uint256 j = 0; j < assetsLength;) {
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             balances[j] = self.basketBalanceOf[basket][assets[j]];
             // Rounding direction: down
@@ -888,7 +889,8 @@ library BasketManagerUtils {
         private
         returns (bool shouldRebalance)
     {
-        for (uint256 j = 0; j < assets.length;) {
+        uint256 assetsLength = assets.length;
+        for (uint256 j = 0; j < assetsLength;) {
             // Check if the target balance is different by more than 500 USD
             // NOTE: This implies it requires only one asset to be different by more than 500 USD
             //       to trigger a rebalance. This is placeholder logic and should be updated.

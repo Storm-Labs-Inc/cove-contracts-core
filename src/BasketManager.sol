@@ -19,7 +19,6 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pausable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerUtils.StrategyData;
-    BasketManagerUtils.StrategyData public basketManagerUtils;
 
     /// CONSTANTS ///
     /// @notice Manager role. Managers can create new baskets.
@@ -36,8 +35,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     bytes4 private constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
 
     /// STATE VARIABLES ///
+    /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
+    BasketManagerUtils.StrategyData public basketManagerUtils;
     /// @notice Address of the TokenSwapAdapter contract used to execute token swaps.
     address public tokenSwapAdapter;
+    /// @notice Mapping of order hashes to their validity status.
     mapping(bytes32 => bool) public isOrderValid;
 
     /// ERRORS ///
