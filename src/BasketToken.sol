@@ -144,7 +144,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _supportedInterfaces[_ASYNCHRONOUS_DEPOSIT_INTERFACE] = true;
         _supportedInterfaces[_ASYNCHRONOUS_REDEMPTION_INTERFACE] = true;
         _supportedInterfaces[_ERC7575_INTERFACE] = true;
-        _supportedInterfaces[_ACCESS_CONTROL_INTERFACE] = true;
         __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
