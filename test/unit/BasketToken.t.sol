@@ -6,12 +6,16 @@ import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
+
+import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
+import { IERC7575 } from "src/interfaces/IERC7575.sol";
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -126,9 +130,11 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(token.admin(), tokenAdmin);
         assertEq(token.basketManager(), from);
         assertEq(token.supportsInterface(type(IERC165).interfaceId), true);
-        assertEq(token.supportsInterface(OPERATOR7540_INTERFACE), true);
-        assertEq(token.supportsInterface(ASYNCHRONOUS_DEPOSIT_INTERFACE), true);
-        assertEq(token.supportsInterface(ASYNCHRONOUS_REDEMPTION_INTERFACE), true);
+        assertEq(token.supportsInterface(type(IERC7575).interfaceId), true);
+        assertEq(token.supportsInterface(type(IAccessControl).interfaceId), true);
+        assertEq(token.supportsInterface(type(IERC7540Operator).interfaceId), true);
+        assertEq(token.supportsInterface(type(IERC7540Deposit).interfaceId), true);
+        assertEq(token.supportsInterface(type(IERC7540Redeem).interfaceId), true);
     }
 
     function testFuzz_initialize_revertsWhen_ownerZero(
