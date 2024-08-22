@@ -9,11 +9,15 @@ import { stdError } from "forge-std/StdError.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
+
 import { BasketToken } from "src/BasketToken.sol";
+import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
+
+import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -54,7 +58,9 @@ contract BasketManagerTest is BaseTest, Constants {
         manager = createUser("manager");
         rebalancer = createUser("rebalancer");
         rootAsset = address(new ERC20Mock());
+        vm.label(rootAsset, "rootAsset");
         toAsset = address(new ERC20Mock());
+        vm.label(toAsset, "toAsset");
         basketTokenImplementation = createUser("basketTokenImplementation");
         mockPriceOracle = new MockPriceOracle();
         vm.label(address(mockPriceOracle), "mockPriceOracle");
@@ -187,8 +193,10 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.prank(manager);
         address basket = basketManager.createNewBasket(name, symbol, address(rootAsset), bitFlag, strategy);
         assertEq(basketManager.numOfBasketTokens(), 1);
-        assertEq(basketManager.basketTokens(0), basket);
+        address[] memory tokens = basketManager.basketTokens();
+        assertEq(tokens[0], basket);
         assertEq(basketManager.basketIdToAddress(keccak256(abi.encodePacked(bitFlag, strategy))), basket);
+        assertEq(basketManager.basketTokenToRebalanceAssetToIndex(basket, address(rootAsset)), 0);
         assertEq(basketManager.basketTokenToIndex(basket), 0);
     }
 
@@ -211,7 +219,7 @@ contract BasketManagerTest is BaseTest, Constants {
             basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
             assertEq(basketManager.numOfBasketTokens(), i + 1);
         }
-        vm.expectRevert(BasketManager.BasketTokenMaxExceeded.selector);
+        vm.expectRevert(BasketManagerUtils.BasketTokenMaxExceeded.selector);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
 
@@ -231,7 +239,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(strategyRegistry, abi.encodeWithSelector(StrategyRegistry.getAssets.selector), abi.encode(assets));
         vm.startPrank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
-        vm.expectRevert(BasketManager.BasketTokenAlreadyExists.selector);
+        vm.expectRevert(BasketManagerUtils.BasketTokenAlreadyExists.selector);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
 
@@ -251,7 +259,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(
             strategyRegistry, abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)), abi.encode(false)
         );
-        vm.expectRevert(BasketManager.StrategyRegistryDoesNotSupportStrategy.selector);
+        vm.expectRevert(BasketManagerUtils.StrategyRegistryDoesNotSupportStrategy.selector);
         vm.startPrank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
@@ -282,7 +290,7 @@ contract BasketManagerTest is BaseTest, Constants {
             strategyRegistry, abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)), abi.encode(true)
         );
         vm.mockCall(strategyRegistry, abi.encodeCall(StrategyRegistry.getAssets, (bitFlag)), abi.encode(assets));
-        vm.expectRevert(BasketManager.AssetListEmpty.selector);
+        vm.expectRevert(BasketManagerUtils.AssetListEmpty.selector);
         vm.prank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
@@ -305,7 +313,7 @@ contract BasketManagerTest is BaseTest, Constants {
             strategyRegistry, abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)), abi.encode(true)
         );
         vm.mockCall(strategyRegistry, abi.encodeCall(StrategyRegistry.getAssets, (bitFlag)), abi.encode(assets));
-        vm.expectRevert(BasketManager.BaseAssetMismatch.selector);
+        vm.expectRevert(BasketManagerUtils.BaseAssetMismatch.selector);
         vm.prank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
@@ -316,10 +324,9 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256 bitFlag = 1;
         address strategy = address(uint160(1));
         address[] memory assets = new address[](1);
-        assets[0] = address(0);
-
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        assets[0] = rootAsset;
         vm.prank(manager);
+        vm.expectRevert(Errors.ZeroAddress.selector);
         basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategy);
     }
 
@@ -361,7 +368,7 @@ contract BasketManagerTest is BaseTest, Constants {
     }
 
     function test_basketTokenToIndex_revertWhen_BasketTokenNotFound() public {
-        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        vm.expectRevert(BasketManagerUtils.BasketTokenNotFound.selector);
         basketManager.basketTokenToIndex(address(0));
     }
 
@@ -382,7 +389,7 @@ contract BasketManagerTest is BaseTest, Constants {
             vm.assume(baskets[i] != basket);
         }
 
-        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        vm.expectRevert(BasketManagerUtils.BasketTokenNotFound.selector);
         basketManager.basketTokenToIndex(basket);
     }
 
@@ -394,7 +401,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.REBALANCE_PROPOSED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
     }
 
     function test_proposeRebalance_revertWhen_depositTooLittle_RebalanceNotRequired() public {
@@ -402,7 +409,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
 
-        vm.expectRevert(BasketManager.RebalanceNotRequired.selector);
+        vm.expectRevert(BasketManagerUtils.RebalanceNotRequired.selector);
         vm.prank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
     }
@@ -412,7 +419,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
 
-        vm.expectRevert(BasketManager.RebalanceNotRequired.selector);
+        vm.expectRevert(BasketManagerUtils.RebalanceNotRequired.selector);
         vm.prank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
     }
@@ -424,14 +431,14 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.startPrank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
 
-        vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         basketManager.proposeRebalance(targetBaskets);
     }
 
     function testFuzz_proposeRebalance_revertWhen_BasketTokenNotFound(address fakeBasket) public {
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = fakeBasket;
-        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        vm.expectRevert(BasketManagerUtils.BasketTokenNotFound.selector);
         vm.prank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
     }
@@ -474,7 +481,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.completeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.NOT_STARTED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assertEq(basketManager.rebalanceStatus().basketHash, bytes32(0));
     }
 
@@ -516,7 +523,7 @@ contract BasketManagerTest is BaseTest, Constants {
     }
 
     function test_completeRebalance_revertWhen_NoRebalanceInProgress() public {
-        vm.expectRevert(BasketManager.NoRebalanceInProgress.selector);
+        vm.expectRevert(BasketManagerUtils.NoRebalanceInProgress.selector);
         vm.prank(rebalancer);
         basketManager.completeRebalance(new address[](0));
     }
@@ -528,7 +535,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.prank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
 
-        vm.expectRevert(BasketManager.BasketsMismatch.selector);
+        vm.expectRevert(BasketManagerUtils.BasketsMismatch.selector);
         vm.prank(rebalancer);
         basketManager.completeRebalance(new address[](0));
     }
@@ -540,7 +547,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.prank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
 
-        vm.expectRevert(BasketManager.TooEarlyToCompleteRebalance.selector);
+        vm.expectRevert(BasketManagerUtils.TooEarlyToCompleteRebalance.selector);
         vm.prank(rebalancer);
         basketManager.completeRebalance(targetBaskets);
     }
@@ -623,7 +630,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
         // Confirm end state
         assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.TOKEN_SWAP_PROPOSED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
         return externalTrades;
     }
@@ -678,7 +685,7 @@ contract BasketManagerTest is BaseTest, Constants {
         });
 
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.ExternalTradeSlippage.selector);
+        vm.expectRevert(BasketManagerUtils.ExternalTradeSlippage.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -737,7 +744,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
         // Confirm end state
         assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
-        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(BasketManager.Status.TOKEN_SWAP_PROPOSED));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
         assertEq(
             basketManager.basketBalanceOf(baskets[0], rootAsset),
@@ -771,7 +778,7 @@ contract BasketManagerTest is BaseTest, Constants {
         InternalTrade[] memory internalTrades = new InternalTrade[](1);
         ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
         address[] memory targetBaskets = new address[](1);
-        vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(rebalancer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
     }
@@ -781,7 +788,7 @@ contract BasketManagerTest is BaseTest, Constants {
         InternalTrade[] memory internalTrades = new InternalTrade[](1);
         ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
         address[] memory targetBaskets = new address[](1);
-        vm.expectRevert(BasketManager.BasketsMismatch.selector);
+        vm.expectRevert(BasketManagerUtils.BasketsMismatch.selector);
         vm.prank(rebalancer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets);
     }
@@ -842,7 +849,7 @@ contract BasketManagerTest is BaseTest, Constants {
             maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.ElementIndexNotFound.selector);
+        vm.expectRevert(BasketManagerUtils.ElementIndexNotFound.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -904,7 +911,7 @@ contract BasketManagerTest is BaseTest, Constants {
             maxAmount: type(uint256).max
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.IncorrectTradeTokenAmount.selector);
+        vm.expectRevert(BasketManagerUtils.IncorrectTradeTokenAmount.selector);
         // Assume for the case where the amount bought is greater than the balance of the to basket, thus providing
         // invalid input to the function
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
@@ -918,7 +925,7 @@ contract BasketManagerTest is BaseTest, Constants {
             maxAmount: type(uint256).max
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.IncorrectTradeTokenAmount.selector);
+        vm.expectRevert(BasketManagerUtils.IncorrectTradeTokenAmount.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -970,7 +977,7 @@ contract BasketManagerTest is BaseTest, Constants {
             basketTradeOwnership: tradeOwnerships
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.ElementIndexNotFound.selector);
+        vm.expectRevert(BasketManagerUtils.ElementIndexNotFound.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -1028,7 +1035,7 @@ contract BasketManagerTest is BaseTest, Constants {
             maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.InternalTradeMinMaxAmountNotReached.selector);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -1089,7 +1096,7 @@ contract BasketManagerTest is BaseTest, Constants {
             maxAmount: deviatedTradeAmount.fullMulDiv(1.005e18, 1e18)
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.TargetWeightsNotMet.selector);
+        vm.expectRevert(BasketManagerUtils.TargetWeightsNotMet.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -1142,7 +1149,7 @@ contract BasketManagerTest is BaseTest, Constants {
             maxAmount: (params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18) * 1.005e18 / 1e18
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.AssetNotFoundInBasket.selector);
+        vm.expectRevert(BasketManagerUtils.AssetNotFoundInBasket.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -1227,7 +1234,7 @@ contract BasketManagerTest is BaseTest, Constants {
             basketTradeOwnership: tradeOwnerships
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.IncorrectTradeTokenAmount.selector);
+        vm.expectRevert(BasketManagerUtils.IncorrectTradeTokenAmount.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -1281,7 +1288,7 @@ contract BasketManagerTest is BaseTest, Constants {
             basketTradeOwnership: tradeOwnerships
         });
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManager.TargetWeightsNotMet.selector);
+        vm.expectRevert(BasketManagerUtils.TargetWeightsNotMet.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
     }
 
@@ -1336,7 +1343,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.completeRebalance(targetBaskets);
 
         // Redeem some shares
-        vm.expectRevert(BasketManager.CannotBurnMoreSharesThanTotalSupply.selector);
+        vm.expectRevert(BasketManagerUtils.CannotBurnMoreSharesThanTotalSupply.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(depositAmount, depositAmount + 1, address(this));
     }
@@ -1348,7 +1355,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
     function test_proRataRedeem_revertWhen_ZeroTotalSupply() public {
         address basket = _setupBasketAndMocks(10_000);
-        vm.expectRevert(BasketManager.ZeroTotalSupply.selector);
+        vm.expectRevert(BasketManagerUtils.ZeroTotalSupply.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(0, 0, address(0));
     }
@@ -1356,7 +1363,7 @@ contract BasketManagerTest is BaseTest, Constants {
     function test_proRataRedeem_revertWhen_ZeroBurnedShares() public {
         address basket = _setupBasketAndMocks();
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
-        vm.expectRevert(BasketManager.ZeroBurnedShares.selector);
+        vm.expectRevert(BasketManagerUtils.ZeroBurnedShares.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(1, 0, address(this));
     }
@@ -1376,7 +1383,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.prank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
 
-        vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(1, 1, address(this));
     }
