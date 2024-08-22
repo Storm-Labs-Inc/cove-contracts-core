@@ -14,6 +14,9 @@ import { MathUtils } from "src/libraries/MathUtils.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
+/// @title BasketManagerUtils
+/// @notice Library containing utility functions for managing storage related to baskets, including creating new
+/// baskets, proposing and executing rebalances, and settling internal and external token trades.
 library BasketManagerUtils {
     using SafeERC20 for IERC20;
 
@@ -83,26 +86,46 @@ library BasketManagerUtils {
     /// @param minAmount Minimum amount of the buy token that the trade results in.
     event ExternalTradeValidated(ExternalTrade externalTrade, uint256 minAmount);
 
-    //// ERRORS ////
+    /// ERRORS ///
+    /// @dev Reverts when the total supply of a basket token is zero.
     error ZeroTotalSupply();
+    /// @dev Reverts when the amount of burned shares is zero.
     error ZeroBurnedShares();
+    /// @dev Reverts when trying to burn more shares than the total supply.
     error CannotBurnMoreSharesThanTotalSupply();
+    /// @dev Reverts when the requested basket token is not found.
     error BasketTokenNotFound();
+    /// @dev Reverts when the requested asset is not found in the basket.
     error AssetNotFoundInBasket();
+    /// @dev Reverts when trying to create a basket token that already exists.
     error BasketTokenAlreadyExists();
+    /// @dev Reverts when the maximum number of basket tokens has been reached.
     error BasketTokenMaxExceeded();
+    /// @dev Reverts when the requested element index is not found.
     error ElementIndexNotFound();
+    /// @dev Reverts when the strategy registry does not support the given strategy.
     error StrategyRegistryDoesNotSupportStrategy();
+    /// @dev Reverts when the baskets do not match.
     error BasketsMismatch();
+    /// @dev Reverts when the base asset does not match the given asset.
     error BaseAssetMismatch();
+    /// @dev Reverts when the asset is not found in the asset registry.
     error AssetListEmpty();
+    /// @dev Reverts when a rebalance is in progress and the caller must wait for it to complete.
     error MustWaitForRebalanceToComplete();
+    /// @dev Reverts when there is no rebalance in progress.
     error NoRebalanceInProgress();
+    /// @dev Reverts when it is too early to complete the rebalance.
     error TooEarlyToCompleteRebalance();
+    /// @dev Reverts when a rebalance is not required.
     error RebalanceNotRequired();
+    /// @dev Reverts when the external trade slippage exceeds the allowed limit.
     error ExternalTradeSlippage();
+    /// @dev Reverts when the target weights are not met.
     error TargetWeightsNotMet();
+    /// @dev Reverts when the minimum or maximum amount is not reached for an internal trade.
     error InternalTradeMinMaxAmountNotReached();
+    /// @dev Reverts when the trade token amount is incorrect.
     error IncorrectTradeTokenAmount();
 
     /// @notice Creates a new basket token with the given parameters.
@@ -749,7 +772,6 @@ library BasketManagerUtils {
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             pendingDepositValue =
                 self.eulerRouter.getQuote(pendingDeposit, self.basketAssets[basket][0], _USD_ISO_4217_CODE);
-            console.log("buh pendingdeposit value: ", pendingDeposit);
             // Rounding direction: down
             // Division-by-zero is not possible: basketValue is greater than 0
             uint256 requiredDepositShares = basketValue > 0
