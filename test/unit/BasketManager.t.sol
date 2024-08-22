@@ -31,6 +31,7 @@ contract BasketManagerTest is BaseTest, Constants {
     EulerRouter public eulerRouter;
     address public alice;
     address public admin;
+    address public treasury;
     address public manager;
     address public timelock;
     address public rebalancer;
@@ -54,6 +55,7 @@ contract BasketManagerTest is BaseTest, Constants {
         super.setUp();
         alice = createUser("alice");
         admin = createUser("admin");
+        treasury = createUser("treasury");
         pauser = createUser("pauser");
         manager = createUser("manager");
         rebalancer = createUser("rebalancer");
@@ -66,8 +68,9 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.label(address(mockPriceOracle), "mockPriceOracle");
         eulerRouter = new EulerRouter(admin);
         strategyRegistry = createUser("strategyRegistry");
-        basketManager =
-            new BasketManager(basketTokenImplementation, address(eulerRouter), strategyRegistry, admin, pauser);
+        basketManager = new BasketManager(
+            basketTokenImplementation, address(eulerRouter), strategyRegistry, admin, treasury, pauser
+        );
         vm.startPrank(admin);
         mockPriceOracle.setPrice(rootAsset, USD_ISO_4217_CODE, 1e18); // set price to 1e18
         mockPriceOracle.setPrice(toAsset, USD_ISO_4217_CODE, 1e18); // set price to 1e18
@@ -91,6 +94,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address eulerRouter_,
         address strategyRegistry_,
         address admin_,
+        address treasury_,
         address pauser_
     )
         public
@@ -99,9 +103,10 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.assume(eulerRouter_ != address(0));
         vm.assume(strategyRegistry_ != address(0));
         vm.assume(admin_ != address(0));
+        vm.assume(treasury_ != address(0));
         vm.assume(pauser_ != address(0));
         BasketManager bm =
-            new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, pauser_);
+            new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, treasury_, pauser_);
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
         assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
@@ -115,13 +120,14 @@ contract BasketManagerTest is BaseTest, Constants {
         address eulerRouter_,
         address strategyRegistry_,
         address admin_,
+        address treasury_,
         address pauser_,
         uint256 flag
     )
         public
     {
         // Use flag to determine which address to set to zero
-        flag = bound(flag, 0, 14);
+        flag = bound(flag, 0, 16);
         if (flag & 1 == 0) {
             basketTokenImplementation_ = address(0);
         }
@@ -134,16 +140,20 @@ contract BasketManagerTest is BaseTest, Constants {
         if (flag & 8 == 0) {
             admin_ = address(0);
         }
+        if (flag & 16 == 0) {
+            treasury_ = address(0);
+        }
 
         vm.expectRevert(Errors.ZeroAddress.selector);
-        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, pauser_);
+        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, treasury_, pauser_);
     }
 
     function testFuzz_constructor_revertWhen_pasuerZeroAddress(
         address basketTokenImplementation_,
         address eulerRouter_,
         address strategyRegistry_,
-        address admin_
+        address admin_,
+        address treasury_
     )
         public
     {
@@ -153,7 +163,26 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.assume(admin_ != address(0));
 
         vm.expectRevert(Errors.ZeroAddress.selector);
-        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, address(0));
+        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, treasury_, address(0));
+    }
+
+    function testFuzz_constructor_revertWhen_treasuryZeroAddress(
+        address basketTokenImplementation_,
+        address eulerRouter_,
+        address strategyRegistry_,
+        address admin_,
+        address pauser_
+    )
+        public
+    {
+        vm.assume(basketTokenImplementation_ != address(0));
+        vm.assume(eulerRouter_ != address(0));
+        vm.assume(strategyRegistry_ != address(0));
+        vm.assume(admin_ != address(0));
+        vm.assume(pauser_ != address(0));
+
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, address(0), pauser_);
     }
 
     function test_unpause() public {

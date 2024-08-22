@@ -24,6 +24,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
+    // STATE VARS //
+    uint256 private lastManagementFeeHarvestTimestamp;
+
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes4 private constant _OPERATOR7540_INTERFACE = 0xe3bc4e65;
@@ -31,6 +34,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     bytes4 private constant _ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
     bytes4 private constant _ERC7575_INTERFACE = 0x2f0a18c5;
     bytes4 private constant _ACCESS_CONTROL_INTERFACE = 0x7965db0b;
+    uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
 
     /// STRUCTS ///
     /// @notice Struct to hold the amount of assets and shares requested by a controller
@@ -461,6 +465,34 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _burn(from, shares);
         // Interactions
         BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
+    }
+
+    function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
+        // Checks
+        if (feeBps == 0) {
+            return;
+        }
+        // If this is the first time the management fee is being harvested give no shares and set the timestamp to begin
+        // the accrual of the management fee
+        if (lastManagementFeeHarvestTimestamp == 0) {
+            lastManagementFeeHarvestTimestamp = block.timestamp;
+            return;
+        }
+        // Effects
+        // amortize the management fee over a yearn from the last timestamp
+        uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
+        // Interactions
+        uint256 fee = FixedPointMathLib.fullMulDiv(
+            totalSupply(),
+            // fee % amortized over a year
+            FixedPointMathLib.fullMulDiv(feeBps, timeSinceLastHarvest, 365 days),
+            _MANAGEMENT_FEE_DECIMALS
+        );
+        if (fee == 0) {
+            return;
+        }
+        _mint(treasury, fee);
+        lastManagementFeeHarvestTimestamp = block.timestamp;
     }
 
     /// ERC4626 OVERRIDDEN LOGIC ///
