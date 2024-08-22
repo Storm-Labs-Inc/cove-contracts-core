@@ -12,6 +12,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
+import { IERC7575 } from "src/interfaces/IERC7575.sol";
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -129,6 +130,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(token.supportsInterface(OPERATOR7540_INTERFACE), true);
         assertEq(token.supportsInterface(ASYNCHRONOUS_DEPOSIT_INTERFACE), true);
         assertEq(token.supportsInterface(ASYNCHRONOUS_REDEMPTION_INTERFACE), true);
+        assertEq(token.supportsInterface(type(IERC7575).interfaceId), true);
     }
 
     function testFuzz_initialize_revertsWhen_ownerZero(
