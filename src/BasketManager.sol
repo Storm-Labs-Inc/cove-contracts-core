@@ -5,14 +5,11 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
-
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
-
 import { BasketManagerStorage, RebalanceStatus } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
@@ -332,6 +329,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         bytes calldata encodedOrder
     )
         external /* view */
+        payable
         returns (bytes4 magicValue)
     {
         // Make delegate call to the swap adapter
