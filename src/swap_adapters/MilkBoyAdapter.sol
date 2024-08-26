@@ -6,6 +6,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { Errors } from "src/libraries/Errors.sol";
+
+import { MilkBoy } from "src/swap_adapters/MilkBoy.sol";
 import { ExternalTrade } from "src/types/Trades.sol";
 
 contract MilkBoyAdapter is TokenSwapAdapter {
@@ -39,15 +41,18 @@ contract MilkBoyAdapter is TokenSwapAdapter {
         override
         returns (bytes32[] memory hashes)
     {
-        MilkBoyAdapterStorage storage S = _milkBoyAdapterStorage();
+        // MilkBoyAdapterStorage storage S = _milkBoyAdapterStorage();
         uint256 validTo = block.timestamp + 15 minutes;
         // TODO: emit events for each trade
         for (uint256 i = 0; i < externalTrades.length; i++) {
+            // TODO: use better salt
             bytes32 salt = keccak256(abi.encode(externalTrades[i]));
+            address swapContract = ClonesWithImmutableArgs.addressOfClone3(salt);
+            // Create the order with the receiver being the cloned contract
             GPv2Order.Data memory order = GPv2Order.Data({
                 sellToken: IERC20(externalTrades[i].sellToken),
                 buyToken: IERC20(externalTrades[i].buyToken),
-                receiver: ClonesWithImmutableArgs.addressOfClone3(salt),
+                receiver: swapContract,
                 sellAmount: externalTrades[i].sellAmount,
                 buyAmount: externalTrades[i].minAmount,
                 validTo: uint32(validTo),
@@ -66,11 +71,13 @@ contract MilkBoyAdapter is TokenSwapAdapter {
                     order.buyToken,
                     order.sellAmount,
                     order.buyAmount,
-                    order.validTo,
-                    order.receiver
+                    address(this),
+                    address(this)
                 ),
                 salt
             );
+            IERC20(externalTrades[i].sellToken).transfer(swapContract, externalTrades[i].sellAmount);
+            MilkBoy(swapContract).initialize();
         }
     }
 
@@ -78,10 +85,11 @@ contract MilkBoyAdapter is TokenSwapAdapter {
         revert ERC1271NotImplemented();
     }
 
-    function _milkBoyAdapterStorage() internal pure returns (MilkBoyAdapterStorage storage S) {
+    function _milkBoyAdapterStorage() internal pure returns (MilkBoyAdapterStorage storage s) {
         bytes32 slot = _MILKBOY_ADAPTER_STORAGE;
+        // solhint-disable-next-line no-inline-assembly
         assembly {
-            S.slot := slot
+            s.slot := slot
         }
     }
 }
