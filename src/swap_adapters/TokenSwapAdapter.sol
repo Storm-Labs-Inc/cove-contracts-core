@@ -7,15 +7,30 @@ import { ExternalTrade } from "../types/Trades.sol";
 /// @notice Abstract contract for token swap adapters
 abstract contract TokenSwapAdapter {
     /// @notice Executes series of token swaps and returns the hashes of the orders submitted/executed
-    /// @param data The data needed to execute the token swap
+    /// @param externalTrades The external trades to execute
     /// @return hashes The hashes of the orders submitted/executed
     function executeTokenSwap(
-        ExternalTrade[] calldata externalTrades,
-        bytes calldata data
+        ExternalTrade[] calldata externalTrades
     )
         external
         virtual
         returns (bytes32[] memory hashes);
 
-    function isValidSignature(bytes32 hash, bytes calldata signature) external view virtual returns (bytes4);
+    /// @notice Completes the token swaps by confirming each order settlement and claiming the resulting tokens (if
+    /// necessary).
+    /// @dev This function must return the exact amounts of sell tokens and buy tokens claimed per trade.
+    /// If the adapter operates asynchronously (e.g., CoWSwap), this function should handle the following:
+    /// - Cancel any unsettled trades to prevent further execution.
+    /// - Claim the remaining tokens from the unsettled trades.
+    ///
+    /// @param externalTrades The external trades that were executed and need to be settled.
+    /// @return claimedAmounts A 2D array where each element contains the claimed amounts of sell tokens and buy tokens
+    /// for each corresponding trade in `externalTrades`. The first element of each sub-array is the claimed sell
+    /// amount, and the second element is the claimed buy amount.
+    function completeTokenSwap(
+        ExternalTrade[] calldata externalTrades
+    )
+        external
+        virtual
+        returns (uint256[2][] memory claimedAmounts);
 }

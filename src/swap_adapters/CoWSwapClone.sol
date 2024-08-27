@@ -6,10 +6,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Clone } from "clones-with-immutable-args/Clone.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
-/// @title MilkBoy
+/// @title CoWSwapClone
 /// @dev A contract that implements the ERC1271 interface for signature validation and manages token trades. This
 /// contract is designed to be used as a clone with immutable arguments.
-contract MilkBoy is IERC1271, Clone {
+contract CoWSwapClone is IERC1271, Clone {
     using GPv2Order for GPv2Order.Data;
 
     // Constants for ERC1271 signature validation
@@ -24,7 +24,7 @@ contract MilkBoy is IERC1271, Clone {
 
     function initialize() external payable {
         IERC20(sellToken()).approve(_VAULT_RELAYER, type(uint256).max);
-        IERC20(buyToken()).approve(_VAULT_RELAYER, type(uint256).max);
+        // TODO: emit events for each trade
     }
 
     /// @notice Validates the signature of an order. The order is considered valid if the order digest matches the
@@ -47,12 +47,6 @@ contract MilkBoy is IERC1271, Clone {
             return _ERC1271_MAGIC_VALUE;
         }
         return _ERC1271_NON_MAGIC_VALUE;
-    }
-
-    /// @notice Checks whether the trade has settled by comparing the current balance of the sell token.
-    /// @return hasTradeSettled True if the trade has settled, false otherwise.
-    function hasTradeSettled() public view returns (bool) {
-        return IERC20(sellToken()).balanceOf(address(this)) < sellAmount();
     }
 
     /// @notice Claims the sell and buy tokens. Calling this function before the trade has settled will cancel the
