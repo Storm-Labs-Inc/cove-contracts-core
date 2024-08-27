@@ -15,13 +15,20 @@ contract CoWSwapClone is IERC1271, Clone {
     // Constants for ERC1271 signature validation
     bytes4 internal constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
     bytes4 internal constant _ERC1271_NON_MAGIC_VALUE = 0xffffffff;
+
+    /// @dev The domain separator of GPv2Settlement contract used for orderDigest calculation.
     bytes32 internal constant _COW_SETTLEMENT_DOMAIN_SEPARATOR =
         0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
+    /// @dev Address of the GPv2VaultRelayer.
+    /// https://docs.cow.fi/cow-protocol/reference/contracts/core
     address internal constant _VAULT_RELAYER = 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110;
 
     error CallerIsNotOperatorOrReceiver();
     error OrderDigestMismatch();
 
+    /// @notice Initializes the CoWSwapClone contract by approving the vault relayer to spend the maximum amount of the
+    /// sell token.
+    /// @dev This function should be called after the clone is deployed to set up the necessary token approvals.
     function initialize() external payable {
         IERC20(sellToken()).approve(_VAULT_RELAYER, type(uint256).max);
         // TODO: emit events for each trade

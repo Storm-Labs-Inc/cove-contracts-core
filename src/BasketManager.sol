@@ -2,7 +2,6 @@
 pragma solidity 0.8.23;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
@@ -10,7 +9,7 @@ import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
-import { BasketManagerStorage, RebalanceStatus } from "src/types/BasketManagerStorage.sol";
+import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 interface IDelegatedValidSignature {
@@ -20,7 +19,7 @@ interface IDelegatedValidSignature {
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// in the BasketManagerUtils contract.
-contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pausable {
+contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerStorage;
 
@@ -45,6 +44,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     mapping(bytes32 => bool) public isOrderValid;
 
     /// ERRORS ///
+    error TokenSwapNotYetProposed();
     error ExecuteTokenSwapFailed();
     error InvalidHash();
     error ExternalTradesHashMismatch();
@@ -226,23 +226,20 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         nonReentrant
         whenNotPaused
     {
+        if (_bmStorage.rebalanceStatus.status != Status.TOKEN_SWAP_PROPOSED) {
+            revert TokenSwapNotYetProposed();
+        }
         // Check if the external trades match the hash from proposeTokenSwap
         if (keccak256(abi.encode(externalTrades)) != _bmStorage.externalTradesHash) {
             revert ExternalTradesHashMismatch();
         }
-        (bool success, bytes memory ret) =
+        _bmStorage.rebalanceStatus.status = Status.TOKEN_SWAP_EXECUTED;
+        _bmStorage.rebalanceStatus.timestamp = uint40(block.timestamp);
+
+        (bool success,) =
             tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, (externalTrades, data)));
         if (!success) {
             revert ExecuteTokenSwapFailed();
-        }
-        (bytes32[] memory hashes) = abi.decode(ret, (bytes32[]));
-        uint256 length = hashes.length;
-        for (uint256 i = 0; i < length;) {
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            isOrderValid[hashes[i]] = true;
-            unchecked {
-                ++i;
-            }
         }
     }
 
@@ -296,49 +293,5 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
-    }
-
-    // ERC1271: CoWSwap will rely on this function to check if a submitted order is valid
-    /// @notice Returns the magic value if the hash and the signature is valid.
-    /// @param orderDigest Hash of the order
-    /// @param encodedOrder Encoded order data
-    /// @return magicValue Magic value 0x1626ba7e if the hash and the signature is valid.
-    /// @dev Refer to https://eips.ethereum.org/EIPS/eip-1271 for details.
-    function isValidSignature(
-        bytes32 orderDigest,
-        bytes calldata encodedOrder
-    )
-        external
-        view
-        returns (bytes4 magicValue)
-    {
-        // Workaround for using delegatecall within a view function
-        return IDelegatedValidSignature(address(this)).delegatedIsValidSignature(orderDigest, encodedOrder);
-    }
-
-    /// @notice Makes a delegate call to the swap adapter to check if the hash and the signature is valid.
-    /// @param orderDigest hash of the order
-    /// @param encodedOrder Encoded order data
-    /// @return magicValue Magic value 0x1626ba7e if the hash and the signature is valid.
-    /// @dev This is a workaround to use delegatecall within a view function. delegatedIsValidSignature is marked as
-    /// non-view because delegatecall is not allowed in view functions. This function is called by isValidSignature
-    /// using IDelegatedValidSignature to make it a static call.
-    /// https://ethereum.stackexchange.com/questions/142490/preserving-visibility-view-of-a-method-using-delegate-call-to-a-view-method/142712#142712
-    function delegatedIsValidSignature(
-        bytes32 orderDigest,
-        bytes calldata encodedOrder
-    )
-        external /* view */
-        payable
-        returns (bytes4 magicValue)
-    {
-        // Make delegate call to the swap adapter
-        (bool success, bytes memory ret) = tokenSwapAdapter.delegatecall(
-            abi.encodeCall(TokenSwapAdapter.isValidSignature, (orderDigest, encodedOrder))
-        );
-        if (!success) {
-            revert TokenSwapAdapterIsValidSignatureFailed();
-        }
-        return abi.decode(ret, (bytes4));
     }
 }

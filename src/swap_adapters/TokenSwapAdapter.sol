@@ -8,13 +8,7 @@ import { ExternalTrade } from "../types/Trades.sol";
 abstract contract TokenSwapAdapter {
     /// @notice Executes series of token swaps and returns the hashes of the orders submitted/executed
     /// @param externalTrades The external trades to execute
-    /// @return hashes The hashes of the orders submitted/executed
-    function executeTokenSwap(
-        ExternalTrade[] calldata externalTrades
-    )
-        external
-        virtual
-        returns (bytes32[] memory hashes);
+    function executeTokenSwap(ExternalTrade[] calldata externalTrades, bytes calldata data) external payable virtual;
 
     /// @notice Completes the token swaps by confirming each order settlement and claiming the resulting tokens (if
     /// necessary).
@@ -31,6 +25,7 @@ abstract contract TokenSwapAdapter {
         ExternalTrade[] calldata externalTrades
     )
         external
+        payable
         virtual
         returns (uint256[2][] memory claimedAmounts);
 }

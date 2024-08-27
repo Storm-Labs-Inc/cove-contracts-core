@@ -41,14 +41,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
 
     /// @notice Executes a series of token swaps by creating orders on the CoWSwap protocol.
     /// @param externalTrades The external trades to execute.
-    /// @return hashes The hashes of the orders submitted.
-    function executeTokenSwap(
-        ExternalTrade[] calldata externalTrades
-    )
-        external
-        override
-        returns (bytes32[] memory hashes)
-    {
+    function executeTokenSwap(ExternalTrade[] calldata externalTrades, bytes calldata) external payable override {
         uint32 validTo = uint32(block.timestamp + 15 minutes);
         _milkBoyAdapterStorage().orderValidTo = validTo;
         for (uint256 i = 0; i < externalTrades.length; i++) {
@@ -69,6 +62,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
         ExternalTrade[] calldata externalTrades
     )
         external
+        payable
         override
         returns (uint256[2][] memory claimedAmounts)
     {
