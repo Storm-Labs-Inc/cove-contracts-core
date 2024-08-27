@@ -17,6 +17,7 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 
+import { console } from "forge-std/console.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";

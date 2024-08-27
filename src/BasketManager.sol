@@ -303,7 +303,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// @notice Set the management fee to be given to the treausry on rebalance.
     /// @param managementFee_ Management fee in BPS denominated in 1e4.
     /// @dev Only callable by the timelock.
-    function setManagementFee(uint8 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
+    function setManagementFee(uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
         if (managementFee_ > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }

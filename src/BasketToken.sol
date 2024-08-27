@@ -7,6 +7,7 @@ import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ER
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
@@ -25,7 +26,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     using SafeERC20 for IERC20;
 
     // STATE VARS //
-    uint256 private lastManagementFeeHarvestTimestamp;
+    uint256 private _lastManagementFeeHarvestTimestamp;
+    uint256 private _lastManagementFeeTotalSupply;
 
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
@@ -35,6 +37,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     bytes4 private constant _ERC7575_INTERFACE = 0x2f0a18c5;
     bytes4 private constant _ACCESS_CONTROL_INTERFACE = 0x7965db0b;
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
+    uint256 constant _SCALING_FACTOR = 1e18;
 
     /// STRUCTS ///
     /// @notice Struct to hold the amount of assets and shares requested by a controller
@@ -467,32 +470,43 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
     }
 
+    /// @notice Harvests the management fee, records the fee has been taken and mints the fee to the treasury.
+    /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
+    /// @param treasury The address to receive the management fee.
     function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
         if (feeBps == 0) {
             return;
         }
+        // Effects
+
         // If this is the first time the management fee is being harvested give no shares and set the timestamp to begin
         // the accrual of the management fee
-        if (lastManagementFeeHarvestTimestamp == 0) {
-            lastManagementFeeHarvestTimestamp = block.timestamp;
+        if (_lastManagementFeeHarvestTimestamp == 0) {
+            _lastManagementFeeHarvestTimestamp = block.timestamp;
+            _lastManagementFeeTotalSupply = totalSupply();
             return;
         }
-        // Effects
         // amortize the management fee over a yearn from the last timestamp
-        uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
-        // Interactions
+        uint256 timeSinceLastHarvest = block.timestamp - _lastManagementFeeHarvestTimestamp;
+        uint256 currentTotalSupply = totalSupply() - balanceOf(treasury);
+
+        // Calculate the integral of the total supply over the time period
+        uint256 integralTotalSupply =
+            FixedPointMathLib.fullMulDiv(currentTotalSupply + _lastManagementFeeTotalSupply, timeSinceLastHarvest, 2);
+        // Calculate the fee based on the integral of the total supply
         uint256 fee = FixedPointMathLib.fullMulDiv(
-            totalSupply(),
-            // fee % amortized over a year
-            FixedPointMathLib.fullMulDiv(feeBps, timeSinceLastHarvest, 365 days),
-            _MANAGEMENT_FEE_DECIMALS
+            feeBps * integralTotalSupply,
+            _SCALING_FACTOR,
+            uint256(365 days) * _MANAGEMENT_FEE_DECIMALS * _SCALING_FACTOR
         );
         if (fee == 0) {
             return;
         }
+        // Interactions
         _mint(treasury, fee);
-        lastManagementFeeHarvestTimestamp = block.timestamp;
+        _lastManagementFeeHarvestTimestamp = block.timestamp;
+        _lastManagementFeeTotalSupply = currentTotalSupply;
     }
 
     /// ERC4626 OVERRIDDEN LOGIC ///

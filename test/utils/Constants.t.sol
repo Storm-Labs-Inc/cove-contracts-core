@@ -15,4 +15,5 @@ contract Constants {
     bytes4 public constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
     bytes4 public constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
+    uint16 public constant _MANAGEMENT_FEE_DECIMALS = 1e4;
 }

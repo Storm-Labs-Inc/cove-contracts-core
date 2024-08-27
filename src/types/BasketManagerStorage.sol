@@ -35,7 +35,7 @@ struct BasketManagerStorage {
     /// @notice Address of the treasury which will recieve the management fee.
     address treasury;
     /// @notice The current management fee in BPS denominated in 1e4.
-    uint8 managementFee;
+    uint16 managementFee;
     /// @notice Address of the BasketToken implementation.
     address basketTokenImplementation;
     /// @notice Array of all basket tokens.
