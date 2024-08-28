@@ -109,6 +109,7 @@ contract BasketManagerTest is BaseTest, Constants {
             new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, treasury_, pauser_);
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
+        assertEq(address(bm.treasury()), treasury_);
         assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
         assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
         assertEq(bm.hasRole(PAUSER_ROLE, pauser_), true);
@@ -1634,10 +1635,17 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(basketManager.managementFee(), fee);
     }
 
-    function testFuzz_revertsWhen_setManagementFee_calledByNonTimelock(address caller) public {
+    function testFuzz_setManagementFee_revertsWhen_calledByNonTimelock(address caller) public {
         vm.assume(caller != timelock);
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
         basketManager.setManagementFee(10);
+    }
+
+    function testFuzz_setManagementFee_revertWhen_invalidManagementFee(uint16 fee) public {
+        vm.assume(fee > _MAX_MANAGEMENT_FEE);
+        vm.expectRevert(BasketManager.InvalidManagementFee.selector);
+        vm.prank(timelock);
+        basketManager.setManagementFee(fee);
     }
 }
