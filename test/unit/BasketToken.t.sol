@@ -1717,7 +1717,7 @@ contract BasketTokenTest is BaseTest, Constants {
     )
         public
     {
-        // Assume shares are availbe to be harvested
+        // Assume shares are available to be harvested
         vm.assume(feeBps > 0 && feeBps <= 1e4);
         vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
         address treasury = createUser("treasury");
