@@ -1776,6 +1776,19 @@ contract BasketTokenTest is BaseTest, Constants {
         assertApproxEqAbs(balance, expected, 1e3);
     }
 
+    function test_harvestManagementFee_returnsWhenZeroFee() public {
+        testFuzz_deposit(1e18, 1e18);
+        address treasury = createUser("treasury");
+        assertEq(basket.balanceOf(treasury), 0);
+        // First harvest sets the date to start accruing rewards for the treasury
+        vm.startPrank(address(basketManager));
+        basket.harvestManagementFee(1, treasury);
+        assertEq(basket.balanceOf(treasury), 0);
+        vm.warp(1);
+        basket.harvestManagementFee(1, treasury);
+        assertEq(basket.balanceOf(treasury), 0);
+    }
+
     function testFuzz_harvestManagementFee_revertsWhen_calledByNotBasketManager(address caller) public {
         vm.assume(caller != address(basketManager));
         vm.expectRevert(_formatAccessControlError(caller, BASKET_MANAGER_ROLE));
