@@ -213,7 +213,8 @@ library BasketManagerUtils {
             if (assets.length == 0) {
                 revert BasketTokenNotFound();
             }
-
+            // Harvest management fee
+            BasketToken(basket).harvestManagementFee(self.managementFee, self.treasury);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Process pending deposits and fulfill them
@@ -341,8 +342,6 @@ library BasketManagerUtils {
             uint256 assetsLength = assets.length;
             uint256[] memory balances = new uint256[](assetsLength);
             uint256 basketValue = 0;
-            // Harvest management fee
-            BasketToken(basket).harvestManagementFee(self.managementFee, self.treasury);
             // Calculate current basket value
             for (uint256 j = 0; j < assetsLength;) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop

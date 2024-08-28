@@ -17,8 +17,7 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 
-import { console } from "forge-std/console.sol";
-import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
+import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -1626,5 +1625,19 @@ contract BasketManagerTest is BaseTest, Constants {
         }
         vm.expectRevert(BasketManager.InvalidHash.selector);
         basketManager.isValidSignature(tradeHash, signature);
+    }
+
+    function testFuzz_setManagementFee(uint16 fee) public {
+        vm.assume(fee <= _MAX_MANAGEMENT_FEE);
+        vm.prank(timelock);
+        basketManager.setManagementFee(fee);
+        assertEq(basketManager.managementFee(), fee);
+    }
+
+    function testFuzz_revertsWhen_setManagementFee_calledByNonTimelock(address caller) public {
+        vm.assume(caller != timelock);
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.setManagementFee(10);
     }
 }
