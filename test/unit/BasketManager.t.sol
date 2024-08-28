@@ -1506,7 +1506,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.setTokenSwapAdapter(address(0));
     }
 
-    function testFuzz_executeTokenSwap(uint256 sellWeight, uint256 depositAmount) public returns (bytes32[] memory) {
+    function testFuzz_executeTokenSwap(uint256 sellWeight, uint256 depositAmount) public {
         ExternalTrade[] memory trades = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
 
         // Mock calls
@@ -1525,12 +1525,8 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        // Check that isOrderValid is set to true for each trade
-        for (uint8 i = 0; i < numTrades; i++) {
-            assertTrue(basketManager.isOrderValid(tradeHashes[i]), "Trade should be marked as valid");
-        }
-
-        return tradeHashes;
+        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
     }
 
     function testFuzz_executeTokenSwap_revertWhen_ExecuteTokenSwapFailed(
@@ -1570,31 +1566,5 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.expectRevert(BasketManager.ExternalTradesHashMismatch.selector);
         vm.prank(rebalancer);
         basketManager.executeTokenSwap(badTrades, "");
-    }
-
-    function testFuzz_isOrderValid(uint256 sellWeight, uint256 depositAmount, bytes32 tradeHash) public {
-        bytes32[] memory tradeHashes = testFuzz_executeTokenSwap(sellWeight, depositAmount);
-        for (uint8 i = 0; i < tradeHashes.length; i++) {
-            assertTrue(basketManager.isOrderValid(tradeHashes[i]));
-            vm.assume(tradeHashes[i] != tradeHash);
-        }
-        assertFalse(basketManager.isOrderValid(tradeHash));
-    }
-
-    function testFuzz_isValidSignature(
-        uint256 sellWeight,
-        uint256 depositAmount,
-        bytes32 tradeHash,
-        bytes memory signature
-    )
-        public
-    {
-        bytes32[] memory tradeHashes = testFuzz_executeTokenSwap(sellWeight, depositAmount);
-        for (uint8 i = 0; i < tradeHashes.length; i++) {
-            assertEq(basketManager.isValidSignature(tradeHashes[i], signature), ERC1271_MAGIC_VALUE);
-            vm.assume(tradeHashes[i] != tradeHash);
-        }
-        vm.expectRevert(BasketManager.InvalidHash.selector);
-        basketManager.isValidSignature(tradeHash, signature);
     }
 }

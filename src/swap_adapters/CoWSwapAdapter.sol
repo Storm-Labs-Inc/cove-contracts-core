@@ -6,7 +6,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { Errors } from "src/libraries/Errors.sol";
-
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
 import { ExternalTrade } from "src/types/Trades.sol";
 
@@ -43,7 +42,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     /// @param externalTrades The external trades to execute.
     function executeTokenSwap(ExternalTrade[] calldata externalTrades, bytes calldata) external payable override {
         uint32 validTo = uint32(block.timestamp + 15 minutes);
-        _milkBoyAdapterStorage().orderValidTo = validTo;
+        _cowswapAdapterStorage().orderValidTo = validTo;
         for (uint256 i = 0; i < externalTrades.length; i++) {
             _createOrder(
                 externalTrades[i].sellToken,
@@ -68,7 +67,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     {
         uint256 length = externalTrades.length;
         claimedAmounts = new uint256[2][](length);
-        uint256 validTo = _milkBoyAdapterStorage().orderValidTo;
+        uint256 validTo = _cowswapAdapterStorage().orderValidTo;
 
         for (uint256 i = 0; i < length; i++) {
             // Call claim on each CoWSwapClone contract
@@ -138,7 +137,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
 
     /// @dev Internal function to retrieve the storage for the CoWSwapAdapter.
     /// @return s The storage struct for the CoWSwapAdapter.
-    function _milkBoyAdapterStorage() internal pure returns (CoWSwapAdapterStorage storage s) {
+    function _cowswapAdapterStorage() internal pure returns (CoWSwapAdapterStorage storage s) {
         bytes32 slot = _COWSWAP_ADAPTER_STORAGE;
         // solhint-disable-next-line no-inline-assembly
         assembly {

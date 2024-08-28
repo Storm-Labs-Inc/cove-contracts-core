@@ -3,6 +3,7 @@ pragma solidity 0.8.23;
 
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Clone } from "clones-with-immutable-args/Clone.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
@@ -11,6 +12,7 @@ import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 /// contract is designed to be used as a clone with immutable arguments.
 contract CoWSwapClone is IERC1271, Clone {
     using GPv2Order for GPv2Order.Data;
+    using SafeERC20 for IERC20;
 
     // Constants for ERC1271 signature validation
     bytes4 internal constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
@@ -30,7 +32,7 @@ contract CoWSwapClone is IERC1271, Clone {
     /// sell token.
     /// @dev This function should be called after the clone is deployed to set up the necessary token approvals.
     function initialize() external payable {
-        IERC20(sellToken()).approve(_VAULT_RELAYER, type(uint256).max);
+        IERC20(sellToken()).forceApprove(_VAULT_RELAYER, type(uint256).max);
         // TODO: emit events for each trade
     }
 
