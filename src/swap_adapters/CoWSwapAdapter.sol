@@ -57,9 +57,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     /// @notice Completes the token swaps by claiming the tokens from the CoWSwapClone contracts.
     /// @param externalTrades The external trades that were executed and need to be settled.
     /// @return claimedAmounts A 2D array containing the claimed amounts of sell and buy tokens for each trade.
-    function completeTokenSwap(
-        ExternalTrade[] calldata externalTrades
-    )
+    function completeTokenSwap(ExternalTrade[] calldata externalTrades)
         external
         payable
         override

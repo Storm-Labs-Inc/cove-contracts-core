@@ -21,9 +21,7 @@ abstract contract TokenSwapAdapter {
     /// @return claimedAmounts A 2D array where each element contains the claimed amounts of sell tokens and buy tokens
     /// for each corresponding trade in `externalTrades`. The first element of each sub-array is the claimed sell
     /// amount, and the second element is the claimed buy amount.
-    function completeTokenSwap(
-        ExternalTrade[] calldata externalTrades
-    )
+    function completeTokenSwap(ExternalTrade[] calldata externalTrades)
         external
         payable
         virtual
