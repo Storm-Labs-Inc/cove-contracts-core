@@ -26,7 +26,6 @@ contract CoWSwapClone is IERC1271, Clone {
     address internal constant _VAULT_RELAYER = 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110;
 
     error CallerIsNotOperatorOrReceiver();
-    error OrderDigestMismatch();
 
     /// @notice Initializes the CoWSwapClone contract by approving the vault relayer to spend the maximum amount of the
     /// sell token.
@@ -45,17 +44,61 @@ contract CoWSwapClone is IERC1271, Clone {
         bytes calldata encodedOrder
     )
         external
-        pure
+        view
         override
         returns (bytes4)
     {
-        if (
-            orderDigest == storedOrderDigest()
-                && orderDigest == abi.decode(encodedOrder, (GPv2Order.Data)).hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR)
-        ) {
-            return _ERC1271_MAGIC_VALUE;
+        GPv2Order.Data memory order = abi.decode(encodedOrder, (GPv2Order.Data));
+
+        if (orderDigest != order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR)) {
+            return _ERC1271_NON_MAGIC_VALUE;
         }
-        return _ERC1271_NON_MAGIC_VALUE;
+
+        if (address(order.sellToken) != sellToken()) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (address(order.buyToken) != buyToken()) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.sellAmount != sellAmount()) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.buyAmount < buyAmount()) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.validTo != validTo()) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.feeAmount != 0) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.kind != GPv2Order.KIND_SELL) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.partiallyFillable) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.sellTokenBalance != GPv2Order.BALANCE_ERC20) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.buyTokenBalance != GPv2Order.BALANCE_ERC20) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        if (order.receiver != address(this)) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
+        return _ERC1271_MAGIC_VALUE;
     }
 
     /// @notice Claims the sell and buy tokens. Calling this function before the trade has settled will cancel the
@@ -63,7 +106,7 @@ contract CoWSwapClone is IERC1271, Clone {
     /// @return claimedSellAmount The amount of sell tokens claimed.
     /// @return claimedBuyAmount The amount of buy tokens claimed.
     function claim() external returns (uint256 claimedSellAmount, uint256 claimedBuyAmount) {
-        if (msg.sender != operator() || msg.sender != receiver()) {
+        if (msg.sender != operator() && msg.sender != receiver()) {
             revert CallerIsNotOperatorOrReceiver();
         }
         claimedSellAmount = IERC20(sellToken()).balanceOf(address(this));
@@ -73,54 +116,54 @@ contract CoWSwapClone is IERC1271, Clone {
     }
 
     // Immutable fields stored in the contract's bytecode
-    // 0: orderHash (uint256)
-    // 32: sellToken (address)
-    // 52: buyToken (address)
-    // 72: sellAmount (uint256)
-    // 104: buyAmount (uint256)
-    // 136 receiver (address)
-    // 156: operator (address)
-
-    /// @notice Returns the order digest.
-    /// @return The order digest.
-    function storedOrderDigest() public pure returns (bytes32) {
-        return bytes32(_getArgUint256(0));
-    }
+    // 0: sellToken (address)
+    // 20: buyToken (address)
+    // 40: sellAmount (uint256)
+    // 72: buyAmount (uint256)
+    // 104: validTo (uint32)
+    // 112: receiver (address)
+    // 132: operator (address)
 
     /// @notice Returns the address of the sell token.
     /// @return The address of the sell token.
     function sellToken() public pure returns (address) {
-        return _getArgAddress(32);
+        return _getArgAddress(0);
     }
 
     /// @notice Returns the address of the buy token.
     /// @return The address of the buy token.
     function buyToken() public pure returns (address) {
-        return _getArgAddress(52);
+        return _getArgAddress(20);
     }
 
     /// @notice Returns the amount of sell tokens.
     /// @return The amount of sell tokens.
     function sellAmount() public pure returns (uint256) {
-        return _getArgUint256(72);
+        return _getArgUint256(40);
     }
 
     /// @notice Returns the amount of buy tokens.
     /// @return The amount of buy tokens.
     function buyAmount() public pure returns (uint256) {
-        return _getArgUint256(104);
+        return _getArgUint256(72);
+    }
+
+    /// @notice Returns the timestamp until which the order is valid.
+    /// @return The timestamp until which the order is valid.
+    function validTo() public pure returns (uint32) {
+        return uint32(_getArgUint64(104));
     }
 
     /// @notice Returns the address of the receiver.
     /// @return The address of the receiver.
     function receiver() public pure returns (address) {
-        return _getArgAddress(136);
+        return _getArgAddress(112);
     }
 
     /// @notice Returns the address of the operator who can claim the tokens after the trade has settled. The operator
     /// can also cancel the trade before it has settled by calling the claim function before the trade has settled.
     /// @return The address of the operator.
     function operator() public pure returns (address) {
-        return _getArgAddress(156);
+        return _getArgAddress(132);
     }
 }

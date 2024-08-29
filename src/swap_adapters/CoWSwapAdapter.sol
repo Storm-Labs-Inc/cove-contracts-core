@@ -101,32 +101,9 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     {
         // Create the order with the receiver being the cloned contract
         bytes32 salt = keccak256(abi.encodePacked(sellToken, buyToken, sellAmount, buyAmount, validTo));
-        address swapContract = ClonesWithImmutableArgs.addressOfClone3(salt);
-        GPv2Order.Data memory order = GPv2Order.Data({
-            sellToken: IERC20(sellToken),
-            buyToken: IERC20(buyToken),
-            receiver: swapContract,
-            sellAmount: sellAmount,
-            buyAmount: buyAmount,
-            validTo: validTo,
-            appData: 0,
-            feeAmount: 0,
-            kind: GPv2Order.KIND_SELL,
-            partiallyFillable: false,
-            sellTokenBalance: GPv2Order.BALANCE_ERC20,
-            buyTokenBalance: GPv2Order.BALANCE_ERC20
-        });
-        ClonesWithImmutableArgs.clone3(
+        address swapContract = ClonesWithImmutableArgs.clone3(
             cloneImplementation,
-            abi.encodePacked(
-                order.hash(_DOMAIN_SEPARATOR),
-                order.sellToken,
-                order.buyToken,
-                order.sellAmount,
-                order.buyAmount,
-                address(this),
-                address(this)
-            ),
+            abi.encodePacked(sellToken, buyToken, sellAmount, buyAmount, uint64(validTo), address(this), address(this)),
             salt
         );
         IERC20(sellToken).transfer(swapContract, sellAmount);

@@ -24,11 +24,11 @@ contract CoWSwapCloneTest is Test {
     }
 
     function testFuzz_clone(
-        bytes32 orderHash,
         address sellToken,
         address buyToken,
         uint256 sellAmount,
         uint256 buyAmount,
+        uint32 validTo,
         address receiver,
         address operator,
         bytes32 salt
@@ -38,26 +38,26 @@ contract CoWSwapCloneTest is Test {
     {
         clone = ClonesWithImmutableArgs.clone3(
             address(impl),
-            abi.encodePacked(orderHash, sellToken, buyToken, sellAmount, buyAmount, receiver, operator),
+            abi.encodePacked(sellToken, buyToken, sellAmount, buyAmount, uint64(validTo), receiver, operator),
             salt
         );
         CoWSwapClone cloneInstance = CoWSwapClone(clone);
         // Test that the clone contract was deployed and cloned correctly
-        assertEq(cloneInstance.storedOrderDigest(), orderHash, "Incorrect stored order digest");
         assertEq(cloneInstance.sellToken(), sellToken, "Incorrect sell token");
         assertEq(cloneInstance.buyToken(), buyToken, "Incorrect buy token");
         assertEq(cloneInstance.sellAmount(), sellAmount, "Incorrect sell amount");
         assertEq(cloneInstance.buyAmount(), buyAmount, "Incorrect buy amount");
+        assertEq(cloneInstance.validTo(), validTo, "Incorrect valid to");
         assertEq(cloneInstance.receiver(), receiver, "Incorrect receiver");
         assertEq(cloneInstance.operator(), operator, "Incorrect operator");
     }
 
     function testFuzz_initialize_revertWhen_SellTokenIsNotERC20(
-        bytes32 orderHash,
         address sellToken,
         address buyToken,
         uint256 sellAmount,
         uint256 buyAmount,
+        uint32 validTo,
         address receiver,
         address operator,
         bytes32 salt
@@ -65,16 +65,16 @@ contract CoWSwapCloneTest is Test {
         public
     {
         vm.assume(sellToken.code.length == 0);
-        address clone = testFuzz_clone(orderHash, sellToken, buyToken, sellAmount, buyAmount, receiver, operator, salt);
+        address clone = testFuzz_clone(sellToken, buyToken, sellAmount, buyAmount, validTo, receiver, operator, salt);
         vm.expectRevert();
         CoWSwapClone(clone).initialize();
     }
 
     function testFuzz_initialize(
-        bytes32 orderHash,
         address buyToken,
         uint256 sellAmount,
         uint256 buyAmount,
+        uint32 validTo,
         address receiver,
         address operator,
         bytes32 salt
@@ -82,7 +82,7 @@ contract CoWSwapCloneTest is Test {
         public
     {
         address sellToken = address(new ERC20Mock());
-        address clone = testFuzz_clone(orderHash, sellToken, buyToken, sellAmount, buyAmount, receiver, operator, salt);
+        address clone = testFuzz_clone(sellToken, buyToken, sellAmount, buyAmount, validTo, receiver, operator, salt);
         uint256 allowanceBefore = IERC20(sellToken).allowance(address(clone), _VAULT_RELAYER);
         assertEq(allowanceBefore, 0, "Allowance should be 0 before initialization");
         vm.expectCall(
@@ -98,19 +98,21 @@ contract CoWSwapCloneTest is Test {
         address buyToken,
         uint256 sellAmount,
         uint256 buyAmount,
+        uint32 validTo,
         address receiver,
         address operator,
         bytes32 salt
     )
         public
     {
+        address clone = testFuzz_clone(sellToken, buyToken, sellAmount, buyAmount, validTo, receiver, operator, salt);
         GPv2Order.Data memory order = GPv2Order.Data({
             sellToken: IERC20(sellToken),
             buyToken: IERC20(buyToken),
-            receiver: receiver,
+            receiver: clone,
             sellAmount: sellAmount,
             buyAmount: buyAmount,
-            validTo: uint32(block.timestamp + 15 minutes),
+            validTo: uint32(validTo),
             appData: 0,
             feeAmount: 0,
             kind: GPv2Order.KIND_SELL,
@@ -119,40 +121,56 @@ contract CoWSwapCloneTest is Test {
             buyTokenBalance: GPv2Order.BALANCE_ERC20
         });
         bytes32 orderDigest = order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR);
-        address clone =
-            testFuzz_clone(orderDigest, sellToken, buyToken, sellAmount, buyAmount, receiver, operator, salt);
 
         bytes memory encodedOrder = abi.encode(order);
         bytes4 result = CoWSwapClone(clone).isValidSignature(orderDigest, encodedOrder);
         assertEq(result, _ERC1271_MAGIC_VALUE, "Invalid signature magic value");
     }
 
-    function testClaim() public {
-        // // Test that the claim function transfers the correct amounts to the receiver
-        // uint256 initialSellBalance = 1000;
-        // uint256 initialBuyBalance = 500;
+    function testFuzz_claim(
+        uint256 initialSellBalance,
+        uint256 initialBuyBalance,
+        uint256 sellAmount,
+        uint256 buyAmount,
+        uint32 validTo,
+        address receiver,
+        address operator,
+        bytes32 salt
+    )
+        public
+    {
+        vm.assume(receiver != address(0));
 
-        // // Mint tokens to the clone contract
-        // deal(address(sellToken), address(clone), initialSellBalance);
-        // deal(address(buyToken), address(clone), initialBuyBalance);
+        // Deploy ERC20Mocks for sellToken and buyToken
+        ERC20Mock sellToken = new ERC20Mock();
+        ERC20Mock buyToken = new ERC20Mock();
 
-        // // Claim the tokens
-        // vm.prank(operator);
-        // (uint256 claimedSellAmount, uint256 claimedBuyAmount) = clone.claim();
+        // Create the clone contract
+        address clone = testFuzz_clone(
+            address(sellToken), address(buyToken), sellAmount, buyAmount, validTo, receiver, operator, salt
+        );
 
-        // // Check that the tokens were transferred to the receiver
-        // assertEq(claimedSellAmount, initialSellBalance, "Incorrect claimed sell amount");
-        // assertEq(claimedBuyAmount, initialBuyBalance, "Incorrect claimed buy amount");
-        // assertEq(sellToken.balanceOf(receiver), initialSellBalance, "Incorrect sell token balance");
-        // assertEq(buyToken.balanceOf(receiver), initialBuyBalance, "Incorrect buy token balance");
+        // Mint tokens to the clone contract
+        deal(address(sellToken), address(clone), initialSellBalance);
+        deal(address(buyToken), address(clone), initialBuyBalance);
+
+        // Claim the tokens
+        vm.prank(operator);
+        (uint256 claimedSellAmount, uint256 claimedBuyAmount) = CoWSwapClone(clone).claim();
+
+        // Check that the tokens were transferred to the receiver
+        assertEq(claimedSellAmount, initialSellBalance, "Incorrect claimed sell amount");
+        assertEq(claimedBuyAmount, initialBuyBalance, "Incorrect claimed buy amount");
+        assertEq(sellToken.balanceOf(receiver), initialSellBalance, "Incorrect sell token balance");
+        assertEq(buyToken.balanceOf(receiver), initialBuyBalance, "Incorrect buy token balance");
     }
 
     function testFuzz_claim_revertWhen_CallerIsNotOperatorOrReceiver(
-        bytes32 orderHash,
         address sellToken,
         address buyToken,
         uint256 sellAmount,
         uint256 buyAmount,
+        uint32 validTo,
         address receiver,
         address operator,
         bytes32 salt,
@@ -160,7 +178,7 @@ contract CoWSwapCloneTest is Test {
     )
         public
     {
-        address clone = testFuzz_clone(orderHash, sellToken, buyToken, sellAmount, buyAmount, receiver, operator, salt);
+        address clone = testFuzz_clone(sellToken, buyToken, sellAmount, buyAmount, validTo, receiver, operator, salt);
         // Test that the claim function reverts if called by someone other than the operator or receiver
         vm.assume(caller != operator && caller != receiver);
         vm.expectRevert(CoWSwapClone.CallerIsNotOperatorOrReceiver.selector);
