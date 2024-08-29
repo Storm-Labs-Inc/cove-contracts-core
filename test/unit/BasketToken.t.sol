@@ -18,14 +18,10 @@ import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interface
 import { IERC7575 } from "src/interfaces/IERC7575.sol";
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-
-import { console } from "forge-std/console.sol";
 
 import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20DecimalsMockImpl } from "test/utils/mocks/ERC20DecimalsMockImpl.sol";

@@ -201,9 +201,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
-    function proposeRebalance(
-        address[] calldata basketsToRebalance
-    )
+    function proposeRebalance(address[] calldata basketsToRebalance)
         external
         onlyRole(_REBALANCER_ROLE)
         nonReentrant
