@@ -27,7 +27,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
 
     // STATE VARS //
     uint256 private _lastManagementFeeHarvestTimestamp;
-    uint256 private _lastManagementFeeTotalSupply;
 
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
@@ -479,34 +478,24 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
             return;
         }
         // Effects
-
         // If this is the first time the management fee is being harvested give no shares and set the timestamp to begin
         // the accrual of the management fee
         if (_lastManagementFeeHarvestTimestamp == 0) {
             _lastManagementFeeHarvestTimestamp = block.timestamp;
-            _lastManagementFeeTotalSupply = totalSupply();
             return;
         }
         // amortize the management fee over a yearn from the last timestamp
         uint256 timeSinceLastHarvest = block.timestamp - _lastManagementFeeHarvestTimestamp;
         uint256 currentTotalSupply = totalSupply() - balanceOf(treasury);
-
-        // Calculate the integral of the total supply over the time period
-        uint256 integralTotalSupply =
-            FixedPointMathLib.fullMulDiv(currentTotalSupply + _lastManagementFeeTotalSupply, timeSinceLastHarvest, 2);
-        // Calculate the fee based on the integral of the total supply
         uint256 fee = FixedPointMathLib.fullMulDiv(
-            feeBps * integralTotalSupply,
-            _SCALING_FACTOR,
-            uint256(365 days) * _MANAGEMENT_FEE_DECIMALS * _SCALING_FACTOR
+            currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
         );
         if (fee == 0) {
             return;
         }
+        _lastManagementFeeHarvestTimestamp = block.timestamp;
         // Interactions
         _mint(treasury, fee);
-        _lastManagementFeeHarvestTimestamp = block.timestamp;
-        _lastManagementFeeTotalSupply = currentTotalSupply;
     }
 
     /// ERC4626 OVERRIDDEN LOGIC ///
