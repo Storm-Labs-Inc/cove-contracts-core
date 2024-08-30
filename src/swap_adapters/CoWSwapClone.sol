@@ -66,7 +66,7 @@ contract CoWSwapClone is IERC1271, Clone {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
-        if (order.buyAmount < buyAmount()) {
+        if (order.buyAmount < minBuyAmount()) {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
@@ -110,7 +110,13 @@ contract CoWSwapClone is IERC1271, Clone {
             revert CallerIsNotOperatorOrReceiver();
         }
         claimedSellAmount = IERC20(sellToken()).balanceOf(address(this));
-        IERC20(sellToken()).transfer(receiver(), claimedSellAmount);
+        if (claimedSellAmount > 0) {
+            IERC20(sellToken()).safeTransfer(receiver(), claimedSellAmount);
+        }
+        claimedBuyAmount = IERC20(buyToken()).balanceOf(address(this));
+        if (claimedBuyAmount > 0) {
+            IERC20(buyToken()).safeTransfer(receiver(), claimedBuyAmount);
+        }
         claimedBuyAmount = IERC20(buyToken()).balanceOf(address(this));
         IERC20(buyToken()).transfer(receiver(), claimedBuyAmount);
     }
@@ -119,7 +125,7 @@ contract CoWSwapClone is IERC1271, Clone {
     // 0: sellToken (address)
     // 20: buyToken (address)
     // 40: sellAmount (uint256)
-    // 72: buyAmount (uint256)
+    // 72: minBuyAmount (uint256)
     // 104: validTo (uint32)
     // 112: receiver (address)
     // 132: operator (address)
@@ -144,7 +150,7 @@ contract CoWSwapClone is IERC1271, Clone {
 
     /// @notice Returns the amount of buy tokens.
     /// @return The amount of buy tokens.
-    function buyAmount() public pure returns (uint256) {
+    function minBuyAmount() public pure returns (uint256) {
         return _getArgUint256(72);
     }
 

@@ -3,7 +3,9 @@ pragma solidity 0.8.23;
 
 import { TokenSwapAdapter } from "./TokenSwapAdapter.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
+
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
@@ -13,6 +15,7 @@ import { ExternalTrade } from "src/types/Trades.sol";
 /// @notice Adapter for executing and completing token swaps using CoWSwap protocol.
 contract CoWSwapAdapter is TokenSwapAdapter {
     using GPv2Order for GPv2Order.Data;
+    using SafeERC20 for IERC20;
 
     /// @dev Domain separator for CoWSwap orders.
     bytes32 internal constant _DOMAIN_SEPARATOR = 0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
@@ -65,7 +68,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     {
         uint256 length = externalTrades.length;
         claimedAmounts = new uint256[2][](length);
-        uint256 validTo = _cowswapAdapterStorage().orderValidTo;
+        uint32 validTo = _cowswapAdapterStorage().orderValidTo;
 
         for (uint256 i = 0; i < length; i++) {
             // Call claim on each CoWSwapClone contract
@@ -106,7 +109,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
             abi.encodePacked(sellToken, buyToken, sellAmount, buyAmount, uint64(validTo), address(this), address(this)),
             salt
         );
-        IERC20(sellToken).transfer(swapContract, sellAmount);
+        IERC20(sellToken).safeTransfer(swapContract, sellAmount);
         CoWSwapClone(swapContract).initialize();
     }
 

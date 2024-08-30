@@ -28,7 +28,7 @@ contract CoWSwapCloneTest is Test {
         address sellToken,
         address buyToken,
         uint256 sellAmount,
-        uint256 buyAmount,
+        uint256 minBuyAmount,
         uint32 validTo,
         address receiver,
         address operator,
@@ -39,7 +39,7 @@ contract CoWSwapCloneTest is Test {
     {
         clone = ClonesWithImmutableArgs.clone3(
             address(impl),
-            abi.encodePacked(sellToken, buyToken, sellAmount, buyAmount, uint64(validTo), receiver, operator),
+            abi.encodePacked(sellToken, buyToken, sellAmount, minBuyAmount, uint64(validTo), receiver, operator),
             salt
         );
         CoWSwapClone cloneInstance = CoWSwapClone(clone);
@@ -47,7 +47,7 @@ contract CoWSwapCloneTest is Test {
         assertEq(cloneInstance.sellToken(), sellToken, "Incorrect sell token");
         assertEq(cloneInstance.buyToken(), buyToken, "Incorrect buy token");
         assertEq(cloneInstance.sellAmount(), sellAmount, "Incorrect sell amount");
-        assertEq(cloneInstance.buyAmount(), buyAmount, "Incorrect buy amount");
+        assertEq(cloneInstance.minBuyAmount(), minBuyAmount, "Incorrect min buy amount");
         assertEq(cloneInstance.validTo(), validTo, "Incorrect valid to");
         assertEq(cloneInstance.receiver(), receiver, "Incorrect receiver");
         assertEq(cloneInstance.operator(), operator, "Incorrect operator");
@@ -57,7 +57,7 @@ contract CoWSwapCloneTest is Test {
         address sellToken,
         address buyToken,
         uint256 sellAmount,
-        uint256 buyAmount,
+        uint256 minBuyAmount,
         uint32 validTo,
         address receiver,
         address operator,
@@ -66,7 +66,7 @@ contract CoWSwapCloneTest is Test {
         public
     {
         vm.assume(sellToken.code.length == 0);
-        address clone = testFuzz_clone(sellToken, buyToken, sellAmount, buyAmount, validTo, receiver, operator, salt);
+        address clone = testFuzz_clone(sellToken, buyToken, sellAmount, minBuyAmount, validTo, receiver, operator, salt);
         vm.expectRevert();
         CoWSwapClone(clone).initialize();
     }
