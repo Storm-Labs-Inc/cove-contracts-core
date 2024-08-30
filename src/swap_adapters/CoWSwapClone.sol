@@ -8,8 +8,23 @@ import { Clone } from "clones-with-immutable-args/Clone.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
 /// @title CoWSwapClone
-/// @dev A contract that implements the ERC1271 interface for signature validation and manages token trades. This
-/// contract is designed to be used as a clone with immutable arguments.
+/// @notice A contract that implements the ERC1271 interface for signature validation and manages token trades. This
+/// contract is designed to be used as a clone with immutable arguments, leveraging the `ClonesWithImmutableArgs`
+/// library.
+/// The clone should be initialized with the following packed bytes, in this exact order:
+/// - `sellToken` (address): The address of the token to be sold.
+/// - `buyToken` (address): The address of the token to be bought.
+/// - `sellAmount` (uint256): The amount of the sell token.
+/// - `buyAmount` (uint256): The minimum amount of the buy token.
+/// - `validTo` (uint64): The timestamp until which the order is valid.
+/// - `operator` (address): The address of the operator allowed to manage the trade.
+/// - `receiver` (address): The address that will receive the bought tokens.
+///
+/// To use this contract, deploy it as a clone using the `ClonesWithImmutableArgs` library with the above immutable
+/// arguments packed into a single bytes array. After deployment, call `initialize()` to set up the necessary token
+/// approvals for the trade.
+/// @dev The `isValidSignature` function can be used to validate the signature of an order against the stored order
+/// digest.
 contract CoWSwapClone is IERC1271, Clone {
     using GPv2Order for GPv2Order.Data;
     using SafeERC20 for IERC20;
