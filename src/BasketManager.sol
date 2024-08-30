@@ -44,7 +44,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     mapping(bytes32 => bool) public isOrderValid;
 
     /// ERRORS ///
-    error TokenSwapNotYetProposed();
+    error TokenSwapNotProposed();
     error ExecuteTokenSwapFailed();
     error InvalidHash();
     error ExternalTradesHashMismatch();
@@ -225,7 +225,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         whenNotPaused
     {
         if (_bmStorage.rebalanceStatus.status != Status.TOKEN_SWAP_PROPOSED) {
-            revert TokenSwapNotYetProposed();
+            revert TokenSwapNotProposed();
         }
         // Check if the external trades match the hash from proposeTokenSwap
         if (keccak256(abi.encode(externalTrades)) != _bmStorage.externalTradesHash) {

@@ -1567,4 +1567,10 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.prank(rebalancer);
         basketManager.executeTokenSwap(badTrades, "");
     }
+
+    function testFuzz_executeTokenSwap_revertWhen_TokenSwapNotProposed(ExternalTrade[] memory trades) public {
+        vm.expectRevert(BasketManager.TokenSwapNotProposed.selector);
+        vm.prank(rebalancer);
+        basketManager.executeTokenSwap(trades, "");
+    }
 }
