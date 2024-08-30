@@ -12,10 +12,6 @@ import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
-interface IDelegatedValidSignature {
-    function delegatedIsValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4);
-}
-
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// in the BasketManagerUtils contract.
@@ -49,7 +45,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     error InvalidHash();
     error ExternalTradesHashMismatch();
     error Unauthorized();
-    error TokenSwapAdapterIsValidSignatureFailed();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
