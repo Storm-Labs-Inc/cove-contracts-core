@@ -117,8 +117,6 @@ contract CoWSwapClone is IERC1271, Clone {
         if (claimedBuyAmount > 0) {
             IERC20(buyToken()).safeTransfer(receiver(), claimedBuyAmount);
         }
-        claimedBuyAmount = IERC20(buyToken()).balanceOf(address(this));
-        IERC20(buyToken()).transfer(receiver(), claimedBuyAmount);
     }
 
     // Immutable fields stored in the contract's bytecode
