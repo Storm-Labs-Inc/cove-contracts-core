@@ -105,9 +105,11 @@ contract CoWSwapClone is IERC1271, Clone {
     /// trade. Only the operator or the receiver can claim the tokens.
     /// @return claimedSellAmount The amount of sell tokens claimed.
     /// @return claimedBuyAmount The amount of buy tokens claimed.
-    function claim() external returns (uint256 claimedSellAmount, uint256 claimedBuyAmount) {
-        if (msg.sender != operator() && msg.sender != receiver()) {
-            revert CallerIsNotOperatorOrReceiver();
+    function claim() external payable returns (uint256 claimedSellAmount, uint256 claimedBuyAmount) {
+        if (msg.sender != operator()) {
+            if (msg.sender != receiver()) {
+                revert CallerIsNotOperatorOrReceiver();
+            }
         }
         claimedSellAmount = IERC20(sellToken()).balanceOf(address(this));
         if (claimedSellAmount > 0) {

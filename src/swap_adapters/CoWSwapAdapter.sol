@@ -17,9 +17,6 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     using GPv2Order for GPv2Order.Data;
     using SafeERC20 for IERC20;
 
-    /// @dev Domain separator for CoWSwap orders.
-    bytes32 internal constant _DOMAIN_SEPARATOR = 0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
-
     /// @dev Storage slot for CoWSwapAdapter specific data.
     bytes32 internal constant _COWSWAP_ADAPTER_STORAGE =
         bytes32(uint256(keccak256("cove.basketmanager.cowswapadapter.storage")) - 1);
@@ -34,7 +31,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
 
     /// @notice Constructor to initialize the CoWSwapAdapter with the clone implementation address.
     /// @param cloneImplementation_ The address of the clone implementation contract.
-    constructor(address cloneImplementation_) {
+    constructor(address cloneImplementation_) payable {
         if (cloneImplementation_ == address(0)) {
             revert Errors.ZeroAddress();
         }
@@ -46,7 +43,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     function executeTokenSwap(ExternalTrade[] calldata externalTrades, bytes calldata) external payable override {
         uint32 validTo = uint32(block.timestamp + 15 minutes);
         _cowswapAdapterStorage().orderValidTo = validTo;
-        for (uint256 i = 0; i < externalTrades.length; i++) {
+        for (uint256 i = 0; i < externalTrades.length;) {
             _createOrder(
                 externalTrades[i].sellToken,
                 externalTrades[i].buyToken,
@@ -54,6 +51,9 @@ contract CoWSwapAdapter is TokenSwapAdapter {
                 externalTrades[i].minAmount,
                 validTo
             );
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -70,7 +70,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
         claimedAmounts = new uint256[2][](length);
         uint32 validTo = _cowswapAdapterStorage().orderValidTo;
 
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 0; i < length;) {
             // Call claim on each CoWSwapClone contract
             bytes32 salt = keccak256(
                 abi.encodePacked(
@@ -82,8 +82,12 @@ contract CoWSwapAdapter is TokenSwapAdapter {
                 )
             );
             address swapContract = ClonesWithImmutableArgs.addressOfClone3(salt);
+            // slither-disable-next-line calls-loop
             (uint256 claimedSellAmount, uint256 claimedBuyAmount) = CoWSwapClone(swapContract).claim();
             claimedAmounts[i] = [claimedSellAmount, claimedBuyAmount];
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -109,17 +113,21 @@ contract CoWSwapAdapter is TokenSwapAdapter {
             abi.encodePacked(sellToken, buyToken, sellAmount, buyAmount, uint64(validTo), address(this), address(this)),
             salt
         );
+        // slither-disable-start calls-loop
         IERC20(sellToken).safeTransfer(swapContract, sellAmount);
         CoWSwapClone(swapContract).initialize();
+        // slither-disable-end calls-loop
     }
 
     /// @dev Internal function to retrieve the storage for the CoWSwapAdapter.
     /// @return s The storage struct for the CoWSwapAdapter.
     function _cowswapAdapterStorage() internal pure returns (CoWSwapAdapterStorage storage s) {
         bytes32 slot = _COWSWAP_ADAPTER_STORAGE;
+        // slither-disable-start assembly
         // solhint-disable-next-line no-inline-assembly
         assembly {
             s.slot := slot
         }
+        // slither-disable-end assembly
     }
 }
