@@ -3,6 +3,8 @@ pragma solidity 0.8.23;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Test } from "forge-std/Test.sol";
+
+import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapAdapter } from "src/swap_adapters/CoWSwapAdapter.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
 import { BasketTradeOwnership, ExternalTrade } from "src/types/Trades.sol";
@@ -31,6 +33,11 @@ contract CoWSwapAdapterTest is Test {
     function testFuzz_constructor(address impl) public {
         vm.assume(impl != address(0));
         assertEq(new CoWSwapAdapter(impl).cloneImplementation(), impl, "Incorrect clone implementation address");
+    }
+
+    function test_constructor_revertWhen_ZeroAddress() public {
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        new CoWSwapAdapter(address(0));
     }
 
     function testFuzz_executeTokenSwap(ExternalTradeWithoutBasketOwnership[] calldata externalTrades) public {
