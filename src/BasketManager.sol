@@ -46,6 +46,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
     /// @notice Mapping of order hashes to their validity status.
     mapping(bytes32 => bool) public isOrderValid;
 
+    /// EVENTS ///
+    /// @notice Emitted when the management fee is set.
+    event ManagementFeeSet(uint16 oldFee, uint16 newFee);
+
     /// ERRORS ///
     error ExecuteTokenSwapFailed();
     error InvalidHash();
@@ -305,6 +309,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, IERC1271, Pa
         if (managementFee_ > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
+        emit ManagementFeeSet(_bmStorage.managementFee, managementFee_);
         _bmStorage.managementFee = managementFee_;
     }
 

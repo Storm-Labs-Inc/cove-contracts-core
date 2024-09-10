@@ -36,7 +36,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     bytes4 private constant _ERC7575_INTERFACE = 0x2f0a18c5;
     bytes4 private constant _ACCESS_CONTROL_INTERFACE = 0x7965db0b;
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
-    uint256 constant _SCALING_FACTOR = 1e18;
+    uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
 
     /// STRUCTS ///
     /// @notice Struct to hold the amount of assets and shares requested by a controller
@@ -99,7 +99,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     event RedeemRequest(
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
+    /// @notice Emitted when an operator is set
     event OperatorSet(address indexed controller, address indexed operator, bool approved);
+    /// @notice Emitted when a the Management fee is harvested by the treasury
+    event ManagementFeeHarvested(address indexed treasury, uint256 fee, uint256 timestamp);
 
     /// ERRORS ///
     error ZeroPendingDeposits();
@@ -112,6 +115,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     error ZeroClaimableFallbackShares();
     error NotAuthorizedOperator();
     error PrepareForRebalanceNotCalled();
+    error InvalidManagementFee();
 
     /// @notice Disables the ability to call initializers.
     constructor() payable {
@@ -475,25 +479,28 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
         if (feeBps == 0) {
-            return;
-        }
-        // Effects
-        // If this is the first time the management fee is being harvested give no shares and set the timestamp to begin
-        // the accrual of the management fee
-        if (_lastManagementFeeHarvestTimestamp == 0) {
             _lastManagementFeeHarvestTimestamp = block.timestamp;
             return;
         }
-        // amortize the management fee over a yearn from the last timestamp
-        uint256 timeSinceLastHarvest = block.timestamp - _lastManagementFeeHarvestTimestamp;
-        uint256 currentTotalSupply = totalSupply() - balanceOf(treasury);
+        if (feeBps >= _MAX_MANAGEMENT_FEE) {
+            revert InvalidManagementFee();
+        }
+        // Effects
+        uint256 lastManagementFeeHarvestTimestamp = _lastManagementFeeHarvestTimestamp;
+        // amortize the management fee over a year from the last timestamp
+        uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
+        // remove shares held by the treasury or currently pending redemption from calculation
+        uint256 currentTotalSupply =
+            totalSupply() - balanceOf(treasury) - pendingRedeemRequest(_currentRequestId - 1, treasury);
         uint256 fee = FixedPointMathLib.fullMulDiv(
             currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
         );
         if (fee == 0) {
             return;
         }
-        _lastManagementFeeHarvestTimestamp = block.timestamp;
+        lastManagementFeeHarvestTimestamp = block.timestamp;
+        _lastManagementFeeHarvestTimestamp = lastManagementFeeHarvestTimestamp;
+        emit ManagementFeeHarvested(treasury, fee, lastManagementFeeHarvestTimestamp);
         // Interactions
         _mint(treasury, fee);
     }
