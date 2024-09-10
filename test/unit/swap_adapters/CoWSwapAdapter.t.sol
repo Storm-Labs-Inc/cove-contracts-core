@@ -43,6 +43,9 @@ contract CoWSwapAdapterTest is Test {
     function testFuzz_executeTokenSwap(ExternalTradeWithoutBasketOwnership[] calldata externalTrades) public {
         vm.assume(externalTrades.length < 5);
         for (uint256 i = 0; i < externalTrades.length; i++) {
+            // Avoid precompiled contract addresses from 0x01 to 0x09
+            vm.assume(uint160(externalTrades[i].sellToken) > 9);
+            vm.assume(uint160(externalTrades[i].buyToken) > 9);
             bytes32 salt = keccak256(
                 abi.encodePacked(
                     externalTrades[i].sellToken,
