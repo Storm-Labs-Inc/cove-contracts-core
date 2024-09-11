@@ -4,3 +4,4 @@ forge-deploy/=lib/forge-deploy/contracts/
 @openzeppelin/=lib/openzeppelin-contracts/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
 euler-price-oracle/=lib/euler-price-oracle/
+clones-with-immutable-args/=lib/clones-with-immutable-args/src/
