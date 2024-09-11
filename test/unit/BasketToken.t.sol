@@ -1812,6 +1812,15 @@ contract BasketTokenTest is BaseTest, Constants {
         }
     }
 
+    function testFuzz_harvestManagementFee_returnsWhenZeroFee(uint16 feeBps) public {
+        vm.assume(feeBps < _MAX_MANAGEMENT_FEE);
+        address treasury = createUser("treasury");
+        uint256 balanceBefore = basket.balanceOf(treasury);
+        vm.prank(address(basketManager));
+        basket.harvestManagementFee(feeBps, alice);
+        assertEq(basket.balanceOf(treasury), balanceBefore);
+    }
+
     function testFuzz_harvestManagementFee_revertsWhen_calledByNotBasketManager(address caller) public {
         vm.assume(caller != address(basketManager));
         vm.expectRevert(_formatAccessControlError(caller, BASKET_MANAGER_ROLE));

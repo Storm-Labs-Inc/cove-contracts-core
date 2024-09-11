@@ -30,8 +30,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     /// @dev Role given to a timelock contract that can set critical parameters.
     bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
-    /// @notice Magic value for ERC1271 signature validation.
-    bytes4 private constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
     /// @notice Maximum management fee in BPS denominated in 1e4.
     uint16 private constant _MAX_MANAGEMENT_FEE = 10_000;
 
