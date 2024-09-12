@@ -73,6 +73,11 @@ jobs:
             const body = process.env.REPORT
             await script({ github, context, header, body })
 
+            // Check if the report contains findings
+            if (body.includes('results)')) {
+              core.setFailed('Slither found issues. Please review the report.');
+            }
+
   semgrep:
     name: Semgrep
     runs-on: buildjet-2vcpu-ubuntu-2204
