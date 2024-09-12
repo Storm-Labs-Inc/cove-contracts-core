@@ -53,6 +53,7 @@ contract BasketToken is
     }
 
     /// STATE VARIABLES ///
+    // slither-disable-start uninitialized-state
     /// @notice Mapping of operator to operator status
     mapping(address controller => mapping(address operator => bool)) public isOperator;
     /// @notice Mapping of requestId to a controllers pending assets for deposit and shares for redemption
@@ -82,6 +83,7 @@ contract BasketToken is
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
+    // slither-disable-end uninitialized-state
 
     /// EVENTS ///
     /// @notice Emitted when a the Management fee is harvested by the treasury
@@ -128,11 +130,11 @@ contract BasketToken is
         }
         admin = admin_;
         basketManager = msg.sender;
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
         _currentRequestId = 1;
         strategy = strategy_;
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
@@ -338,6 +340,7 @@ contract BasketToken is
         _fulfilledRate[currentRequestId].assets = assets;
         _burn(address(this), sharesPendingRedemption);
         // Interactions
+        // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset()).safeTransferFrom(basketManager, address(this), assets);
     }
 
