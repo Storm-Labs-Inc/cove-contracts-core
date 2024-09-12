@@ -18,8 +18,6 @@ import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interface
 import { IERC7575 } from "src/interfaces/IERC7575.sol";
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { Errors } from "src/libraries/Errors.sol";
@@ -1706,5 +1704,134 @@ contract BasketTokenTest is BaseTest, Constants {
     // TODO: implement this test after `totalAssets` is implemented
     function test_totalAssets() public {
         assertEq(basket.totalAssets(), 0);
+    }
+
+    function testFuzz_harvestManagementFee1Year(
+        uint256 totalDepositAmount,
+        uint256 issuedShares,
+        uint16 feeBps
+    )
+        public
+    {
+        // Assume shares are available to be harvested
+        vm.assume(feeBps > 0 && feeBps <= 1e4);
+        vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
+        address treasury = createUser("treasury");
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+        assertEq(basket.balanceOf(treasury), 0);
+        // First harvest sets the date to start accruing rewards for the treasury
+        vm.startPrank(address(basketManager));
+        basket.harvestManagementFee(0, treasury);
+        assertEq(basket.balanceOf(treasury), 0);
+        vm.warp(block.timestamp + 365 days);
+        basket.harvestManagementFee(feeBps, treasury);
+        uint256 balance = basket.balanceOf(treasury);
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
+        if (expected > 0) {
+            assertEq(balance, expected);
+        }
+    }
+
+    function testFuzz_harvestManagementFee(
+        uint256 totalDepositAmount,
+        uint256 issuedShares,
+        uint16 feeBps,
+        uint256 timesHarvested
+    )
+        public
+    {
+        // Assume shares are available to be harvested
+        vm.assume(feeBps > 0 && feeBps <= 1e4);
+        vm.assume(timesHarvested > 0 && timesHarvested <= 365);
+        vm.assume(issuedShares > 1e4 && issuedShares < (type(uint256).max / (feeBps * timesHarvested)) / 1e18);
+        vm.assume((feeBps * issuedShares / 1e4) / timesHarvested > 1);
+        address treasury = createUser("treasury");
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+        assertEq(basket.balanceOf(treasury), 0);
+
+        // First harvest sets the date to start accruing rewards for the treasury
+        vm.startPrank(address(basketManager));
+        basket.harvestManagementFee(0, treasury);
+        assertEq(basket.balanceOf(treasury), 0);
+
+        uint256 timePerHarvest = uint256(365 days) / timesHarvested;
+        uint256 startTimestamp = block.timestamp;
+
+        for (uint256 i = 1; i < timesHarvested; i++) {
+            uint256 elapsedTime = i * timePerHarvest;
+            vm.warp(startTimestamp + elapsedTime);
+            basket.harvestManagementFee(feeBps, treasury);
+        }
+
+        // Warp to the end of the year
+        vm.warp(startTimestamp + 365 days);
+        basket.harvestManagementFee(feeBps, treasury);
+
+        uint256 balance = basket.balanceOf(treasury);
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
+        // expected dust from rounding
+        assertApproxEqAbs(balance, expected, 366);
+    }
+
+    function testFuzz_harvestManagementFee_CorrectCalculationWithTreasuryWithdraw(
+        uint256 totalDepositAmount,
+        uint256 issuedShares,
+        uint16 feeBps,
+        uint256 withdrawAmount
+    )
+        public
+    {
+        // Assume shares are available to be harvested
+        vm.assume(feeBps > 0 && feeBps <= 1e4);
+        vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
+        // vm.assume(withdrawAmount > 0 && withdrawAmount < issuedShares);
+        address treasury = createUser("treasury");
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+        assertEq(basket.balanceOf(treasury), 0);
+        // First harvest sets the date to start accruing rewards for the treasury
+        vm.startPrank(address(basketManager));
+        basket.harvestManagementFee(0, treasury);
+        assertEq(basket.balanceOf(treasury), 0);
+        vm.warp(block.timestamp + 365 days / 2);
+        basket.harvestManagementFee(feeBps, treasury);
+        vm.stopPrank();
+        uint256 harvestedFee = basket.balanceOf(treasury);
+        vm.assume(withdrawAmount > 0 && withdrawAmount <= harvestedFee);
+        // Half a year has passed, treasury requests to withdraw its earned fee
+        vm.warp(block.timestamp + 365 days / 2);
+        vm.prank(treasury);
+        basket.requestRedeem(withdrawAmount, treasury, treasury);
+        uint256 treasuryPendingRequest = basket.pendingRedeemRequest(basket.lastRedeemRequestId(treasury), treasury);
+        vm.startPrank(address(basketManager));
+        basket.prepareForRebalance();
+        basket.harvestManagementFee(feeBps, treasury);
+        uint256 balance = basket.balanceOf(treasury) + treasuryPendingRequest;
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
+        if (expected > 0) {
+            assertApproxEqAbs(balance, expected, 366);
+        }
+    }
+
+    function testFuzz_harvestManagementFee_returnsWhenZeroFee(uint16 feeBps) public {
+        vm.assume(feeBps < _MAX_MANAGEMENT_FEE);
+        address treasury = createUser("treasury");
+        uint256 balanceBefore = basket.balanceOf(treasury);
+        vm.prank(address(basketManager));
+        basket.harvestManagementFee(feeBps, alice);
+        assertEq(basket.balanceOf(treasury), balanceBefore);
+    }
+
+    function testFuzz_harvestManagementFee_revertsWhen_calledByNotBasketManager(address caller) public {
+        vm.assume(caller != address(basketManager));
+        vm.expectRevert(_formatAccessControlError(caller, BASKET_MANAGER_ROLE));
+        vm.prank(caller);
+        basket.harvestManagementFee(10, caller);
+    }
+
+    function testFuzz_harvestManagementFee_revertsWhen_feeBPSMax(uint16 feeBps) public {
+        vm.assume(feeBps >= _MAX_MANAGEMENT_FEE);
+        vm.prank(address(basketManager));
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.InvalidManagementFee.selector));
+        basket.harvestManagementFee(feeBps, address(1));
     }
 }

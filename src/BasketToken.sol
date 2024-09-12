@@ -7,6 +7,7 @@ import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ER
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { Errors } from "src/libraries/Errors.sol";
@@ -20,9 +21,13 @@ interface IBasketManager {
 /// @title BasketToken
 /// @notice Contract responsible for accounting for users deposit and redemption requests, which are asynchronously
 /// fulfilled by the Basket Manager
+// slither-disable-next-line missing-inheritance
 contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
+
+    // STATE VARS //
+    uint256 private _lastManagementFeeHarvestTimestamp;
 
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
@@ -30,7 +35,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     bytes4 private constant _ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
     bytes4 private constant _ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
     bytes4 private constant _ERC7575_INTERFACE = 0x2f0a18c5;
-    bytes4 private constant _ACCESS_CONTROL_INTERFACE = 0x7965db0b;
+    uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
+    uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
 
     /// STRUCTS ///
     /// @notice Struct to hold the amount of assets and shares requested by a controller
@@ -93,7 +99,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     event RedeemRequest(
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
     );
+    /// @notice Emitted when an operator is set
     event OperatorSet(address indexed controller, address indexed operator, bool approved);
+    /// @notice Emitted when a the Management fee is harvested by the treasury
+    event ManagementFeeHarvested(address indexed treasury, uint256 fee, uint256 timestamp);
 
     /// ERRORS ///
     error ZeroPendingDeposits();
@@ -106,6 +115,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     error ZeroClaimableFallbackShares();
     error NotAuthorizedOperator();
     error PrepareForRebalanceNotCalled();
+    error InvalidManagementFee();
 
     /// @notice Disables the ability to call initializers.
     constructor() payable {
@@ -188,6 +198,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @param assets The amount of assets to deposit.
     /// @param controller The address of the controller of the position being created.
     /// @param owner The address of the owner of the assets being deposited.
+    // slither-disable-next-line arbitrary-send-erc20
     function requestDeposit(uint256 assets, address controller, address owner) public returns (uint256 requestId) {
         // Checks
         if (maxDeposit(controller) > 0) {
@@ -463,6 +474,41 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
     }
 
+    /// @notice Harvests the management fee, records the fee has been taken and mints the fee to the treasury.
+    /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
+    /// @param treasury The address to receive the management fee.
+    // slither-disable-next-line timestamp
+    function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
+        // Checks
+        // slither-disable-start incorrect-equality
+        if (feeBps == 0) {
+            _lastManagementFeeHarvestTimestamp = block.timestamp;
+            return;
+        }
+        // slither-disable-end incorrect-equality
+        if (feeBps >= _MAX_MANAGEMENT_FEE) {
+            revert InvalidManagementFee();
+        }
+        // Effects
+        uint256 lastManagementFeeHarvestTimestamp = _lastManagementFeeHarvestTimestamp;
+        // amortize the management fee over a year from the last timestamp
+        uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
+        // remove shares held by the treasury or currently pending redemption from calculation
+        uint256 currentTotalSupply =
+            totalSupply() - balanceOf(treasury) - pendingRedeemRequest(_currentRequestId - 1, treasury);
+        uint256 fee = FixedPointMathLib.fullMulDiv(
+            currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
+        );
+        if (fee == 0) {
+            return;
+        }
+        lastManagementFeeHarvestTimestamp = block.timestamp;
+        _lastManagementFeeHarvestTimestamp = lastManagementFeeHarvestTimestamp;
+        emit ManagementFeeHarvested(treasury, fee, lastManagementFeeHarvestTimestamp);
+        // Interactions
+        _mint(treasury, fee);
+    }
+
     /// ERC4626 OVERRIDDEN LOGIC ///
 
     /// @notice Transfers a user's shares owed for a previously fulfillled deposit request.
@@ -641,8 +687,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares = 0;
         // Interactions
-        IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, controller, assets, shares);
+        IERC20(asset()).safeTransfer(receiver, assets);
     }
 
     /// @notice Internal function to claim deposit for a given amount of assets and shares.
@@ -655,8 +701,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets = 0;
         // Interactions
-        _transfer(address(this), receiver, shares);
         emit Deposit(controller, receiver, assets, shares);
+        _transfer(address(this), receiver, shares);
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///

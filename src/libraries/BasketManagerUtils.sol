@@ -213,7 +213,8 @@ library BasketManagerUtils {
             if (assets.length == 0) {
                 revert BasketTokenNotFound();
             }
-
+            // Harvest management fee
+            BasketToken(basket).harvestManagementFee(self.managementFee, self.treasury);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Process pending deposits and fulfill them
@@ -341,7 +342,6 @@ library BasketManagerUtils {
             uint256 assetsLength = assets.length;
             uint256[] memory balances = new uint256[](assetsLength);
             uint256 basketValue = 0;
-
             // Calculate current basket value
             for (uint256 j = 0; j < assetsLength;) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -754,6 +754,7 @@ library BasketManagerUtils {
     /// @return totalSupply Total supply of the basket token after processing pending deposits.
     /// @return pendingDeposit pending deposits of the base asset.
     /// @return pendingDepositValue Value of the pending deposits in USD.
+    // slither-disable-next-line calls-loop
     function _processPendingDeposits(
         BasketManagerStorage storage self,
         address basket,
@@ -792,6 +793,7 @@ library BasketManagerUtils {
     /// @param requiredWithdrawValue Value of the assets to be withdrawn from the basket.
     /// @param assets Array of asset addresses in the basket.
     /// @return targetBalances Array of target balances for each asset in the basket.
+    // slither-disable-next-line calls-loop,naming-convention
     function _calculateTargetBalances(
         BasketManagerStorage storage self,
         address basket,
@@ -832,6 +834,7 @@ library BasketManagerUtils {
     /// @param assets Array of asset addresses in the basket.
     /// @return balances Array of balances of each asset in the basket.
     /// @return basketValue Current value of the basket in USD.
+    // slither-disable-next-line calls-loop
     function _calculateBasketValue(
         BasketManagerStorage storage self,
         address basket,
@@ -868,6 +871,7 @@ library BasketManagerUtils {
         uint256[] memory targetBalances
     )
         private
+        view
         returns (bool shouldRebalance)
     {
         uint256 assetsLength = assets.length;
@@ -880,6 +884,7 @@ library BasketManagerUtils {
             console.log("targetBalances[%s]: %s", j, targetBalances[j]);
             // TODO: verify what scale pyth returns for USD denominated value
             // TODO: is there a way to move this into the if statement that works with semgrep
+            // slither-disable-start calls-loop
             if (
                 self.eulerRouter.getQuote(MathUtils.diff(balances[j], targetBalances[j]), assets[j], _USD_ISO_4217_CODE)
                     > 500 // nosemgrep
@@ -887,6 +892,7 @@ library BasketManagerUtils {
                 shouldRebalance = true;
                 break;
             }
+            // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;

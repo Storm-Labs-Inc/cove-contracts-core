@@ -30,6 +30,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     /// @dev Role given to a timelock contract that can set critical parameters.
     bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
+    /// @notice Maximum management fee in BPS denominated in 1e4.
+    uint16 private constant _MAX_MANAGEMENT_FEE = 10_000;
 
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
@@ -39,12 +41,17 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Mapping of order hashes to their validity status.
     mapping(bytes32 => bool) public isOrderValid;
 
+    /// EVENTS ///
+    /// @notice Emitted when the management fee is set.
+    event ManagementFeeSet(uint16 oldFee, uint16 newFee);
+
     /// ERRORS ///
     error TokenSwapNotProposed();
     error ExecuteTokenSwapFailed();
     error InvalidHash();
     error ExternalTradesHashMismatch();
     error Unauthorized();
+    error InvalidManagementFee();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -55,6 +62,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         address eulerRouter_,
         address strategyRegistry_,
         address admin,
+        address treasury_,
         address pauser
     )
         payable
@@ -64,6 +72,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (eulerRouter_ == address(0)) revert Errors.ZeroAddress();
         if (strategyRegistry_ == address(0)) revert Errors.ZeroAddress();
         if (admin == address(0)) revert Errors.ZeroAddress();
+        if (treasury_ == address(0)) revert Errors.ZeroAddress();
         if (pauser == address(0)) revert Errors.ZeroAddress();
 
         // Effects
@@ -73,6 +82,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _bmStorage.strategyRegistry = StrategyRegistry(strategyRegistry_);
         _bmStorage.eulerRouter = EulerRouter(eulerRouter_);
         _bmStorage.basketTokenImplementation = basketTokenImplementation;
+        _bmStorage.treasury = treasury_;
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -170,6 +180,18 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         return address(_bmStorage.eulerRouter);
     }
 
+    /// @notice Returns the address of the treasury.
+    /// @return Address of the treasury.
+    function treasury() external view returns (address) {
+        return address(_bmStorage.treasury);
+    }
+
+    /// @notice Returns the management fee in BPS denominated in 1e4.
+    /// @return Management fee.
+    function managementFee() external view returns (uint16) {
+        return _bmStorage.managementFee;
+    }
+
     /// @notice Returns the address of the strategy registry.
     /// @return Address of the strategy registry.
     function strategyRegistry() external view returns (address) {
@@ -210,6 +232,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
     /// @param data Encoded data for the token swap.
     /// @dev This function can only be called after proposeTokenSwap.
+    // slither-disable-next-line controlled-delegatecall
     function executeTokenSwap(
         ExternalTrade[] calldata externalTrades,
         bytes calldata data
@@ -229,6 +252,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _bmStorage.rebalanceStatus.status = Status.TOKEN_SWAP_EXECUTED;
         _bmStorage.rebalanceStatus.timestamp = uint40(block.timestamp);
 
+        // slither-disable-next-line low-level-calls
         (bool success,) =
             tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, (externalTrades, data)));
         if (!success) {
@@ -271,6 +295,17 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         onlyRole(_BASKET_TOKEN_ROLE)
     {
         _bmStorage.proRataRedeem(totalSupplyBefore, burnedShares, to);
+    }
+
+    /// @notice Set the management fee to be given to the treausry on rebalance.
+    /// @param managementFee_ Management fee in BPS denominated in 1e4.
+    /// @dev Only callable by the timelock.
+    function setManagementFee(uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
+        if (managementFee_ > _MAX_MANAGEMENT_FEE) {
+            revert InvalidManagementFee();
+        }
+        emit ManagementFeeSet(_bmStorage.managementFee, managementFee_);
+        _bmStorage.managementFee = managementFee_;
     }
 
     /// PAUSING FUNCTIONS ///
