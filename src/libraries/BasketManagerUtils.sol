@@ -214,7 +214,7 @@ library BasketManagerUtils {
                 revert BasketTokenNotFound();
             }
             // Harvest management fee
-            BasketToken(basket).harvestManagementFee(self.managementFee, self.treasury);
+            BasketToken(basket).harvestManagementFee(self.managementFee, self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Process pending deposits and fulfill them

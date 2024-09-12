@@ -62,7 +62,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         address eulerRouter_,
         address strategyRegistry_,
         address admin,
-        address treasury_,
+        address feeCollector_,
         address pauser
     )
         payable
@@ -72,7 +72,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (eulerRouter_ == address(0)) revert Errors.ZeroAddress();
         if (strategyRegistry_ == address(0)) revert Errors.ZeroAddress();
         if (admin == address(0)) revert Errors.ZeroAddress();
-        if (treasury_ == address(0)) revert Errors.ZeroAddress();
+        if (feeCollector_ == address(0)) revert Errors.ZeroAddress();
         if (pauser == address(0)) revert Errors.ZeroAddress();
 
         // Effects
@@ -82,7 +82,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _bmStorage.strategyRegistry = StrategyRegistry(strategyRegistry_);
         _bmStorage.eulerRouter = EulerRouter(eulerRouter_);
         _bmStorage.basketTokenImplementation = basketTokenImplementation;
-        _bmStorage.treasury = treasury_;
+        _bmStorage.feeCollector = feeCollector_;
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -180,10 +180,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         return address(_bmStorage.eulerRouter);
     }
 
-    /// @notice Returns the address of the treasury.
-    /// @return Address of the treasury.
-    function treasury() external view returns (address) {
-        return address(_bmStorage.treasury);
+    /// @notice Returns the address of the feeCollector contract.
+    /// @return Address of the feeCollector.
+    function feeCollector() external view returns (address) {
+        return address(_bmStorage.feeCollector);
     }
 
     /// @notice Returns the management fee in BPS denominated in 1e4.

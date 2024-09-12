@@ -10,10 +10,11 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { BasketManager } from "src/BasketManager.sol";
 
 import { BasketToken } from "src/BasketToken.sol";
+
+import { FeeCollector } from "src/FeeCollector.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
-
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 
 import { Status } from "src/types/BasketManagerStorage.sol";
@@ -30,7 +31,7 @@ contract BasketManagerTest is BaseTest, Constants {
     EulerRouter public eulerRouter;
     address public alice;
     address public admin;
-    address public treasury;
+    address public feeCollector;
     address public manager;
     address public timelock;
     address public rebalancer;
@@ -54,7 +55,7 @@ contract BasketManagerTest is BaseTest, Constants {
         super.setUp();
         alice = createUser("alice");
         admin = createUser("admin");
-        treasury = createUser("treasury");
+        feeCollector = createUser("feeCollector");
         pauser = createUser("pauser");
         manager = createUser("manager");
         rebalancer = createUser("rebalancer");
@@ -68,7 +69,7 @@ contract BasketManagerTest is BaseTest, Constants {
         eulerRouter = new EulerRouter(admin);
         strategyRegistry = createUser("strategyRegistry");
         basketManager = new BasketManager(
-            basketTokenImplementation, address(eulerRouter), strategyRegistry, admin, treasury, pauser
+            basketTokenImplementation, address(eulerRouter), strategyRegistry, admin, feeCollector, pauser
         );
         vm.startPrank(admin);
         mockPriceOracle.setPrice(rootAsset, USD_ISO_4217_CODE, 1e18); // set price to 1e18
@@ -84,7 +85,6 @@ contract BasketManagerTest is BaseTest, Constants {
         tokenSwapAdapter = createUser("tokenSwapAdapter");
         vm.prank(timelock);
         basketManager.setTokenSwapAdapter(tokenSwapAdapter);
-
         vm.label(address(basketManager), "basketManager");
     }
 
@@ -93,7 +93,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address eulerRouter_,
         address strategyRegistry_,
         address admin_,
-        address treasury_,
+        address feeCollector_,
         address pauser_
     )
         public
@@ -102,13 +102,14 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.assume(eulerRouter_ != address(0));
         vm.assume(strategyRegistry_ != address(0));
         vm.assume(admin_ != address(0));
-        vm.assume(treasury_ != address(0));
+        vm.assume(feeCollector_ != address(0));
         vm.assume(pauser_ != address(0));
-        BasketManager bm =
-            new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, treasury_, pauser_);
+        BasketManager bm = new BasketManager(
+            basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, feeCollector_, pauser_
+        );
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
-        assertEq(address(bm.treasury()), treasury_);
+        assertEq(address(bm.feeCollector()), feeCollector_);
         assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
         assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
         assertEq(bm.hasRole(PAUSER_ROLE, pauser_), true);
@@ -120,7 +121,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address eulerRouter_,
         address strategyRegistry_,
         address admin_,
-        address treasury_,
+        address feeCollector_,
         address pauser_,
         uint256 flag
     )
@@ -141,11 +142,11 @@ contract BasketManagerTest is BaseTest, Constants {
             admin_ = address(0);
         }
         if (flag & 16 == 0) {
-            treasury_ = address(0);
+            feeCollector_ = address(0);
         }
 
         vm.expectRevert(Errors.ZeroAddress.selector);
-        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, treasury_, pauser_);
+        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, feeCollector_, pauser_);
     }
 
     function testFuzz_constructor_revertWhen_pasuerZeroAddress(
@@ -153,7 +154,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address eulerRouter_,
         address strategyRegistry_,
         address admin_,
-        address treasury_
+        address feeCollector_
     )
         public
     {
@@ -163,10 +164,12 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.assume(admin_ != address(0));
 
         vm.expectRevert(Errors.ZeroAddress.selector);
-        new BasketManager(basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, treasury_, address(0));
+        new BasketManager(
+            basketTokenImplementation_, eulerRouter_, strategyRegistry_, admin_, feeCollector_, address(0)
+        );
     }
 
-    function testFuzz_constructor_revertWhen_treasuryZeroAddress(
+    function testFuzz_constructor_revertWhen_feeCollectorZeroAddress(
         address basketTokenImplementation_,
         address eulerRouter_,
         address strategyRegistry_,
