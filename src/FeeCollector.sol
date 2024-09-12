@@ -14,6 +14,7 @@ contract FeeCollector is AccessControlEnumerable {
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 private constant _PROTOCOL_TREASURY_ROLE = keccak256("PROTOCOL_TREASURY_ROLE");
     bytes32 private constant _SPONSOR_ROLE = keccak256("SPONSOR_ROLE");
+    bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     uint16 private constant _FEE_SPLIT_DECIMALS = 1e4;
     uint16 private constant _MAX_FEE = 1e4;
 
@@ -35,6 +36,7 @@ contract FeeCollector is AccessControlEnumerable {
     error SponserSplitTooHigh();
     error NotSponser();
     error NoSponser();
+    error NotBasketToken();
 
     /// @notice Constructor to set the admin, basket manager, and protocol treasury
     /// @param admin The address of the admin
@@ -77,8 +79,8 @@ contract FeeCollector is AccessControlEnumerable {
     /// @param basketToken The address of the basket token
     /// @param sponsor The address of the sponsor
     function setSponser(address basketToken, address sponsor) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (basketToken == address(0)) {
-            revert Errors.ZeroAddress();
+        if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
+            revert NotBasketToken();
         }
         if (basketTokenSponsers[basketToken] != address(0)) {
             _revokeRole(_SPONSOR_ROLE, basketTokenSponsers[basketToken]);
@@ -91,8 +93,8 @@ contract FeeCollector is AccessControlEnumerable {
     /// @param basketToken The address of the basket token
     /// @param sponsorSplit The percentage of fees to give to the sponsor
     function setSponserSplit(address basketToken, uint16 sponsorSplit) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (basketToken == address(0)) {
-            revert Errors.ZeroAddress();
+        if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
+            revert NotBasketToken();
         }
         if (sponsorSplit >= _MAX_FEE) {
             revert SponserSplitTooHigh();
@@ -105,9 +107,11 @@ contract FeeCollector is AccessControlEnumerable {
 
     /// @notice Notify the FeeCollector of the fees collected from the basket token
     /// @param shares The amount of shares collected
-    /// TODO: how to make sure this is only called by basket token?
     function notifyHarvestFee(uint256 shares) external {
         address basketToken = msg.sender;
+        if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
+            revert NotBasketToken();
+        }
         uint16 sponsorFeeSplit = basketTokenSponserSplits[basketToken];
         if (basketTokenSponsers[basketToken] != address(0) && sponsorFeeSplit > 0) {
             uint256 sponsorFee = FixedPointMathLib.mulDiv(shares, sponsorFeeSplit, _FEE_SPLIT_DECIMALS);
@@ -120,8 +124,8 @@ contract FeeCollector is AccessControlEnumerable {
     /// @notice Withdraw the sponsor fee for a given basket token, only callable by the sponsor
     /// @param basketToken The address of the basket token
     function withdrawSponserFee(address basketToken) external onlyRole(_SPONSOR_ROLE) {
-        if (basketToken == address(0)) {
-            revert Errors.ZeroAddress();
+        if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
+            revert NotBasketToken();
         }
         if (msg.sender != basketTokenSponsers[basketToken]) {
             revert NotSponser();
@@ -136,8 +140,8 @@ contract FeeCollector is AccessControlEnumerable {
     /// @notice Withdraw the treasury fee for a given basket token, only callable by the protocol treasury
     /// @param basketToken The address of the basket token
     function withdrawTreasuryFee(address basketToken) external onlyRole(_PROTOCOL_TREASURY_ROLE) {
-        if (basketToken == address(0)) {
-            revert Errors.ZeroAddress();
+        if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
+            revert NotBasketToken();
         }
         treasuryFeesCollected[basketToken] = 0;
         BasketToken(basketToken).proRataRedeem(treasuryFeesCollected[basketToken], _protocolTreasury, address(this));

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
@@ -19,9 +20,11 @@ contract FeeCollectorTest is BaseTest, Constants {
     address public sponsor;
     address public basketManager;
     address public basketToken;
+    address public notBasketToken;
 
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 private constant _PROTOCOL_TREASURY_ROLE = keccak256("PROTOCOL_TREASURY_ROLE");
+    bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     bytes32 private constant _SPONSOR_ROLE = keccak256("SPONSOR_ROLE");
     uint16 private constant _FEE_SPLIT_DECIMALS = 1e4;
     uint16 private constant _MAX_FEE = 1e4;
@@ -32,8 +35,19 @@ contract FeeCollectorTest is BaseTest, Constants {
         treasury = createUser("treasury");
         sponsor = createUser("sponsor");
         basketToken = createUser("basketToken");
+        notBasketToken = createUser("notBasketToken");
         basketManager = createUser("basketManager");
         feeCollector = new FeeCollector(admin, basketManager, treasury);
+        vm.mockCall(
+            basketManager,
+            abi.encodeWithSelector(AccessControl.hasRole.selector, _BASKET_TOKEN_ROLE, address(basketToken)),
+            abi.encode(true)
+        );
+        vm.mockCallRevert(
+            basketManager,
+            abi.encodeWithSelector(AccessControl.hasRole.selector, _BASKET_TOKEN_ROLE, address(notBasketToken)),
+            abi.encodeWithSelector(FeeCollector.NotBasketToken.selector)
+        );
         vm.prank(admin);
         feeCollector.setSponser(address(basketToken), sponsor);
     }
@@ -94,10 +108,10 @@ contract FeeCollectorTest is BaseTest, Constants {
         assert(feeCollector.hasRole(_SPONSOR_ROLE, newSponser));
     }
 
-    function test_setSponser_revertsWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+    function test_setSponser_revertsWhen_notBasketToken() public {
+        vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(admin);
-        feeCollector.setSponser(address(0), sponsor);
+        feeCollector.setSponser(notBasketToken, sponsor);
     }
 
     function testFuzz_setSponserSplit(uint16 sponsorSplit) public {
@@ -107,10 +121,10 @@ contract FeeCollectorTest is BaseTest, Constants {
         assertEq(feeCollector.basketTokenSponserSplits(address(basketToken)), sponsorSplit);
     }
 
-    function testFuzz_setSponserSplit_revertsWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+    function test_setSponserSplit_revertsWhen_notBasketToken() public {
+        vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(admin);
-        feeCollector.setSponserSplit(address(0), 10);
+        feeCollector.setSponserSplit(notBasketToken, 10);
     }
 
     function testFuzz_setSponserSplit_revertsWhen_splitTooHigh(uint16 sponsorSplit) public {
@@ -135,15 +149,17 @@ contract FeeCollectorTest is BaseTest, Constants {
         feeCollector.setSponserSplit(address(basketToken), sponsorSplit);
         vm.prank(basketToken);
         feeCollector.notifyHarvestFee(shares);
-
         uint256 expectedSponserFee = shares.mulDiv(sponsorSplit, _FEE_SPLIT_DECIMALS);
         uint256 expectedTreasuryFee = shares - expectedSponserFee;
-
         assertEq(feeCollector.sponsorFeesCollected(address(basketToken)), expectedSponserFee);
         assertEq(feeCollector.treasuryFeesCollected(address(basketToken)), expectedTreasuryFee);
     }
 
-    // TODO: function testFuzz_notifyHarvestFee_revertsWhenNotBasketToken()
+    function test_notifyHarvestFee_revertsWhenNotBasketToken() public {
+        vm.expectRevert(FeeCollector.NotBasketToken.selector);
+        vm.prank(notBasketToken);
+        feeCollector.notifyHarvestFee(100);
+    }
 
     function testFuzz_withdrawSponserFee(uint256 shares, uint16 sponsorSplit) public {
         vm.assume(sponsorSplit < _MAX_FEE);
@@ -172,10 +188,10 @@ contract FeeCollectorTest is BaseTest, Constants {
         feeCollector.withdrawSponserFee(address(basketToken));
     }
 
-    function testFuzz_withdrawSponserFee_revertsWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+    function test_withdrawSponserFee_revertsWhen_notBasketToken() public {
+        vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(sponsor);
-        feeCollector.withdrawSponserFee(address(0));
+        feeCollector.withdrawSponserFee(notBasketToken);
     }
 
     function testFuzz_withdrawTreasuryFee(uint256 shares, uint16 sponsorSplit) public {
@@ -204,9 +220,9 @@ contract FeeCollectorTest is BaseTest, Constants {
         feeCollector.withdrawTreasuryFee(address(basketToken));
     }
 
-    function testFuzz_withdrawTreasuryFee_revertsWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+    function test_withdrawTreasuryFee_revertsWhen_notBasketToken() public {
+        vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(treasury);
-        feeCollector.withdrawTreasuryFee(address(0));
+        feeCollector.withdrawTreasuryFee(notBasketToken);
     }
 }
