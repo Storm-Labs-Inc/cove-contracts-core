@@ -477,9 +477,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Harvests the management fee, records the fee has been taken and mints the fee to the treasury.
     /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
     /// @param treasury The address to receive the management fee.
-    // slither-disable-next-line timestamp, incorrect-equality
+    // slither-disable-next-line timestamp
     function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
+        //sither-disable-next-line incorrect-equality
         if (feeBps == 0) {
             _lastManagementFeeHarvestTimestamp = block.timestamp;
             return;

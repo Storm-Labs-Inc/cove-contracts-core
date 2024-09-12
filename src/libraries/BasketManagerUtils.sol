@@ -793,7 +793,7 @@ library BasketManagerUtils {
     /// @param requiredWithdrawValue Value of the assets to be withdrawn from the basket.
     /// @param assets Array of asset addresses in the basket.
     /// @return targetBalances Array of target balances for each asset in the basket.
-    // slither-disable-next-line calls-loop, naming-convention
+    // slither-disable-next-line calls-loop,naming-convention
     function _calculateTargetBalances(
         BasketManagerStorage storage self,
         address basket,
@@ -884,7 +884,7 @@ library BasketManagerUtils {
             console.log("targetBalances[%s]: %s", j, targetBalances[j]);
             // TODO: verify what scale pyth returns for USD denominated value
             // TODO: is there a way to move this into the if statement that works with semgrep
-            // slither-disable-next-line calls-loop
+            // slither-disable-start calls-loop
             if (
                 self.eulerRouter.getQuote(MathUtils.diff(balances[j], targetBalances[j]), assets[j], _USD_ISO_4217_CODE)
                     > 500 // nosemgrep
@@ -892,6 +892,7 @@ library BasketManagerUtils {
                 shouldRebalance = true;
                 break;
             }
+            // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;
