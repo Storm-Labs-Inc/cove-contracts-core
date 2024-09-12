@@ -8,11 +8,12 @@ import { BasketToken } from "src/BasketToken.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 /// @title FeeCollector
-/// @notice Contract to collect fees from the BasketManager and distribute them to sponsers and the protocol treasury
+/// @notice Contract to collect fees from the BasketManager and distribute them to sponsors and the protocol treasury
 contract FeeCollector is AccessControlEnumerable {
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 private constant _PROTOCOL_TREASURY_ROLE = keccak256("PROTOCOL_TREASURY_ROLE");
+    bytes32 private constant _SPONSOR_ROLE = keccak256("SPONSOR_ROLE");
     uint16 private constant _FEE_SPLIT_DECIMALS = 1e4;
     uint16 private constant _MAX_FEE = 1e4;
 
@@ -21,18 +22,19 @@ contract FeeCollector is AccessControlEnumerable {
     address private _protocolTreasury;
     /// @notice The BasketManager contract
     BasketManager private _basketManager;
-    /// @notice Mapping of basket tokens to their sponser addresses
-    mapping(address basketToken => address sponser) public basketTokenSponsers;
-    /// @notice Mapping of basket tokens to their sponser split percentages
-    mapping(address basketToken => uint16 sponserSplit) public basketTokenSponserSplits;
+    /// @notice Mapping of basket tokens to their sponsor addresses
+    mapping(address basketToken => address sponsor) public basketTokenSponsers;
+    /// @notice Mapping of basket tokens to their sponsor split percentages
+    mapping(address basketToken => uint16 sponsorSplit) public basketTokenSponserSplits;
     /// @notice Mapping of basket tokens to current claimable treasury fees
     mapping(address basketToken => uint256 feeCollected) public treasuryFeesCollected;
-    /// @notice Mapping of basket tokens to the current claimable sponser fees
-    mapping(address basketToken => uint256 feesCollected) public sponserFeesCollected;
+    /// @notice Mapping of basket tokens to the current claimable sponsor fees
+    mapping(address basketToken => uint256 feesCollected) public sponsorFeesCollected;
 
     /// ERRORS ///
     error SponserSplitTooHigh();
     error NotSponser();
+    error NoSponser();
 
     /// @notice Constructor to set the admin, basket manager, and protocol treasury
     /// @param admin The address of the admin
@@ -71,30 +73,34 @@ contract FeeCollector is AccessControlEnumerable {
         _basketManager = BasketManager(basketManager);
     }
 
-    /// @notice Set the sponser for a given basket token
+    /// @notice Set the sponsor for a given basket token
     /// @param basketToken The address of the basket token
-    /// @param sponser The address of the sponser
-    function setSponser(address basketToken, address sponser) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (sponser == address(0) || basketToken == address(0)) {
+    /// @param sponsor The address of the sponsor
+    function setSponser(address basketToken, address sponsor) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (basketToken == address(0)) {
             revert Errors.ZeroAddress();
         }
         if (basketTokenSponsers[basketToken] != address(0)) {
-            _revokeRole(_PROTOCOL_TREASURY_ROLE, basketTokenSponsers[basketToken]);
+            _revokeRole(_SPONSOR_ROLE, basketTokenSponsers[basketToken]);
         }
-        basketTokenSponsers[basketToken] = sponser;
+        basketTokenSponsers[basketToken] = sponsor;
+        _grantRole(_SPONSOR_ROLE, sponsor);
     }
 
     /// @notice Set the split of management fees given to the sponsor for a given basket token
     /// @param basketToken The address of the basket token
-    /// @param sponserSplit The percentage of fees to give to the sponser
-    function setSponserSplit(address basketToken, uint16 sponserSplit) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    /// @param sponsorSplit The percentage of fees to give to the sponsor
+    function setSponserSplit(address basketToken, uint16 sponsorSplit) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (basketToken == address(0)) {
             revert Errors.ZeroAddress();
         }
-        if (sponserSplit >= _MAX_FEE) {
+        if (sponsorSplit >= _MAX_FEE) {
             revert SponserSplitTooHigh();
         }
-        basketTokenSponserSplits[basketToken] = sponserSplit;
+        if (basketTokenSponsers[basketToken] == address(0)) {
+            revert NoSponser();
+        }
+        basketTokenSponserSplits[basketToken] = sponsorSplit;
     }
 
     /// @notice Notify the FeeCollector of the fees collected from the basket token
@@ -102,35 +108,38 @@ contract FeeCollector is AccessControlEnumerable {
     /// TODO: how to make sure this is only called by basket token?
     function notifyHarvestFee(uint256 shares) external {
         address basketToken = msg.sender;
-        uint16 sponserFeeSplit = basketTokenSponserSplits[basketToken];
-        if (basketTokenSponsers[basketToken] != address(0) && sponserFeeSplit > 0) {
-            uint256 sponserFee = FixedPointMathLib.mulDiv(shares, sponserFeeSplit, _FEE_SPLIT_DECIMALS);
-            sponserFeesCollected[basketToken] = sponserFeesCollected[basketToken] + sponserFee;
-            shares = shares - sponserFee;
+        uint16 sponsorFeeSplit = basketTokenSponserSplits[basketToken];
+        if (basketTokenSponsers[basketToken] != address(0) && sponsorFeeSplit > 0) {
+            uint256 sponsorFee = FixedPointMathLib.mulDiv(shares, sponsorFeeSplit, _FEE_SPLIT_DECIMALS);
+            sponsorFeesCollected[basketToken] = sponsorFeesCollected[basketToken] + sponsorFee;
+            shares = shares - sponsorFee;
         }
         treasuryFeesCollected[basketToken] = treasuryFeesCollected[basketToken] + shares;
     }
 
-    /// @notice Withdraw the sponser fee for a given basket token, only callable by the sponser
+    /// @notice Withdraw the sponsor fee for a given basket token, only callable by the sponsor
     /// @param basketToken The address of the basket token
-    function withdrawSponserFee(address basketToken) external {
+    function withdrawSponserFee(address basketToken) external onlyRole(_SPONSOR_ROLE) {
         if (basketToken == address(0)) {
             revert Errors.ZeroAddress();
         }
         if (msg.sender != basketTokenSponsers[basketToken]) {
             revert NotSponser();
         }
+        sponsorFeesCollected[basketToken] = 0;
         // TODO: should this be proRateRedeem or asyncRedeem?
         BasketToken(basketToken).proRataRedeem(
-            sponserFeesCollected[basketToken], basketTokenSponsers[basketToken], address(this)
+            sponsorFeesCollected[basketToken], basketTokenSponsers[basketToken], address(this)
         );
-        sponserFeesCollected[basketToken] = 0;
     }
 
     /// @notice Withdraw the treasury fee for a given basket token, only callable by the protocol treasury
     /// @param basketToken The address of the basket token
     function withdrawTreasuryFee(address basketToken) external onlyRole(_PROTOCOL_TREASURY_ROLE) {
-        BasketToken(basketToken).proRataRedeem(treasuryFeesCollected[basketToken], _protocolTreasury, address(this));
+        if (basketToken == address(0)) {
+            revert Errors.ZeroAddress();
+        }
         treasuryFeesCollected[basketToken] = 0;
+        BasketToken(basketToken).proRataRedeem(treasuryFeesCollected[basketToken], _protocolTreasury, address(this));
     }
 }
