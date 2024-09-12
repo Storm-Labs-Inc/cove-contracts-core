@@ -480,12 +480,12 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     // slither-disable-next-line timestamp
     function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
-        //sither-disable-start incorrect-equality
+        // sither-disable-start incorrect-equality
         if (feeBps == 0) {
             _lastManagementFeeHarvestTimestamp = block.timestamp;
             return;
         }
-        //sither-disable-end incorrect-equality
+        // sither-disable-end incorrect-equality
         if (feeBps >= _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
