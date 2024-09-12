@@ -21,6 +21,7 @@ interface IBasketManager {
 /// @title BasketToken
 /// @notice Contract responsible for accounting for users deposit and redemption requests, which are asynchronously
 /// fulfilled by the Basket Manager
+// slither-disable-next-line missing-inheritance
 contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
@@ -197,6 +198,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @param assets The amount of assets to deposit.
     /// @param controller The address of the controller of the position being created.
     /// @param owner The address of the owner of the assets being deposited.
+    // slither-disable-next-line arbitrary-send-erc20
     function requestDeposit(uint256 assets, address controller, address owner) public returns (uint256 requestId) {
         // Checks
         if (maxDeposit(controller) > 0) {
@@ -475,7 +477,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Harvests the management fee, records the fee has been taken and mints the fee to the treasury.
     /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
     /// @param treasury The address to receive the management fee.
-    // slither-disable-next-line timestamp
+    // slither-disable-next-line timestamp, incorrect-equality
     function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
         if (feeBps == 0) {
@@ -683,8 +685,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares = 0;
         // Interactions
-        IERC20(asset()).safeTransfer(receiver, assets);
         emit Withdraw(msg.sender, receiver, controller, assets, shares);
+        IERC20(asset()).safeTransfer(receiver, assets);
     }
 
     /// @notice Internal function to claim deposit for a given amount of assets and shares.
@@ -697,8 +699,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // Effects
         _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets = 0;
         // Interactions
-        _transfer(address(this), receiver, shares);
         emit Deposit(controller, receiver, assets, shares);
+        _transfer(address(this), receiver, shares);
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///

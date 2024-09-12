@@ -232,6 +232,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
     /// @param data Encoded data for the token swap.
     /// @dev This function can only be called after proposeTokenSwap.
+    // slither-disable-next-line controlled-delegatecall
     function executeTokenSwap(
         ExternalTrade[] calldata externalTrades,
         bytes calldata data
@@ -251,6 +252,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _bmStorage.rebalanceStatus.status = Status.TOKEN_SWAP_EXECUTED;
         _bmStorage.rebalanceStatus.timestamp = uint40(block.timestamp);
 
+        // slither-disable-next-line low-level-calls
         (bool success,) =
             tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, (externalTrades, data)));
         if (!success) {
