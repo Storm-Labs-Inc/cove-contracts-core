@@ -123,6 +123,11 @@ jobs:
           header: semgrep
           delete: ${{ !steps.semgrep.outputs.report }}
           message: ${{ steps.semgrep.outputs.report }}
+      - name: Fail if Semgrep report is not empty
+        if: ${{ steps.semgrep.outputs.report }}
+        run: |
+          echo "Semgrep found issues. Failing the action."
+          exit 1
 
   test:
     name: Test
