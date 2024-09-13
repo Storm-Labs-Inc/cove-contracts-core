@@ -494,6 +494,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         // amortize the management fee over a year from the last timestamp
         uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
         // remove shares held by the feeCollector or currently pending redemption from calculation
+        // TODO: remove pendingRedeemRequest from calculation if only proRataRedeem is used by feeCollector
         uint256 currentTotalSupply =
             totalSupply() - balanceOf(feeCollector) - pendingRedeemRequest(_currentRequestId - 1, feeCollector);
         uint256 fee = FixedPointMathLib.fullMulDiv(

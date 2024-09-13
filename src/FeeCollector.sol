@@ -42,8 +42,14 @@ contract FeeCollector is AccessControlEnumerable {
     /// @param admin The address of the admin
     /// @param basketManager The address of the BasketManager
     /// @param treasury The address of the protocol treasury
-    constructor(address admin, address basketManager, address treasury) {
-        if (admin == address(0) || basketManager == address(0) || treasury == address(0)) {
+    constructor(address admin, address basketManager, address treasury) payable {
+        if (admin == address(0)) {
+            revert Errors.ZeroAddress();
+        }
+        if (basketManager == address(0)) {
+            revert Errors.ZeroAddress();
+        }
+        if (treasury == address(0)) {
             revert Errors.ZeroAddress();
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -91,12 +97,12 @@ contract FeeCollector is AccessControlEnumerable {
 
     /// @notice Set the split of management fees given to the sponsor for a given basket token
     /// @param basketToken The address of the basket token
-    /// @param sponsorSplit The percentage of fees to give to the sponsor
+    /// @param sponsorSplit The percentage of fees to give to the sponsor denominated in _FEE_SPLIT_DECIMALS
     function setSponserSplit(address basketToken, uint16 sponsorSplit) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
             revert NotBasketToken();
         }
-        if (sponsorSplit >= _MAX_FEE) {
+        if (sponsorSplit > _MAX_FEE) {
             revert SponserSplitTooHigh();
         }
         if (basketTokenSponsers[basketToken] == address(0)) {
@@ -127,14 +133,13 @@ contract FeeCollector is AccessControlEnumerable {
         if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
             revert NotBasketToken();
         }
-        if (msg.sender != basketTokenSponsers[basketToken]) {
+        address sponsor = basketTokenSponsers[basketToken];
+        if (msg.sender != sponsor) {
             revert NotSponser();
         }
+        uint256 fee = sponsorFeesCollected[basketToken];
         sponsorFeesCollected[basketToken] = 0;
-        // TODO: should this be proRateRedeem or asyncRedeem?
-        BasketToken(basketToken).proRataRedeem(
-            sponsorFeesCollected[basketToken], basketTokenSponsers[basketToken], address(this)
-        );
+        BasketToken(basketToken).proRataRedeem(fee, sponsor, address(this));
     }
 
     /// @notice Withdraw the treasury fee for a given basket token, only callable by the protocol treasury
@@ -143,7 +148,8 @@ contract FeeCollector is AccessControlEnumerable {
         if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
             revert NotBasketToken();
         }
+        uint256 fee = treasuryFeesCollected[basketToken];
         treasuryFeesCollected[basketToken] = 0;
-        BasketToken(basketToken).proRataRedeem(treasuryFeesCollected[basketToken], _protocolTreasury, address(this));
+        BasketToken(basketToken).proRataRedeem(fee, _protocolTreasury, address(this));
     }
 }

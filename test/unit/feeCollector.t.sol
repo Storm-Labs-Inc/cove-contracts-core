@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { BasketManager } from "src/BasketManager.sol";
+import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
-
-import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
+import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
 contract FeeCollectorTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;
 
     FeeCollector public feeCollector;
+    ERC20Mock public dummyAsset;
     address public admin;
     address public treasury;
     address public sponsor;
     address public basketManager;
     address public basketToken;
-    address public notBasketToken;
 
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 private constant _PROTOCOL_TREASURY_ROLE = keccak256("PROTOCOL_TREASURY_ROLE");
@@ -32,22 +32,23 @@ contract FeeCollectorTest is BaseTest, Constants {
     function setUp() public override {
         super.setUp();
         admin = createUser("admin");
+        vm.label(admin, "admin");
         treasury = createUser("treasury");
+        vm.label(treasury, "treasury");
         sponsor = createUser("sponsor");
-        basketToken = createUser("basketToken");
-        notBasketToken = createUser("notBasketToken");
-        basketManager = createUser("basketManager");
+        vm.label(sponsor, "sponsor");
+        // create dummy asset
+        dummyAsset = new ERC20Mock();
+        vm.label(address(dummyAsset), "dummyAsset");
+        address basketTokenImplementation = address(new BasketToken());
+        vm.label(basketTokenImplementation, "basketTokenImplementation");
+        basketManager = address(new MockBasketManager(basketTokenImplementation));
+        vm.label(address(basketManager), "mockBasketManager");
+        basketToken = address(
+            MockBasketManager(basketManager).createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, address(1), admin)
+        );
         feeCollector = new FeeCollector(admin, basketManager, treasury);
-        vm.mockCall(
-            basketManager,
-            abi.encodeWithSelector(AccessControl.hasRole.selector, _BASKET_TOKEN_ROLE, address(basketToken)),
-            abi.encode(true)
-        );
-        vm.mockCallRevert(
-            basketManager,
-            abi.encodeWithSelector(AccessControl.hasRole.selector, _BASKET_TOKEN_ROLE, address(notBasketToken)),
-            abi.encodeWithSelector(FeeCollector.NotBasketToken.selector)
-        );
+        vm.label(address(feeCollector), "feeCollector");
         vm.prank(admin);
         feeCollector.setSponser(address(basketToken), sponsor);
     }
@@ -108,10 +109,11 @@ contract FeeCollectorTest is BaseTest, Constants {
         assert(feeCollector.hasRole(_SPONSOR_ROLE, newSponser));
     }
 
-    function test_setSponser_revertsWhen_notBasketToken() public {
+    function testFuzz_setSponser_revertsWhen_notBasketToken(address token) public {
+        vm.assume(token != basketToken && token != address(0));
         vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(admin);
-        feeCollector.setSponser(notBasketToken, sponsor);
+        feeCollector.setSponser(token, sponsor);
     }
 
     function testFuzz_setSponserSplit(uint16 sponsorSplit) public {
@@ -121,14 +123,15 @@ contract FeeCollectorTest is BaseTest, Constants {
         assertEq(feeCollector.basketTokenSponserSplits(address(basketToken)), sponsorSplit);
     }
 
-    function test_setSponserSplit_revertsWhen_notBasketToken() public {
+    function testFuzz_setSponserSplit_revertsWhen_notBasketToken(address token) public {
+        vm.assume(token != basketToken && token != address(0));
         vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(admin);
-        feeCollector.setSponserSplit(notBasketToken, 10);
+        feeCollector.setSponserSplit(token, 10);
     }
 
     function testFuzz_setSponserSplit_revertsWhen_splitTooHigh(uint16 sponsorSplit) public {
-        vm.assume(sponsorSplit >= _MAX_FEE);
+        vm.assume(sponsorSplit > _MAX_FEE);
         vm.prank(admin);
         vm.expectRevert(FeeCollector.SponserSplitTooHigh.selector);
         feeCollector.setSponserSplit(address(basketToken), sponsorSplit);
@@ -155,9 +158,10 @@ contract FeeCollectorTest is BaseTest, Constants {
         assertEq(feeCollector.treasuryFeesCollected(address(basketToken)), expectedTreasuryFee);
     }
 
-    function test_notifyHarvestFee_revertsWhenNotBasketToken() public {
+    function testFuzz_notifyHarvestFee_revertsWhenNotBasketToken(address token) public {
+        vm.assume(token != basketToken && token != address(0));
         vm.expectRevert(FeeCollector.NotBasketToken.selector);
-        vm.prank(notBasketToken);
+        vm.prank(token);
         feeCollector.notifyHarvestFee(100);
     }
 
@@ -188,10 +192,11 @@ contract FeeCollectorTest is BaseTest, Constants {
         feeCollector.withdrawSponserFee(address(basketToken));
     }
 
-    function test_withdrawSponserFee_revertsWhen_notBasketToken() public {
+    function testFuzz_withdrawSponserFee_revertsWhen_notBasketToken(address token) public {
+        vm.assume(token != basketToken && token != address(0));
         vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(sponsor);
-        feeCollector.withdrawSponserFee(notBasketToken);
+        feeCollector.withdrawSponserFee(token);
     }
 
     function testFuzz_withdrawTreasuryFee(uint256 shares, uint16 sponsorSplit) public {
@@ -220,9 +225,10 @@ contract FeeCollectorTest is BaseTest, Constants {
         feeCollector.withdrawTreasuryFee(address(basketToken));
     }
 
-    function test_withdrawTreasuryFee_revertsWhen_notBasketToken() public {
+    function testFuzz_withdrawTreasuryFee_revertsWhen_notBasketToken(address token) public {
+        vm.assume(token != basketToken && token != address(0));
         vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(treasury);
-        feeCollector.withdrawTreasuryFee(notBasketToken);
+        feeCollector.withdrawTreasuryFee(token);
     }
 }
