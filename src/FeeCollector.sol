@@ -13,7 +13,6 @@ contract FeeCollector is AccessControlEnumerable {
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 private constant _PROTOCOL_TREASURY_ROLE = keccak256("PROTOCOL_TREASURY_ROLE");
-    bytes32 private constant _SPONSOR_ROLE = keccak256("SPONSOR_ROLE");
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     uint16 private constant _FEE_SPLIT_DECIMALS = 1e4;
     uint16 private constant _MAX_FEE = 1e4;
@@ -88,11 +87,7 @@ contract FeeCollector is AccessControlEnumerable {
         if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
             revert NotBasketToken();
         }
-        if (basketTokenSponsers[basketToken] != address(0)) {
-            _revokeRole(_SPONSOR_ROLE, basketTokenSponsers[basketToken]);
-        }
         basketTokenSponsers[basketToken] = sponsor;
-        _grantRole(_SPONSOR_ROLE, sponsor);
     }
 
     /// @notice Set the split of management fees given to the sponsor for a given basket token
@@ -129,7 +124,7 @@ contract FeeCollector is AccessControlEnumerable {
 
     /// @notice Withdraw the sponsor fee for a given basket token, only callable by the sponsor
     /// @param basketToken The address of the basket token
-    function withdrawSponserFee(address basketToken) external onlyRole(_SPONSOR_ROLE) {
+    function withdrawSponserFee(address basketToken) external {
         if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, basketToken)) {
             revert NotBasketToken();
         }

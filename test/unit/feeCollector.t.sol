@@ -24,8 +24,6 @@ contract FeeCollectorTest is BaseTest, Constants {
 
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 private constant _PROTOCOL_TREASURY_ROLE = keccak256("PROTOCOL_TREASURY_ROLE");
-    bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
-    bytes32 private constant _SPONSOR_ROLE = keccak256("SPONSOR_ROLE");
     uint16 private constant _FEE_SPLIT_DECIMALS = 1e4;
     uint16 private constant _MAX_FEE = 1e4;
 
@@ -102,11 +100,6 @@ contract FeeCollectorTest is BaseTest, Constants {
         vm.startPrank(admin);
         feeCollector.setSponser(address(basketToken), oldSponser);
         assertEq(feeCollector.basketTokenSponsers(address(basketToken)), oldSponser);
-        assert(feeCollector.hasRole(_SPONSOR_ROLE, oldSponser));
-        feeCollector.setSponser(address(basketToken), newSponser);
-        assertEq(feeCollector.basketTokenSponsers(address(basketToken)), newSponser);
-        assert(!feeCollector.hasRole(_SPONSOR_ROLE, oldSponser));
-        assert(feeCollector.hasRole(_SPONSOR_ROLE, newSponser));
     }
 
     function testFuzz_setSponser_revertsWhen_notBasketToken(address token) public {
@@ -188,7 +181,7 @@ contract FeeCollectorTest is BaseTest, Constants {
         feeCollector.setSponserSplit(address(basketToken), 10);
         vm.stopPrank();
         vm.prank(caller);
-        vm.expectRevert(_formatAccessControlError(caller, _SPONSOR_ROLE));
+        vm.expectRevert(FeeCollector.NotSponser.selector);
         feeCollector.withdrawSponserFee(address(basketToken));
     }
 
