@@ -78,6 +78,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Latest requestId, initialized as 1
     uint256 internal _currentRequestId;
     /// @notice Address of the admin of the contract, used to set the BasketManager and AssetRegistry
+    // slither-disable-start constable-states
     address public admin;
     /// @notice Address of the BasketManager contract used to fulfill deposit and redemption requests and manage
     /// deposited assets
@@ -88,10 +89,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
-
+    // slither-disable-end constable-states
     /// EVENTS ///
     /// @notice Emitted when a deposit request is made
     // event DepositRequested(address indexed sender, uint256 indexed epoch, uint256 assets);
+
     event DepositRequest(
         address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 assets
     );

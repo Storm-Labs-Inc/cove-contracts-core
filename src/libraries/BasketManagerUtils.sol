@@ -639,8 +639,11 @@ library BasketManagerUtils {
     {
         for (uint256 i = 0; i < externalTrades.length;) {
             ExternalTrade memory trade = externalTrades[i];
+            // slither-disable-start uninitialized-local
             ExternalTradeInfo memory info;
             BasketOwnershipInfo memory ownershipInfo;
+            // slither-disable-end uninitialized-local
+
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];

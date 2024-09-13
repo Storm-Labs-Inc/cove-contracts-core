@@ -52,7 +52,6 @@ contract FeeCollectorTest is BaseTest, Constants {
 
     function test_constructor() public {
         assertEq(feeCollector.hasRole(DEFAULT_ADMIN_ROLE, admin), true);
-        assertEq(feeCollector.hasRole(_BASKET_MANAGER_ROLE, basketManager), true);
     }
 
     function test_constructor_revertsWhen_zeroAddress() public {
@@ -80,8 +79,6 @@ contract FeeCollectorTest is BaseTest, Constants {
         vm.assume(newBasketManager != address(0) && newBasketManager != basketManager);
         vm.prank(admin);
         feeCollector.setBasketManager(newBasketManager);
-        assertEq(feeCollector.hasRole(_BASKET_MANAGER_ROLE, newBasketManager), true);
-        assertEq(feeCollector.hasRole(_BASKET_MANAGER_ROLE, basketManager), false);
     }
 
     function test_setBasketManager_revertsWhen_zeroAddress() public {

@@ -37,6 +37,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
     BasketManagerStorage private _bmStorage;
     /// @notice Address of the TokenSwapAdapter contract used to execute token swaps.
+    // slither-disable-next-line constable-states
     address public tokenSwapAdapter;
     /// @notice Mapping of order hashes to their validity status.
     mapping(bytes32 => bool) public isOrderValid;

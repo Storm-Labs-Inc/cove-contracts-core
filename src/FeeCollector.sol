@@ -11,16 +11,18 @@ import { Errors } from "src/libraries/Errors.sol";
 /// @notice Contract to collect fees from the BasketManager and distribute them to sponsors and the protocol treasury
 contract FeeCollector is AccessControlEnumerable {
     /// CONSTANTS ///
-    bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     uint16 private constant _FEE_SPLIT_DECIMALS = 1e4;
     uint16 private constant _MAX_FEE = 1e4;
 
     /// STATE VARIABLES ///
+    // slither-disable-start uninitialized-state
     /// @notice The address of the protocol treasury
     address private _protocolTreasury;
     /// @notice The BasketManager contract
+    // slither-disable-next-line constable-states
     BasketManager private _basketManager;
+    // slither-disable-end uninitialized-state
     /// @notice Mapping of basket tokens to their sponsor addresses
     mapping(address basketToken => address sponsor) public basketTokenSponsors;
     /// @notice Mapping of basket tokens to their sponsor split percentages
@@ -52,7 +54,6 @@ contract FeeCollector is AccessControlEnumerable {
             revert Errors.ZeroAddress();
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         _basketManager = BasketManager(basketManager);
         _protocolTreasury = treasury;
     }
@@ -72,8 +73,6 @@ contract FeeCollector is AccessControlEnumerable {
         if (basketManager == address(0)) {
             revert Errors.ZeroAddress();
         }
-        _revokeRole(_BASKET_MANAGER_ROLE, address(_basketManager));
-        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         _basketManager = BasketManager(basketManager);
     }
 
@@ -111,10 +110,12 @@ contract FeeCollector is AccessControlEnumerable {
             revert NotBasketToken();
         }
         uint16 sponsorFeeSplit = basketTokenSponsorSplits[basketToken];
-        if (basketTokenSponsors[basketToken] != address(0) && sponsorFeeSplit > 0) {
-            uint256 sponsorFee = FixedPointMathLib.mulDiv(shares, sponsorFeeSplit, _FEE_SPLIT_DECIMALS);
-            claimableSponsorFees[basketToken] += sponsorFee;
-            shares = shares - sponsorFee;
+        if (basketTokenSponsors[basketToken] != address(0)) {
+            if (sponsorFeeSplit > 0) {
+                uint256 sponsorFee = FixedPointMathLib.mulDiv(shares, sponsorFeeSplit, _FEE_SPLIT_DECIMALS);
+                claimableSponsorFees[basketToken] += sponsorFee;
+                shares = shares - sponsorFee;
+            }
         }
         claimableTreasuryFees[basketToken] += shares;
     }
