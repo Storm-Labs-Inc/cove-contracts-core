@@ -9,6 +9,7 @@ import { Errors } from "src/libraries/Errors.sol";
 
 /// @title FeeCollector
 /// @notice Contract to collect fees from the BasketManager and distribute them to sponsors and the protocol treasury
+// slither-disable-next-line locked-ether
 contract FeeCollector is AccessControlEnumerable {
     /// CONSTANTS ///
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
