@@ -45,7 +45,9 @@ contract CoWSwapAdapterTest is Test {
         for (uint256 i = 0; i < externalTrades.length; i++) {
             // Avoid precompiled contract addresses from 0x01 to 0x09
             vm.assume(uint160(externalTrades[i].sellToken) > 9);
+            vm.assume(externalTrades[i].sellToken != CONSOLE);
             vm.assume(uint160(externalTrades[i].buyToken) > 9);
+            vm.assume(externalTrades[i].buyToken != CONSOLE);
             bytes32 salt = keccak256(
                 abi.encodePacked(
                     externalTrades[i].sellToken,
