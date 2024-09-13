@@ -102,7 +102,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @notice Emitted when an operator is set
     event OperatorSet(address indexed controller, address indexed operator, bool approved);
     /// @notice Emitted when a the Management fee is harvested
-    event ManagementFeeHarvested(address indexed feeCollector, uint256 fee, uint256 timestamp);
+    event ManagementFeeHarvested(uint256 indexed timestamp, uint256 fee);
 
     /// ERRORS ///
     error ZeroPendingDeposits();
@@ -505,10 +505,10 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         }
         lastManagementFeeHarvestTimestamp = block.timestamp;
         _lastManagementFeeHarvestTimestamp = lastManagementFeeHarvestTimestamp;
-        emit ManagementFeeHarvested(feeCollector, fee, lastManagementFeeHarvestTimestamp);
+        emit ManagementFeeHarvested(lastManagementFeeHarvestTimestamp, fee);
+        _mint(feeCollector, fee);
         // Interactions
         FeeCollector(feeCollector).notifyHarvestFee(fee);
-        _mint(feeCollector, fee);
     }
 
     /// ERC4626 OVERRIDDEN LOGIC ///
