@@ -82,10 +82,12 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.stopPrank();
 
         tokenSwapAdapter = createUser("tokenSwapAdapter");
+        vm.label(address(basketManager), "basketManager");
+    }
+
+    function _setTokenSwapAdapter() internal {
         vm.prank(timelock);
         basketManager.setTokenSwapAdapter(tokenSwapAdapter);
-
-        vm.label(address(basketManager), "basketManager");
     }
 
     function testFuzz_constructor(
@@ -1200,6 +1202,7 @@ contract BasketManagerTest is BaseTest, Constants {
     )
         public
     {
+        _setTokenSwapAdapter();
         vm.assume(!basketManager.hasRole(REBALANCER_ROLE, caller));
         vm.expectRevert(_formatAccessControlError(caller, REBALANCER_ROLE));
         vm.prank(caller);
@@ -1207,6 +1210,7 @@ contract BasketManagerTest is BaseTest, Constants {
     }
 
     function testFuzz_executeTokenSwap_revertWhen_Paused(ExternalTrade[] calldata trades, bytes calldata data) public {
+        _setTokenSwapAdapter();
         vm.prank(pauser);
         basketManager.pause();
         vm.expectRevert(Pausable.EnforcedPause.selector);
@@ -1535,7 +1539,15 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.setTokenSwapAdapter(address(0));
     }
 
+    function testFuzz_setToeknSwapAdapter_revertWhen_MustWaitForRebalanceToComplete(address newSwapAdapter) public {
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.setTokenSwapAdapter(newSwapAdapter);
+    }
+
     function testFuzz_executeTokenSwap(uint256 sellWeight, uint256 depositAmount) public {
+        _setTokenSwapAdapter();
         ExternalTrade[] memory trades = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
 
         // Mock calls
@@ -1564,6 +1576,7 @@ contract BasketManagerTest is BaseTest, Constants {
     )
         public
     {
+        _setTokenSwapAdapter();
         ExternalTrade[] memory trades = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
 
         // Mock calls
@@ -1588,6 +1601,7 @@ contract BasketManagerTest is BaseTest, Constants {
     )
         public
     {
+        _setTokenSwapAdapter();
         ExternalTrade[] memory trades = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
         vm.assume(keccak256(abi.encode(badTrades)) != keccak256(abi.encode(trades)));
 
@@ -1598,7 +1612,17 @@ contract BasketManagerTest is BaseTest, Constants {
     }
 
     function testFuzz_executeTokenSwap_revertWhen_TokenSwapNotProposed(ExternalTrade[] memory trades) public {
+        _setTokenSwapAdapter();
         vm.expectRevert(BasketManager.TokenSwapNotProposed.selector);
+        vm.prank(rebalancer);
+        basketManager.executeTokenSwap(trades, "");
+    }
+
+    function testFuzz_executeTokenSwap_revertWhen_ZeroAddress(uint256 sellWeight, uint256 depositAmount) public {
+        ExternalTrade[] memory trades = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
+
+        // Execute
+        vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(rebalancer);
         basketManager.executeTokenSwap(trades, "");
     }
@@ -1620,6 +1644,14 @@ contract BasketManagerTest is BaseTest, Constants {
     function testFuzz_setManagementFee_revertWhen_invalidManagementFee(uint16 fee) public {
         vm.assume(fee > _MAX_MANAGEMENT_FEE);
         vm.expectRevert(BasketManager.InvalidManagementFee.selector);
+        vm.prank(timelock);
+        basketManager.setManagementFee(fee);
+    }
+
+    function testFuzz_setManagementfee_revertWhen_MustWaitForRebalanceToComplete(uint16 fee) public {
+        vm.assume(fee <= _MAX_MANAGEMENT_FEE);
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(timelock);
         basketManager.setManagementFee(fee);
     }

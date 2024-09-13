@@ -1569,6 +1569,16 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.previewMint(n);
     }
 
+    function testFuzz_previewWithdraw_reverts(uint256 assets) public {
+        vm.expectRevert();
+        basket.previewWithdraw(assets);
+    }
+
+    function testaFuzz_previewRedeem_reverts(uint256 shares) public {
+        vm.expectRevert();
+        basket.previewRedeem(shares);
+    }
+
     function testFuzz_proRataRedeem(uint256 totalDepositAmount, uint256 issuedShares, address to) public {
         vm.assume(to != address(0));
         testFuzz_deposit(totalDepositAmount, issuedShares);
