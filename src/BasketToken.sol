@@ -9,6 +9,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
+import { FeeCollector } from "src/FeeCollector.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
@@ -72,6 +73,7 @@ contract BasketToken is
     mapping(uint256 requestId => bool fallbackTriggered) public fallbackTriggered;
     /// @notice Latest requestId, initialized as 1
     uint256 internal _currentRequestId;
+    // slither-disable-start constable-states
     /// @notice Address of the admin of the contract, used to set the BasketManager and AssetRegistry
     address public admin;
     /// @notice Address of the BasketManager contract used to fulfill deposit and redemption requests and manage
@@ -83,11 +85,11 @@ contract BasketToken is
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
-    // slither-disable-end uninitialized-state
+    // slither-disable-end constable-states,uninitialized-state
 
     /// EVENTS ///
     /// @notice Emitted when a the Management fee is harvested by the treasury
-    event ManagementFeeHarvested(address indexed treasury, uint256 fee, uint256 timestamp);
+    event ManagementFeeHarvested(uint256 indexed timestamp, uint256 fee);
 
     /// ERRORS ///
     error ZeroPendingDeposits();
@@ -458,31 +460,33 @@ contract BasketToken is
 
     /// @notice Harvests the management fee, records the fee has been taken and mints the fee to the treasury.
     /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
-    /// @param treasury The address to receive the management fee.
+    /// @param feeCollector The address to receive the management fee.
     // slither-disable-next-line timestamp
-    function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
+    function harvestManagementFee(uint16 feeBps, address feeCollector) external onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
-        if (feeBps >= _MAX_MANAGEMENT_FEE) {
+        if (feeBps > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
         uint256 timeSinceLastHarvest = block.timestamp - _lastManagementFeeHarvestTimestamp;
 
         // Effects
+        _lastManagementFeeHarvestTimestamp = block.timestamp;
         if (feeBps != 0) {
             if (timeSinceLastHarvest != 0) {
                 // remove shares held by the treasury or currently pending redemption from calculation
                 uint256 currentTotalSupply =
-                    totalSupply() - balanceOf(treasury) - pendingRedeemRequest(_currentRequestId - 1, treasury);
+                    totalSupply() - balanceOf(feeCollector) - pendingRedeemRequest(_currentRequestId - 1, feeCollector);
                 uint256 fee = FixedPointMathLib.fullMulDiv(
                     currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
                 );
                 if (fee != 0) {
-                    emit ManagementFeeHarvested(treasury, fee, block.timestamp);
-                    _mint(treasury, fee);
+                    emit ManagementFeeHarvested(block.timestamp, fee);
+                    _mint(feeCollector, fee);
+                    // Interactions
+                    FeeCollector(feeCollector).notifyHarvestFee(fee);
                 }
             }
         }
-        _lastManagementFeeHarvestTimestamp = block.timestamp;
     }
 
     /// ERC4626 OVERRIDDEN LOGIC ///
