@@ -129,12 +129,22 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(token.strategy(), strategy);
         assertEq(token.admin(), tokenAdmin);
         assertEq(token.basketManager(), from);
-        assertEq(token.supportsInterface(type(IERC165).interfaceId), true);
-        assertEq(token.supportsInterface(type(IERC7575).interfaceId), true);
+        // https://eips.ethereum.org/EIPS/eip-165
+        bytes4 erc165 = 0x01ffc9a7;
+        // https://eips.ethereum.org/EIPS/eip-7575#erc-165-support
+        bytes4 erc7575Vault = 0x2f0a18c5;
+        bytes4 erc7575Share = 0xf815c03d;
+        // https://eips.ethereum.org/EIPS/eip-7540#erc-165-support
+        bytes4 erc7540Operator = 0xe3bc4e65;
+        bytes4 erc7540Deposit = 0xce3bbe50;
+        bytes4 erc7540Redeem = 0x620ee8e4;
+        assertEq(token.supportsInterface(erc165), true);
+        assertEq(token.supportsInterface(erc7575Vault), true);
+        assertEq(token.supportsInterface(erc7575Share), true);
+        assertEq(token.supportsInterface(erc7540Operator), true);
+        assertEq(token.supportsInterface(erc7540Deposit), true);
+        assertEq(token.supportsInterface(erc7540Redeem), true);
         assertEq(token.supportsInterface(type(IAccessControl).interfaceId), true);
-        assertEq(token.supportsInterface(type(IERC7540Operator).interfaceId), true);
-        assertEq(token.supportsInterface(type(IERC7540Deposit).interfaceId), true);
-        assertEq(token.supportsInterface(type(IERC7540Redeem).interfaceId), true);
     }
 
     function testFuzz_initialize_revertsWhen_ownerZero(
@@ -1559,6 +1569,16 @@ contract BasketTokenTest is BaseTest, Constants {
     function testFuzz_previewMint_reverts(uint256 n) public {
         vm.expectRevert();
         basket.previewMint(n);
+    }
+
+    function testFuzz_previewWithdraw_reverts(uint256 assets) public {
+        vm.expectRevert();
+        basket.previewWithdraw(assets);
+    }
+
+    function testaFuzz_previewRedeem_reverts(uint256 shares) public {
+        vm.expectRevert();
+        basket.previewRedeem(shares);
     }
 
     function testFuzz_proRataRedeem(uint256 totalDepositAmount, uint256 issuedShares, address to) public {

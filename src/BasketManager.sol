@@ -45,12 +45,15 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// EVENTS ///
     /// @notice Emitted when the management fee is set.
     event ManagementFeeSet(uint16 oldFee, uint16 newFee);
+    /// @notice Emitted when the TokenSwapAdapter contract is set.
+    event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
 
     /// ERRORS ///
     error TokenSwapNotProposed();
     error ExecuteTokenSwapFailed();
     error InvalidHash();
     error ExternalTradesHashMismatch();
+    error MustWaitForRebalanceToComplete();
     error Unauthorized();
     error InvalidManagementFee();
 
@@ -246,6 +249,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (_bmStorage.rebalanceStatus.status != Status.TOKEN_SWAP_PROPOSED) {
             revert TokenSwapNotProposed();
         }
+        address swapAdapter = tokenSwapAdapter;
+        if (swapAdapter == address(0)) {
+            revert Errors.ZeroAddress();
+        }
         // Check if the external trades match the hash from proposeTokenSwap
         if (keccak256(abi.encode(externalTrades)) != _bmStorage.externalTradesHash) {
             revert ExternalTradesHashMismatch();
@@ -255,7 +262,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
         // slither-disable-next-line low-level-calls
         (bool success,) =
-            tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, (externalTrades, data)));
+            swapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, (externalTrades, data)));
         if (!success) {
             revert ExecuteTokenSwapFailed();
         }
@@ -268,6 +275,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (tokenSwapAdapter_ == address(0)) {
             revert Errors.ZeroAddress();
         }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit TokenSwapAdapterSet(tokenSwapAdapter, tokenSwapAdapter_);
         tokenSwapAdapter = tokenSwapAdapter_;
     }
 
@@ -304,6 +315,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     function setManagementFee(uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
         if (managementFee_ > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
         }
         emit ManagementFeeSet(_bmStorage.managementFee, managementFee_);
         _bmStorage.managementFee = managementFee_;
