@@ -332,6 +332,7 @@ library BasketManagerUtils {
         self.rebalanceStatus.status = Status.NOT_STARTED;
 
         // Process the redeems for the given baskets
+        // slither-disable-start calls-loop
         uint256 basketsToRebalanceLength = basketsToRebalance.length;
         for (uint256 i = 0; i < basketsToRebalanceLength;) {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
@@ -347,7 +348,6 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 balances[j] = self.basketBalanceOf[basket][assets[j]];
                 // Rounding direction: down
-                // slither-disable-start calls-loop
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
                 unchecked {
@@ -370,7 +370,6 @@ library BasketManagerUtils {
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems_, BasketToken(basket).totalSupply());
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 withdrawAmount = self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[0]);
-                // slither-disable-end calls-loop
                 if (withdrawAmount <= balances[0]) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[0]
@@ -392,6 +391,7 @@ library BasketManagerUtils {
                 ++i;
             }
         }
+        // slither-disable-end calls-loop
     }
 
     /// FALLBACK REDEEM LOGIC ///

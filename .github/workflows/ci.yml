@@ -73,6 +73,11 @@ jobs:
             const body = process.env.REPORT
             await script({ github, context, header, body })
 
+            // Check if the report contains findings
+            if (body.includes('results)')) {
+              core.setFailed('Slither found issues. Please review the report.');
+            }
+
   semgrep:
     name: Semgrep
     runs-on: buildjet-2vcpu-ubuntu-2204
@@ -118,6 +123,11 @@ jobs:
           header: semgrep
           delete: ${{ !steps.semgrep.outputs.report }}
           message: ${{ steps.semgrep.outputs.report }}
+      - name: Fail if Semgrep report is not empty
+        if: ${{ steps.semgrep.outputs.report }}
+        run: |
+          echo "Semgrep found issues. Failing the action."
+          exit 1
 
   test:
     name: Test
@@ -190,7 +200,7 @@ jobs:
     if:
       (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master') || (github.event_name
       =='push' && github.ref == 'refs/heads/master')
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Checkout repository without submodules
         uses: actions/checkout@v3

@@ -7,22 +7,23 @@ import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ER
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
+import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
-
-// TODO: interfaces will be removed in the future
-interface IBasketManager {
-    function totalAssetValue(address strategyId) external view returns (uint256);
-}
 
 /// @title BasketToken
 /// @notice Contract responsible for accounting for users deposit and redemption requests, which are asynchronously
 /// fulfilled by the Basket Manager
 // slither-disable-next-line missing-inheritance
-contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
+contract BasketToken is
+    ERC4626Upgradeable,
+    AccessControlEnumerableUpgradeable,
+    IERC7540Operator,
+    IERC7540Deposit,
+    IERC7540Redeem
+{
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
@@ -31,10 +32,6 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
 
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
-    bytes4 private constant _OPERATOR7540_INTERFACE = 0xe3bc4e65;
-    bytes4 private constant _ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
-    bytes4 private constant _ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
-    bytes4 private constant _ERC7575_INTERFACE = 0x2f0a18c5;
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
 
@@ -56,9 +53,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     }
 
     /// STATE VARIABLES ///
-    /// @notice Mapping of supported interfaces as per ERC165
-    /// @dev You must not set element 0xffffffff to true
-    mapping(bytes4 => bool) internal _supportedInterfaces;
+    // slither-disable-start uninitialized-state
     /// @notice Mapping of operator to operator status
     mapping(address controller => mapping(address operator => bool)) public isOperator;
     /// @notice Mapping of requestId to a controllers pending assets for deposit and shares for redemption
@@ -88,19 +83,9 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
+    // slither-disable-end uninitialized-state
 
     /// EVENTS ///
-    /// @notice Emitted when a deposit request is made
-    // event DepositRequested(address indexed sender, uint256 indexed epoch, uint256 assets);
-    event DepositRequest(
-        address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 assets
-    );
-    /// @notice Emitted when a redemption request is fulfilled
-    event RedeemRequest(
-        address indexed controller, address indexed owner, uint256 indexed requestId, address sender, uint256 shares
-    );
-    /// @notice Emitted when an operator is set
-    event OperatorSet(address indexed controller, address indexed operator, bool approved);
     /// @notice Emitted when a the Management fee is harvested by the treasury
     event ManagementFeeHarvested(address indexed treasury, uint256 fee, uint256 timestamp);
 
@@ -145,15 +130,11 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         }
         admin = admin_;
         basketManager = msg.sender;
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         bitFlag = bitFlag_;
         _currentRequestId = 1;
         strategy = strategy_;
-        _supportedInterfaces[_OPERATOR7540_INTERFACE] = true;
-        _supportedInterfaces[_ASYNCHRONOUS_DEPOSIT_INTERFACE] = true;
-        _supportedInterfaces[_ASYNCHRONOUS_REDEMPTION_INTERFACE] = true;
-        _supportedInterfaces[_ERC7575_INTERFACE] = true;
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
@@ -359,6 +340,7 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         _fulfilledRate[currentRequestId].assets = assets;
         _burn(address(this), sharesPendingRedemption);
         // Interactions
+        // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset()).safeTransferFrom(basketManager, address(this), assets);
     }
 
@@ -480,33 +462,27 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     // slither-disable-next-line timestamp
     function harvestManagementFee(uint16 feeBps, address treasury) external onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
-        // slither-disable-start incorrect-equality
-        if (feeBps == 0) {
-            _lastManagementFeeHarvestTimestamp = block.timestamp;
-            return;
-        }
-        // slither-disable-end incorrect-equality
         if (feeBps >= _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
+        uint256 timeSinceLastHarvest = block.timestamp - _lastManagementFeeHarvestTimestamp;
+
         // Effects
-        uint256 lastManagementFeeHarvestTimestamp = _lastManagementFeeHarvestTimestamp;
-        // amortize the management fee over a year from the last timestamp
-        uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
-        // remove shares held by the treasury or currently pending redemption from calculation
-        uint256 currentTotalSupply =
-            totalSupply() - balanceOf(treasury) - pendingRedeemRequest(_currentRequestId - 1, treasury);
-        uint256 fee = FixedPointMathLib.fullMulDiv(
-            currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
-        );
-        if (fee == 0) {
-            return;
+        if (feeBps != 0) {
+            if (timeSinceLastHarvest != 0) {
+                // remove shares held by the treasury or currently pending redemption from calculation
+                uint256 currentTotalSupply =
+                    totalSupply() - balanceOf(treasury) - pendingRedeemRequest(_currentRequestId - 1, treasury);
+                uint256 fee = FixedPointMathLib.fullMulDiv(
+                    currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
+                );
+                if (fee != 0) {
+                    emit ManagementFeeHarvested(treasury, fee, block.timestamp);
+                    _mint(treasury, fee);
+                }
+            }
         }
-        lastManagementFeeHarvestTimestamp = block.timestamp;
-        _lastManagementFeeHarvestTimestamp = lastManagementFeeHarvestTimestamp;
-        emit ManagementFeeHarvested(treasury, fee, lastManagementFeeHarvestTimestamp);
-        // Interactions
-        _mint(treasury, fee);
+        _lastManagementFeeHarvestTimestamp = block.timestamp;
     }
 
     /// ERC4626 OVERRIDDEN LOGIC ///
@@ -678,6 +654,16 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
         revert();
     }
 
+    // Preview functions always revert for async flows
+    function previewWithdraw(uint256) public pure override returns (uint256) {
+        revert();
+    }
+
+    // Preview functions always revert for async flows
+    function previewRedeem(uint256) public pure override returns (uint256) {
+        revert();
+    }
+
     /// @notice Internal function to claim redemption for a given amount of assets and shares.
     /// @param assets The amount of assets to claim.
     /// @param shares The amount of shares to claim.
@@ -710,6 +696,8 @@ contract BasketToken is ERC4626Upgradeable, AccessControlEnumerableUpgradeable {
     /// @param interfaceID The interface ID.
     /// @return True if the contract supports the interface, false otherwise.
     function supportsInterface(bytes4 interfaceID) public view virtual override returns (bool) {
-        return super.supportsInterface(interfaceID) || _supportedInterfaces[interfaceID];
+        return interfaceID == 0x2f0a18c5 || interfaceID == 0xf815c03d
+            || interfaceID == type(IERC7540Operator).interfaceId || interfaceID == type(IERC7540Deposit).interfaceId
+            || interfaceID == type(IERC7540Redeem).interfaceId || super.supportsInterface(interfaceID);
     }
 }
