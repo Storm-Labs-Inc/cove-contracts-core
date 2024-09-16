@@ -21,8 +21,7 @@ contract FeeCollector is AccessControlEnumerable {
     /// @notice The address of the protocol treasury
     address private _protocolTreasury;
     /// @notice The BasketManager contract
-    // slither-disable-next-line constable-states
-    BasketManager private _basketManager;
+    BasketManager immutable _basketManager;
     // slither-disable-end uninitialized-state
     /// @notice Mapping of basket tokens to their sponsor addresses
     mapping(address basketToken => address sponsor) public basketTokenSponsors;
@@ -66,15 +65,6 @@ contract FeeCollector is AccessControlEnumerable {
             revert Errors.ZeroAddress();
         }
         _protocolTreasury = treasury;
-    }
-
-    /// @notice Set the BasketManager address
-    /// @param basketManager The address of the new BasketManager
-    function setBasketManager(address basketManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (basketManager == address(0)) {
-            revert Errors.ZeroAddress();
-        }
-        _basketManager = BasketManager(basketManager);
     }
 
     /// @notice Set the sponsor for a given basket token

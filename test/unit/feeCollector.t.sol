@@ -75,18 +75,6 @@ contract FeeCollectorTest is BaseTest, Constants {
         feeCollector.setProtocolTreasury(address(0));
     }
 
-    function testFuzz_setBasketManager(address newBasketManager) public {
-        vm.assume(newBasketManager != address(0) && newBasketManager != basketManager);
-        vm.prank(admin);
-        feeCollector.setBasketManager(newBasketManager);
-    }
-
-    function test_setBasketManager_revertsWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
-        vm.prank(admin);
-        feeCollector.setBasketManager(address(0));
-    }
-
     function testFuzz_setSponsor(address oldSponsor, address newSponsor) public {
         vm.assume(newSponsor != address(0) && oldSponsor != address(0));
         vm.assume(oldSponsor != newSponsor);
