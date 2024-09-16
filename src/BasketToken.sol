@@ -309,6 +309,8 @@ contract BasketToken is
         } else {
             revert PrepareForRebalanceNotCalled();
         }
+        // This is to keep accounting accurate if a rebalance is cancelled
+        _totalPendingAssets[currentRequestId] = 0;
         _mint(address(this), shares);
         // Interactions
         IERC20(asset()).safeTransfer(msg.sender, assets);
@@ -326,6 +328,12 @@ contract BasketToken is
             /// @notice currentRequestId is incremented by 2 as _currentRequestId + 1 is reserved for redemptions
             _currentRequestId = currentRequestId + 2;
         }
+    }
+
+    /// @notice Called by the basket manager to reset the currentRequestId to the previous requestId. This is called when
+    /// a rebalance fails for any reason.
+    function revertRebalance() public onlyRole(_BASKET_MANAGER_ROLE) {
+        _currentRequestId -= 2;
     }
 
     /// @notice Fulfills all pending redeem requests. Only callable by the basket manager. Burns the shares which are
@@ -475,7 +483,7 @@ contract BasketToken is
             if (timeSinceLastHarvest != 0) {
                 // remove shares held by the treasury or currently pending redemption from calculation
                 uint256 currentTotalSupply =
-                    totalSupply() - balanceOf(feeCollector) - pendingRedeemRequest(_currentRequestId - 1, feeCollector);
+                    totalSupply() - balanceOf(feeCollector) - pendingRedeemRequest(_currentRequestId + 1, feeCollector);
                 uint256 fee = FixedPointMathLib.fullMulDiv(
                     currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
                 );

@@ -324,6 +324,11 @@ library BasketManagerUtils {
         if (block.timestamp - self.rebalanceStatus.timestamp < 15 minutes) {
             revert TooEarlyToCompleteRebalance();
         }
+        // If the 15 minute window has passed, reset the rebalance
+        if (block.timestamp - self.rebalanceStatus.timestamp > 15 minutes) {
+            _revertRebalance(self, basketsToRebalance);
+            return;
+        }
         // TODO: Add more checks for completion at different stages
 
         // Reset the rebalance status
@@ -334,6 +339,8 @@ library BasketManagerUtils {
         // Process the redeems for the given baskets
         // slither-disable-start calls-loop
         uint256 basketsToRebalanceLength = basketsToRebalance.length;
+        bool shouldRevertRebalance = false;
+        uint256[] memory allPendingRedeems = new uint256[](basketsToRebalanceLength);
         for (uint256 i = 0; i < basketsToRebalanceLength;) {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
             address basket = basketsToRebalance[i];
@@ -359,7 +366,9 @@ library BasketManagerUtils {
             // If there are pending redeems, process them
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             uint256 pendingRedeems_ = self.pendingRedeems[basket];
+            allPendingRedeems[i] - pendingRedeems_;
             if (pendingRedeems_ > 0) {
+                // TODO: how to revert pendingRedeems state when a later basket causes a revertRebalance
                 // slither-disable-next-line costly-loop
                 delete self.pendingRedeems[basket]; // nosemgrep
                 // Assume the first asset listed in the basket is the base asset
@@ -382,8 +391,7 @@ library BasketManagerUtils {
                     // slither-disable-next-line reentrancy-no-eth,calls-loop
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
                 } else {
-                    // TODO: Let the BasketToken contract handle failed redeems
-                    // BasketToken(basket).failRedeem();
+                    shouldRevertRebalance = true;
                 }
             }
             unchecked {
@@ -391,7 +399,41 @@ library BasketManagerUtils {
                 ++i;
             }
         }
+        if (shouldRevertRebalance) {
+            _revertRebalance(self, basketsToRebalance);
+            // TODO: is there a better way to keep track / reset the pendingRedeems?
+            // note: that while pendingReemptions will be reset to what they were before the rebalance was proposes,
+            // deposits have already been processed
+            for (uint256 i = 0; i < basketsToRebalanceLength;) {
+                self.pendingRedeems[basketsToRebalance[i]] = allPendingRedeems[i];
+            }
+            return;
+        }
         // slither-disable-end calls-loop
+    }
+
+    /// @notice Reverts the rebalance status and state of basket tokens to before a rebalance was proposed. Only
+    /// callable by the admin.
+    /// @param self BasketManagerStorage struct containing strategy data.
+    /// @param basketsToRebalance Array of basket addresses to revert the rebalance for.
+    function revertRebalance(BasketManagerStorage storage self, address[] calldata basketsToRebalance) external {
+        _revertRebalance(self, basketsToRebalance);
+    }
+
+    /// @notice Reverts the rebalance status and state of basket tokens to before a rebalance was proposed.
+    /// @param self BasketManagerStorage struct containing strategy data.
+    /// @param basketsToRebalance Array of basket addresses to revert the rebalance for.
+    function _revertRebalance(BasketManagerStorage storage self, address[] calldata basketsToRebalance) internal {
+        // Check if the given baskets are the same as the ones proposed
+        if (keccak256(abi.encodePacked(basketsToRebalance)) != self.rebalanceStatus.basketHash) {
+            revert BasketsMismatch();
+        }
+        uint256 basketsToRebalanceLength = basketsToRebalance.length;
+        for (uint256 i = 0; i < basketsToRebalanceLength;) {
+            BasketToken(basketsToRebalance[i]).revertRebalance();
+        }
+        self.rebalanceStatus =
+            RebalanceStatus({ basketHash: bytes32(0), timestamp: uint40(0), status: Status.NOT_STARTED });
     }
 
     /// FALLBACK REDEEM LOGIC ///

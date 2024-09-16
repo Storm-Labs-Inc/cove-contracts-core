@@ -289,6 +289,15 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _bmStorage.completeRebalance(basketsToRebalance);
     }
 
+    function revertRebalance(address[] calldata basketsToRebalance)
+        external
+        onlyRole(_MANAGER_ROLE)
+        nonReentrant
+        whenNotPaused
+    {
+        _bmStorage.revertRebalance(basketsToRebalance);
+    }
+
     /// FALLBACK REDEEM LOGIC ///
 
     /// @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
