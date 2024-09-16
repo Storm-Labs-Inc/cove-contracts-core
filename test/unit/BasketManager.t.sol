@@ -1539,7 +1539,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.setTokenSwapAdapter(address(0));
     }
 
-    function testFuzz_setToeknSwapAdapter_revertWhen_MustWaitForRebalanceToComplete(address newSwapAdapter) public {
+    function testFuzz_setTokenSwapAdapter_revertWhen_MustWaitForRebalanceToComplete(address newSwapAdapter) public {
         vm.assume(newSwapAdapter != address(0));
         test_proposeRebalance_processesDeposits();
         vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
