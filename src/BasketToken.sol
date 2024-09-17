@@ -54,7 +54,7 @@ contract BasketToken is
     }
 
     /// STATE VARIABLES ///
-    // slither-disable-start uninitialized-state
+    // slither-disable-start uninitialized-state,constable-states
     /// @notice Mapping of operator to operator status
     mapping(address controller => mapping(address operator => bool)) public isOperator;
     /// @notice Mapping of requestId to a controllers pending assets for deposit and shares for redemption
@@ -73,7 +73,6 @@ contract BasketToken is
     mapping(uint256 requestId => bool fallbackTriggered) public fallbackTriggered;
     /// @notice Latest requestId, initialized as 1
     uint256 internal _currentRequestId;
-    // slither-disable-start constable-states
     /// @notice Address of the admin of the contract, used to set the BasketManager and AssetRegistry
     address public admin;
     /// @notice Address of the BasketManager contract used to fulfill deposit and redemption requests and manage
@@ -85,7 +84,7 @@ contract BasketToken is
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
-    // slither-disable-end constable-states,uninitialized-state
+    // slither-disable-end uninitialized-state,constable-states
 
     /// EVENTS ///
     /// @notice Emitted when a the Management fee is harvested by the treasury
