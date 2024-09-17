@@ -10,11 +10,13 @@ import { BitFlag } from "src/libraries/BitFlag.sol";
 /// @notice A custom weight strategy that allows manually setting target weights for a basket.
 /// @dev Inherits from WeightStrategy and AccessControlEnumerable for role-based access control.
 contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
-    /// @notice The target weights for all assets in the supported bit flag
-    uint256[] public targetWeights;
+    /// @notice Mapping of the hash of the target weights for each bit flag
+    mapping(uint256 bitFlag => bytes32 hash) public targetWeightsHash;
+    /// @notice The target weights for the root bitFlag
+    uint256[] public rootTargetWeights;
 
     /// @notice The supported bit flag for this strategy
-    uint256 public immutable supportedBitFlag;
+    uint256 public immutable rootBitFlag;
 
     /// @dev Role identifier for the manager role
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -28,6 +30,9 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     /// @dev Error thrown when the sum of weights doesn't equal _WEIGHT_PRECISION (100%)
     error WeightsSumMismatch();
 
+    /// @notice Event emitted when the target weights are updated
+    event TargetWeightsUpdated(uint256 indexed bitFlag, bytes32 indexed hash, uint256[] newWeights);
+
     /// @notice Constructs the ManagedWeightStrategy
     /// @param admin Address of the admin who will have DEFAULT_ADMIN_ROLE and MANAGER_ROLE
     /// @param bitFlag The supported bit flag for this strategy
@@ -35,14 +40,14 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     constructor(address admin, uint256 bitFlag) payable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, admin);
-        supportedBitFlag = bitFlag;
+        rootBitFlag = bitFlag;
     }
 
     /// @notice Sets the target weights for the assets
     /// @param newTargetWeights Array of target weights corresponding to each asset
     /// @dev Only callable by accounts with MANAGER_ROLE
-    function setTargetWeights(uint256[] calldata newTargetWeights) external onlyRole(_MANAGER_ROLE) {
-        uint256 assetCount = BitFlag.popCount(supportedBitFlag);
+    function setTargetWeights(uint256 bitFlag, uint256[] calldata newTargetWeights) external onlyRole(_MANAGER_ROLE) {
+        uint256 assetCount = BitFlag.popCount(bitFlag);
         if (newTargetWeights.length != assetCount) {
             revert InvalidWeightsLength();
         }
@@ -57,72 +62,50 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
         if (sum != _WEIGHT_PRECISION) {
             revert WeightsSumMismatch();
         }
-
-        targetWeights = newTargetWeights;
+        bytes32 weightsHash = keccak256(abi.encode(newTargetWeights));
+        emit TargetWeightsUpdated(bitFlag, weightsHash, newTargetWeights);
+        targetWeightsHash[bitFlag] = weightsHash;
     }
 
-    /// @notice Returns the raw target weights for a given bit flag
-    /// @param bitFlag The bit flag representing a list of assets
-    /// @return filteredWeights An array of target weights corresponding to the assets in the bit flag
-    function getTargetWeights(uint256 bitFlag) public view override returns (uint256[] memory filteredWeights) {
-        if (!supportsBitFlag(bitFlag)) {
-            revert UnsupportedBitFlag();
-        }
-
-        if (bitFlag == 0) {
-            return filteredWeights;
-        }
-
-        // If there are no assets in the bit flag, return an empty array
-        if (bitFlag == 0) {
-            return filteredWeights;
-        }
+    /// @notice Verifies whether the given target weights of the assets is valid for the given bit flag.
+    /// If the weights for the bit flag are not explicitly set, it falls back to a default mechanism based on the root
+    /// bitFlag's weights.
+    /// @param bitFlag The bit flag representing a list of assets.
+    /// @param targetWeights The target weights of the assets in the basket.
+    /// @return bool True if the weights are valid, false otherwise.
+    function verifyTargetWeights(
+        uint256 bitFlag,
+        uint256[] calldata targetWeights
+    )
+        public
+        view
+        override
+        returns (bool)
+    {
         uint256 assetCount = BitFlag.popCount(bitFlag);
-        filteredWeights = new uint256[](assetCount);
+        if (targetWeights.length != assetCount) {
+            revert InvalidWeightsLength();
+        }
 
-        uint256 filteredIndex = 0;
-        uint256 sum = 0;
-
-        for (uint256 i = 0; i < 256;) {
-            unchecked {
-                if ((bitFlag & (1 << i)) != 0) {
-                    // Overflow not possible: maximum value of sum <= _WEIGHT_PRECISION
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    sum += filteredWeights[filteredIndex] = targetWeights[i];
-                    ++filteredIndex;
-                }
-                ++i;
+        // Check if the weights for the given bitFlag are explicitly set
+        bytes32 storedHash = targetWeightsHash[bitFlag];
+        if (storedHash == bytes32(0)) {
+            // If the weights are not explicitly set, return false
+            return false;
+        } else {
+            // Verify the provided weights match the stored hash
+            if (keccak256(abi.encode(targetWeights)) != storedHash) {
+                return false;
             }
         }
 
-        if (sum != _WEIGHT_PRECISION) {
-            if (sum != 0) {
-                // TODO: Implement a more sophisticated way to handle this case
-                // For now, we distribute the remaining weight to the first asset
-                uint256 remaining = _WEIGHT_PRECISION;
-                for (uint256 i = 1; i < assetCount;) {
-                    unchecked {
-                        // Overflow not possible: filteredWeights[i] <= remaining <= _WEIGHT_PRECISION
-                        // Divisiion by zero not possible: sum != 0
-                        remaining -= filteredWeights[i] = (filteredWeights[i] * _WEIGHT_PRECISION) / sum;
-                        ++i;
-                    }
-                }
-                filteredWeights[0] = remaining;
-            } else {
-                // TODO: Implement a more sophisticated way to handle this case
-                // If the sum of weights is 0, we set the first asset to 100%
-                filteredWeights[0] = _WEIGHT_PRECISION;
-            }
-        }
-
-        return filteredWeights;
+        return true;
     }
 
     /// @notice Returns whether the strategy supports the given bit flag, representing a list of assets
     /// @param bitFlag The bit flag representing a list of assets
     /// @return A boolean indicating whether the strategy supports the given bit flag
     function supportsBitFlag(uint256 bitFlag) public view override returns (bool) {
-        return (supportedBitFlag & bitFlag) == bitFlag;
+        return targetWeightsHash[bitFlag] != bytes32(0);
     }
 }
