@@ -203,6 +203,13 @@ library BasketManagerUtils {
         if (self.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
+
+        // Effects
+        self.rebalanceStatus.basketHash = keccak256(abi.encodePacked(basketsToRebalance));
+        self.rebalanceStatus.timestamp = uint40(block.timestamp);
+        self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
+
+        // Interactions
         bool shouldRebalance = false;
         for (uint256 i = 0; i < basketsToRebalance.length;) {
             // slither-disable-start calls-loop
@@ -256,11 +263,6 @@ library BasketManagerUtils {
         if (!shouldRebalance) {
             revert RebalanceNotRequired();
         }
-        self.rebalanceStatus = RebalanceStatus({
-            basketHash: keccak256(abi.encodePacked(basketsToRebalance)),
-            timestamp: uint40(block.timestamp),
-            status: Status.REBALANCE_PROPOSED
-        });
     }
 
     // @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
@@ -326,7 +328,8 @@ library BasketManagerUtils {
         }
         // TODO: Add more checks for completion at different stages
 
-        // Reset the rebalance status
+        // Advance the rebalance epoch and reset the status
+        self.rebalanceStatus.epoch += 1;
         self.rebalanceStatus.basketHash = bytes32(0);
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
