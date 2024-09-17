@@ -37,7 +37,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
     BasketManagerStorage private _bmStorage;
     /// @notice Address of the TokenSwapAdapter contract used to execute token swaps.
-    // slither-disable-next-line constable-states
+    // slither-disable-next-line constable-states,uninitialized-state
     address public tokenSwapAdapter;
     /// @notice Mapping of order hashes to their validity status.
     mapping(bytes32 => bool) public isOrderValid;
@@ -61,6 +61,9 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @param basketTokenImplementation Address of the basket token implementation.
     /// @param eulerRouter_ Address of the oracle registry.
     /// @param strategyRegistry_ Address of the strategy registry.
+    /// @param admin Address of the admin.
+    /// @param feeCollector_ Address of the fee collector.
+    /// @param pauser Address of the pauser.
     constructor(
         address basketTokenImplementation,
         address eulerRouter_,
@@ -234,6 +237,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
+    /// @param externalTrades Array of external trades to execute.
     /// @param data Encoded data for the token swap.
     /// @dev This function can only be called after proposeTokenSwap.
     // slither-disable-next-line controlled-delegatecall

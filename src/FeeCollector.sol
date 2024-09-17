@@ -17,12 +17,12 @@ contract FeeCollector is AccessControlEnumerable {
     uint16 private constant _MAX_FEE = 1e4;
 
     /// STATE VARIABLES ///
-    // slither-disable-start uninitialized-state
+    // slither-disable-start uninitialized-state,constable-states
     /// @notice The address of the protocol treasury
     address private _protocolTreasury;
     /// @notice The BasketManager contract
     BasketManager internal immutable _basketManager;
-    // slither-disable-end uninitialized-state
+    // slither-disable-end uninitialized-state,constable-states
     /// @notice Mapping of basket tokens to their sponsor addresses
     mapping(address basketToken => address sponsor) public basketTokenSponsors;
     /// @notice Mapping of basket tokens to their sponsor split percentages

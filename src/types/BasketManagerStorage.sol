@@ -18,6 +18,8 @@ enum Status {
 
 /// @notice Struct representing the rebalance status.
 struct RebalanceStatus {
+    // Epoch of the rebalance.
+    uint256 epoch;
     // Hash of the baskets proposed for rebalance.
     bytes32 basketHash;
     // Timestamp of the last action.

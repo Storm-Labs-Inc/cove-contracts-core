@@ -437,6 +437,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
         assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        assertEq(basketManager.rebalanceStatus().basketHash, keccak256(abi.encodePacked(targetBaskets)));
     }
 
     function test_proposeRebalance_revertWhen_depositTooLittle_RebalanceNotRequired() public {
@@ -512,12 +513,14 @@ contract BasketManagerTest is BaseTest, Constants {
         // vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillRedeems.selector), new bytes(0));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         vm.mockCall(basket, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
+        uint256 epoch = basketManager.rebalanceStatus().epoch;
         vm.prank(rebalancer);
         basketManager.completeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assertEq(basketManager.rebalanceStatus().basketHash, bytes32(0));
+        assertEq(basketManager.rebalanceStatus().epoch, epoch + 1);
     }
 
     function test_completeRebalance_passWhen_redeemingShares() public {
