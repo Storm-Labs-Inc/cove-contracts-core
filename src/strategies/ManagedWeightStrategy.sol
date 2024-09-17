@@ -3,25 +3,22 @@ pragma solidity 0.8.23;
 
 import { WeightStrategy } from "./WeightStrategy.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-
 import { BitFlag } from "src/libraries/BitFlag.sol";
+import { Errors } from "src/libraries/Errors.sol";
 
 /// @title ManagedWeightStrategy
 /// @notice A custom weight strategy that allows manually setting target weights for a basket.
 /// @dev Inherits from WeightStrategy and AccessControlEnumerable for role-based access control.
 contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     /// @notice Mapping of the hash of the target weights for each bit flag
-    mapping(uint256 bitFlag => bytes32 hash) public targetWeightsHash;
-    /// @notice The target weights for the root bitFlag
-    uint256[] public rootTargetWeights;
-
-    /// @notice The supported bit flag for this strategy
-    uint256 public immutable rootBitFlag;
+    mapping(uint256 rebalanceEpoch => mapping(uint256 bitFlag => bytes32 hash)) public targetWeightsHash;
 
     /// @dev Role identifier for the manager role
-    bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
+    bytes32 internal constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @dev Precision for weights. All getTargetWeights() results should sum up to _WEIGHT_PRECISION.
-    uint256 private constant _WEIGHT_PRECISION = 1e18;
+    uint256 internal constant _WEIGHT_PRECISION = 1e18;
+
+    address internal immutable _basketManager;
 
     /// @dev Error thrown when an unsupported bit flag is used
     error UnsupportedBitFlag();
@@ -35,12 +32,17 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
 
     /// @notice Constructs the ManagedWeightStrategy
     /// @param admin Address of the admin who will have DEFAULT_ADMIN_ROLE and MANAGER_ROLE
-    /// @param bitFlag The supported bit flag for this strategy
     // slither-disable-next-line locked-ether
-    constructor(address admin, uint256 bitFlag) payable {
+    constructor(address admin, address basketManager) payable {
+        if (admin == address(0)) {
+            revert Errors.ZeroAddress();
+        }
+        if (basketManager == address(0)) {
+            revert Errors.ZeroAddress();
+        }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, admin);
-        rootBitFlag = bitFlag;
+        _basketManager = basketManager;
     }
 
     /// @notice Sets the target weights for the assets
@@ -90,22 +92,20 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
         // Check if the weights for the given bitFlag are explicitly set
         bytes32 storedHash = targetWeightsHash[bitFlag];
         if (storedHash == bytes32(0)) {
-            // If the weights are not explicitly set, return false
+            // If the weights are not explicitly set, fall back to the default mechanism
             return false;
-        } else {
-            // Verify the provided weights match the stored hash
-            if (keccak256(abi.encode(targetWeights)) != storedHash) {
-                return false;
-            }
         }
-
+        // Verify the provided weights match the stored hash
+        if (keccak256(abi.encode(targetWeights)) != storedHash) {
+            return false;
+        }
         return true;
     }
 
     /// @notice Returns whether the strategy supports the given bit flag, representing a list of assets
     /// @param bitFlag The bit flag representing a list of assets
     /// @return A boolean indicating whether the strategy supports the given bit flag
-    function supportsBitFlag(uint256 bitFlag) public view override returns (bool) {
+    function supportsBitFlag(uint256 bitFlag) public view virtual override returns (bool) {
         return targetWeightsHash[bitFlag] != bytes32(0);
     }
 }
