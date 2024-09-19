@@ -14,15 +14,16 @@ contract AutomaticWeightStrategy is WeightStrategy, AccessControlEnumerable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
-    function verifyTargetWeights(
-        uint256 bitFlag,
-        uint256[] calldata targetWeights
+    function getTargetWeights(
+        uint40 epoch,
+        uint256 bitFlag
     )
         public
         view
+        virtual
         override
-        returns (bool)
+        returns (uint64[] memory targetWeights)
     { }
 
-    function supportsBitFlag(uint256 bitFlag) public view override returns (bool) { }
+    function supportsBitFlag(uint256 bitFlag) public view virtual override returns (bool) { }
 }

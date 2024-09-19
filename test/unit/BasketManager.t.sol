@@ -1484,7 +1484,7 @@ contract BasketManagerTest is BaseTest, Constants {
             vm.mockCall(baskets[i], abi.encodeCall(BasketToken.prepareForRebalance, ()), abi.encode(0));
             vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
             vm.mockCall(baskets[i], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
-            vm.mockCall(baskets[i], abi.encodeCall(BasketToken.getTargetWeights, ()), abi.encode(weights));
+            vm.mockCall(baskets[i], abi.encodeCall(BasketToken.getCurrentTargetWeights, ()), abi.encode(weights));
         }
     }
 

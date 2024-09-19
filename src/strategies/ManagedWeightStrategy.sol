@@ -3,20 +3,29 @@ pragma solidity 0.8.23;
 
 import { WeightStrategy } from "./WeightStrategy.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+
+import { BasketManager } from "src/BasketManager.sol";
 import { BitFlag } from "src/libraries/BitFlag.sol";
 import { Errors } from "src/libraries/Errors.sol";
+import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
 /// @title ManagedWeightStrategy
 /// @notice A custom weight strategy that allows manually setting target weights for a basket.
 /// @dev Inherits from WeightStrategy and AccessControlEnumerable for role-based access control.
 contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
+    struct LastUpdated {
+        uint40 epoch;
+        uint40 timestamp;
+    }
+
     /// @notice Mapping of the hash of the target weights for each bit flag
-    mapping(uint256 rebalanceEpoch => mapping(uint256 bitFlag => bytes32 hash)) public targetWeightsHash;
+    mapping(uint256 rebalanceEpoch => mapping(uint256 bitFlag => uint64[] weights)) public targetWeights;
+    mapping(uint256 bitFlag => LastUpdated) public lastUpdated;
 
     /// @dev Role identifier for the manager role
     bytes32 internal constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @dev Precision for weights. All getTargetWeights() results should sum up to _WEIGHT_PRECISION.
-    uint256 internal constant _WEIGHT_PRECISION = 1e18;
+    uint64 internal constant _WEIGHT_PRECISION = 1e18;
 
     address internal immutable _basketManager;
 
@@ -26,9 +35,10 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     error InvalidWeightsLength();
     /// @dev Error thrown when the sum of weights doesn't equal _WEIGHT_PRECISION (100%)
     error WeightsSumMismatch();
+    error NoTargetWeights();
 
     /// @notice Event emitted when the target weights are updated
-    event TargetWeightsUpdated(uint256 indexed bitFlag, bytes32 indexed hash, uint256[] newWeights);
+    event TargetWeightsUpdated(uint256 indexed epoch, uint256 indexed bitFlag, uint64[] newWeights);
 
     /// @notice Constructs the ManagedWeightStrategy
     /// @param admin Address of the admin who will have DEFAULT_ADMIN_ROLE and MANAGER_ROLE
@@ -45,13 +55,18 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
         _basketManager = basketManager;
     }
 
-    /// @notice Sets the target weights for the assets
+    /// @notice Sets the target weights for the assets for the next epoch. If a rebalance is already in progress, the
+    /// next epoch value is used instead.
     /// @param newTargetWeights Array of target weights corresponding to each asset
-    /// @dev Only callable by accounts with MANAGER_ROLE
-    function setTargetWeights(uint256 bitFlag, uint256[] calldata newTargetWeights) external onlyRole(_MANAGER_ROLE) {
+    /// @dev Only callable by accounts with MANAGER_ROLE.
+    function setTargetWeights(uint256 bitFlag, uint64[] calldata newTargetWeights) external onlyRole(_MANAGER_ROLE) {
+        // Checks
         uint256 assetCount = BitFlag.popCount(bitFlag);
         if (newTargetWeights.length != assetCount) {
             revert InvalidWeightsLength();
+        }
+        if (assetCount < 2) {
+            revert UnsupportedBitFlag();
         }
 
         uint256 sum = 0;
@@ -64,48 +79,41 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
         if (sum != _WEIGHT_PRECISION) {
             revert WeightsSumMismatch();
         }
-        bytes32 weightsHash = keccak256(abi.encode(newTargetWeights));
-        emit TargetWeightsUpdated(bitFlag, weightsHash, newTargetWeights);
-        targetWeightsHash[bitFlag] = weightsHash;
+
+        // View Interaction
+        RebalanceStatus memory status = BasketManager(_basketManager).rebalanceStatus();
+        uint40 epoch = status.epoch;
+        if (status.status != Status.NOT_STARTED) {
+            epoch += 1;
+        }
+
+        // Effects
+        emit TargetWeightsUpdated(epoch, bitFlag, newTargetWeights);
+        targetWeights[epoch][bitFlag] = newTargetWeights;
+        lastUpdated[bitFlag] = LastUpdated(epoch, uint40(block.timestamp));
     }
 
-    /// @notice Verifies whether the given target weights of the assets is valid for the given bit flag.
-    /// If the weights for the bit flag are not explicitly set, it falls back to a default mechanism based on the root
-    /// bitFlag's weights.
+    /// @notice Returns the target weights of the assets in the basket for the given bit flag. If the epoch has not been
+    /// processed yet, the returned value may change until the rebalance is executed.
+    /// @param epoch The epoch to get the target weights for
     /// @param bitFlag The bit flag representing a list of assets.
-    /// @param targetWeights The target weights of the assets in the basket.
-    /// @return bool True if the weights are valid, false otherwise.
-    function verifyTargetWeights(
-        uint256 bitFlag,
-        uint256[] calldata targetWeights
-    )
-        public
-        view
-        override
-        returns (bool)
-    {
+    /// @return weights True if the weights are valid, false otherwise.
+    function getTargetWeights(uint40 epoch, uint256 bitFlag) public view override returns (uint64[] memory weights) {
         uint256 assetCount = BitFlag.popCount(bitFlag);
-        if (targetWeights.length != assetCount) {
-            revert InvalidWeightsLength();
+        if (assetCount < 2) {
+            revert UnsupportedBitFlag();
         }
-
-        // Check if the weights for the given bitFlag are explicitly set
-        bytes32 storedHash = targetWeightsHash[bitFlag];
-        if (storedHash == bytes32(0)) {
-            // If the weights are not explicitly set, fall back to the default mechanism
-            return false;
+        weights = targetWeights[epoch][bitFlag];
+        if (weights.length != assetCount) {
+            // No target weights set for the given epoch and bit flag
+            revert NoTargetWeights();
         }
-        // Verify the provided weights match the stored hash
-        if (keccak256(abi.encode(targetWeights)) != storedHash) {
-            return false;
-        }
-        return true;
     }
 
     /// @notice Returns whether the strategy supports the given bit flag, representing a list of assets
     /// @param bitFlag The bit flag representing a list of assets
     /// @return A boolean indicating whether the strategy supports the given bit flag
     function supportsBitFlag(uint256 bitFlag) public view virtual override returns (bool) {
-        return targetWeightsHash[bitFlag] != bytes32(0);
+        return lastUpdated[bitFlag].timestamp != 0;
     }
 }
