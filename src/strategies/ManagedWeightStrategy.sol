@@ -26,7 +26,8 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     bytes32 internal constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @dev Precision for weights. All getTargetWeights() results should sum up to _WEIGHT_PRECISION.
     uint64 internal constant _WEIGHT_PRECISION = 1e18;
-
+    /// @dev Address of the BasketManager contract this strategy is associated with
+    // slither-disable-next-line uninitialized-state
     address internal immutable _basketManager;
 
     /// @dev Error thrown when an unsupported bit flag is used
@@ -35,6 +36,7 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     error InvalidWeightsLength();
     /// @dev Error thrown when the sum of weights doesn't equal _WEIGHT_PRECISION (100%)
     error WeightsSumMismatch();
+    /// @dev Error thrown when no target weights are set for the given epoch and bit flag
     error NoTargetWeights();
 
     /// @notice Event emitted when the target weights are updated
@@ -42,6 +44,7 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
 
     /// @notice Constructs the ManagedWeightStrategy
     /// @param admin Address of the admin who will have DEFAULT_ADMIN_ROLE and MANAGER_ROLE
+    /// @param basketManager Address of the BasketManager contract this strategy is associated with
     // slither-disable-next-line locked-ether
     constructor(address admin, address basketManager) payable {
         if (admin == address(0)) {
