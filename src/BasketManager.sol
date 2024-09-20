@@ -36,9 +36,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
     BasketManagerStorage private _bmStorage;
-    /// @notice Address of the TokenSwapAdapter contract used to execute token swaps.
-    // slither-disable-next-line constable-states,uninitialized-state
-    address public tokenSwapAdapter;
     /// @notice Mapping of order hashes to their validity status.
     mapping(bytes32 => bool) public isOrderValid;
 
@@ -205,6 +202,18 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         return address(_bmStorage.strategyRegistry);
     }
 
+    /// @notice Returns the address of the token swap adapter.
+    /// @return Address of the token swap adapter.
+    function tokenSwapAdapter() external view returns (address) {
+        return _bmStorage.tokenSwapAdapter;
+    }
+
+    /// @notice Returns the retry count for the current rebalance epoch.
+    /// @return Retry count.
+    function retryCount() external view returns (uint8) {
+        return _bmStorage.retryCount;
+    }
+
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
@@ -253,7 +262,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (_bmStorage.rebalanceStatus.status != Status.TOKEN_SWAP_PROPOSED) {
             revert TokenSwapNotProposed();
         }
-        address swapAdapter = tokenSwapAdapter;
+        address swapAdapter = _bmStorage.tokenSwapAdapter;
         if (swapAdapter == address(0)) {
             revert Errors.ZeroAddress();
         }
@@ -282,15 +291,22 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
-        emit TokenSwapAdapterSet(tokenSwapAdapter, tokenSwapAdapter_);
-        tokenSwapAdapter = tokenSwapAdapter_;
+        emit TokenSwapAdapterSet(_bmStorage.tokenSwapAdapter, tokenSwapAdapter_);
+        _bmStorage.tokenSwapAdapter = tokenSwapAdapter_;
     }
 
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
-    function completeRebalance(address[] calldata basketsToRebalance) external nonReentrant whenNotPaused {
-        _bmStorage.completeRebalance(basketsToRebalance);
+    function completeRebalance(
+        ExternalTrade[] calldata externalTrades,
+        address[] calldata basketsToRebalance
+    )
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        _bmStorage.completeRebalance(externalTrades, basketsToRebalance);
     }
 
     /// FALLBACK REDEEM LOGIC ///

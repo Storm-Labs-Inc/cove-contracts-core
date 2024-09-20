@@ -10,6 +10,7 @@ import { console } from "forge-std/console.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
+import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
@@ -75,6 +76,8 @@ library BasketManagerUtils {
     uint256 private constant _MAX_WEIGHT_DEVIATION_BPS = 0.05e18; // .05%
     /// @notice Precision used for weight calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
+    /// @notice Maximum number of retries for a rebalance.
+    uint8 private constant _MAX_RETRIES = 8;
 
     /// EVENTS ///
     /// @notice Emitted when an internal trade is settled.
@@ -127,6 +130,12 @@ library BasketManagerUtils {
     error InternalTradeMinMaxAmountNotReached();
     /// @dev Reverts when the trade token amount is incorrect.
     error IncorrectTradeTokenAmount();
+    /// @dev Reverts when proposed token swaps have not yet been executed.
+    error TokenSwapNotExecuted();
+    /// @dev Reverts when given external trades do not match.
+    error ExternalTradeMisMatch();
+    /// @dev Reverts when the delegatecall to the tokenswap adapter fails.
+    error CompleteTokenSwapFailed();
 
     /// @notice Creates a new basket token with the given parameters.
     /// @param self BasketManagerStorage struct containing strategy data.
@@ -293,25 +302,65 @@ library BasketManagerUtils {
         uint256 numBaskets = basketsToRebalance.length;
         uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
         uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
-
         _initializeBasketData(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
+        // NOTE: for rebalance retries the internal trades must be updated as well
         _settleInternalTrades(self, internalTrades, basketsToRebalance, afterTradeBasketAssetAmounts_);
         _validateExternalTrades(
             self, externalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_
         );
-        _validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
-
+        if (!_validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_)) {
+            revert TargetWeightsNotMet();
+        }
         status.timestamp = uint40(block.timestamp);
         status.status = Status.TOKEN_SWAP_PROPOSED;
         self.rebalanceStatus = status;
         self.externalTradesHash = keccak256(abi.encode(externalTrades));
     }
 
+    function _finalizeTokenSwaps(
+        BasketManagerStorage storage self,
+        ExternalTrade[] calldata externalTrades,
+        address[] calldata basketsToRebalance
+    )
+        internal
+        returns (bool success)
+    {
+        // slither-disable-next-line incorrect-equality
+        if (self.rebalanceStatus.status != Status.TOKEN_SWAP_EXECUTED) {
+            revert TokenSwapNotExecuted();
+        }
+        uint256 numBaskets = basketsToRebalance.length;
+        uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
+        uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
+        // 1. Claims tokens from completed trades, updates basketBalanceOf
+        _getResultsOfExternalTrades(self, externalTrades, basketsToRebalance);
+        // 2. get basket current totalValue
+        _initializeBasketData(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
+        // 3. confirm that target weights have been met
+        if (!_validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_)) {
+            // target weights not met, attempt retry
+            if (self.retryCount < _MAX_RETRIES) {
+                self.retryCount += 1;
+                // Put contract into retry state, allowing new trades to be proposed
+                self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
+                return false;
+            }
+        } else {
+            return true;
+        }
+    }
+
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
-    function completeRebalance(BasketManagerStorage storage self, address[] calldata basketsToRebalance) external {
+    function completeRebalance(
+        BasketManagerStorage storage self,
+        ExternalTrade[] calldata externalTrades,
+        address[] calldata basketsToRebalance
+    )
+        external
+    {
         // Check if there is any rebalance in progress
         // slither-disable-next-line incorrect-equality
         if (self.rebalanceStatus.status == Status.NOT_STARTED) {
@@ -326,8 +375,14 @@ library BasketManagerUtils {
         if (block.timestamp - self.rebalanceStatus.timestamp < 15 minutes) {
             revert TooEarlyToCompleteRebalance();
         }
-        // TODO: Add more checks for completion at different stages
-
+        if (keccak256(abi.encode(externalTrades)) != self.externalTradesHash) {
+            revert ExternalTradeMisMatch();
+        }
+        if (externalTrades.length > 0) {
+            if (!_finalizeTokenSwaps(self, externalTrades, basketsToRebalance)) {
+                return;
+            }
+        }
         // Advance the rebalance epoch and reset the status
         self.rebalanceStatus.epoch += 1;
         self.rebalanceStatus.basketHash = bytes32(0);
@@ -385,8 +440,7 @@ library BasketManagerUtils {
                     // slither-disable-next-line reentrancy-no-eth,calls-loop
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
                 } else {
-                    // TODO: Let the BasketToken contract handle failed redeems
-                    // BasketToken(basket).failRedeem();
+                    BasketToken(basket).notifyFailedRebalance();
                 }
             }
             unchecked {
@@ -395,6 +449,51 @@ library BasketManagerUtils {
             }
         }
         // slither-disable-end calls-loop
+    }
+
+    function _getResultsOfExternalTrades(
+        BasketManagerStorage storage self,
+        ExternalTrade[] calldata externalTrades,
+        address[] calldata basketsToRebalance
+    )
+        internal
+    {
+        // Check if the given baskets are the same as the ones proposed
+        if (keccak256(abi.encodePacked(basketsToRebalance)) != self.rebalanceStatus.basketHash) {
+            revert BasketsMismatch();
+        }
+        uint256 externalTradesLength = externalTrades.length;
+        (bool success, bytes memory data) =
+            self.tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.completeTokenSwap, (externalTrades)));
+        if (!success) {
+            revert CompleteTokenSwapFailed();
+        }
+        uint256[2][] memory claimedAmounts = abi.decode(data, (uint256[2][]));
+        // Update basketBalanceOf with amounts gained from swaps
+        for (uint256 i = 0; i < externalTradesLength;) {
+            ExternalTrade memory trade = externalTrades[i];
+            uint256 tradeOwnerShipLength = trade.basketTradeOwnership.length;
+            for (uint256 j; j < tradeOwnerShipLength;) {
+                address basket = trade.basketTradeOwnership[j].basket;
+                // Account for bought tokens
+                self.basketBalanceOf[basket][trade.buyToken] += claimedAmounts[i][0]; //TODO: confirm if this is the
+                    // correct index
+                // Account for sold tokens
+                address sellToken = trade.sellToken;
+                // self.basketBalanceOf[basket][sellToken] += claimedSellAmount - trade.sellAmount; //TODO: check if
+                // this works
+                self.basketBalanceOf[basket][sellToken] += claimedAmounts[i][1]; // TODO check which of these works best
+                self.basketBalanceOf[basket][sellToken] -= trade.sellAmount;
+                unchecked {
+                    // Overflow not possible: i is less than tradeOwnerShipLength.length
+                    ++j;
+                }
+            }
+            unchecked {
+                // Overflow not possible: i is less than externalTradesLength.length
+                ++i;
+            }
+        }
     }
 
     /// FALLBACK REDEEM LOGIC ///
@@ -717,6 +816,7 @@ library BasketManagerUtils {
     )
         private
         view
+        returns (bool valid)
     {
         // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
         uint256 basketsToRebalanceLength = basketsToRebalance.length;
@@ -733,6 +833,7 @@ library BasketManagerUtils {
                 uint256 assetValueInUSD =
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                  self.eulerRouter.getQuote(afterTradeBasketAssetAmounts_[i][j], asset, _USD_ISO_4217_CODE);
+                console.log("asset, assetValueInUSD: ", asset, assetValueInUSD);
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalBasketValue_[i]);
@@ -740,7 +841,7 @@ library BasketManagerUtils {
                     console.log("basket, asset: ", basket, asset);
                     console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
                     console.log("afterTradeWeight: %s, usdValue: %s", afterTradeWeight, assetValueInUSD);
-                    revert TargetWeightsNotMet();
+                    return false;
                 }
                 unchecked {
                     ++j;
@@ -750,6 +851,7 @@ library BasketManagerUtils {
                 ++i;
             }
         }
+        return true;
     }
 
     /// @notice Internal function to process pending deposits and fulfill them.
