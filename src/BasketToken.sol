@@ -28,56 +28,41 @@ contract BasketToken is
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
 
-    // STATE VARS //
-    uint256 private _lastManagementFeeHarvestTimestamp;
-
     /// CONSTANTS ///
     bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
 
-    /// STRUCTS ///
-    /// @notice Struct to hold the amount of assets and shares requested by a controller
-    struct Requests {
-        // Amount of assets requested for deposit
-        uint256 depositAssets;
-        // Amount of shares requested for redemption
-        uint256 redemptionShares;
+    struct DepositRequestStruct {
+        mapping(address controller => uint256 assets) depositAssets;
+        uint256 totalDepositAssets;
+        uint256 fulfilledShares;
     }
 
-    /// @notice Struct to hold the amount of assets and shares fulfilled for a given requestId
-    struct FulfilledRate {
-        // Amount of assets fulfilled for pending redemption requests
-        uint256 assets;
-        // Amount of shares fulfilled for pending deposit requests
-        uint256 shares;
+    struct RedeemRequestStruct {
+        mapping(address controller => uint256 shares) redeemShares;
+        uint256 totalRedeemShares;
+        uint256 fulfilledAssets;
+        bool fallbackTriggered;
     }
 
     /// STATE VARIABLES ///
     // slither-disable-start uninitialized-state,constable-states
-    /// @notice Mapping of operator to operator status
+    /// @notice Mapping of controllers to operators and their approval status
     mapping(address controller => mapping(address operator => bool)) public isOperator;
-    /// @notice Mapping of requestId to a controllers pending assets for deposit and shares for redemption
-    mapping(uint256 requestId => mapping(address controller => Requests)) internal _requestIdControllerRequest;
-    /// @notice Mapping of requestId to the total amount of assets pending deposit
-    mapping(uint256 requestId => uint256 assets) internal _totalPendingAssets;
-    /// @notice Mapping of requestId to the total amount of shares pending redemption
-    mapping(uint256 requestId => uint256 assets) internal _totalPendingRedemptions;
     /// @notice Mapping of controller to the last requestId of a deposit request
     mapping(address controller => uint256 requestId) public lastDepositRequestId;
     /// @notice Mapping of controller to the last requestId of a redemption request
     mapping(address controller => uint256 requestId) public lastRedeemRequestId;
-    /// @notice Mapping of requestId to the rate at which shares can be claimed for deposited assets
-    mapping(uint256 requestId => FulfilledRate) internal _fulfilledRate;
-    /// @notice Mapping of requestId to a bool indicating if the fallback redeem trigger has been called
-    mapping(uint256 requestId => bool fallbackTriggered) public fallbackTriggered;
-    /// @notice Latest requestId, initialized as 1
-    uint256 internal _currentRequestId;
-    /// @notice Address of the admin of the contract, used to set the BasketManager and AssetRegistry
-    address public admin;
+    mapping(uint256 requestId => DepositRequestStruct) internal _depositRequests;
+    mapping(uint256 requestId => RedeemRequestStruct) internal _redeemRequests;
     /// @notice Address of the BasketManager contract used to fulfill deposit and redemption requests and manage
     /// deposited assets
     address public basketManager;
+    /// @notice Next requestId to be used for deposit
+    uint256 public nextDepositRequestId;
+    /// @notice Next requestId to be used for redemption
+    uint256 public nextRedeemRequestId;
     /// @notice Address of the AssetRegistry contract used to check if a given asset is paused
     address public assetRegistry;
     /// @notice Bitflag representing the selection of assets
@@ -85,6 +70,7 @@ contract BasketToken is
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
     // slither-disable-end uninitialized-state,constable-states
+    uint256 private _lastManagementFeeHarvestTimestamp;
 
     /// EVENTS ///
     /// @notice Emitted when a the Management fee is harvested by the treasury
@@ -100,8 +86,10 @@ contract BasketToken is
     error CannotFulfillWithZeroShares();
     error ZeroClaimableFallbackShares();
     error NotAuthorizedOperator();
-    error PrepareForRebalanceNotCalled();
     error InvalidManagementFee();
+    error DepositRequestAlreadyFulfilled();
+    error RedeemRequestAlreadyFulfilled();
+    error RedeemRequestAlreadyFallbacked();
 
     /// @notice Disables the ability to call initializers.
     constructor() payable {
@@ -129,12 +117,12 @@ contract BasketToken is
         if (admin_ == address(0) || strategy_ == address(0)) {
             revert Errors.ZeroAddress();
         }
-        admin = admin_;
         basketManager = msg.sender;
         bitFlag = bitFlag_;
-        _currentRequestId = 1;
         strategy = strategy_;
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        nextDepositRequestId = 2;
+        nextRedeemRequestId = 3;
+        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
@@ -202,11 +190,12 @@ contract BasketToken is
         // Effects
         // @dev if the current requestId is in the process of being fulfilled, a deposit request will be made for the
         // next requestId
-        requestId = _currentRequestId;
+        requestId = nextDepositRequestId;
+        DepositRequestStruct storage depositRequest = _depositRequests[requestId];
         // update controllers balance of assets pending deposit
-        _requestIdControllerRequest[requestId][controller].depositAssets += assets;
+        depositRequest.depositAssets[controller] += assets;
         // update total pending deposits for the current requestId
-        _totalPendingAssets[requestId] += assets;
+        depositRequest.totalDepositAssets += assets;
         // update controllers latest deposit request id
         lastDepositRequestId[controller] = requestId;
         emit DepositRequest(controller, owner, requestId, msg.sender, assets);
@@ -221,17 +210,16 @@ contract BasketToken is
     /// @param controller The address of the controller of the deposit request.
     /// @return assets The amount of assets pending deposit.
     function pendingDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
-        assets =
-            _fulfilledRate[requestId].shares == 0 ? _requestIdControllerRequest[requestId][controller].depositAssets : 0;
+        DepositRequestStruct storage depositRequest = _depositRequests[requestId];
+        assets = depositRequest.fulfilledShares == 0 ? depositRequest.depositAssets[controller] : 0;
     }
 
     /// @notice Returns the amount of requested assets in Claimable state for the controller with the given requestId.
     /// @param requestId The id of the request.
     /// @param controller The address of the controller.
-    // solhint-disable-next-line no-unused-vars
     function claimableDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
-        assets =
-            _fulfilledRate[requestId].shares == 0 ? 0 : _requestIdControllerRequest[requestId][controller].depositAssets;
+        DepositRequestStruct storage depositRequest = _depositRequests[requestId];
+        assets = depositRequest.fulfilledShares != 0 ? depositRequest.depositAssets[controller] : 0;
     }
 
     /// @notice Requests a redemption of shares from the basket.
@@ -263,23 +251,27 @@ contract BasketToken is
         }
         // Effects
         /// @dev currentRequestId + 1 is reserved for redemptions
-        currentRedeemRequestId = _currentRequestId + 1;
-        _totalPendingRedemptions[currentRedeemRequestId] += shares;
+        currentRedeemRequestId = nextRedeemRequestId;
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRedeemRequestId];
+        // update total pending redemptions for the current requestId
+        redeemRequest.totalRedeemShares += shares;
+        // update controllers latest redeem request id
         lastRedeemRequestId[controller] = currentRedeemRequestId;
         // update controllers balance of assets pending deposit
-        _requestIdControllerRequest[currentRedeemRequestId][controller].redemptionShares += shares;
+        redeemRequest.redeemShares[controller] += shares;
         _transfer(owner, address(this), shares);
         emit RedeemRequest(controller, owner, currentRedeemRequestId, msg.sender, shares);
         return currentRedeemRequestId;
     }
 
-    /// @notice Returns the pending redeem request amount for an operator.
+    /// @notice Returns the pending redeem request amount for a user.
     /// @param requestId The id of the request.
     /// @param controller The address of the controller of the redemption request.
     /// @return shares The amount of shares pending redemption.
     function pendingRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
-        shares = _fulfilledRate[requestId].assets == 0
-            ? _requestIdControllerRequest[requestId][controller].redemptionShares
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[requestId];
+        shares = redeemRequest.fulfilledAssets == 0 && !redeemRequest.fallbackTriggered
+            ? redeemRequest.redeemShares[controller]
             : 0;
     }
 
@@ -289,9 +281,8 @@ contract BasketToken is
     /// @return shares The amount of shares claimable.
     // solhint-disable-next-line no-unused-vars
     function claimableRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
-        shares = _fulfilledRate[requestId].assets == 0
-            ? 0
-            : _requestIdControllerRequest[requestId][controller].redemptionShares;
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[requestId];
+        shares = redeemRequest.fulfilledAssets != 0 ? redeemRequest.redeemShares[controller] : 0;
     }
 
     /// @notice Fulfills all pending deposit requests. Only callable by the basket manager. Assets are held by the
@@ -299,24 +290,24 @@ contract BasketToken is
     /// @param shares The amount of shares the deposit was fulfilled with.
     function fulfillDeposit(uint256 shares) public onlyRole(_BASKET_MANAGER_ROLE) {
         // Checks
-        /// @dev currentRequestId was advanced by 2 to prepare for rebalance
-        uint256 currentRequestId = _currentRequestId - 2;
-        uint256 assets = _totalPendingAssets[currentRequestId];
+        // currentRequestId was advanced by 2 to prepare for rebalance
+        uint256 currentRequestId = nextDepositRequestId - 2;
+        DepositRequestStruct storage depositRequest = _depositRequests[currentRequestId];
+        uint256 assets = depositRequest.totalDepositAssets;
         if (assets == 0) {
             revert ZeroPendingDeposits();
         }
         if (shares == 0) {
             revert CannotFulfillWithZeroShares();
         }
-        // Effects
-        // Update the shares given to deposits for the current requestId;
-        if (_fulfilledRate[currentRequestId].shares == 0) {
-            _fulfilledRate[currentRequestId].shares = shares;
-        } else {
-            revert PrepareForRebalanceNotCalled();
+        if (depositRequest.fulfilledShares > 0) {
+            revert DepositRequestAlreadyFulfilled();
         }
+        // Effects
+        depositRequest.fulfilledShares = shares;
         _mint(address(this), shares);
         // Interactions
+        // transfer the assets to the basket manager
         IERC20(asset()).safeTransfer(msg.sender, assets);
     }
 
@@ -326,11 +317,15 @@ contract BasketToken is
     /// deposits or redeems, the epoch is not advanced.
     /// @return sharesPendingRedemption The total amount of shares pending redemption.
     function prepareForRebalance() public onlyRole(_BASKET_MANAGER_ROLE) returns (uint256 sharesPendingRedemption) {
-        uint256 currentRequestId = _currentRequestId;
-        sharesPendingRedemption = _totalPendingRedemptions[currentRequestId + 1];
-        if (_totalPendingAssets[currentRequestId] > 0 || sharesPendingRedemption > 0) {
-            /// @notice currentRequestId is incremented by 2 as _currentRequestId + 1 is reserved for redemptions
-            _currentRequestId = currentRequestId + 2;
+        uint256 nextDepositRequestId_ = nextDepositRequestId;
+        if (_depositRequests[nextDepositRequestId_].totalDepositAssets > 0) {
+            nextDepositRequestId = nextDepositRequestId_ + 2;
+        }
+
+        uint256 nextRedeemRequestId_ = nextRedeemRequestId;
+        sharesPendingRedemption = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
+        if (sharesPendingRedemption > 0) {
+            nextRedeemRequestId = nextRedeemRequestId_ + 2;
         }
     }
 
@@ -339,13 +334,21 @@ contract BasketToken is
     /// @dev prepareForRebalance must be called before this function.
     /// @param assets The amount of assets the redemption was fulfilled with.
     function fulfillRedeem(uint256 assets) public onlyRole(_BASKET_MANAGER_ROLE) {
-        uint256 currentRequestId = _currentRequestId - 1;
-        if (_fulfilledRate[currentRequestId].assets > 0) {
-            revert PrepareForRebalanceNotCalled();
+        // Checks
+        uint256 currentRequestId = nextRedeemRequestId - 2;
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRequestId];
+        uint256 sharesPendingRedemption = redeemRequest.totalRedeemShares;
+        if (sharesPendingRedemption == 0) {
+            revert ZeroPendingRedeems();
         }
-        uint256 sharesPendingRedemption = _totalPendingRedemptions[currentRequestId];
+        if (assets == 0) {
+            revert CannotFulfillWithZeroShares();
+        }
+        if (redeemRequest.fulfilledAssets > 0) {
+            revert RedeemRequestAlreadyFulfilled();
+        }
         // Effects
-        _fulfilledRate[currentRequestId].assets = assets;
+        redeemRequest.fulfilledAssets = assets;
         _burn(address(this), sharesPendingRedemption);
         // Interactions
         // slither-disable-next-line arbitrary-send-erc20
@@ -355,46 +358,44 @@ contract BasketToken is
     /// @notice Returns the total amount of assets pending deposit.
     /// @return The total pending deposit amount.
     function totalPendingDeposits() public view returns (uint256) {
-        return _totalPendingAssets[_currentRequestId];
+        return _depositRequests[nextDepositRequestId].totalDepositAssets;
     }
 
     /// @notice Returns the total number of shares pending redemption.
     /// @return The total pending redeem amount.
     function totalPendingRedemptions() public view returns (uint256) {
-        /// @dev currentRequestId + 1 is reserved for redemptions
-        return _totalPendingRedemptions[_currentRequestId + 1];
+        // currentRequestId + 1 is reserved for redemptions
+        return _redeemRequests[nextRedeemRequestId].totalRedeemShares;
     }
 
     /// @notice Cancels a pending deposit request.
     function cancelDepositRequest() public {
-        uint256 currentRequestId = _currentRequestId;
         // Checks
-        uint256 pendingDeposit = pendingDepositRequest(currentRequestId, msg.sender);
+        uint256 nextDepositRequestId_ = nextDepositRequestId;
+        uint256 pendingDeposit = pendingDepositRequest(nextDepositRequestId_, msg.sender);
         if (pendingDeposit == 0) {
             revert ZeroPendingDeposits();
         }
         // Effects
-        /// @dev since the above check did not return 0, the last deposit request id of the sender will be the current
-        // request id
-        _requestIdControllerRequest[currentRequestId][msg.sender].depositAssets = 0;
-        _totalPendingAssets[currentRequestId] -= pendingDeposit;
+        DepositRequestStruct storage depositRequest = _depositRequests[nextDepositRequestId_];
+        depositRequest.depositAssets[msg.sender] = 0;
+        depositRequest.totalDepositAssets -= pendingDeposit;
         // Interactions
         IERC20(asset()).safeTransfer(msg.sender, pendingDeposit);
     }
 
     /// @notice Cancels a pending redeem request.
     function cancelRedeemRequest() public {
-        /// @dev currentRequestId + 1 is reserved for redemptions
-        uint256 currentRedeemRequestId = _currentRequestId + 1;
         // Checks
-        uint256 pendingRedeem = pendingRedeemRequest(currentRedeemRequestId, msg.sender);
+        uint256 nextRedeemRequestId_ = nextRedeemRequestId;
+        uint256 pendingRedeem = pendingRedeemRequest(nextRedeemRequestId_, msg.sender);
         if (pendingRedeem == 0) {
             revert ZeroPendingRedeems();
         }
         // Effects
-        _requestIdControllerRequest[currentRedeemRequestId][msg.sender].redemptionShares = 0;
-        _totalPendingRedemptions[currentRedeemRequestId] -= pendingRedeem;
-        // Interactions
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[nextRedeemRequestId_];
+        redeemRequest.redeemShares[msg.sender] = 0;
+        redeemRequest.totalRedeemShares -= pendingRedeem;
         _transfer(address(this), msg.sender, pendingRedeem);
     }
 
@@ -420,32 +421,47 @@ contract BasketToken is
     /// @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
     /// users to claim their shares back for a redemption in the future and advances the redemption epoch.
     function fallbackRedeemTrigger() public onlyRole(_BASKET_MANAGER_ROLE) {
-        fallbackTriggered[_currentRequestId - 1] = true;
+        // Check if the redeem is going on. If not, revert
+        uint256 currentRedeemRequestId = nextRedeemRequestId - 2;
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRedeemRequestId];
+        if (redeemRequest.fallbackTriggered) {
+            revert RedeemRequestAlreadyFallbacked();
+        }
+        if (redeemRequest.fulfilledAssets > 0) {
+            revert RedeemRequestAlreadyFulfilled();
+        }
+        redeemRequest.fallbackTriggered = true;
     }
 
     /// @notice Claims shares given for a previous redemption request in the event a redemption fulfillment for a
     /// given epoch fails.
     /// @return shares The amount of shares claimed.
-    function claimFallbackShares() public returns (uint256 shares) {
-        // Effects
-        shares = claimableFallbackShares(msg.sender);
+    function claimFallbackShares(address controller) public returns (uint256 shares) {
+        // Checks
+        shares = claimableFallbackShares(controller);
         if (shares == 0) {
             revert ZeroClaimableFallbackShares();
         }
-        _requestIdControllerRequest[lastRedeemRequestId[msg.sender]][msg.sender].redemptionShares = 0;
+        // Effects
+        _redeemRequests[lastRedeemRequestId[controller]].redeemShares[controller] = 0;
         _transfer(address(this), msg.sender, shares);
     }
 
-    /// @notice Returns the amount of shares claimable for a given operator in the event of a failed redemption
+    function claimFallbackShares() public returns (uint256 shares) {
+        return claimFallbackShares(msg.sender);
+    }
+
+    /// @notice Returns the amount of shares claimable for a given user in the event of a failed redemption
     /// fulfillment.
-    /// @param operator The address of the operator.
-    /// @return shares The amount of shares claimable by the operator.
-    function claimableFallbackShares(address operator) public view returns (uint256 shares) {
-        uint256 lastRedeemRequestId_ = lastRedeemRequestId[operator];
-        if (!fallbackTriggered[lastRedeemRequestId_]) {
-            return 0;
+    /// @param controller The address of the controller.
+    /// @return shares The amount of shares claimable by the controller.
+    function claimableFallbackShares(address controller) public view returns (uint256 shares) {
+        uint256 lastRedeemRequestId_ = lastRedeemRequestId[controller];
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId_];
+        if (redeemRequest.fallbackTriggered) {
+            return redeemRequest.redeemShares[controller];
         }
-        return _requestIdControllerRequest[lastRedeemRequestId_][operator].redemptionShares;
+        return 0;
     }
 
     /// @notice Immediately redeems shares for all assets associated with this basket. This is synchronous and does not
@@ -480,8 +496,8 @@ contract BasketToken is
         if (feeBps != 0) {
             if (timeSinceLastHarvest != 0) {
                 // remove shares held by the treasury or currently pending redemption from calculation
-                uint256 currentTotalSupply =
-                    totalSupply() - balanceOf(feeCollector) - pendingRedeemRequest(_currentRequestId - 1, feeCollector);
+                uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
+                    - pendingRedeemRequest(nextRedeemRequestId - 2, feeCollector);
                 uint256 fee = FixedPointMathLib.fullMulDiv(
                     currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
                 );
@@ -512,7 +528,7 @@ contract BasketToken is
                 revert NotAuthorizedOperator();
             }
         }
-        if (assets != _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets) {
+        if (assets != maxDeposit(controller)) {
             revert MustClaimFullAmount();
         }
         shares = maxMint(controller);
@@ -546,7 +562,7 @@ contract BasketToken is
             revert MustClaimFullAmount();
         }
         // Effects
-        assets = _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets;
+        assets = maxDeposit(controller);
         _claimDeposit(assets, shares, receiver, controller);
     }
 
@@ -556,6 +572,19 @@ contract BasketToken is
     /// @return assets The amount of assets previously requested for deposit.
     function mint(uint256 shares, address receiver) public override returns (uint256 assets) {
         return mint(shares, receiver, msg.sender);
+    }
+
+    /// @notice Internal function to claim deposit for a given amount of assets and shares.
+    /// @param assets The amount of assets to claim.
+    /// @param shares The amount of shares to claim.
+    /// @param receiver The address of the receiver of the claimed assets.
+    /// @param controller The address of the controller of the deposit request.
+    function _claimDeposit(uint256 assets, uint256 shares, address receiver, address controller) internal {
+        // Effects
+        _depositRequests[lastDepositRequestId[controller]].depositAssets[controller] = 0;
+        // Interactions
+        emit Deposit(controller, receiver, assets, shares);
+        _transfer(address(this), receiver, shares);
     }
 
     /// @notice Transfers a user's assets owed for a previously fulfillled redemption request.
@@ -575,7 +604,7 @@ contract BasketToken is
             revert MustClaimFullAmount();
         }
         // Effects
-        shares = _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares;
+        shares = maxRedeem(controller);
         _claimRedemption(assets, shares, receiver, controller);
     }
 
@@ -592,7 +621,7 @@ contract BasketToken is
         if (msg.sender != controller) {
             if (!isOperator[controller][msg.sender]) revert NotAuthorizedOperator();
         }
-        if (shares != _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares) {
+        if (shares != maxRedeem(controller)) {
             revert MustClaimFullAmount();
         }
         assets = maxWithdraw(controller);
@@ -600,57 +629,63 @@ contract BasketToken is
         _claimRedemption(assets, shares, receiver, controller);
     }
 
-    /// @notice Returns an operator's amount of assets fulfilled for redemption.
+    /// @notice Internal function to claim redemption for a given amount of assets and shares.
+    /// @param assets The amount of assets to claim.
+    /// @param shares The amount of shares to claim.
+    /// @param receiver The address of the receiver of the claimed assets.
+    /// @param controller The address of the controller of the redemption request.
+    function _claimRedemption(uint256 assets, uint256 shares, address receiver, address controller) internal {
+        // Effects
+        _redeemRequests[lastRedeemRequestId[controller]].redeemShares[controller] = 0;
+        // Interactions
+        emit Withdraw(msg.sender, receiver, controller, assets, shares);
+        IERC20(asset()).safeTransfer(receiver, assets);
+    }
+
+    /// @notice Returns an controller's amount of assets fulfilled for redemption.
     /// @dev For requests yet to be fulfilled, this will return 0.
-    /// @param operator The address of the operator.
+    /// @param controller The address of the controller.
     /// @return The amount of assets that can be withdrawn.
-    function maxWithdraw(address operator) public view override returns (uint256) {
-        uint256 lastRedeemRequestId_ = lastRedeemRequestId[operator];
-        uint256 totalPendingRedemptions_ = _totalPendingRedemptions[lastRedeemRequestId_];
-        return totalPendingRedemptions_ == 0
+    function maxWithdraw(address controller) public view override returns (uint256) {
+        uint256 lastRedeemRequestId_ = lastRedeemRequestId[controller];
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId_];
+
+        uint256 totalRedeemShares = redeemRequest.totalRedeemShares;
+        return totalRedeemShares == 0
             ? 0
             : FixedPointMathLib.fullMulDiv(
-                _fulfilledRate[lastRedeemRequestId_].assets,
-                _requestIdControllerRequest[lastRedeemRequestId_][operator].redemptionShares,
-                totalPendingRedemptions_
+                redeemRequest.fulfilledAssets, redeemRequest.redeemShares[controller], totalRedeemShares
             );
     }
 
-    /// @notice Returns an operator's amount of shares fulfilled for redemption.
+    /// @notice Returns an controller's amount of shares fulfilled for redemption.
     /// @dev For requests yet to be fulfilled, this will return 0.
-    /// @param operator The address of the operator.
+    /// @param controller The address of the controller.
     /// @return The amount of shares that can be redeemed.
-    function maxRedeem(address operator) public view override returns (uint256) {
-        uint256 lastRedeemRequestId_ = lastRedeemRequestId[operator];
-        return _fulfilledRate[lastRedeemRequestId_].assets == 0
-            ? 0
-            : _requestIdControllerRequest[lastRedeemRequestId_][operator].redemptionShares;
+    function maxRedeem(address controller) public view override returns (uint256) {
+        return claimableRedeemRequest(lastRedeemRequestId[controller], controller);
     }
 
-    /// @notice Returns an operator's amount of assets fulfilled for deposit.
+    /// @notice Returns an controller's amount of assets fulfilled for deposit.
     /// @dev For requests yet to be fulfilled, this will return 0.
-    /// @param operator The address of the operator.
+    /// @param controller The address of the controller.
     /// @return The amount of assets that can be deposited.
-    function maxDeposit(address operator) public view override returns (uint256) {
-        uint256 lastDepositRequestID_ = lastDepositRequestId[operator];
-        return _fulfilledRate[lastDepositRequestID_].shares == 0
-            ? 0
-            : _requestIdControllerRequest[lastDepositRequestID_][operator].depositAssets;
+    function maxDeposit(address controller) public view override returns (uint256) {
+        return claimableDepositRequest(lastDepositRequestId[controller], controller);
     }
 
-    /// @notice Returns an operator's amount of shares fulfilled for deposit.
+    /// @notice Returns an controller's amount of shares fulfilled for deposit.
     /// @dev For requests yet to be fulfilled, this will return 0.
-    /// @param operator The address of the operator.
+    /// @param controller The address of the controller.
     /// @return The amount of shares that can be minted.
-    function maxMint(address operator) public view override returns (uint256) {
-        uint256 lastDepositRequestID_ = lastDepositRequestId[operator];
-        uint256 totalPendingAssets = _totalPendingAssets[lastDepositRequestID_];
-        return totalPendingAssets == 0
+    function maxMint(address controller) public view override returns (uint256) {
+        uint256 lastDepositRequestID_ = lastDepositRequestId[controller];
+        DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestID_];
+        uint256 totalDepositAssets = depositRequest.totalDepositAssets;
+        return totalDepositAssets == 0
             ? 0
             : FixedPointMathLib.fullMulDiv(
-                _fulfilledRate[lastDepositRequestID_].shares,
-                _requestIdControllerRequest[lastDepositRequestID_][operator].depositAssets,
-                totalPendingAssets
+                depositRequest.fulfilledShares, depositRequest.depositAssets[controller], totalDepositAssets
             );
     }
 
@@ -674,31 +709,8 @@ contract BasketToken is
         revert();
     }
 
-    /// @notice Internal function to claim redemption for a given amount of assets and shares.
-    /// @param assets The amount of assets to claim.
-    /// @param shares The amount of shares to claim.
-    /// @param receiver The address of the receiver of the claimed assets.
-    /// @param controller The address of the controller of the redemption request.
-    function _claimRedemption(uint256 assets, uint256 shares, address receiver, address controller) internal {
-        // Effects
-        _requestIdControllerRequest[lastRedeemRequestId[controller]][controller].redemptionShares = 0;
-        // Interactions
-        emit Withdraw(msg.sender, receiver, controller, assets, shares);
-        IERC20(asset()).safeTransfer(receiver, assets);
-    }
-
-    /// @notice Internal function to claim deposit for a given amount of assets and shares.
-    /// @param assets The amount of assets to claim.
-    /// @param shares The amount of shares to claim.
-    /// @param receiver The address of the receiver of the claimed assets.
-    /// @param controller The address of the controller of the deposit request.
-
-    function _claimDeposit(uint256 assets, uint256 shares, address receiver, address controller) internal {
-        // Effects
-        _requestIdControllerRequest[lastDepositRequestId[controller]][controller].depositAssets = 0;
-        // Interactions
-        emit Deposit(controller, receiver, assets, shares);
-        _transfer(address(this), receiver, shares);
+    function fallbackTriggered(uint256 requestId) public view returns (bool) {
+        return _redeemRequests[requestId].fallbackTriggered;
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///
