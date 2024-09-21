@@ -11,7 +11,6 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
-import { IERC7575 } from "src/interfaces/IERC7575.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
@@ -54,7 +53,9 @@ contract BasketToken is
     mapping(address controller => uint256 requestId) public lastDepositRequestId;
     /// @notice Mapping of controller to the last requestId of a redemption request
     mapping(address controller => uint256 requestId) public lastRedeemRequestId;
+    /// @dev Mapping of requestId to deposit requests. Even requestId is reserved for deposits
     mapping(uint256 requestId => DepositRequestStruct) internal _depositRequests;
+    /// @dev Mapping of requestId to redemption requests. Odd requestId is reserved for redemptions
     mapping(uint256 requestId => RedeemRequestStruct) internal _redeemRequests;
     /// @notice Address of the BasketManager contract used to fulfill deposit and redemption requests and manage
     /// deposited assets
@@ -69,7 +70,8 @@ contract BasketToken is
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
-    uint256 private _lastManagementFeeHarvestTimestamp;
+    /// @notice Timestamp of the last management fee harvest
+    uint40 public lastManagementFeeHarvestTimestamp;
 
     /// EVENTS ///
     /// @notice Emitted when a the Management fee is harvested by the treasury
@@ -431,6 +433,15 @@ contract BasketToken is
         return true;
     }
 
+    /// @dev Reverts if the sender is not authorized to act on behalf of the controller.
+    function _onlyAuthorizedSenders(address controller) internal view {
+        if (msg.sender != controller) {
+            if (!isOperator[controller][msg.sender]) {
+                revert NotAuthorizedOperator();
+            }
+        }
+    }
+
     /// @notice Returns the address of the share token as per ERC-7575.
     /// @return shareTokenAddress The address of the share token.
     /// @dev For non-multi asset vaults this should always return address(this).
@@ -511,10 +522,10 @@ contract BasketToken is
         if (feeBps > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
-        uint256 timeSinceLastHarvest = block.timestamp - _lastManagementFeeHarvestTimestamp;
+        uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
 
         // Effects
-        _lastManagementFeeHarvestTimestamp = block.timestamp;
+        lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
         if (feeBps != 0) {
             if (timeSinceLastHarvest != 0) {
                 // remove shares held by the treasury or currently pending redemption from calculation
@@ -545,7 +556,7 @@ contract BasketToken is
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        _onlyAuthorizedSenders(msg.sender, controller);
+        _onlyAuthorizedSenders(controller);
         DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
         uint256 fulfilledShares = depositRequest.fulfilledShares;
         uint256 depositAssets = depositRequest.depositAssets[controller];
@@ -573,7 +584,7 @@ contract BasketToken is
     /// @return assets The amount of assets previously requested for deposit.
     function mint(uint256 shares, address receiver, address controller) public returns (uint256 assets) {
         // Checks
-        _onlyAuthorizedSenders(msg.sender, controller);
+        _onlyAuthorizedSenders(controller);
         DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
         uint256 fulfilledShares = depositRequest.fulfilledShares;
         uint256 depositAssets = depositRequest.depositAssets[controller];
@@ -622,7 +633,7 @@ contract BasketToken is
     /// @return shares The amount of shares previously requested for redemption.
     function withdraw(uint256 assets, address receiver, address controller) public override returns (uint256 shares) {
         // Checks
-        _onlyAuthorizedSenders(msg.sender, controller);
+        _onlyAuthorizedSenders(controller);
         RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
         uint256 fulfilledAssets = redeemRequest.fulfilledAssets;
         uint256 redeemShares = redeemRequest.redeemShares[controller];
@@ -644,7 +655,7 @@ contract BasketToken is
         if (shares == 0) {
             revert Errors.ZeroAmount();
         }
-        _onlyAuthorizedSenders(msg.sender, controller);
+        _onlyAuthorizedSenders(controller);
         RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
         uint256 fulfilledAssets = redeemRequest.fulfilledAssets;
         uint256 redeemShares = redeemRequest.redeemShares[controller];
@@ -763,6 +774,9 @@ contract BasketToken is
         revert();
     }
 
+    /// @notice Returns true if the redemption request's fallback has been triggered.
+    /// @param requestId The id of the request.
+    /// @return True if the fallback has been triggered, false otherwise.
     function fallbackTriggered(uint256 requestId) public view returns (bool) {
         return _redeemRequests[requestId].fallbackTriggered;
     }
@@ -772,16 +786,8 @@ contract BasketToken is
     /// @param interfaceID The interface ID.
     /// @return True if the contract supports the interface, false otherwise.
     function supportsInterface(bytes4 interfaceID) public view virtual override returns (bool) {
-        return interfaceID == type(IERC7575).interfaceId || interfaceID == 0xf815c03d
+        return interfaceID == 0x2f0a18c5 || interfaceID == 0xf815c03d
             || interfaceID == type(IERC7540Operator).interfaceId || interfaceID == type(IERC7540Deposit).interfaceId
             || interfaceID == type(IERC7540Redeem).interfaceId || super.supportsInterface(interfaceID);
-    }
-
-    function _onlyAuthorizedSenders(address sender, address controller) internal view {
-        if (sender != controller) {
-            if (!isOperator[controller][sender]) {
-                revert NotAuthorizedOperator();
-            }
-        }
     }
 }

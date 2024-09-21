@@ -28,7 +28,6 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     /// @dev Precision for weights. All results from getTargetWeights() should sum to _WEIGHT_PRECISION.
     uint64 internal constant _WEIGHT_PRECISION = 1e18;
     /// @dev Address of the BasketManager contract associated with this strategy.
-    // slither-disable-next-line uninitialized-state
     address internal immutable _basketManager;
 
     /// @dev Error thrown when an unsupported bit flag is provided.
@@ -121,6 +120,7 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     /// @param bitFlag The bit flag representing the assets.
     /// @return A boolean indicating whether the strategy supports the given bit flag.
     function supportsBitFlag(uint256 bitFlag) public view virtual override returns (bool) {
+        // slither-disable-next-line timestamp
         return lastUpdated[bitFlag].timestamp != 0;
     }
 }
