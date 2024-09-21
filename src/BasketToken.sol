@@ -11,6 +11,7 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
+import { IERC7575 } from "src/interfaces/IERC7575.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
@@ -47,7 +48,6 @@ contract BasketToken is
     }
 
     /// STATE VARIABLES ///
-    // slither-disable-start uninitialized-state,constable-states
     /// @notice Mapping of controllers to operators and their approval status
     mapping(address controller => mapping(address operator => bool)) public isOperator;
     /// @notice Mapping of controller to the last requestId of a deposit request
@@ -69,7 +69,6 @@ contract BasketToken is
     uint256 public bitFlag;
     /// @notice Strategy ID used by the BasketManager to identify this basket token
     address public strategy;
-    // slither-disable-end uninitialized-state,constable-states
     uint256 private _lastManagementFeeHarvestTimestamp;
 
     /// EVENTS ///
@@ -84,6 +83,7 @@ contract BasketToken is
     error MustClaimOutstandingRedeem();
     error MustClaimFullAmount();
     error CannotFulfillWithZeroShares();
+    error CannotFulfillWithZeroAssets();
     error ZeroClaimableFallbackShares();
     error NotAuthorizedOperator();
     error InvalidManagementFee();
@@ -219,7 +219,18 @@ contract BasketToken is
     /// @param controller The address of the controller.
     function claimableDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
         DepositRequestStruct storage depositRequest = _depositRequests[requestId];
-        assets = depositRequest.fulfilledShares != 0 ? depositRequest.depositAssets[controller] : 0;
+        assets = _claimableDepositRequest(depositRequest.fulfilledShares, depositRequest.depositAssets[controller]);
+    }
+
+    function _claimableDepositRequest(
+        uint256 fulfilledShares,
+        uint256 depositAssets
+    )
+        internal
+        pure
+        returns (uint256 assets)
+    {
+        return fulfilledShares != 0 ? depositAssets : 0;
     }
 
     /// @notice Requests a redemption of shares from the basket.
@@ -282,7 +293,18 @@ contract BasketToken is
     // solhint-disable-next-line no-unused-vars
     function claimableRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
         RedeemRequestStruct storage redeemRequest = _redeemRequests[requestId];
-        shares = redeemRequest.fulfilledAssets != 0 ? redeemRequest.redeemShares[controller] : 0;
+        shares = _claimableRedeemRequest(redeemRequest.fulfilledAssets, redeemRequest.redeemShares[controller]);
+    }
+
+    function _claimableRedeemRequest(
+        uint256 fulfilledAssets,
+        uint256 redeemShares
+    )
+        internal
+        pure
+        returns (uint256 shares)
+    {
+        return fulfilledAssets != 0 ? redeemShares : 0;
     }
 
     /// @notice Fulfills all pending deposit requests. Only callable by the basket manager. Assets are held by the
@@ -342,7 +364,7 @@ contract BasketToken is
             revert ZeroPendingRedeems();
         }
         if (assets == 0) {
-            revert CannotFulfillWithZeroShares();
+            revert CannotFulfillWithZeroAssets();
         }
         if (redeemRequest.fulfilledAssets > 0) {
             revert RedeemRequestAlreadyFulfilled();
@@ -523,17 +545,16 @@ contract BasketToken is
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        if (msg.sender != controller) {
-            if (!isOperator[controller][msg.sender]) {
-                revert NotAuthorizedOperator();
-            }
-        }
-        if (assets != maxDeposit(controller)) {
+        _onlyAuthorizedSenders(msg.sender, controller);
+        DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
+        uint256 fulfilledShares = depositRequest.fulfilledShares;
+        uint256 depositAssets = depositRequest.depositAssets[controller];
+        if (assets != _claimableDepositRequest(fulfilledShares, depositAssets)) {
             revert MustClaimFullAmount();
         }
-        shares = maxMint(controller);
+        shares = _maxMint(fulfilledShares, depositAssets, depositRequest.totalDepositAssets);
         // Effects
-        _claimDeposit(assets, shares, receiver, controller);
+        _claimDeposit(depositRequest, assets, shares, receiver, controller);
     }
 
     /// @notice Transfers a user's shares owed for a previously fulfillled deposit request.
@@ -552,18 +573,16 @@ contract BasketToken is
     /// @return assets The amount of assets previously requested for deposit.
     function mint(uint256 shares, address receiver, address controller) public returns (uint256 assets) {
         // Checks
-        if (msg.sender != controller) {
-            if (!isOperator[controller][msg.sender]) {
-                revert NotAuthorizedOperator();
-            }
-        }
-        uint256 claimableShares = maxMint(controller);
-        if (shares != claimableShares) {
+        _onlyAuthorizedSenders(msg.sender, controller);
+        DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
+        uint256 fulfilledShares = depositRequest.fulfilledShares;
+        uint256 depositAssets = depositRequest.depositAssets[controller];
+        if (shares != _maxMint(fulfilledShares, depositAssets, depositRequest.totalDepositAssets)) {
             revert MustClaimFullAmount();
         }
         // Effects
-        assets = maxDeposit(controller);
-        _claimDeposit(assets, shares, receiver, controller);
+        assets = _claimableDepositRequest(fulfilledShares, depositAssets);
+        _claimDeposit(depositRequest, assets, shares, receiver, controller);
     }
 
     /// @notice Transfers a user's shares owed for a previously fulfillled deposit request.
@@ -579,9 +598,17 @@ contract BasketToken is
     /// @param shares The amount of shares to claim.
     /// @param receiver The address of the receiver of the claimed assets.
     /// @param controller The address of the controller of the deposit request.
-    function _claimDeposit(uint256 assets, uint256 shares, address receiver, address controller) internal {
+    function _claimDeposit(
+        DepositRequestStruct storage depositRequest,
+        uint256 assets,
+        uint256 shares,
+        address receiver,
+        address controller
+    )
+        internal
+    {
         // Effects
-        _depositRequests[lastDepositRequestId[controller]].depositAssets[controller] = 0;
+        depositRequest.depositAssets[controller] = 0;
         // Interactions
         emit Deposit(controller, receiver, assets, shares);
         _transfer(address(this), receiver, shares);
@@ -595,17 +622,16 @@ contract BasketToken is
     /// @return shares The amount of shares previously requested for redemption.
     function withdraw(uint256 assets, address receiver, address controller) public override returns (uint256 shares) {
         // Checks
-        if (msg.sender != controller) {
-            if (!isOperator[controller][msg.sender]) {
-                revert NotAuthorizedOperator();
-            }
-        }
-        if (assets != maxWithdraw(controller)) {
+        _onlyAuthorizedSenders(msg.sender, controller);
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
+        uint256 fulfilledAssets = redeemRequest.fulfilledAssets;
+        uint256 redeemShares = redeemRequest.redeemShares[controller];
+        if (assets != _maxWithdraw(fulfilledAssets, redeemShares, redeemRequest.totalRedeemShares)) {
             revert MustClaimFullAmount();
         }
+        shares = _claimableRedeemRequest(fulfilledAssets, redeemShares);
         // Effects
-        shares = maxRedeem(controller);
-        _claimRedemption(assets, shares, receiver, controller);
+        _claimRedemption(redeemRequest, assets, shares, receiver, controller);
     }
 
     /// @notice Transfers the receiver assets owed for a fulfilled redeem request.
@@ -618,15 +644,16 @@ contract BasketToken is
         if (shares == 0) {
             revert Errors.ZeroAmount();
         }
-        if (msg.sender != controller) {
-            if (!isOperator[controller][msg.sender]) revert NotAuthorizedOperator();
-        }
-        if (shares != maxRedeem(controller)) {
+        _onlyAuthorizedSenders(msg.sender, controller);
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
+        uint256 fulfilledAssets = redeemRequest.fulfilledAssets;
+        uint256 redeemShares = redeemRequest.redeemShares[controller];
+        if (shares != _claimableRedeemRequest(fulfilledAssets, redeemShares)) {
             revert MustClaimFullAmount();
         }
-        assets = maxWithdraw(controller);
-        // Effects
-        _claimRedemption(assets, shares, receiver, controller);
+        assets = _maxWithdraw(fulfilledAssets, redeemShares, redeemRequest.totalRedeemShares);
+        // Effects & Interactions
+        _claimRedemption(redeemRequest, assets, shares, receiver, controller);
     }
 
     /// @notice Internal function to claim redemption for a given amount of assets and shares.
@@ -634,9 +661,17 @@ contract BasketToken is
     /// @param shares The amount of shares to claim.
     /// @param receiver The address of the receiver of the claimed assets.
     /// @param controller The address of the controller of the redemption request.
-    function _claimRedemption(uint256 assets, uint256 shares, address receiver, address controller) internal {
+    function _claimRedemption(
+        RedeemRequestStruct storage redeemRequest,
+        uint256 assets,
+        uint256 shares,
+        address receiver,
+        address controller
+    )
+        internal
+    {
         // Effects
-        _redeemRequests[lastRedeemRequestId[controller]].redeemShares[controller] = 0;
+        redeemRequest.redeemShares[controller] = 0;
         // Interactions
         emit Withdraw(msg.sender, receiver, controller, assets, shares);
         IERC20(asset()).safeTransfer(receiver, assets);
@@ -649,13 +684,22 @@ contract BasketToken is
     function maxWithdraw(address controller) public view override returns (uint256) {
         uint256 lastRedeemRequestId_ = lastRedeemRequestId[controller];
         RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId_];
+        return _maxWithdraw(
+            redeemRequest.fulfilledAssets, redeemRequest.redeemShares[controller], redeemRequest.totalRedeemShares
+        );
+    }
 
-        uint256 totalRedeemShares = redeemRequest.totalRedeemShares;
-        return totalRedeemShares == 0
-            ? 0
-            : FixedPointMathLib.fullMulDiv(
-                redeemRequest.fulfilledAssets, redeemRequest.redeemShares[controller], totalRedeemShares
-            );
+    function _maxWithdraw(
+        uint256 fulfilledAssets,
+        uint256 redeemShares,
+        uint256 totalRedeemShares
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        return
+            totalRedeemShares == 0 ? 0 : FixedPointMathLib.fullMulDiv(fulfilledAssets, redeemShares, totalRedeemShares);
     }
 
     /// @notice Returns an controller's amount of shares fulfilled for redemption.
@@ -682,11 +726,21 @@ contract BasketToken is
         uint256 lastDepositRequestID_ = lastDepositRequestId[controller];
         DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestID_];
         uint256 totalDepositAssets = depositRequest.totalDepositAssets;
+        return _maxMint(depositRequest.fulfilledShares, depositRequest.depositAssets[controller], totalDepositAssets);
+    }
+
+    function _maxMint(
+        uint256 fulfilledShares,
+        uint256 depositAssets,
+        uint256 totalDepositAssets
+    )
+        internal
+        pure
+        returns (uint256)
+    {
         return totalDepositAssets == 0
             ? 0
-            : FixedPointMathLib.fullMulDiv(
-                depositRequest.fulfilledShares, depositRequest.depositAssets[controller], totalDepositAssets
-            );
+            : FixedPointMathLib.fullMulDiv(fulfilledShares, depositAssets, totalDepositAssets);
     }
 
     // Preview functions always revert for async flows
@@ -718,8 +772,16 @@ contract BasketToken is
     /// @param interfaceID The interface ID.
     /// @return True if the contract supports the interface, false otherwise.
     function supportsInterface(bytes4 interfaceID) public view virtual override returns (bool) {
-        return interfaceID == 0x2f0a18c5 || interfaceID == 0xf815c03d
+        return interfaceID == type(IERC7575).interfaceId || interfaceID == 0xf815c03d
             || interfaceID == type(IERC7540Operator).interfaceId || interfaceID == type(IERC7540Deposit).interfaceId
             || interfaceID == type(IERC7540Redeem).interfaceId || super.supportsInterface(interfaceID);
+    }
+
+    function _onlyAuthorizedSenders(address sender, address controller) internal view {
+        if (sender != controller) {
+            if (!isOperator[controller][sender]) {
+                revert NotAuthorizedOperator();
+            }
+        }
     }
 }
