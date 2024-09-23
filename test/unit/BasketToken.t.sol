@@ -443,9 +443,9 @@ contract BasketTokenTest is BaseTest, Constants {
     }
 
     function testFuzz_fulfillDeposit_revertsWhen_notBasketManager(address from, uint256 issuedShares) public {
-        vm.assume(!basket.hasRole(BASKET_MANAGER_ROLE, from));
+        vm.assume(from != basket.basketManager());
         vm.prank(from);
-        vm.expectRevert(_formatAccessControlError(from, BASKET_MANAGER_ROLE));
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
         basket.fulfillDeposit(issuedShares);
     }
 
@@ -1152,15 +1152,17 @@ contract BasketTokenTest is BaseTest, Constants {
         }
     }
 
-    function test_fulfillRedeem_revertsWhen_notBasketManager() public {
-        vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
-        vm.prank(alice);
+    function testFuzz_fulfillRedeem_revertsWhen_NotBasketManager(address from) public {
+        vm.assume(from != basket.basketManager());
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
+        vm.prank(from);
         basket.fulfillRedeem(1e18);
     }
 
-    function test_prepareForRebalance_revertsWhen_notBasketManager() public {
-        vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
-        vm.prank(alice);
+    function testFuzz_prepareForRebalance_revertsWhen_NotBasketManager(address from) public {
+        vm.assume(from != basket.basketManager());
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
+        vm.prank(from);
         basket.prepareForRebalance();
     }
 
@@ -1858,9 +1860,9 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.balanceOf(feeCollector), balanceBefore);
     }
 
-    function testFuzz_harvestManagementFee_revertsWhen_calledByNotBasketManager(address caller) public {
+    function testFuzz_harvestManagementFee_revertsWhen_NotBasketManager(address caller) public {
         vm.assume(caller != address(basketManager));
-        vm.expectRevert(_formatAccessControlError(caller, BASKET_MANAGER_ROLE));
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
         vm.prank(caller);
         basket.harvestManagementFee(10, caller);
     }

@@ -28,7 +28,6 @@ contract BasketToken is
     using SafeERC20 for IERC20;
 
     /// CONSTANTS ///
-    bytes32 private constant _BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
 
@@ -86,6 +85,7 @@ contract BasketToken is
     error CannotFulfillWithZeroAssets();
     error ZeroClaimableFallbackShares();
     error NotAuthorizedOperator();
+    error NotBasketManager();
     error InvalidManagementFee();
     error DepositRequestAlreadyFulfilled();
     error RedeemRequestAlreadyFulfilled();
@@ -123,7 +123,6 @@ contract BasketToken is
         nextDepositRequestId = 2;
         nextRedeemRequestId = 3;
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-        _grantRole(_BASKET_MANAGER_ROLE, basketManager);
         __ERC4626_init(IERC20(address(asset_)));
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
@@ -308,8 +307,9 @@ contract BasketToken is
     /// @notice Fulfills all pending deposit requests. Only callable by the basket manager. Assets are held by the
     /// basket manager. Locks in the rate at which users can claim their shares for deposited assets.
     /// @param shares The amount of shares the deposit was fulfilled with.
-    function fulfillDeposit(uint256 shares) public onlyRole(_BASKET_MANAGER_ROLE) {
+    function fulfillDeposit(uint256 shares) public {
         // Checks
+        _onlyBasketManager();
         // currentRequestId was advanced by 2 to prepare for rebalance
         uint256 currentRequestId = nextDepositRequestId - 2;
         DepositRequestStruct storage depositRequest = _depositRequests[currentRequestId];
@@ -336,7 +336,8 @@ contract BasketToken is
     /// rebalance process regardless of the presence of any pending deposits or redemptions. When there are no pending
     /// deposits or redeems, the epoch is not advanced.
     /// @return sharesPendingRedemption The total amount of shares pending redemption.
-    function prepareForRebalance() public onlyRole(_BASKET_MANAGER_ROLE) returns (uint256 sharesPendingRedemption) {
+    function prepareForRebalance() public returns (uint256 sharesPendingRedemption) {
+        _onlyBasketManager();
         uint256 nextDepositRequestId_ = nextDepositRequestId;
         if (_depositRequests[nextDepositRequestId_].totalDepositAssets > 0) {
             nextDepositRequestId = nextDepositRequestId_ + 2;
@@ -353,8 +354,9 @@ contract BasketToken is
     /// pending redemption. Locks in the rate at which users can claim their assets for redeemed shares.
     /// @dev prepareForRebalance must be called before this function.
     /// @param assets The amount of assets the redemption was fulfilled with.
-    function fulfillRedeem(uint256 assets) public onlyRole(_BASKET_MANAGER_ROLE) {
+    function fulfillRedeem(uint256 assets) public {
         // Checks
+        _onlyBasketManager();
         uint256 currentRequestId = nextRedeemRequestId - 2;
         RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRequestId];
         uint256 sharesPendingRedemption = redeemRequest.totalRedeemShares;
@@ -372,7 +374,7 @@ contract BasketToken is
         _burn(address(this), sharesPendingRedemption);
         // Interactions
         // slither-disable-next-line arbitrary-send-erc20
-        IERC20(asset()).safeTransferFrom(basketManager, address(this), assets);
+        IERC20(asset()).safeTransferFrom(msg.sender, address(this), assets);
     }
 
     /// @notice Returns the total amount of assets pending deposit.
@@ -438,6 +440,12 @@ contract BasketToken is
         }
     }
 
+    function _onlyBasketManager() internal view {
+        if (msg.sender != basketManager) {
+            revert NotBasketManager();
+        }
+    }
+
     /// @notice Returns the address of the share token as per ERC-7575.
     /// @return shareTokenAddress The address of the share token.
     /// @dev For non-multi asset vaults this should always return address(this).
@@ -449,7 +457,8 @@ contract BasketToken is
 
     /// @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
     /// users to claim their shares back for a redemption in the future and advances the redemption epoch.
-    function fallbackRedeemTrigger() public onlyRole(_BASKET_MANAGER_ROLE) {
+    function fallbackRedeemTrigger() public {
+        _onlyBasketManager();
         // Check if the redeem is going on. If not, revert
         uint256 currentRedeemRequestId = nextRedeemRequestId - 2;
         RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRedeemRequestId];
@@ -517,8 +526,9 @@ contract BasketToken is
     /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
     /// @param feeCollector The address to receive the management fee.
     // slither-disable-next-line timestamp
-    function harvestManagementFee(uint16 feeBps, address feeCollector) external onlyRole(_BASKET_MANAGER_ROLE) {
+    function harvestManagementFee(uint16 feeBps, address feeCollector) external {
         // Checks
+        _onlyBasketManager();
         if (feeBps > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
