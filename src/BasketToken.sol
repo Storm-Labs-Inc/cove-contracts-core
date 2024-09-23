@@ -71,8 +71,6 @@ contract BasketToken is
     mapping(uint256 requestId => FulfilledRate) internal _fulfilledRate;
     /// @notice Mapping of requestId to a bool indicating if the fallback redeem trigger has been called
     mapping(uint256 requestId => bool fallbackTriggered) public fallbackTriggered;
-    /// @notice Mapping of requestId to a bool indicating if the rebalance has failed;
-    mapping(uint256 requestId => bool rebalanceFailed) public rebalanceFailed;
     /// @notice Latest requestId, initialized as 1
     uint256 internal _currentRequestId;
     /// @notice Address of the admin of the contract, used to set the BasketManager and AssetRegistry
@@ -105,7 +103,6 @@ contract BasketToken is
     error PrepareForRebalanceNotCalled();
     error InvalidManagementFee();
     error ZeroPendingClaimRedeems();
-    error RebalanceNotFailed();
 
     /// @notice Disables the ability to call initializers.
     constructor() payable {
@@ -274,8 +271,8 @@ contract BasketToken is
     /// @param requestId The id of the request.
     /// @param controller The address of the controller of the redemption request.
     /// @return shares The amount of shares pending redemption.
-    /// TODO: this will be incorrect for requestIds that have failed their rebalance, should be documented or explicitly
-    /// checked? (has no implact as cancel redeem rewuest does not allow a requestId to be specified)
+    /// TODO: this will be incorrect for requestIds that have triggered a fallback, should be documented or explicitly
+    /// checked? (has no implact as cancelRedeemRequest does not allow a requestId to be specified)
     function pendingRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
         shares = _fulfilledRate[requestId].assets == 0
             ? _requestIdControllerRequest[requestId][controller].redemptionShares
@@ -395,35 +392,6 @@ contract BasketToken is
         _totalPendingRedemptions[currentRedeemRequestId] -= pendingRedeem;
         // Interactions
         _transfer(address(this), msg.sender, pendingRedeem);
-    }
-
-    /// @notice Claims a redeem request from a rebalance epoch that has failed to be fulfilled. Users must first call
-    /// this and then request another redeemption.
-    function claimRedeemRequest(address user) public {
-        /// Checks
-        if (msg.sender != user) {
-            /// TODO: @dev allow admin to call this on behalf of a user?
-            if (msg.sender != admin) {
-                if (!isOperator[user][msg.sender]) {
-                    revert NotAuthorizedOperator();
-                }
-            }
-        }
-        uint256 redeemRequestId = lastRedeemRequestId[user];
-        if (!rebalanceFailed[redeemRequestId]) {
-            revert RebalanceNotFailed(); //TODO change error name
-        }
-        uint256 shares = _requestIdControllerRequest[redeemRequestId][msg.sender].redemptionShares;
-        if (shares == 0) {
-            revert ZeroPendingRedeems();
-        }
-        /// Effects
-        _requestIdControllerRequest[redeemRequestId][msg.sender].redemptionShares = 0;
-        _transfer(address(this), user, shares);
-    }
-
-    function notifyFailedRebalance() public onlyRole(_BASKET_MANAGER_ROLE) {
-        rebalanceFailed[_currentRequestId - 2] = true;
     }
 
     /// @notice Sets a status for an operator's ability to act on behalf of a controller.
