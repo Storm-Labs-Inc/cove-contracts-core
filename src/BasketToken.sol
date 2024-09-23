@@ -169,9 +169,14 @@ contract BasketToken is
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
+        // if the current requestId is in the process of being fulfilled, a deposit request will be made for the
+        // next requestId
+        requestId = nextDepositRequestId;
         uint256 userLastDepositRequestId = lastDepositRequestId[controller];
-        if (pendingDepositRequest(userLastDepositRequestId, controller) > 0) {
-            revert MustClaimOutstandingDeposit();
+        if (userLastDepositRequestId != requestId) {
+            if (pendingDepositRequest(userLastDepositRequestId, controller) > 0) {
+                revert MustClaimOutstandingDeposit();
+            }
         }
         if (claimableDepositRequest(userLastDepositRequestId, controller) > 0) {
             revert MustClaimOutstandingDeposit();
@@ -180,9 +185,6 @@ contract BasketToken is
             revert AssetPaused();
         }
         // Effects
-        // @dev if the current requestId is in the process of being fulfilled, a deposit request will be made for the
-        // next requestId
-        requestId = nextDepositRequestId;
         DepositRequestStruct storage depositRequest = _depositRequests[requestId];
         // update controllers balance of assets pending deposit
         depositRequest.depositAssets[controller] += assets;
@@ -229,21 +231,17 @@ contract BasketToken is
     /// @param shares The amount of shares to redeem.
     /// @param controller The address of the controller of the redeemed shares.
     /// @param owner The address of the request owner.
-    function requestRedeem(
-        uint256 shares,
-        address controller,
-        address owner
-    )
-        public
-        returns (uint256 currentRedeemRequestId)
-    {
+    function requestRedeem(uint256 shares, address controller, address owner) public returns (uint256 requestId) {
         // Checks
         if (shares == 0) {
             revert Errors.ZeroAmount();
         }
+        requestId = nextRedeemRequestId;
         uint256 userLastRedeemRequestId = lastRedeemRequestId[controller];
-        if (pendingRedeemRequest(userLastRedeemRequestId, controller) > 0) {
-            revert MustClaimOutstandingRedeem();
+        if (userLastRedeemRequestId != requestId) {
+            if (pendingRedeemRequest(userLastRedeemRequestId, controller) > 0) {
+                revert MustClaimOutstandingRedeem();
+            }
         }
         if (claimableRedeemRequest(userLastRedeemRequestId, controller) > 0 || claimableFallbackShares(controller) > 0)
         {
@@ -257,19 +255,17 @@ contract BasketToken is
         if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
             revert AssetPaused();
         }
+
         // Effects
-        /// @dev currentRequestId + 1 is reserved for redemptions
-        currentRedeemRequestId = nextRedeemRequestId;
-        RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRedeemRequestId];
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[requestId];
         // update total pending redemptions for the current requestId
         redeemRequest.totalRedeemShares += shares;
         // update controllers latest redeem request id
-        lastRedeemRequestId[controller] = currentRedeemRequestId;
+        lastRedeemRequestId[controller] = requestId;
         // update controllers balance of assets pending deposit
         redeemRequest.redeemShares[controller] += shares;
         _transfer(owner, address(this), shares);
-        emit RedeemRequest(controller, owner, currentRedeemRequestId, msg.sender, shares);
-        return currentRedeemRequestId;
+        emit RedeemRequest(controller, owner, requestId, msg.sender, shares);
     }
 
     /// @notice Returns the pending redeem request amount for a user.
