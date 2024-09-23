@@ -466,6 +466,7 @@ library BasketManagerUtils {
             revert BasketsMismatch();
         }
         uint256 externalTradesLength = externalTrades.length;
+        // slither-disable-next-line low-level-calls
         (bool success, bytes memory data) =
             self.tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.completeTokenSwap, (externalTrades)));
         if (!success) {
@@ -475,8 +476,8 @@ library BasketManagerUtils {
         // Update basketBalanceOf with amounts gained from swaps
         for (uint256 i = 0; i < externalTradesLength;) {
             ExternalTrade memory trade = externalTrades[i];
-            uint256 tradeOwnerShipLength = trade.basketTradeOwnership.length;
-            for (uint256 j; j < tradeOwnerShipLength;) {
+            uint256 tradeOwnershipLength = trade.basketTradeOwnership.length;
+            for (uint256 j; j < tradeOwnershipLength;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 address basket = ownership.basket;
                 // Account for bought tokens

@@ -102,7 +102,6 @@ contract BasketToken is
     error NotAuthorizedOperator();
     error PrepareForRebalanceNotCalled();
     error InvalidManagementFee();
-    error ZeroPendingClaimRedeems();
 
     /// @notice Disables the ability to call initializers.
     constructor() payable {

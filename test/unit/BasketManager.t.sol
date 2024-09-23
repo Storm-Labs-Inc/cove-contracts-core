@@ -666,7 +666,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(baskets);
 
         for (uint8 i = 0; i < _MAX_RETRIES; i++) {
-            // 0 for the last input will guarentee the trade will be 100% unsuccessful
+            // 0 for the last input will guarantee the trade will be 100% unsuccessful
             _proposeAndCompleteExternalTrades(baskets, params.depositAmount, params.sellWeight, 0);
             assertEq(basketManager.retryCount(), uint256(i + 1));
             assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
@@ -716,7 +716,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(baskets);
 
         for (uint8 i = 0; i < _MAX_RETRIES; i++) {
-            // 0 for the last input will guarentee the trade will be 100% unsuccessful
+            // 0 for the last input will guarantee the trade will be 100% unsuccessful
             _proposeAndCompleteExternalTrades(baskets, params.depositAmount, params.sellWeight, 0);
             assertEq(basketManager.retryCount(), uint256(i + 1));
             assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
@@ -761,7 +761,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(params.depositAmount));
 
         uint256[2][] memory claimedAmounts = new uint256[2][](numTrades);
-        // tradeSuccess => 1e18 for a 100% successful trade, 0 for 100% unsuccesful trade
+        // tradeSuccess => 1e18 for a 100% successful trade, 0 for 100% unsuccessful trade
         // 0 in the 0th place is the result of a 100% un-successful trade
         // 0 in the 1st place is the result of a 100% successful trade
         // We mock a partially successful trade so that target weights are not met and not enough tokens are available
@@ -1951,8 +1951,8 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(params.depositAmount));
         // Mock results of external trade
         uint256[2][] memory claimedAmounts = new uint256[2][](numTrades);
-        // tradeSuccess => 1e18 for a 100% successful trade, 0 for 100% unsuccesful trade
-        // 0 in the 0th place is the result of a 100% un-successful trade
+        // tradeSuccess => 1e18 for a 100% successful trade, 0 for 100% unsuccessful trade
+        // 0 in the 0th place is the result of a 100% unsuccessful trade
         // 0 in the 1st place is the result of a 100% successful trade
         uint256 succesfulSellAmount = externalTrades[0].sellAmount * tradeSuccess / 1e18;
         claimedAmounts[0] = [succesfulSellAmount, externalTrades[0].sellAmount - succesfulSellAmount];
