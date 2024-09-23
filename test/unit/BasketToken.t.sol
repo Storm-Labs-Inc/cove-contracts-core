@@ -183,26 +183,6 @@ contract BasketTokenTest is BaseTest, Constants {
         token.initialize(ERC20(asset), name, symbol, bitFlag, address(0), owner_);
     }
 
-    function testFuzz_setBasketManager(address newBasketManager) public {
-        vm.assume(newBasketManager != address(0));
-        vm.prank(owner);
-        basket.setBasketManager(newBasketManager);
-        assertEq(basket.basketManager(), newBasketManager);
-    }
-
-    function testFuzz_setBasketManager_revertsWhen_notOwner(address from, address newBasketManager) public {
-        vm.assume(newBasketManager != address(0) && from != address(owner));
-        vm.prank(from);
-        vm.expectRevert(_formatAccessControlError(from, DEFAULT_ADMIN_ROLE));
-        basket.setBasketManager(newBasketManager);
-    }
-
-    function test_setBasketManager_revertsWhen_zeroAddress() public {
-        vm.prank(owner);
-        vm.expectRevert(Errors.ZeroAddress.selector);
-        basket.setBasketManager(address(0));
-    }
-
     function testFuzz_setAssetRegistry(address newAssetRegistry) public {
         vm.assume(newAssetRegistry != address(0));
         vm.prank(owner);

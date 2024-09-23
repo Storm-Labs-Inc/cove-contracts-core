@@ -15,8 +15,7 @@ import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 /// @title BasketToken
-/// @notice Contract responsible for accounting for users deposit and redemption requests, which are asynchronously
-/// fulfilled by the Basket Manager
+/// @notice Manages user deposits and redemptions, which are processed asynchronously by the Basket Manager.
 // slither-disable-next-line missing-inheritance
 contract BasketToken is
     ERC4626Upgradeable,
@@ -47,34 +46,33 @@ contract BasketToken is
     }
 
     /// STATE VARIABLES ///
-    /// @notice Mapping of controllers to operators and their approval status
+    /// @notice Operator approval status per controller.
     mapping(address controller => mapping(address operator => bool)) public isOperator;
-    /// @notice Mapping of controller to the last requestId of a deposit request
+    /// @notice Last deposit request ID per controller.
     mapping(address controller => uint256 requestId) public lastDepositRequestId;
-    /// @notice Mapping of controller to the last requestId of a redemption request
+    /// @notice Last redemption request ID per controller.
     mapping(address controller => uint256 requestId) public lastRedeemRequestId;
-    /// @dev Mapping of requestId to deposit requests. Even requestId is reserved for deposits
+    /// @dev Deposit requests mapped by request ID. Even IDs are for deposits.
     mapping(uint256 requestId => DepositRequestStruct) internal _depositRequests;
-    /// @dev Mapping of requestId to redemption requests. Odd requestId is reserved for redemptions
+    /// @dev Redemption requests mapped by request ID. Odd IDs are for redemptions.
     mapping(uint256 requestId => RedeemRequestStruct) internal _redeemRequests;
-    /// @notice Address of the BasketManager contract used to fulfill deposit and redemption requests and manage
-    /// deposited assets
+    /// @notice Address of the BasketManager contract handling deposits and redemptions.
     address public basketManager;
-    /// @notice Next requestId to be used for deposit
+    /// @notice Upcoming deposit request ID.
     uint256 public nextDepositRequestId;
-    /// @notice Next requestId to be used for redemption
+    /// @notice Upcoming redemption request ID.
     uint256 public nextRedeemRequestId;
-    /// @notice Address of the AssetRegistry contract used to check if a given asset is paused
+    /// @notice Address of the AssetRegistry contract for asset status checks.
     address public assetRegistry;
-    /// @notice Bitflag representing the selection of assets
+    /// @notice Bitflag representing selected assets.
     uint256 public bitFlag;
-    /// @notice Strategy ID used by the BasketManager to identify this basket token
+    /// @notice Strategy contract address associated with this basket.
     address public strategy;
-    /// @notice Timestamp of the last management fee harvest
+    /// @notice Timestamp of the last management fee harvest.
     uint40 public lastManagementFeeHarvestTimestamp;
 
     /// EVENTS ///
-    /// @notice Emitted when a the Management fee is harvested by the treasury
+    /// @notice Emitted when the management fee is harvested.
     event ManagementFeeHarvested(uint256 indexed timestamp, uint256 fee);
 
     /// ERRORS ///
@@ -93,18 +91,18 @@ contract BasketToken is
     error RedeemRequestAlreadyFulfilled();
     error RedeemRequestAlreadyFallbacked();
 
-    /// @notice Disables the ability to call initializers.
+    /// @notice Disables initializer functions.
     constructor() payable {
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
-    /// @param asset_ Address of the asset.
-    /// @param name_ Name of the token. All names will be prefixed with "CoveBasket-".
-    /// @param symbol_ Symbol of the token. All symbols will be prefixed with "cb".
-    /// @param bitFlag_  Bitflag representing the selection of assets.
-    /// @param strategy_ Strategy address.
-    /// @param admin_ Admin of the contract. Capable of setting the basketManager and AssetRegistry.
+    /// @param asset_ Address of the underlying asset.
+    /// @param name_ Name of the token, prefixed with "CoveBasket-".
+    /// @param symbol_ Symbol of the token, prefixed with "cb".
+    /// @param bitFlag_ Bitflag representing selected assets.
+    /// @param strategy_ Strategy contract address.
+    /// @param admin_ Administrator address with elevated permissions.
     function initialize(
         IERC20 asset_,
         string memory name_,
@@ -130,24 +128,13 @@ contract BasketToken is
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
 
-    /// @notice Sets the basket manager address. Only callable by the contract admin.
-    /// @param basketManager_ The new basket manager address.
-    function setBasketManager(address basketManager_) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (basketManager_ == address(0)) {
-            revert Errors.ZeroAddress();
-        }
-        _revokeRole(_BASKET_MANAGER_ROLE, basketManager);
-        basketManager = basketManager_;
-        _grantRole(_BASKET_MANAGER_ROLE, basketManager_);
-    }
-
     /// @notice Sets the asset registry address. Only callable by the contract admin.
-    /// @param assetRegistry_ The new asset registry address.
-    function setAssetRegistry(address assetRegistry_) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (assetRegistry_ == address(0)) {
+    /// @param newRegistry The new asset registry address.
+    function setAssetRegistry(address newRegistry) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newRegistry == address(0)) {
             revert Errors.ZeroAddress();
         }
-        assetRegistry = assetRegistry_;
+        assetRegistry = newRegistry;
     }
 
     /// @notice Returns the value of the basket in assets. This will be an estimate as it does not account for other
@@ -180,11 +167,15 @@ contract BasketToken is
     // slither-disable-next-line arbitrary-send-erc20
     function requestDeposit(uint256 assets, address controller, address owner) public returns (uint256 requestId) {
         // Checks
-        if (maxDeposit(controller) > 0) {
-            revert MustClaimOutstandingDeposit();
-        }
         if (assets == 0) {
             revert Errors.ZeroAmount();
+        }
+        uint256 userLastDepositRequestId = lastDepositRequestId[controller];
+        if (pendingDepositRequest(userLastDepositRequestId, controller) > 0) {
+            revert MustClaimOutstandingDeposit();
+        }
+        if (claimableDepositRequest(userLastDepositRequestId, controller) > 0) {
+            revert MustClaimOutstandingDeposit();
         }
         if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
             revert AssetPaused();
@@ -251,7 +242,12 @@ contract BasketToken is
         if (shares == 0) {
             revert Errors.ZeroAmount();
         }
-        if (maxRedeem(owner) > 0) {
+        uint256 userLastRedeemRequestId = lastRedeemRequestId[controller];
+        if (pendingRedeemRequest(userLastRedeemRequestId, controller) > 0) {
+            revert MustClaimOutstandingRedeem();
+        }
+        if (claimableRedeemRequest(userLastRedeemRequestId, controller) > 0 || claimableFallbackShares(controller) > 0)
+        {
             revert MustClaimOutstandingRedeem();
         }
         if (msg.sender != owner) {
@@ -468,20 +464,25 @@ contract BasketToken is
 
     /// @notice Claims shares given for a previous redemption request in the event a redemption fulfillment for a
     /// given epoch fails.
+    /// @param receiver The address to receive the shares.
+    /// @param controller The address of the controller of the redemption request.
     /// @return shares The amount of shares claimed.
-    function claimFallbackShares(address controller) public returns (uint256 shares) {
+    function claimFallbackShares(address receiver, address controller) public returns (uint256 shares) {
         // Checks
+        _onlyAuthorizedSenders(controller);
         shares = claimableFallbackShares(controller);
         if (shares == 0) {
             revert ZeroClaimableFallbackShares();
         }
         // Effects
         _redeemRequests[lastRedeemRequestId[controller]].redeemShares[controller] = 0;
-        _transfer(address(this), msg.sender, shares);
+        _transfer(address(this), receiver, shares);
     }
 
+    /// @notice Allows the caller to claim their own fallback shares.
+    /// @return shares The amount of shares claimed.
     function claimFallbackShares() public returns (uint256 shares) {
-        return claimFallbackShares(msg.sender);
+        return claimFallbackShares(msg.sender, msg.sender);
     }
 
     /// @notice Returns the amount of shares claimable for a given user in the event of a failed redemption
@@ -489,8 +490,7 @@ contract BasketToken is
     /// @param controller The address of the controller.
     /// @return shares The amount of shares claimable by the controller.
     function claimableFallbackShares(address controller) public view returns (uint256 shares) {
-        uint256 lastRedeemRequestId_ = lastRedeemRequestId[controller];
-        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId_];
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
         if (redeemRequest.fallbackTriggered) {
             return redeemRequest.redeemShares[controller];
         }
@@ -620,8 +620,8 @@ contract BasketToken is
     {
         // Effects
         depositRequest.depositAssets[controller] = 0;
-        // Interactions
         emit Deposit(controller, receiver, assets, shares);
+        // Interactions
         _transfer(address(this), receiver, shares);
     }
 
@@ -683,8 +683,8 @@ contract BasketToken is
     {
         // Effects
         redeemRequest.redeemShares[controller] = 0;
-        // Interactions
         emit Withdraw(msg.sender, receiver, controller, assets, shares);
+        // Interactions
         IERC20(asset()).safeTransfer(receiver, assets);
     }
 
@@ -693,8 +693,7 @@ contract BasketToken is
     /// @param controller The address of the controller.
     /// @return The amount of assets that can be withdrawn.
     function maxWithdraw(address controller) public view override returns (uint256) {
-        uint256 lastRedeemRequestId_ = lastRedeemRequestId[controller];
-        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId_];
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
         return _maxWithdraw(
             redeemRequest.fulfilledAssets, redeemRequest.redeemShares[controller], redeemRequest.totalRedeemShares
         );
@@ -734,10 +733,10 @@ contract BasketToken is
     /// @param controller The address of the controller.
     /// @return The amount of shares that can be minted.
     function maxMint(address controller) public view override returns (uint256) {
-        uint256 lastDepositRequestID_ = lastDepositRequestId[controller];
-        DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestID_];
-        uint256 totalDepositAssets = depositRequest.totalDepositAssets;
-        return _maxMint(depositRequest.fulfilledShares, depositRequest.depositAssets[controller], totalDepositAssets);
+        DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
+        return _maxMint(
+            depositRequest.fulfilledShares, depositRequest.depositAssets[controller], depositRequest.totalDepositAssets
+        );
     }
 
     function _maxMint(
