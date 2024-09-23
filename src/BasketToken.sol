@@ -169,10 +169,17 @@ contract BasketToken is
         return 0;
     }
 
-    /// @notice Returns the target weights for this basket.
+    /// @notice Returns the current epoch's target weights for this basket.
     /// @return The target weights for the basket.
-    function getTargetWeights() external view returns (uint256[] memory) {
-        return WeightStrategy(strategy).getTargetWeights(bitFlag);
+    function getCurrentTargetWeights() external view returns (uint64[] memory) {
+        return getTargetWeights(BasketManager(basketManager).rebalanceStatus().epoch);
+    }
+
+    /// @notice Returns the target weights for the given epoch.
+    /// @param epoch The epoch to get the target weights for.
+    /// @return The target weights for the basket.
+    function getTargetWeights(uint40 epoch) public view returns (uint64[] memory) {
+        return WeightStrategy(strategy).getTargetWeights(epoch, bitFlag);
     }
 
     /// ERC7540 LOGIC ///

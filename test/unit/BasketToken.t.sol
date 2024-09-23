@@ -1,31 +1,25 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-import { BasketManager } from "src/BasketManager.sol";
-import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
-
-import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { AssetRegistry } from "src/AssetRegistry.sol";
-import { BasketToken } from "src/BasketToken.sol";
-
-import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
-import { IERC7575 } from "src/interfaces/IERC7575.sol";
-import { MockFeeCollector } from "test/utils/mocks/MockFeeCollector.sol";
-
+import { AssetRegistry } from "src/AssetRegistry.sol";
+import { BasketManager } from "src/BasketManager.sol";
+import { BasketToken } from "src/BasketToken.sol";
 import { Errors } from "src/libraries/Errors.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
+import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-
 import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20DecimalsMockImpl } from "test/utils/mocks/ERC20DecimalsMockImpl.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
+import { MockFeeCollector } from "test/utils/mocks/MockFeeCollector.sol";
 
 contract BasketTokenTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;
@@ -1712,14 +1706,28 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.isOperator(controller, operator), false);
     }
 
-    function test_getTargetWeights(uint256[] memory expectedRet) public {
-        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())));
+    function testFuzz_getTargetWeights(uint40 epoch, uint64[] memory expectedRet) public {
+        vm.expectCall(basket.basketManager(), abi.encodeCall(BasketManager.rebalanceStatus, ()));
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.rebalanceStatus, ()),
+            abi.encode(
+                RebalanceStatus({
+                    basketHash: bytes32(0),
+                    epoch: epoch,
+                    timestamp: uint40(0),
+                    status: Status.NOT_STARTED
+                })
+            )
+        );
+        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (epoch, basket.bitFlag())));
         vm.mockCall(
             address(basket.strategy()),
-            abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())),
+            abi.encodeCall(WeightStrategy.getTargetWeights, (epoch, basket.bitFlag())),
             abi.encode(expectedRet)
         );
-        uint256[] memory ret = basket.getTargetWeights();
+
+        uint64[] memory ret = basket.getCurrentTargetWeights();
         assertEq(expectedRet, ret);
     }
 

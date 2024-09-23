@@ -3,117 +3,211 @@ pragma solidity 0.8.23;
 
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 
+import { BasketManager } from "src/BasketManager.sol";
 import { BitFlag } from "src/libraries/BitFlag.sol";
+
+import { Errors } from "src/libraries/Errors.sol";
+import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract ManagedWeightStrategyTest is BaseTest {
     ManagedWeightStrategy public customStrategy;
     address public admin;
-    uint256 public constant SUPPORTED_BIT_FLAG = 1 << 0 | 1 << 1 | 1 << 2; // b111
+    address public basketManager;
     uint256 private constant _WEIGHT_PRECISION = 1e18;
+    bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     function setUp() public override {
         super.setUp();
         admin = createUser("admin");
+        basketManager = createUser("basketManager");
         vm.prank(admin);
-        customStrategy = new ManagedWeightStrategy(admin, SUPPORTED_BIT_FLAG);
+        customStrategy = new ManagedWeightStrategy(admin, basketManager);
         vm.label(address(customStrategy), "ManagedWeightStrategy");
     }
 
-    function testFuzz_constructor(address admin_, uint256 bitFlag) public {
-        ManagedWeightStrategy customStrategy_ = new ManagedWeightStrategy(admin_, bitFlag);
+    function testFuzz_constructor(address admin_, address basketManager_) public {
+        vm.assume(admin_ != address(0));
+        vm.assume(basketManager_ != address(0));
+        ManagedWeightStrategy customStrategy_ = new ManagedWeightStrategy(admin_, basketManager_);
         assertTrue(
             customStrategy_.hasRole(customStrategy_.DEFAULT_ADMIN_ROLE(), admin_),
             "Admin should have default admin role"
         );
-        assertEq(customStrategy_.supportedBitFlag(), bitFlag, "Supported bit flag should be set correctly");
+        assertTrue(customStrategy_.hasRole(_MANAGER_ROLE, admin_), "Admin should have manager role");
     }
 
-    function testFuzz_setTargetWeights(uint256[3] memory weights) public returns (uint256[] memory newTargetWeights) {
-        newTargetWeights = new uint256[](3);
+    function testFuzz_constructor_revertsWhen_ZeroAddress() public {
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        new ManagedWeightStrategy(address(0), basketManager);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        new ManagedWeightStrategy(admin, address(0));
+    }
+
+    function testFuzz_setTargetWeights(
+        uint40 epoch,
+        uint256 bitFlag
+    )
+        public
+        returns (uint64[] memory newTargetWeights)
+    {
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+        uint64[] memory weights = new uint64[](BitFlag.popCount(bitFlag));
+        newTargetWeights = new uint64[](weights.length);
         uint256 limit = _WEIGHT_PRECISION;
-        for (uint256 i = 0; i < 3; i++) {
-            if (i < 2) {
-                limit -= newTargetWeights[i] = weights[i] = bound(weights[i], 0, limit);
+        for (uint256 i = 0; i < weights.length; i++) {
+            if (i < weights.length - 1) {
+                limit -= newTargetWeights[i] = weights[i] = uint64(bound(weights[i], 0, limit));
             } else {
-                newTargetWeights[i] = weights[i] = limit;
+                newTargetWeights[i] = weights[i] = uint64(limit);
             }
         }
 
-        vm.prank(admin);
-        customStrategy.setTargetWeights(newTargetWeights);
+        vm.mockCall(
+            basketManager,
+            abi.encodeCall(BasketManager.rebalanceStatus, ()),
+            abi.encode(
+                RebalanceStatus({
+                    basketHash: bytes32(0),
+                    epoch: epoch,
+                    timestamp: uint40(0),
+                    status: Status.NOT_STARTED
+                })
+            )
+        );
 
-        for (uint256 i = 0; i < 3; i++) {
+        vm.prank(admin);
+        customStrategy.setTargetWeights(bitFlag, newTargetWeights);
+
+        for (uint256 i = 0; i < weights.length; i++) {
             assertEq(
-                customStrategy.targetWeights(i),
+                customStrategy.getTargetWeights(epoch, bitFlag)[i],
                 newTargetWeights[i],
                 string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
             );
         }
     }
 
-    function testFuzz_setTargetWeights_InvalidLength(uint256 length) public {
-        vm.assume(length != 3 && length < type(uint16).max);
-        uint256[] memory newTargetWeights = new uint256[](length);
+    function testFuzz_setTargetWeights_RebalanceStarted(
+        uint40 epoch,
+        uint256 bitFlag,
+        uint8 status
+    )
+        public
+        returns (uint64[] memory newTargetWeights)
+    {
+        vm.assume(status <= uint8(type(Status).max));
+        vm.assume(Status(status) != Status.NOT_STARTED);
+        vm.assume(epoch < type(uint40).max);
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+        uint64[] memory weights = new uint64[](BitFlag.popCount(bitFlag));
+        newTargetWeights = new uint64[](weights.length);
+        uint256 limit = _WEIGHT_PRECISION;
+        for (uint256 i = 0; i < weights.length; i++) {
+            if (i < weights.length - 1) {
+                limit -= newTargetWeights[i] = weights[i] = uint64(bound(weights[i], 0, limit));
+            } else {
+                newTargetWeights[i] = weights[i] = uint64(limit);
+            }
+        }
+
+        vm.mockCall(
+            basketManager,
+            abi.encodeCall(BasketManager.rebalanceStatus, ()),
+            abi.encode(
+                RebalanceStatus({ basketHash: bytes32(0), epoch: epoch, timestamp: uint40(0), status: Status(status) })
+            )
+        );
+
+        vm.prank(admin);
+        customStrategy.setTargetWeights(bitFlag, newTargetWeights);
+
+        for (uint256 i = 0; i < weights.length; i++) {
+            assertEq(
+                customStrategy.getTargetWeights(epoch + 1, bitFlag)[i],
+                newTargetWeights[i],
+                string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
+            );
+        }
+    }
+
+    function testFuzz_setTargetWeights_InvalidLength(uint256 bitFlag) public {
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+        uint64[] memory weights = new uint64[](BitFlag.popCount(bitFlag) + 1);
 
         vm.prank(admin);
         vm.expectRevert(ManagedWeightStrategy.InvalidWeightsLength.selector);
-        customStrategy.setTargetWeights(newTargetWeights);
+        customStrategy.setTargetWeights(bitFlag, weights);
     }
 
-    function testFuzz_setTargetWeights_InvalidSum(uint256[3] memory weights, uint256 sum) public {
-        uint256[] memory newTargetWeights = new uint256[](3);
+    function testFuzz_setTargetWeights_InvalidSum(uint256 bitFlag, uint256 sum) public {
         vm.assume(sum != _WEIGHT_PRECISION);
-        for (uint256 i = 0; i < 3; i++) {
-            if (i < 2) {
-                weights[i] = bound(weights[i], 0, sum);
-                sum -= weights[i];
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+
+        uint64[] memory weights = new uint64[](BitFlag.popCount(bitFlag));
+        for (uint256 i = 0; i < weights.length; i++) {
+            if (i < weights.length - 1) {
+                sum -= weights[i] = uint64(bound(weights[i], 0, sum));
             } else {
-                newTargetWeights[i] = sum;
+                weights[i] = uint64(sum);
             }
         }
 
         vm.prank(admin);
         vm.expectRevert(ManagedWeightStrategy.WeightsSumMismatch.selector);
-        customStrategy.setTargetWeights(newTargetWeights);
+        customStrategy.setTargetWeights(bitFlag, weights);
     }
 
-    function testFuzz_getTargetWeights(uint256[3] memory weights) public {
-        uint256[] memory newTargetWeights = testFuzz_setTargetWeights(weights);
-        uint256[] memory retrievedWeights = customStrategy.getTargetWeights(SUPPORTED_BIT_FLAG);
-
-        assertEq(retrievedWeights, newTargetWeights, "Retrieved weights should match set weights");
-    }
-
-    function testFuzz_getTargetWeights_SubSet(uint256[3] memory weights, uint256 bitFlag) public {
-        testFuzz_setTargetWeights(weights);
-        bitFlag = bound(bitFlag, 1, SUPPORTED_BIT_FLAG);
-        uint256[] memory retrievedWeights = customStrategy.getTargetWeights(bitFlag);
-
-        // Verify the sum of the weights equals _WEIGHT_PRECISION
-        uint256 sum = 0;
-        for (uint256 i = 0; i < retrievedWeights.length; i++) {
-            sum += retrievedWeights[i];
-        }
-        assertEq(sum, _WEIGHT_PRECISION, "Sum of weights should be _WEIGHT_PRECISION");
-    }
-
-    function test_getTargetWeights_Zero(uint256[3] memory weights) public {
-        testFuzz_setTargetWeights(weights);
-        uint256[] memory retrievedWeights = customStrategy.getTargetWeights(0);
-
-        // Verify its empty
-        assertEq(retrievedWeights.length, 0, "Retrieved weights should be empty");
-    }
-
-    function testFuzz_supportsBitFlag(uint256 bitFlag) public {
-        vm.assume(bitFlag <= SUPPORTED_BIT_FLAG);
-        assertTrue(customStrategy.supportsBitFlag(bitFlag), "Should support the configured bit flag or lower");
-    }
-
-    function testFuzz_getTargetWeights_UnsupportedBitFlag(uint256 bitFlag) public {
-        vm.assume(bitFlag > SUPPORTED_BIT_FLAG);
+    function testFuzz_setTargetWeights_UnsupportedBitFlag(uint256 bitFlag) public {
+        uint256 assetCount = BitFlag.popCount(bitFlag);
+        vm.assume(assetCount < 2);
         vm.expectRevert(ManagedWeightStrategy.UnsupportedBitFlag.selector);
-        customStrategy.getTargetWeights(bitFlag);
+        vm.prank(admin);
+        customStrategy.setTargetWeights(bitFlag, new uint64[](assetCount));
+    }
+
+    function testFuzz_getTargetWeights(uint40 epoch, uint256 bitFlag) public {
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+        uint64[] memory newTargetWeights = testFuzz_setTargetWeights(epoch, bitFlag);
+        uint64[] memory retrievedWeights = customStrategy.getTargetWeights(epoch, bitFlag);
+
+        // assertEq(retrievedWeights, newTargetWeights, "Retrieved weights should match set weights");
+        assertEq(
+            retrievedWeights.length,
+            newTargetWeights.length,
+            "Retrieved weights should have the same length as set weights"
+        );
+        for (uint256 i = 0; i < newTargetWeights.length; i++) {
+            assertEq(
+                retrievedWeights[i],
+                newTargetWeights[i],
+                string(abi.encodePacked("Weight ", vm.toString(i), " should be retrieved correctly"))
+            );
+        }
+    }
+
+    function test_getTargetWeights_UnsupportedBitFlag(uint40 epoch, uint256 bitFlag) public {
+        // testFuzz_setTargetWeights(epoch, bitFlag);
+        vm.assume(BitFlag.popCount(bitFlag) < 2);
+        vm.expectRevert(ManagedWeightStrategy.UnsupportedBitFlag.selector);
+        customStrategy.getTargetWeights(epoch, bitFlag);
+    }
+
+    function testFuzz_supportsBitFlag_returnsFalse(uint256 bitFlag) public {
+        assertFalse(
+            customStrategy.supportsBitFlag(bitFlag), "supportsBitFlag should return false if the weights are not set"
+        );
+    }
+
+    function testFuzz_supportsBitFlag_returnsTrue(uint40 epoch, uint256 bitFlag) public {
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+        testFuzz_setTargetWeights(epoch, bitFlag);
+        assertTrue(customStrategy.supportsBitFlag(bitFlag), "supportsBitFlag should return true if the weights are set");
+    }
+
+    function testFuzz_getTargetWeights_NoTargetWeights(uint40 epoch, uint256 bitFlag) public {
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+        vm.expectRevert(ManagedWeightStrategy.NoTargetWeights.selector);
+        customStrategy.getTargetWeights(epoch, bitFlag);
     }
 }

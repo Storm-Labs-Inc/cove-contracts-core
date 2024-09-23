@@ -124,4 +124,15 @@ abstract contract BaseTest is Test {
         //     Strings.toHexString(uint256(role), 32)
         // );
     }
+
+    function assertEq(uint64[] memory a, uint64[] memory b) public {
+        if (a.length != b.length) {
+            revert("BaseTest:assertEq(): Arrays are not the same length");
+        }
+        for (uint256 i = 0; i < a.length; i++) {
+            if (a[i] != b[i]) {
+                revert("BaseTest:assertEq(): Arrays are not equal");
+            }
+        }
+    }
 }

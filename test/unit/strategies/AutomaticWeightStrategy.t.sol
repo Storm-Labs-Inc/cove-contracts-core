@@ -26,8 +26,8 @@ contract AutomaticWeightStrategyTest is BaseTest {
     // TODO: Implement tests for the following functions
     // function getTargetWeights(uint256 bitFlag) public view override returns (uint256[] memory) { }
     // function supportsBitFlag(uint256 bitFlag) public view override returns (bool) { }
-    function testFuzz_getTargetWeights(uint256 bitFlag) public {
-        uint256[] memory targetWeights = automaticWeightStrategy.getTargetWeights(bitFlag);
+    function testFuzz_getTargetWeights(uint40 epoch, uint256 bitFlag) public {
+        uint64[] memory targetWeights = automaticWeightStrategy.getTargetWeights(epoch, bitFlag);
         assertTrue(targetWeights.length == 0, "Not implemented");
     }
 

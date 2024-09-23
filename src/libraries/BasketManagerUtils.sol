@@ -387,8 +387,8 @@ library BasketManagerUtils {
             }
         }
         // Advance the rebalance epoch and reset the status
-        self.rebalanceStatus.epoch += 1;
         self.rebalanceStatus.basketHash = bytes32(0);
+        self.rebalanceStatus.epoch += 1;
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
 
@@ -825,9 +825,10 @@ library BasketManagerUtils {
         // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
         uint256 basketsToRebalanceLength = basketsToRebalance.length;
         for (uint256 i = 0; i < basketsToRebalanceLength;) {
+            uint40 epoch = self.rebalanceStatus.epoch;
             address basket = basketsToRebalance[i];
             // slither-disable-next-line calls-loop
-            uint256[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights();
+            uint64[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights(epoch);
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
@@ -914,9 +915,10 @@ library BasketManagerUtils {
         address[] memory assets
     )
         public
+        view
         returns (uint256[] memory targetBalances)
     {
-        uint256[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights();
+        uint64[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights(self.rebalanceStatus.epoch);
         uint256 assetsLength = assets.length;
         targetBalances = new uint256[](assetsLength);
         // Rounding direction: down
@@ -953,6 +955,7 @@ library BasketManagerUtils {
         address[] memory assets
     )
         private
+        view
         returns (uint256[] memory balances, uint256 basketValue)
     {
         uint256 assetsLength = assets.length;
