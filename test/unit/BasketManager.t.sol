@@ -44,9 +44,9 @@ contract BasketManagerTest is BaseTest, Constants {
     address public constant USD_ISO_4217_CODE = address(840);
 
     struct TradeTestParams {
-        uint64 sellWeight;
+        uint256 sellWeight;
         uint256 depositAmount;
-        uint64 baseAssetWeight;
+        uint256 baseAssetWeight;
         address pairAsset;
     }
 
@@ -533,7 +533,7 @@ contract BasketManagerTest is BaseTest, Constants {
     function testFuzz_completeRebalance_externalTrade(uint256 initialDepositAmount, uint256 sellWeight) public {
         _setTokenSwapAdapter();
         initialDepositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
-        uint256 sellWeight = bound(sellWeight, 0, 1e18);
+        sellWeight = bound(sellWeight, 0, 1e18);
         (ExternalTrade[] memory trades, address[] memory targetBaskets) =
             testFuzz_proposeTokenSwap_externalTrade(sellWeight, initialDepositAmount);
         address basket = targetBaskets[0];
@@ -637,7 +637,7 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(basketManager.retryCount(), uint256(1));
     }
 
-    function test_completeRebalance_passesWhen_retryLimitReached(
+    function testFuzz_completeRebalance_passesWhen_retryLimitReached(
         uint256 initialDepositAmount,
         uint256 sellWeight
     )
@@ -680,7 +680,7 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
-    function test_completeRebalance_triggers_notifyFailedRebalance_when_retryLimitReached(
+    function testFuzz_completeRebalance_triggers_notifyFailedRebalance_when_retryLimitReached(
         uint256 initialDepositAmount,
         uint256 sellWeight
     )
@@ -689,10 +689,8 @@ contract BasketManagerTest is BaseTest, Constants {
         _setTokenSwapAdapter();
         // Setup basket and target weights
         TradeTestParams memory params;
-        params.depositAmount = bound(initialDepositAmount, 1e18, type(uint256).max / 1e36);
-        params.depositAmount = 300e18;
-        params.sellWeight = bound(sellWeight, 1e17, 1e18);
-        params.sellWeight = 5e17;
+        params.depositAmount = bound(initialDepositAmount, 1e18, type(uint256).max / 1e54);
+        params.sellWeight = bound(sellWeight, 5e17, 1e18);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = pairAsset;
         address[][] memory basketAssets = new address[][](1);
@@ -846,7 +844,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         // Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         vm.assume(depositAmount < type(uint256).max / 1e36);
         params.depositAmount = depositAmount;
@@ -863,8 +861,8 @@ contract BasketManagerTest is BaseTest, Constants {
         basketAssets[0][1] = params.pairAsset;
         uint256[] memory initialDepositAmounts = new uint256[](1);
         initialDepositAmounts[0] = params.depositAmount;
-        uint64[][] memory targetWeights = new uint64[][](2);
-        targetWeights[0] = new uint64[](2);
+        uint256[][] memory targetWeights = new uint256[][](2);
+        targetWeights[0] = new uint256[](2);
         targetWeights[0][0] = params.baseAssetWeight;
         targetWeights[0][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
@@ -903,7 +901,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         // Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 1, 1e18 - 1)); // Ensure non-zero sell weight
+        params.sellWeight = bound(sellWeight, 1, 1e18 - 1); // Ensure non-zero sell weight
         params.depositAmount = bound(depositAmount, 1000, type(uint256).max / 1e36); // Ensure non-zero deposit
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
 
@@ -917,8 +915,8 @@ contract BasketManagerTest is BaseTest, Constants {
         basketAssets[0][1] = params.pairAsset;
         uint256[] memory initialDepositAmounts = new uint256[](1);
         initialDepositAmounts[0] = params.depositAmount;
-        uint64[][] memory targetWeights = new uint64[][](2);
-        targetWeights[0] = new uint64[](2);
+        uint256[][] memory targetWeights = new uint256[][](2);
+        targetWeights[0] = new uint256[](2);
         targetWeights[0][0] = params.baseAssetWeight;
         targetWeights[0][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
@@ -958,7 +956,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         // Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         params.depositAmount = bound(depositAmount, 0, type(uint256).max / 1e36);
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
@@ -976,11 +974,11 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256[] memory depositAmounts = new uint256[](2);
         depositAmounts[0] = params.depositAmount;
         depositAmounts[1] = params.depositAmount;
-        uint64[][] memory initialWeights = new uint64[][](2);
-        initialWeights[0] = new uint64[](2);
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
         initialWeights[0][0] = params.baseAssetWeight;
         initialWeights[0][1] = params.sellWeight;
-        initialWeights[1] = new uint64[](2);
+        initialWeights[1] = new uint256[](2);
         initialWeights[1][0] = params.baseAssetWeight;
         initialWeights[1][1] = params.sellWeight;
         baskets = _setupBasketsAndMocks(basketAssets, initialWeights, depositAmounts);
@@ -1067,7 +1065,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         // Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
         // With price set at 1e18 this is the threshold for a rebalance to be valid
@@ -1088,11 +1086,11 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256[] memory initialDepositAmounts = new uint256[](2);
         initialDepositAmounts[0] = params.depositAmount;
         initialDepositAmounts[1] = params.depositAmount;
-        uint64[][] memory initialWeights = new uint64[][](2);
-        initialWeights[0] = new uint64[](2);
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
         initialWeights[0][0] = params.baseAssetWeight;
         initialWeights[0][1] = params.sellWeight;
-        initialWeights[1] = new uint64[](2);
+        initialWeights[1] = new uint256[](2);
         initialWeights[1][0] = params.baseAssetWeight;
         initialWeights[1][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, initialDepositAmounts);
@@ -1127,7 +1125,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         /// Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         params.depositAmount = bound(depositAmount, 0, type(uint256).max / 1e36 - 1);
         sellAmount = bound(sellAmount, 0, type(uint256).max / 1e36 - 1);
         // Minimum deposit amount must be greater than 500 for a rebalance to be valid
@@ -1147,11 +1145,11 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256[] memory depositAmounts = new uint256[](2);
         depositAmounts[0] = params.depositAmount;
         depositAmounts[1] = params.depositAmount - 1;
-        uint64[][] memory initialWeights = new uint64[][](2);
-        initialWeights[0] = new uint64[](2);
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
         initialWeights[0][0] = params.baseAssetWeight;
         initialWeights[0][1] = params.sellWeight;
-        initialWeights[1] = new uint64[](2);
+        initialWeights[1] = new uint256[](2);
         initialWeights[1][0] = params.baseAssetWeight;
         initialWeights[1][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, depositAmounts);
@@ -1203,7 +1201,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         // Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
         // With price set at 1e18 this is the threshold for a rebalance to be valid
@@ -1218,8 +1216,8 @@ contract BasketManagerTest is BaseTest, Constants {
         basketAssets[0][1] = params.pairAsset;
         uint256[] memory initialDepositAmounts = new uint256[](1);
         initialDepositAmounts[0] = params.depositAmount;
-        uint64[][] memory targetWeights = new uint64[][](2);
-        targetWeights[0] = new uint64[](2);
+        uint256[][] memory targetWeights = new uint256[][](2);
+        targetWeights[0] = new uint256[](2);
         targetWeights[0][0] = params.baseAssetWeight;
         targetWeights[0][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
@@ -1254,7 +1252,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         // Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
         // With price set at 1e18 this is the threshold for a rebalance to be valid
@@ -1274,11 +1272,11 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256[] memory initialDepositAmounts = new uint256[](2);
         initialDepositAmounts[0] = params.depositAmount;
         initialDepositAmounts[1] = params.depositAmount;
-        uint64[][] memory initialWeights = new uint64[][](2);
-        initialWeights[0] = new uint64[](2);
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
         initialWeights[0][0] = params.baseAssetWeight;
         initialWeights[0][1] = params.sellWeight;
-        initialWeights[1] = new uint64[](2);
+        initialWeights[1] = new uint256[](2);
         initialWeights[1][0] = params.baseAssetWeight;
         initialWeights[1][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, initialDepositAmounts);
@@ -1314,7 +1312,7 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256 max_weight_deviation = 0.05e18 + 1;
         /// Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18 - max_weight_deviation));
+        params.sellWeight = bound(sellWeight, 0, 1e18 - max_weight_deviation);
         params.depositAmount = bound(depositAmount, 0, type(uint256).max / 1e36);
         vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
@@ -1334,11 +1332,11 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256[] memory depositAmounts = new uint256[](2);
         depositAmounts[0] = params.depositAmount;
         depositAmounts[1] = params.depositAmount;
-        uint64[][] memory initialWeights = new uint64[][](2);
-        initialWeights[0] = new uint64[](2);
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
         initialWeights[0][0] = params.baseAssetWeight;
         initialWeights[0][1] = params.sellWeight;
-        initialWeights[1] = new uint64[](2);
+        initialWeights[1] = new uint256[](2);
         initialWeights[1][0] = params.baseAssetWeight;
         initialWeights[1][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, depositAmounts);
@@ -1368,7 +1366,7 @@ contract BasketManagerTest is BaseTest, Constants {
     function testFuzz_proposeTokenSwap_revertWhen_assetNotInBasket(uint256 sellWeight, uint256 depositAmount) public {
         // Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
         // With price set at 1e18 this is the threshold for a rebalance to be valid
@@ -1388,11 +1386,11 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256[] memory initialDepositAmounts = new uint256[](2);
         initialDepositAmounts[0] = params.depositAmount;
         initialDepositAmounts[1] = params.depositAmount;
-        uint64[][] memory initialWeights = new uint64[][](2);
-        initialWeights[0] = new uint64[](2);
+        uint256[][] memory initialWeights = new uint256[][](2);
+        initialWeights[0] = new uint256[](2);
         initialWeights[0][0] = params.baseAssetWeight;
         initialWeights[0][1] = params.sellWeight;
-        initialWeights[1] = new uint64[](2);
+        initialWeights[1] = new uint256[](2);
         initialWeights[1][0] = params.baseAssetWeight;
         initialWeights[1][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, initialDepositAmounts);
@@ -1461,7 +1459,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         /// Setup fuzzing bounds
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18));
+        params.sellWeight = bound(sellWeight, 0, 1e18);
         // Below bound is due to deposit amount being scaled by price and target weight
         params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
         // With price set at 1e18 this is the threshold for a rebalance to be valid
@@ -1477,8 +1475,8 @@ contract BasketManagerTest is BaseTest, Constants {
         basketAssets[0][1] = params.pairAsset;
         uint256[] memory initialDepositAmounts = new uint256[](1);
         initialDepositAmounts[0] = params.depositAmount;
-        uint64[][] memory targetWeights = new uint64[][](2);
-        targetWeights[0] = new uint64[](2);
+        uint256[][] memory targetWeights = new uint256[][](2);
+        targetWeights[0] = new uint256[](2);
         targetWeights[0][0] = params.baseAssetWeight;
         targetWeights[0][1] = params.sellWeight;
         address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
@@ -1515,7 +1513,7 @@ contract BasketManagerTest is BaseTest, Constants {
         /// Setup fuzzing bounds
         uint256 max_weight_deviation = 0.05e18 + 1;
         TradeTestParams memory params;
-        params.sellWeight = uint64(bound(sellWeight, 0, 1e18 - max_weight_deviation));
+        params.sellWeight = bound(sellWeight, 0, 1e18 - max_weight_deviation);
         params.depositAmount = bound(depositAmount, 1e18, type(uint256).max) / 1e36;
         vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
@@ -1528,9 +1526,9 @@ contract BasketManagerTest is BaseTest, Constants {
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
         basketAssets[0][1] = params.pairAsset;
-        uint64[][] memory weightsPerBasket = new uint64[][](1);
+        uint256[][] memory weightsPerBasket = new uint256[][](1);
         // Deviate from the target weights
-        weightsPerBasket[0] = new uint64[](2);
+        weightsPerBasket[0] = new uint256[](2);
         weightsPerBasket[0][0] = params.baseAssetWeight;
         weightsPerBasket[0][1] = params.sellWeight;
         uint256[] memory initialDepositAmounts = new uint256[](1);
@@ -1852,7 +1850,7 @@ contract BasketManagerTest is BaseTest, Constants {
             vm.mockCall(baskets[i], abi.encodeCall(BasketToken.prepareForRebalance, ()), abi.encode(0));
             vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
             vm.mockCall(baskets[i], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
-            vm.mockCall(baskets[i], abi.encodeCall(BasketToken.getTargetWeights, ()), abi.encode(weights));
+            vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.getTargetWeights.selector), abi.encode(weights));
         }
     }
 

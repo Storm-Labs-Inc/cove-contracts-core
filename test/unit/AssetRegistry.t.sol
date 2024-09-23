@@ -35,7 +35,7 @@ contract AssetRegistry_Test is BaseTest {
     // Try granting manager role from an account without admin role
     function testFuzz_grantRole_revertWhen_CalledByNonAdmin(address nonAdmin, address recipient) public {
         vm.assume(nonAdmin != users["admin"] && nonAdmin != address(0));
-        vm.assume(recipient != address(0));
+        vm.assume(recipient != address(0) && recipient != users["admin"]);
 
         vm.expectRevert(_formatAccessControlError(nonAdmin, adminRole));
         vm.prank(nonAdmin);
