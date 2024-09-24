@@ -456,13 +456,13 @@ library BasketManagerUtils {
         // slither-disable-end calls-loop
     }
 
-    function _getResultsOfExternalTrades(
+    function _completeTokenSwap(
         BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades
     )
         internal
+        returns (uint256[2][] memory claimedAmounts)
     {
-        uint256 externalTradesLength = externalTrades.length;
         // slither-disable-start low-level-calls
         (bool success, bytes memory data) =
             self.tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.completeTokenSwap, (externalTrades)));
@@ -470,7 +470,17 @@ library BasketManagerUtils {
         if (!success) {
             revert CompleteTokenSwapFailed();
         }
-        uint256[2][] memory claimedAmounts = abi.decode(data, (uint256[2][]));
+        claimedAmounts = abi.decode(data, (uint256[2][]));
+    }
+
+    function _getResultsOfExternalTrades(
+        BasketManagerStorage storage self,
+        ExternalTrade[] calldata externalTrades
+    )
+        internal
+    {
+        uint256 externalTradesLength = externalTrades.length;
+        uint256[2][] memory claimedAmounts = _completeTokenSwap(self, externalTrades);
         // Update basketBalanceOf with amounts gained from swaps
         for (uint256 i = 0; i < externalTradesLength;) {
             ExternalTrade memory trade = externalTrades[i];
@@ -483,11 +493,11 @@ library BasketManagerUtils {
                 //TODO: confirm if this is the correct index
                 self.basketBalanceOf[basket][trade.buyToken] +=
                     FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18);
+                // Start of Selection
                 // Account for sold tokens
-                self.basketBalanceOf[basket][trade.sellToken] +=
-                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, 1e18);
-                self.basketBalanceOf[basket][trade.sellToken] -=
-                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                self.basketBalanceOf[basket][trade.sellToken] += FixedPointMathLib.fullMulDiv(
+                    claimedAmounts[i][1], ownership.tradeOwnership, 1e18
+                ) - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
                 unchecked {
                     // Overflow not possible: i is less than tradeOwnerShipLength.length
                     ++j;
