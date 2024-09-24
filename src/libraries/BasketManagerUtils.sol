@@ -578,7 +578,7 @@ library BasketManagerUtils {
     {
         uint256 internalTradesLength = internalTrades.length;
         for (uint256 i = 0; i < internalTradesLength;) {
-            InternalTrade calldata trade = internalTrades[i];
+            InternalTrade memory trade = internalTrades[i];
             InternalTradeInfo memory info = InternalTradeInfo({
                 fromBasketIndex: _indexOf(basketsToRebalance, trade.fromBasket),
                 toBasketIndex: _indexOf(basketsToRebalance, trade.toBasket),
@@ -637,7 +637,7 @@ library BasketManagerUtils {
         private
     {
         for (uint256 i = 0; i < externalTrades.length;) {
-            ExternalTrade calldata trade = externalTrades[i];
+            ExternalTrade memory trade = externalTrades[i];
             // slither-disable-start uninitialized-local
             ExternalTradeInfo memory info;
             BasketOwnershipInfo memory ownershipInfo;
@@ -645,7 +645,7 @@ library BasketManagerUtils {
 
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
-                BasketTradeOwnership calldata ownership = trade.basketTradeOwnership[j];
+                BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 ownershipInfo.basketIndex = _indexOf(basketsToRebalance, ownership.basket);
                 ownershipInfo.buyTokenAssetIndex =
                     basketTokenToRebalanceAssetToIndex(self, ownership.basket, trade.buyToken);
