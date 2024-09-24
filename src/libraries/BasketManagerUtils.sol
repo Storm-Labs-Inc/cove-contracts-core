@@ -427,7 +427,7 @@ library BasketManagerUtils {
         }
         // Effects
         address basket = msg.sender;
-        address[] memory assets = self.basketAssets[basket];
+        address[] storage assets = self.basketAssets[basket];
         uint256 assetsLength = assets.length;
         // Interactions
         for (uint256 i = 0; i < assetsLength;) {
