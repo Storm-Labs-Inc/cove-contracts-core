@@ -163,21 +163,21 @@ contract BasketToken is
     /// @param assets The amount of assets to deposit.
     /// @param controller The address of the controller of the position being created.
     /// @param owner The address of the owner of the assets being deposited.
-    // slither-disable-next-line arbitrary-send-erc20
     function requestDeposit(uint256 assets, address controller, address owner) public returns (uint256 requestId) {
         // Checks
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        // if the current requestId is in the process of being fulfilled, a deposit request will be made for the
-        // next requestId
         requestId = nextDepositRequestId;
         uint256 userLastDepositRequestId = lastDepositRequestId[controller];
+        // If the user has a pending deposit request in the past, they must wait for it to be fulfilled before making a
+        // new one
         if (userLastDepositRequestId != requestId) {
             if (pendingDepositRequest(userLastDepositRequestId, controller) > 0) {
                 revert MustClaimOutstandingDeposit();
             }
         }
+        // If the user has a claimable deposit request, they must claim it before making a new one
         if (claimableDepositRequest(userLastDepositRequestId, controller) > 0) {
             revert MustClaimOutstandingDeposit();
         }
@@ -195,6 +195,7 @@ contract BasketToken is
         emit DepositRequest(controller, owner, requestId, msg.sender, assets);
         // Interactions
         // Assets are immediately transferrred to here to await the basketManager to pull them
+        // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset()).safeTransferFrom(owner, address(this), assets);
     }
 
@@ -237,12 +238,15 @@ contract BasketToken is
             revert Errors.ZeroAmount();
         }
         requestId = nextRedeemRequestId;
+        // If the user has a pending redeem request in the past, they must wait for it to be fulfilled before making a
+        // new one
         uint256 userLastRedeemRequestId = lastRedeemRequestId[controller];
         if (userLastRedeemRequestId != requestId) {
             if (pendingRedeemRequest(userLastRedeemRequestId, controller) > 0) {
                 revert MustClaimOutstandingRedeem();
             }
         }
+        // If the user has a claimable redeem request, they must claim it before making a new one
         if (claimableRedeemRequest(userLastRedeemRequestId, controller) > 0 || claimableFallbackShares(controller) > 0)
         {
             revert MustClaimOutstandingRedeem();
@@ -382,7 +386,6 @@ contract BasketToken is
     /// @notice Returns the total number of shares pending redemption.
     /// @return The total pending redeem amount.
     function totalPendingRedemptions() public view returns (uint256) {
-        // currentRequestId + 1 is reserved for redemptions
         return _redeemRequests[nextRedeemRequestId].totalRedeemShares;
     }
 
