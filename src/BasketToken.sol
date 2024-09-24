@@ -436,8 +436,9 @@ contract BasketToken is
         }
     }
 
+    /// @dev Reverts if the caller is not the Basket Manager.
     function _onlyBasketManager() internal view {
-        if (msg.sender != basketManager) {
+        if (basketManager != msg.sender) {
             revert NotBasketManager();
         }
     }
