@@ -348,11 +348,9 @@ library BasketManagerUtils {
             uint256 basketValue = 0;
             // Calculate current basket value
             for (uint256 j = 0; j < assetsLength;) {
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                address asset = assets[j];
-                balances[j] = self.basketBalanceOf[basket][asset];
+                balances[j] = self.basketBalanceOf[basket][assets[j]];
                 // Rounding direction: down
-                basketValue += self.eulerRouter.getQuote(balances[j], asset, _USD_ISO_4217_CODE);
+                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -431,7 +429,7 @@ library BasketManagerUtils {
         }
         // Effects
         address basket = msg.sender;
-        address[] storage assets = self.basketAssets[basket];
+        address[] memory assets = self.basketAssets[basket];
         uint256 assetsLength = assets.length;
         // Interactions
         for (uint256 i = 0; i < assetsLength;) {
@@ -542,7 +540,7 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < numBaskets;) {
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] storage assets = self.basketAssets[basket];
+            address[] memory assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 assetsLength = assets.length;
             afterTradeBasketAssetAmounts_[i] = new uint256[](assetsLength);
@@ -726,7 +724,7 @@ library BasketManagerUtils {
             // slither-disable-next-line calls-loop
             uint64[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights(epoch);
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] storage assets = self.basketAssets[basket];
+            address[] memory assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
