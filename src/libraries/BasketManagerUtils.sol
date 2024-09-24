@@ -495,9 +495,9 @@ library BasketManagerUtils {
                     FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18);
                 // Start of Selection
                 // Account for sold tokens
-                self.basketBalanceOf[basket][trade.sellToken] += FixedPointMathLib.fullMulDiv(
-                    claimedAmounts[i][1], ownership.tradeOwnership, 1e18
-                ) - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                self.basketBalanceOf[basket][trade.sellToken] = self.basketBalanceOf[basket][trade.sellToken]
+                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, 1e18)
+                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
                 unchecked {
                     // Overflow not possible: i is less than tradeOwnerShipLength.length
                     ++j;
