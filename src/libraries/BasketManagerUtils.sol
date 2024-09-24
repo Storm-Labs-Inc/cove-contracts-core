@@ -472,9 +472,9 @@ library BasketManagerUtils {
         }
         uint256[2][] memory claimedAmounts = abi.decode(data, (uint256[2][]));
         // Update basketBalanceOf with amounts gained from swaps
-        // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
         for (uint256 i = 0; i < externalTradesLength;) {
             ExternalTrade memory trade = externalTrades[i];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 tradeOwnershipLength = trade.basketTradeOwnership.length;
             for (uint256 j; j < tradeOwnershipLength;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];

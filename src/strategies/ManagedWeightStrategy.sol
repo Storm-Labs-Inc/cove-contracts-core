@@ -121,6 +121,7 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     /// @param bitFlag The bit flag representing the assets.
     /// @return A boolean indicating whether the strategy supports the given bit flag.
     function supportsBitFlag(uint256 bitFlag) public view virtual override returns (bool) {
+        // slither-disable-next-line timestamp
         return lastUpdated[bitFlag].timestamp != 0;
     }
 }
