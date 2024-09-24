@@ -123,7 +123,7 @@ contract BasketToken is
         nextDepositRequestId = 2;
         nextRedeemRequestId = 3;
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-        __ERC4626_init(IERC20(address(asset_)));
+        __ERC4626_init(asset_);
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }
 

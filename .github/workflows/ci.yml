@@ -43,11 +43,9 @@ jobs:
         uses: ./.github/actions/base-setup
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Remove script and test files for faster analysis
-        run: rm -rf script/* test/*
 
-      - name: Generate build info manually
-        run: forge build --build-info
+      - name: Generate build info for slither
+        run: pnpm run build:slither
 
       - name: Run Slither
         uses: crytic/slither-action@v0.4.0
