@@ -404,13 +404,15 @@ library BasketManagerUtils {
             uint256 assetsLength = assets.length;
             uint256[] memory balances = new uint256[](assetsLength);
             uint256 basketValue = 0;
+            address usdAddress = _USD_ISO_4217_CODE;
+
             // Calculate current basket value
             for (uint256 j = 0; j < assetsLength;) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 balances[j] = self.basketBalanceOf[basket][assets[j]];
                 // Rounding direction: down
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], usdAddress);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -430,7 +432,7 @@ library BasketManagerUtils {
                 uint256 rawAmount =
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems_, BasketToken(basket).totalSupply());
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 withdrawAmount = self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[0]);
+                uint256 withdrawAmount = self.eulerRouter.getQuote(rawAmount, usdAddress, assets[0]);
                 if (withdrawAmount <= balances[0]) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[0]
@@ -477,6 +479,7 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < externalTradesLength;) {
             ExternalTrade memory trade = externalTrades[i];
             uint256 tradeOwnershipLength = trade.basketTradeOwnership.length;
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             for (uint256 j; j < tradeOwnershipLength;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 address basket = ownership.basket;
