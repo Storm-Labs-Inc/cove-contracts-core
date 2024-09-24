@@ -419,7 +419,7 @@ library BasketManagerUtils {
     }
 
     // @notice Compares the result of completed token swaps to target weights. If target weights have not been met the
-    // retry counter is itterated and the state reverted to allow for additional token swaps to be proposed. If the
+    // retry counter is iterated and the state reverted to allow for additional token swaps to be proposed. If the
     // retry limit has been reached, advance the rebalance.
     /// @param self BasketManagerStorage struct containing strategy data.
     function _finalizeTokenSwaps(
