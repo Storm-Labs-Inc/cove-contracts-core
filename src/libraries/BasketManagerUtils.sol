@@ -215,7 +215,7 @@ library BasketManagerUtils {
             // slither-disable-start calls-loop
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] memory assets = self.basketAssets[basket];
+            address[] storage assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             if (assets.length == 0) {
                 revert BasketTokenNotFound();
@@ -281,7 +281,7 @@ library BasketManagerUtils {
     )
         external
     {
-        RebalanceStatus memory status = self.rebalanceStatus;
+        RebalanceStatus storage status = self.rebalanceStatus;
         if (status.status != Status.REBALANCE_PROPOSED) {
             revert MustWaitForRebalanceToComplete();
         }
@@ -341,7 +341,7 @@ library BasketManagerUtils {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] memory assets = self.basketAssets[basket];
+            address[] storage assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 assetsLength = assets.length;
             uint256[] memory balances = new uint256[](assetsLength);
@@ -349,10 +349,10 @@ library BasketManagerUtils {
             // Calculate current basket value
             for (uint256 j = 0; j < assetsLength;) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                balances[j] = self.basketBalanceOf[basket][assets[j]];
+                address asset = assets[j];
+                balances[j] = self.basketBalanceOf[basket][asset];
                 // Rounding direction: down
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+                basketValue += self.eulerRouter.getQuote(balances[j], asset, _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -542,7 +542,7 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < numBaskets;) {
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] memory assets = self.basketAssets[basket];
+            address[] storage assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 assetsLength = assets.length;
             afterTradeBasketAssetAmounts_[i] = new uint256[](assetsLength);
@@ -582,7 +582,7 @@ library BasketManagerUtils {
     {
         uint256 internalTradesLength = internalTrades.length;
         for (uint256 i = 0; i < internalTradesLength;) {
-            InternalTrade memory trade = internalTrades[i];
+            InternalTrade calldata trade = internalTrades[i];
             InternalTradeInfo memory info = InternalTradeInfo({
                 fromBasketIndex: _indexOf(basketsToRebalance, trade.fromBasket),
                 toBasketIndex: _indexOf(basketsToRebalance, trade.toBasket),
@@ -641,7 +641,7 @@ library BasketManagerUtils {
         private
     {
         for (uint256 i = 0; i < externalTrades.length;) {
-            ExternalTrade memory trade = externalTrades[i];
+            ExternalTrade calldata trade = externalTrades[i];
             // slither-disable-start uninitialized-local
             ExternalTradeInfo memory info;
             BasketOwnershipInfo memory ownershipInfo;
@@ -649,7 +649,7 @@ library BasketManagerUtils {
 
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
-                BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
+                BasketTradeOwnership calldata ownership = trade.basketTradeOwnership[j];
                 ownershipInfo.basketIndex = _indexOf(basketsToRebalance, ownership.basket);
                 ownershipInfo.buyTokenAssetIndex =
                     basketTokenToRebalanceAssetToIndex(self, ownership.basket, trade.buyToken);
@@ -726,7 +726,7 @@ library BasketManagerUtils {
             // slither-disable-next-line calls-loop
             uint64[] memory proposedTargetWeights = BasketToken(basket).getTargetWeights(epoch);
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] memory assets = self.basketAssets[basket];
+            address[] storage assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
