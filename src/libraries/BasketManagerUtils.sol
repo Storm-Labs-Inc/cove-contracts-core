@@ -340,8 +340,10 @@ library BasketManagerUtils {
         if (!_validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_)) {
             // target weights not met, attempt retry
             if (self.retryCount < _MAX_RETRIES) {
-                self.retryCount += 1;
                 // Put contract into retry state, allowing new trades to be proposed
+                self.retryCount += 1;
+                self.rebalanceStatus.timestamp = uint40(block.timestamp);
+                self.externalTradesHash = bytes32(0);
                 self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
                 return false;
             }
