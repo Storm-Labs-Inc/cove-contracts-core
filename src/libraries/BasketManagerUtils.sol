@@ -215,7 +215,7 @@ library BasketManagerUtils {
             // slither-disable-start calls-loop
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] storage assets = self.basketAssets[basket];
+            address[] memory assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             if (assets.length == 0) {
                 revert BasketTokenNotFound();
@@ -341,7 +341,7 @@ library BasketManagerUtils {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            address[] storage assets = self.basketAssets[basket];
+            address[] memory assets = self.basketAssets[basket];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 assetsLength = assets.length;
             uint256[] memory balances = new uint256[](assetsLength);
