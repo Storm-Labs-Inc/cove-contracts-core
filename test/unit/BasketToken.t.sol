@@ -1853,24 +1853,31 @@ contract BasketTokenTest is BaseTest, Constants {
     }
 
     function testFuzz_harvestManagementFee_returnsWhenZeroFee(uint16 feeBps) public {
-        vm.assume(feeBps < _MAX_MANAGEMENT_FEE);
+        vm.assume(feeBps <= _MAX_MANAGEMENT_FEE);
         uint256 balanceBefore = basket.balanceOf(feeCollector);
         vm.prank(address(basketManager));
         basket.harvestManagementFee(feeBps, alice);
         assertEq(basket.balanceOf(feeCollector), balanceBefore);
     }
 
-    function testFuzz_harvestManagementFee_revertsWhen_NotBasketManager(address caller) public {
+    function testFuzz_harvestManagementFee_revertsWhen_NotBasketManager(
+        address caller,
+        uint16 feeBps,
+        address receiver
+    )
+        public
+    {
         vm.assume(caller != address(basketManager));
+        vm.assume(feeBps <= _MAX_MANAGEMENT_FEE);
         vm.expectRevert(BasketToken.NotBasketManager.selector);
         vm.prank(caller);
-        basket.harvestManagementFee(10, caller);
+        basket.harvestManagementFee(feeBps, receiver);
     }
 
-    function testFuzz_harvestManagementFee_revertsWhen_feeBPSMax(uint16 feeBps) public {
-        vm.assume(feeBps >= _MAX_MANAGEMENT_FEE);
+    function testFuzz_harvestManagementFee_revertsWhen_feeBPSMax(uint16 feeBps, address receiver) public {
+        vm.assume(feeBps > _MAX_MANAGEMENT_FEE);
         vm.prank(address(basketManager));
         vm.expectRevert(abi.encodeWithSelector(BasketToken.InvalidManagementFee.selector));
-        basket.harvestManagementFee(feeBps, address(1));
+        basket.harvestManagementFee(feeBps, receiver);
     }
 }
