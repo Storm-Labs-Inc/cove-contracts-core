@@ -130,8 +130,6 @@ library BasketManagerUtils {
     error InternalTradeMinMaxAmountNotReached();
     /// @dev Reverts when the trade token amount is incorrect.
     error IncorrectTradeTokenAmount();
-    /// @dev Reverts when proposed token swaps have not yet been executed.
-    error TokenSwapNotExecuted();
     /// @dev Reverts when given external trades do not match.
     error ExternalTradeMisMatch();
     /// @dev Reverts when the delegatecall to the tokenswap adapter fails.
@@ -317,44 +315,6 @@ library BasketManagerUtils {
         self.externalTradesHash = keccak256(abi.encode(externalTrades));
     }
 
-    function _finalizeTokenSwaps(
-        BasketManagerStorage storage self,
-        ExternalTrade[] calldata externalTrades,
-        address[] calldata basketsToRebalance
-    )
-        internal
-        returns (bool success)
-    {
-        // slither-disable-next-line incorrect-equality
-        if (self.rebalanceStatus.status != Status.TOKEN_SWAP_EXECUTED) {
-            revert TokenSwapNotExecuted();
-        }
-        uint256 numBaskets = basketsToRebalance.length;
-        uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
-        uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
-        // 1. Claims tokens from completed trades, updates basketBalanceOf
-        _getResultsOfExternalTrades(self, externalTrades);
-        // 2. get basket current totalValue
-        _initializeBasketData(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
-        // 3. confirm that target weights have been met
-        if (!_validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_)) {
-            // target weights not met, attempt retry
-            if (self.retryCount < _MAX_RETRIES) {
-                // Put contract into retry state, allowing new trades to be proposed
-                self.retryCount += 1;
-                self.rebalanceStatus.timestamp = uint40(block.timestamp);
-                self.externalTradesHash = bytes32(0);
-                self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
-                return false;
-            }
-            console.log("_MAX_RETRIES reached, continuing rebalance anyway");
-            self.retryCount = 0;
-            return true;
-        } else {
-            return true;
-        }
-    }
-
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param self BasketManagerStorage struct containing strategy data.
@@ -458,6 +418,43 @@ library BasketManagerUtils {
         // slither-disable-end calls-loop
     }
 
+    // @notice Compares the result of completed token swaps to target weights. If target weights have not been met the
+    // retry counter is itterated and the state reverted to allow for additional token swaps to be proposed. If the
+    // retry limit has been reached, advance the rebalance.
+    /// @param self BasketManagerStorage struct containing strategy data.
+    function _finalizeTokenSwaps(
+        BasketManagerStorage storage self,
+        ExternalTrade[] calldata externalTrades,
+        address[] calldata basketsToRebalance
+    )
+        internal
+        returns (bool success)
+    {
+        // slither-disable-next-line incorrect-equality
+        if (self.rebalanceStatus.status != Status.TOKEN_SWAP_EXECUTED) {
+            // If the time limit has been reached and the swaps have not been executed put contract into retry state
+            return _checkRetryState(self);
+        }
+        uint256 numBaskets = basketsToRebalance.length;
+        uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
+        uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
+        // 1. Claims tokens from completed trades, updates basketBalanceOf
+        _getResultsOfExternalTrades(self, externalTrades);
+        // 2. get basket current totalValue
+        _initializeBasketData(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
+        // 3. confirm that target weights have been met
+        if (!_validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_)) {
+            // target weights not met, attempt retry
+            return _checkRetryState(self);
+        } else {
+            return true;
+        }
+    }
+
+    /// @notice Calls the token swap adapter to complete proposed token swaps.
+    /// @param self BasketManagerStorage struct containing strategy data.
+    /// @param externalTrades Array of external trades to be completed.
+    /// @return claimedAmounts amounts claimed from the completed token swaps
     function _completeTokenSwap(
         BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades
@@ -475,6 +472,8 @@ library BasketManagerUtils {
         claimedAmounts = abi.decode(data, (uint256[2][]));
     }
 
+    /// @notice Updates basketBalanceOf storage with result of completed token swaps
+    /// @param self BasketManagerStorage struct containing strategy data.
     function _getResultsOfExternalTrades(
         BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades
@@ -510,6 +509,22 @@ library BasketManagerUtils {
                 ++i;
             }
         }
+    }
+
+    /// @notice If max retries have not bee met advances the retry count and resets rebalance status to allow for new
+    /// token swaps to be proposed. If the maximum has been met returns true
+    /// @param self BasketManagerStorage struct containing strategy data.
+    function _checkRetryState(BasketManagerStorage storage self) internal returns (bool) {
+        if (self.retryCount < _MAX_RETRIES) {
+            self.retryCount += 1;
+            self.rebalanceStatus.timestamp = uint40(block.timestamp);
+            self.externalTradesHash = bytes32(0);
+            self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
+            return false;
+        }
+        console.log("_MAX_RETRIES reached, continuing rebalance anyway");
+        self.retryCount = 0;
+        return true;
     }
 
     /// FALLBACK REDEEM LOGIC ///

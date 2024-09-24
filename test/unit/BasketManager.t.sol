@@ -986,7 +986,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets);
     }
 
-    function testFuzz_completeRebalance_revertWhen_TokenSwapNotExecuted(
+    function testFuzz_completeRebalance_retriesWhen_TokenSwapNotExecuted(
         uint256 initialDepositAmount,
         uint256 sellWeight
     )
@@ -1008,8 +1008,70 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(rootAsset, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(initialDepositAmount));
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManagerUtils.TokenSwapNotExecuted.selector);
         basketManager.completeRebalance(trades, targetBaskets);
+        assertEq(basketManager.retryCount(), 1);
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+    }
+
+    function testFuzz_completeRebalance_passesWhen_TokenSwapNotExecuted_retryLimitReached(
+        uint256 initialDepositAmount,
+        uint256 sellWeight
+    )
+        public
+    {
+        _setTokenSwapAdapter();
+        // Setup basket and target weights
+        TradeTestParams memory params;
+        params.depositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
+        params.sellWeight = bound(sellWeight, 1e17, 1e18);
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = pairAsset;
+        address[][] memory basketAssets = new address[][](1);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](1);
+        initialDepositAmounts[0] = params.depositAmount;
+        uint256[][] memory targetWeights = new uint256[][](2);
+        targetWeights[0] = new uint256[](2);
+        targetWeights[0][0] = params.baseAssetWeight;
+        targetWeights[0][1] = params.sellWeight;
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
+        // Propose the rebalance
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(baskets);
+
+        for (uint8 i = 0; i < _MAX_RETRIES; i++) {
+            // 0 for the last input will guarantee the trade will be 100% unsuccessful
+            _proposeAndCompleteExternalTrades(baskets, params.depositAmount, params.sellWeight, 0);
+            assertEq(basketManager.retryCount(), uint256(i + 1));
+            assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        }
+        assertEq(basketManager.retryCount(), uint256(_MAX_RETRIES));
+
+        // We have reached max retries, if the next proposed token swap does not execute the rebalance
+        // will successfully complete.
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        externalTrades[0] = ExternalTrade({
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            sellAmount: params.depositAmount * params.sellWeight / 1e18,
+            minAmount: (params.depositAmount * params.sellWeight / 1e18) * 0.995e18 / 1e18,
+            basketTradeOwnership: tradeOwnerships
+        });
+        vm.prank(rebalancer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
+        // Simulate the passage of time
+        vm.warp(block.timestamp + 15 minutes + 1);
+        // Token swaps have not been executed
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
+        vm.prank(rebalancer);
+        basketManager.completeRebalance(externalTrades, baskets);
+        assertEq(basketManager.retryCount(), uint256(0));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
     function testFuzz_completeRebalance_revertWhen_completeTokenSwapFailed(
