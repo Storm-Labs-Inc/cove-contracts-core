@@ -333,7 +333,7 @@ library BasketManagerUtils {
         uint256[] memory totalBasketValue_ = new uint256[](numBaskets);
         uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](numBaskets);
         // 1. Claims tokens from completed trades, updates basketBalanceOf
-        _getResultsOfExternalTrades(self, externalTrades, basketsToRebalance);
+        _getResultsOfExternalTrades(self, externalTrades);
         // 2. get basket current totalValue
         _initializeBasketData(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
         // 3. confirm that target weights have been met
@@ -357,6 +357,7 @@ library BasketManagerUtils {
     /// 15 minutes since the last action.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
+    // slither-disable-next-line cyclomatic-complexity
     function completeRebalance(
         BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades,
@@ -457,35 +458,31 @@ library BasketManagerUtils {
 
     function _getResultsOfExternalTrades(
         BasketManagerStorage storage self,
-        ExternalTrade[] calldata externalTrades,
-        address[] calldata basketsToRebalance
+        ExternalTrade[] calldata externalTrades
     )
         internal
     {
-        // Check if the given baskets are the same as the ones proposed
-        if (keccak256(abi.encodePacked(basketsToRebalance)) != self.rebalanceStatus.basketHash) {
-            revert BasketsMismatch();
-        }
         uint256 externalTradesLength = externalTrades.length;
-        // slither-disable-next-line low-level-calls
+        // slither-disable-start low-level-calls
         (bool success, bytes memory data) =
             self.tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.completeTokenSwap, (externalTrades)));
+        // slither-disable-end low-level-calls
         if (!success) {
             revert CompleteTokenSwapFailed();
         }
         uint256[2][] memory claimedAmounts = abi.decode(data, (uint256[2][]));
         // Update basketBalanceOf with amounts gained from swaps
+        // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
         for (uint256 i = 0; i < externalTradesLength;) {
             ExternalTrade memory trade = externalTrades[i];
-            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 tradeOwnershipLength = trade.basketTradeOwnership.length;
             for (uint256 j; j < tradeOwnershipLength;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 address basket = ownership.basket;
                 // Account for bought tokens
+                //TODO: confirm if this is the correct index
                 self.basketBalanceOf[basket][trade.buyToken] +=
-                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18); //TODO: confirm if
-                    // this is the correct index
+                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18);
                 // Account for sold tokens
                 self.basketBalanceOf[basket][trade.sellToken] +=
                     FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, 1e18);
