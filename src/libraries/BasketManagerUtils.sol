@@ -300,10 +300,8 @@ library BasketManagerUtils {
             self, externalTrades, basketsToRebalance, totalBasketValue_, afterTradeBasketAssetAmounts_
         );
         _validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
-
         status.timestamp = uint40(block.timestamp);
         status.status = Status.TOKEN_SWAP_PROPOSED;
-        self.rebalanceStatus = status;
         self.externalTradesHash = keccak256(abi.encode(externalTrades));
     }
 
