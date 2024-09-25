@@ -189,7 +189,6 @@ library BasketManagerUtils {
                 ++j;
             }
         }
-        // Interactions
         self.basketIdToAddress[basketId] = basket;
         unchecked {
             // Overflow not possible: basketTokensLength is less than the constant _MAX_NUM_OF_BASKET_TOKENS

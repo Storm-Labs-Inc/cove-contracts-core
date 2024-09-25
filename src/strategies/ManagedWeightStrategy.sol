@@ -28,7 +28,6 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     /// @dev Precision for weights. All results from getTargetWeights() should sum to _WEIGHT_PRECISION.
     uint64 internal constant _WEIGHT_PRECISION = 1e18;
     /// @dev Address of the BasketManager contract associated with this strategy.
-    // slither-disable-next-line uninitialized-state
     address internal immutable _basketManager;
 
     /// @dev Error thrown when an unsupported bit flag is provided.

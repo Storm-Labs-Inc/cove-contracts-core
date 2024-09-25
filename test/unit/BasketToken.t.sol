@@ -121,8 +121,8 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(token.decimals(), assetDecimals);
         assertEq(token.bitFlag(), bitFlag);
         assertEq(token.strategy(), strategy);
-        assertEq(token.admin(), tokenAdmin);
         assertEq(token.basketManager(), from);
+        assertTrue(token.hasRole(DEFAULT_ADMIN_ROLE, tokenAdmin));
         // https://eips.ethereum.org/EIPS/eip-165
         bytes4 erc165 = 0x01ffc9a7;
         // https://eips.ethereum.org/EIPS/eip-7575#erc-165-support
@@ -181,26 +181,6 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.prank(from);
         vm.expectRevert(Errors.ZeroAddress.selector);
         token.initialize(ERC20(asset), name, symbol, bitFlag, address(0), owner_);
-    }
-
-    function testFuzz_setBasketManager(address newBasketManager) public {
-        vm.assume(newBasketManager != address(0));
-        vm.prank(owner);
-        basket.setBasketManager(newBasketManager);
-        assertEq(basket.basketManager(), newBasketManager);
-    }
-
-    function testFuzz_setBasketManager_revertsWhen_notOwner(address from, address newBasketManager) public {
-        vm.assume(newBasketManager != address(0) && from != address(owner));
-        vm.prank(from);
-        vm.expectRevert(_formatAccessControlError(from, DEFAULT_ADMIN_ROLE));
-        basket.setBasketManager(newBasketManager);
-    }
-
-    function test_setBasketManager_revertsWhen_zeroAddress() public {
-        vm.prank(owner);
-        vm.expectRevert(Errors.ZeroAddress.selector);
-        basket.setBasketManager(address(0));
     }
 
     function testFuzz_setAssetRegistry(address newAssetRegistry) public {
@@ -287,7 +267,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.totalPendingDeposits(), totalPendingDepositBefore + amount);
     }
 
-    function test_requestDeposit_passWhen_pendingDepositRequest() public {
+    function test_requestDeposit_passWhen_existingDepositRequest() public {
         uint256 amount = 1e22;
         uint256 amount2 = 1e20;
         dummyAsset.mint(alice, amount);
@@ -303,6 +283,34 @@ contract BasketTokenTest is BaseTest, Constants {
         uint256 newRequestId = basket.requestDeposit(amount2, alice, alice);
         assertEq(basket.pendingDepositRequest(newRequestId, alice), amount + amount2);
         assertEq(basket.totalPendingDeposits(), amount + amount2);
+    }
+
+    function testFuzz_requestDeposit_revertWhen_MustClaimOutstandingDeposit(
+        uint256 amount,
+        address controller
+    )
+        public
+    {
+        // Assume a valid deposit amount greater than 0
+        vm.assume(amount > 0 && amount <= type(uint256).max);
+
+        // Mint the deposit amount to alice
+        dummyAsset.mint(alice, amount);
+
+        // Alice approves the basket
+        vm.startPrank(alice);
+        dummyAsset.approve(address(basket), amount);
+        basket.requestDeposit(amount, controller, alice);
+        vm.stopPrank();
+
+        // prepareForRebalance is called
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance();
+
+        // Attempt to make a second deposit without waiting for the first one to be fulfilled
+        vm.prank(alice);
+        vm.expectRevert(BasketToken.MustClaimOutstandingDeposit.selector);
+        basket.requestDeposit(amount, controller, alice);
     }
 
     function test_requestDeposit_revertWhen_zeroAmount() public {
@@ -439,7 +447,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.fulfillDeposit(0);
     }
 
-    function testFuzz_fulfillDeposit_revertsWhen_ZeroPendingDeposits(
+    function testFuzz_fulfillDeposit_revertWhen_NoPendingDeposits(
         uint256 issuedShares,
         uint256 totalDepositAmount,
         uint256 redeemAmount
@@ -452,18 +460,24 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.totalPendingDeposits(), 0);
         vm.startPrank(address(basketManager));
         basket.prepareForRebalance();
+        vm.expectRevert(BasketToken.DepositRequestAlreadyFulfilled.selector);
+        basket.fulfillDeposit(issuedShares);
+    }
+
+    function testFuzz_fulfillDeposit_revertsWhen_ZeroPendingDeposits(uint256 issuedShares) public {
+        vm.startPrank(address(basketManager));
         vm.expectRevert(BasketToken.ZeroPendingDeposits.selector);
         basket.fulfillDeposit(issuedShares);
     }
 
     function testFuzz_fulfillDeposit_revertsWhen_notBasketManager(address from, uint256 issuedShares) public {
-        vm.assume(!basket.hasRole(BASKET_MANAGER_ROLE, from));
+        vm.assume(from != basket.basketManager());
         vm.prank(from);
-        vm.expectRevert(_formatAccessControlError(from, BASKET_MANAGER_ROLE));
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
         basket.fulfillDeposit(issuedShares);
     }
 
-    function testFuzz_fulFillDeposit_revertsWhen_prepareForRebalance_notCalled(
+    function testFuzz_fulFillDeposit_revertsWhen_DepositRequestAlreadyFulfilled(
         address from,
         uint256 issuedShares,
         uint256 amount
@@ -475,7 +489,7 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.startPrank(address(basketManager));
         basket.prepareForRebalance();
         basket.fulfillDeposit(issuedShares);
-        vm.expectRevert(BasketToken.PrepareForRebalanceNotCalled.selector);
+        vm.expectRevert(BasketToken.DepositRequestAlreadyFulfilled.selector);
         basket.fulfillDeposit(issuedShares);
     }
 
@@ -927,7 +941,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.requestRedeem(amount, alice, alice);
     }
 
-    function test_requestRedeem_revertWhen_outstandingRedeem() public {
+    function test_requestRedeem_revertWhen_MustClaimOutstandingRedeem_Claimable() public {
         uint256 amount = 1e18;
         uint256 issuedShares = 1e17;
         dummyAsset.mint(alice, amount);
@@ -950,6 +964,34 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.stopPrank();
         vm.prank(alice);
         basket.requestRedeem(issuedShares / 2, alice, alice);
+    }
+
+    function testFuzz_requestRedeem_revertWhen_MustClaimOutstandingRedeem_Pending(
+        uint256 amount,
+        uint256 issuedShares
+    )
+        public
+    {
+        uint256 requestId = testFuzz_requestRedeem(amount, issuedShares);
+
+        uint256[] memory redeemShares = new uint256[](MAX_USERS);
+        for (uint256 i = 0; i < MAX_USERS; ++i) {
+            redeemShares[i] = basket.pendingRedeemRequest(requestId, fuzzedUsers[i]);
+        }
+
+        uint256 totalPendingRedeemsBefore = basket.totalPendingRedemptions();
+        assertGt(totalPendingRedeemsBefore, 0, "Total pending redeems should be greater than 0 for this test");
+
+        // Call prepareForRebalance and fulfillRedeem
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance();
+
+        for (uint256 i = 0; i < MAX_USERS; ++i) {
+            address caller = fuzzedUsers[i];
+            vm.prank(caller);
+            vm.expectRevert(BasketToken.MustClaimOutstandingRedeem.selector);
+            basket.requestRedeem(redeemShares[i], caller, caller);
+        }
     }
 
     function testFuzz_fulfillRedeem(
@@ -1017,6 +1059,27 @@ contract BasketTokenTest is BaseTest, Constants {
         }
     }
 
+    function testFuzz_fulfillRedeem_revertsWhen_CannotFulfillWithZeroAssets(
+        uint256 amount,
+        uint256 issuedShares
+    )
+        public
+    {
+        testFuzz_requestRedeem(amount, issuedShares);
+        // Call prepareForRebalance and fulfillRedeem with zero amount
+        vm.startPrank(address(basketManager));
+        basket.prepareForRebalance();
+        vm.expectRevert(BasketToken.CannotFulfillWithZeroAssets.selector);
+        basket.fulfillRedeem(0);
+    }
+
+    function testFuzz_fulfillRedeem_revertsWhen_ZeroPendingRedeems(uint256 assets) public {
+        assertEq(basket.totalPendingRedemptions(), 0);
+        vm.startPrank(address(basketManager));
+        vm.expectRevert(BasketToken.ZeroPendingRedeems.selector);
+        basket.fulfillRedeem(assets);
+    }
+
     function testFuzz_prepareForRebalance(
         uint256 totalAmount,
         uint256 issuedShares
@@ -1070,7 +1133,23 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.prepareForRebalance(), 0);
     }
 
-    function testFuzz_fulfillRedeem_revertsWhen_prepareForRebalance_notCalled(
+    function test_prepareForRebalance_doesNotAdvanceRedeemRequestId_whenZero() public {
+        assertEq(basket.totalPendingRedemptions(), 0);
+        uint256 nextRedeemRequestId = basket.nextRedeemRequestId();
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance();
+        assertEq(basket.nextRedeemRequestId(), nextRedeemRequestId);
+    }
+
+    function test_prepareForRebalance_doesNotAdvanceDepositRequestId_whenNonZero() public {
+        assertEq(basket.totalPendingDeposits(), 0);
+        uint256 nextDepositRequestId = basket.nextDepositRequestId();
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance();
+        assertEq(basket.nextDepositRequestId(), nextDepositRequestId);
+    }
+
+    function testFuzz_fulfillRedeem_revertsWhen_RedeemRequestAlreadyFulfilled(
         uint256 amount,
         uint256 issuedShares,
         uint256 redeemAmount,
@@ -1078,9 +1157,10 @@ contract BasketTokenTest is BaseTest, Constants {
     )
         public
     {
+        vm.assume(fulfillAmount > 0);
         testFuzz_redeem(amount, issuedShares, redeemAmount);
         vm.startPrank(address(basketManager));
-        vm.expectRevert(BasketToken.PrepareForRebalanceNotCalled.selector);
+        vm.expectRevert(BasketToken.RedeemRequestAlreadyFulfilled.selector);
         basket.fulfillRedeem(fulfillAmount);
         vm.stopPrank();
     }
@@ -1149,15 +1229,17 @@ contract BasketTokenTest is BaseTest, Constants {
         }
     }
 
-    function test_fulfillRedeem_revertsWhen_notBasketManager() public {
-        vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
-        vm.prank(alice);
+    function testFuzz_fulfillRedeem_revertsWhen_NotBasketManager(address from) public {
+        vm.assume(from != basket.basketManager());
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
+        vm.prank(from);
         basket.fulfillRedeem(1e18);
     }
 
-    function test_prepareForRebalance_revertsWhen_notBasketManager() public {
-        vm.expectRevert(_formatAccessControlError(alice, BASKET_MANAGER_ROLE));
-        vm.prank(alice);
+    function testFuzz_prepareForRebalance_revertsWhen_NotBasketManager(address from) public {
+        vm.assume(from != basket.basketManager());
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
+        vm.prank(from);
         basket.prepareForRebalance();
     }
 
@@ -1423,6 +1505,47 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.fallbackTriggered(requestId), true, "Fallback status of requestId should be changed to true");
     }
 
+    function test_fallbackRedeemTrigger_revertsWhen_ZeroPendingRedeems() public {
+        vm.expectRevert(BasketToken.ZeroPendingRedeems.selector);
+        vm.prank(address(basketManager));
+        basket.fallbackRedeemTrigger();
+    }
+
+    function testFuzz_fallbackRedeemTrigger_revertsWhen_NotBasketManager(address caller) public {
+        vm.assume(caller != basket.basketManager());
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
+        vm.prank(caller);
+        basket.fallbackRedeemTrigger();
+    }
+
+    function testFuzz_fallbackRedeemTrigger_revertsWhen_RedeemRequestAlreadyFallbacked(
+        uint256 totalDepositAmount,
+        uint256 issuedShares
+    )
+        public
+    {
+        testFuzz_prepareForRebalance(totalDepositAmount, issuedShares);
+        // Call fallbackRedeemTrigger
+        vm.startPrank(address(basketManager));
+        basket.fallbackRedeemTrigger();
+        vm.expectRevert(BasketToken.RedeemRequestAlreadyFallbacked.selector);
+        basket.fallbackRedeemTrigger();
+    }
+
+    function test_fallbackRedeemTrigger_revertsWhen_RedeemRequestAlreadyFulfilled(
+        uint256 amount,
+        uint256 issuedShares,
+        uint256 fulfillAmount
+    )
+        public
+    {
+        testFuzz_fulfillRedeem(amount, issuedShares, fulfillAmount);
+        // Call fallbackRedeemTrigger
+        vm.startPrank(address(basketManager));
+        vm.expectRevert(BasketToken.RedeemRequestAlreadyFulfilled.selector);
+        basket.fallbackRedeemTrigger();
+    }
+
     function testFuzz_claimFallbackShares(uint256 totalDepositAmount, uint256 issuedShares) public {
         testFuzz_fallbackRedeemTrigger(totalDepositAmount, issuedShares);
 
@@ -1431,12 +1554,19 @@ contract BasketTokenTest is BaseTest, Constants {
             uint256 userBalanceBefore = basket.balanceOf(user);
             uint256 basketBalanceBefore = basket.balanceOf(address(basket));
             uint256 userClaimable = basket.claimableFallbackShares(user);
-            assertGt(
+            assertEq(
                 basket.pendingRedeemRequest(basket.lastRedeemRequestId(user), user),
                 0,
-                "testFuzz_claimFallbackShares: Pending redeem request should be greater than 0 still"
+                "testFuzz_claimFallbackShares: Pending redeem request should be zero"
             );
-            assertGt(userClaimable, 0, "testFuzz_claimFallbackShares: Claimable shares should be greater than 0");
+            assertEq(
+                basket.claimableRedeemRequest(basket.lastRedeemRequestId(user), user),
+                0,
+                "testFuzz_claimFallbackShares: Claimable redeem request should be zero"
+            );
+            assertGt(
+                userClaimable, 0, "testFuzz_claimFallbackShares: Claimable fallback shares should be greater than 0"
+            );
 
             // Claim fallback shares
             vm.prank(user);
@@ -1460,7 +1590,7 @@ contract BasketTokenTest is BaseTest, Constants {
             assertEq(
                 basket.claimableFallbackShares(user),
                 0,
-                "testFuzz_claimFallbackShares: Claimable shares should be 0 after claim"
+                "testFuzz_claimFallbackShares: Claimable fallback shares should be 0 after claim"
             );
             assertEq(
                 basket.pendingRedeemRequest(basket.lastRedeemRequestId(user), user),
@@ -1841,24 +1971,31 @@ contract BasketTokenTest is BaseTest, Constants {
     }
 
     function testFuzz_harvestManagementFee_returnsWhenZeroFee(uint16 feeBps) public {
-        vm.assume(feeBps < _MAX_MANAGEMENT_FEE);
+        vm.assume(feeBps <= _MAX_MANAGEMENT_FEE);
         uint256 balanceBefore = basket.balanceOf(feeCollector);
         vm.prank(address(basketManager));
         basket.harvestManagementFee(feeBps, alice);
         assertEq(basket.balanceOf(feeCollector), balanceBefore);
     }
 
-    function testFuzz_harvestManagementFee_revertsWhen_calledByNotBasketManager(address caller) public {
+    function testFuzz_harvestManagementFee_revertsWhen_NotBasketManager(
+        address caller,
+        uint16 feeBps,
+        address receiver
+    )
+        public
+    {
         vm.assume(caller != address(basketManager));
-        vm.expectRevert(_formatAccessControlError(caller, BASKET_MANAGER_ROLE));
+        vm.assume(feeBps <= _MAX_MANAGEMENT_FEE);
+        vm.expectRevert(BasketToken.NotBasketManager.selector);
         vm.prank(caller);
-        basket.harvestManagementFee(10, caller);
+        basket.harvestManagementFee(feeBps, receiver);
     }
 
-    function testFuzz_harvestManagementFee_revertsWhen_feeBPSMax(uint16 feeBps) public {
-        vm.assume(feeBps >= _MAX_MANAGEMENT_FEE);
+    function testFuzz_harvestManagementFee_revertsWhen_feeBPSMax(uint16 feeBps, address receiver) public {
+        vm.assume(feeBps > _MAX_MANAGEMENT_FEE);
         vm.prank(address(basketManager));
         vm.expectRevert(abi.encodeWithSelector(BasketToken.InvalidManagementFee.selector));
-        basket.harvestManagementFee(feeBps, address(1));
+        basket.harvestManagementFee(feeBps, receiver);
     }
 }
