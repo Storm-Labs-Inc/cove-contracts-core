@@ -7,7 +7,7 @@
     "prepare": "husky && pnpm run forge-deploy:build",
     "clean": "rm -rf cache out crytic-export generated && forge clean",
     "build": "./forge-deploy gen-deployer && forge build",
-    "build:slither": "forge clean && forge build --skip */test/** */script/** */generated/** src/AnchoredOracle.sol --build-info",
+    "build:slither": "forge clean && forge build --skip */test/** */script/** */generated/** --build-info",
     "test": "forge test -vvv --gas-report",
     "coverage": "forge coverage --report lcov",
     "slither": "pnpm run build:slither && slither . --ignore-compile",
