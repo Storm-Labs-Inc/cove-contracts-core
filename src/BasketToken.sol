@@ -72,7 +72,18 @@ contract BasketToken is
 
     /// EVENTS ///
     /// @notice Emitted when the management fee is harvested.
-    event ManagementFeeHarvested(uint256 indexed timestamp, uint256 fee);
+    /// @param fee The amount of the management fee harvested.
+    event ManagementFeeHarvested(uint256 fee);
+    /// @notice Emitted when a deposit request is fulfilled and assets are transferred to the user.
+    /// @param requestId The unique identifier of the deposit request.
+    /// @param assets The amount of assets that were deposited.
+    /// @param shares The number of shares minted for the deposit.
+    event DepositFulfilled(uint256 indexed requestId, uint256 assets, uint256 shares);
+    /// @notice Emitted when a redemption request is fulfilled and shares are burned.
+    /// @param requestId The unique identifier of the redemption request.
+    /// @param shares The number of shares redeemed.
+    /// @param assets The amount of assets returned to the user.
+    event RedeemFulfilled(uint256 indexed requestId, uint256 shares, uint256 assets);
 
     /// ERRORS ///
     error ZeroPendingDeposits();
@@ -325,6 +336,7 @@ contract BasketToken is
         }
         // Effects
         depositRequest.fulfilledShares = shares;
+        emit DepositFulfilled(currentRequestId, assets, shares);
         _mint(address(this), shares);
         // Interactions
         // transfer the assets to the basket manager
@@ -371,6 +383,7 @@ contract BasketToken is
         }
         // Effects
         redeemRequest.fulfilledAssets = assets;
+        emit RedeemFulfilled(currentRequestId, sharesPendingRedemption, assets);
         _burn(address(this), sharesPendingRedemption);
         // Interactions
         // slither-disable-next-line arbitrary-send-erc20
@@ -468,6 +481,9 @@ contract BasketToken is
         if (redeemRequest.fulfilledAssets > 0) {
             revert RedeemRequestAlreadyFulfilled();
         }
+        if (redeemRequest.totalRedeemShares == 0) {
+            revert ZeroPendingRedeems();
+        }
         redeemRequest.fallbackTriggered = true;
     }
 
@@ -540,12 +556,12 @@ contract BasketToken is
             if (timeSinceLastHarvest != 0) {
                 // remove shares held by the treasury or currently pending redemption from calculation
                 uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
-                    - pendingRedeemRequest(nextRedeemRequestId - 2, feeCollector);
+                    - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
                 uint256 fee = FixedPointMathLib.fullMulDiv(
                     currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
                 );
                 if (fee != 0) {
-                    emit ManagementFeeHarvested(block.timestamp, fee);
+                    emit ManagementFeeHarvested(fee);
                     _mint(feeCollector, fee);
                     // Interactions
                     FeeCollector(feeCollector).notifyHarvestFee(fee);
