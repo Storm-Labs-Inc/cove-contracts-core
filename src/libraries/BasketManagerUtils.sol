@@ -341,11 +341,11 @@ library BasketManagerUtils {
         if (block.timestamp - self.rebalanceStatus.timestamp < 15 minutes) {
             revert TooEarlyToCompleteRebalance();
         }
-        if (keccak256(abi.encode(externalTrades)) != self.externalTradesHash) {
-            revert ExternalTradeMisMatch();
-        }
         // if external trades are proposed and executed, finalize them and claim results from the trades
         if (self.rebalanceStatus.status == Status.TOKEN_SWAP_EXECUTED) {
+            if (keccak256(abi.encode(externalTrades)) != self.externalTradesHash) {
+                revert ExternalTradeMisMatch();
+            }
             _getResultsOfExternalTrades(self, externalTrades);
         }
 
