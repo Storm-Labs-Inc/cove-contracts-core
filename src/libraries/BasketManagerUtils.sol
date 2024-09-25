@@ -327,7 +327,7 @@ library BasketManagerUtils {
     )
         external
     {
-        // Revert if there is no rebalance in progess
+        // Revert if there is no rebalance in progress
         // slither-disable-next-line incorrect-equality
         if (self.rebalanceStatus.status == Status.NOT_STARTED) {
             revert NoRebalanceInProgress();
@@ -344,7 +344,7 @@ library BasketManagerUtils {
         if (keccak256(abi.encode(externalTrades)) != self.externalTradesHash) {
             revert ExternalTradeMisMatch();
         }
-        // if external trades are proposed and exectued, finalize them and claim results from the trades
+        // if external trades are proposed and executed, finalize them and claim results from the trades
         if (self.rebalanceStatus.status == Status.TOKEN_SWAP_EXECUTED) {
             _getResultsOfExternalTrades(self, externalTrades);
         }
@@ -357,7 +357,7 @@ library BasketManagerUtils {
         if (self.retryCount < _MAX_RETRIES) {
             if (!_validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_)) {
                 // If target weights are not met and we a have not reached max retries, revert to beginning of rebalance
-                // to allow for additional token swaps to be proposed and itterate retryCount.
+                // to allow for additional token swaps to be proposed and iterate retryCount.
                 self.retryCount += 1;
                 self.rebalanceStatus.timestamp = uint40(block.timestamp);
                 self.externalTradesHash = bytes32(0);
