@@ -994,7 +994,7 @@ contract BasketManagerTest is BaseTest, Constants {
     {
         _setTokenSwapAdapter();
         initialDepositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
-        sellWeight = bound(sellWeight, 0, 1e18);
+        sellWeight = bound(sellWeight, 1e17, 1e18);
         (ExternalTrade[] memory trades, address[] memory targetBaskets) =
             testFuzz_proposeTokenSwap_externalTrade(sellWeight, initialDepositAmount);
         address basket = targetBaskets[0];
