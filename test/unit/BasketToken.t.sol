@@ -3,7 +3,7 @@ pragma solidity 0.8.23;
 
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -18,6 +18,7 @@ import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20DecimalsMockImpl } from "test/utils/mocks/ERC20DecimalsMockImpl.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 import { MockFeeCollector } from "test/utils/mocks/MockFeeCollector.sol";
 

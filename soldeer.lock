@@ -1,0 +1,58 @@
+[[dependencies]]
+name = "@openzeppelin-contracts"
+version = "5.0.2"
+source = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_0_2_14-03-2024_06:11:59_contracts.zip"
+checksum = "8bc4f0acc7c187771b878d46f7de4bfad1acad2eb5d096d9d05d34035853f5c3"
+integrity = "55881f6114aa36158566ef52b486d9d96b217c3e47d0e24bbd4994a8cfb5ee7c"
+
+[[dependencies]]
+name = "@openzeppelin-contracts-upgradeable"
+version = "5.0.2"
+source = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts-upgradeable/5_0_2_14-03-2024_06:12:07_contracts-upgradeable.zip"
+checksum = "fb3f8db8541fc01636f91b0e7d9dd6f450f1bf7e2b4a17e96caf6e779ace8f5b"
+integrity = "4bded842e12902cca59a500494d26586b3baea76b59150fd4e2b1d29078a2e71"
+
+[[dependencies]]
+name = "@pythnetwork-pyth-sdk-solidity"
+version = "4.0.0"
+source = "https://soldeer-revisions.s3.amazonaws.com/@pythnetwork-pyth-sdk-solidity/4_0_0_09-08-2024_06:26:20_pyth-sdk-solidity.zip"
+checksum = "d29ff0824fa5b197ecfba3ed94edede7e8e148f46b89caa9873d80323f29aca6"
+integrity = "58c86bd769aede29d45a13e743fa356a99bc88c29a750e6cdd7c13d5c2d4d62a"
+
+[[dependencies]]
+name = "clones-with-immutable-args"
+version = "1.1.1"
+source = "https://github.com/wighawag/clones-with-immutable-args.git"
+checksum = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce"
+
+[[dependencies]]
+name = "euler-price-oracle"
+version = "1"
+source = "https://github.com/euler-xyz/euler-price-oracle.git"
+checksum = "8c397d784d0a7f19f47e5c6d62a11c755bd7c4a6"
+
+[[dependencies]]
+name = "forge-deploy"
+version = "1"
+source = "https://github.com/luandt/forge-deploy.git"
+checksum = "aa5945b8806f5b7f99542c0074145beb24ee349c"
+
+[[dependencies]]
+name = "forge-std"
+version = "1.9.2"
+source = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_2_06-08-2024_17:31:25_forge-std-1.9.2.zip"
+checksum = "20fd008c7c69b6c737cc0284469d1c76497107bc3e004d8381f6d8781cb27980"
+integrity = "f49457fb6591f0dfd8b59e02e6eb4508a115ef08a86b0803feb0a3939d82d783"
+
+[[dependencies]]
+name = "permit2"
+version = "1"
+source = "https://github.com/Uniswap/permit2.git"
+checksum = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+
+[[dependencies]]
+name = "solady"
+version = "0.0.243"
+source = "https://soldeer-revisions.s3.amazonaws.com/solady/0_0_243_20-09-2024_15:18:45_solady.zip"
+checksum = "0b2004bfee2531614e1e18b5dcd0abf658665fdaa0b1aac00886f7febe1dc332"
+integrity = "711eda611c50e5b1123dab547c8dddf46a61eaefe67fa90fdc2e72d8a4d16690"

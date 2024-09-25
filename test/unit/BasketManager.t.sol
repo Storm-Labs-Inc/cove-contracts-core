@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 

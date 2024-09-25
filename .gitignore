@@ -50,8 +50,9 @@ lcov.info
 /deployments/31337
 /deployments/1-fork
 
-
 # forge-deploy cli binary
 /forge-deploy
-
 .python-version
+
+# foundry
+dependencies/

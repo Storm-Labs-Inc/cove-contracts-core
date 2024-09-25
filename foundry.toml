@@ -1,7 +1,7 @@
 [profile.default]
 src = "src"
 out = "out"
-libs = ["lib", "node_modules"]
+libs = ["dependencies"]
 fs_permissions = [
 	{ access = "read", path = "./deployments" },
 	{ access = "read", path = "./out" },
@@ -11,6 +11,17 @@ ffi = true
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 2_000_000
+remappings = [
+	"@openzeppelin-contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-5.0.2/",
+	"@openzeppelin-contracts/=dependencies/@openzeppelin-contracts-5.0.2/",
+	"@pythnetwork-pyth-sdk-solidity/=dependencies/@pythnetwork-pyth-sdk-solidity-4.0.0/",
+	"clones-with-immutable-args/=dependencies/clones-with-immutable-args-1.1.1/",
+	"euler-price-oracle/=dependencies/euler-price-oracle-1/",
+	"forge-deploy/=dependencies/forge-deploy-1/",
+	"forge-std/=dependencies/forge-std-1.9.2/",
+	"permit2/=dependencies/permit2-1/",
+	"solady/=dependencies/solady-0.0.243/",
+]
 
 [fmt]
 bracket_spacing = true
@@ -31,3 +42,19 @@ mainnet = "${MAINNET_RPC_URL}"
 
 [etherscan]
 mainnet = { key = "${API_KEY_ETHERSCAN}" }
+
+[soldeer]
+recursive_deps = true
+remappings_location = "config"
+remappings_version = false
+
+[dependencies]
+forge-std = "1.9.2"
+clones-with-immutable-args = { version = "1.1.1", git = "https://github.com/wighawag/clones-with-immutable-args.git", rev = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce" }
+euler-price-oracle = { version = "1", git = "https://github.com/euler-xyz/euler-price-oracle.git", rev = "8c397d784d0a7f19f47e5c6d62a11c755bd7c4a6" }
+permit2 = { version = "1", git = "https://github.com/Uniswap/permit2.git", rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219" }
+forge-deploy = { version = "1", git = "https://github.com/luandt/forge-deploy.git", rev = "aa5945b8806f5b7f99542c0074145beb24ee349c" }
+"@openzeppelin-contracts" = "5.0.2"
+solady = "0.0.243"
+"@pythnetwork-pyth-sdk-solidity" = "4.0.0"
+"@openzeppelin-contracts-upgradeable" = "5.0.2"
