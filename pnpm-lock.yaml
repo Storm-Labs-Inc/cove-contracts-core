@@ -27,8 +27,8 @@ importers:
         specifier: ^3.2.4
         version: 3.2.5
       solhint:
-        specifier: ^5.0.1
-        version: 5.0.1(typescript@5.3.3)
+        specifier: ^5.0.3
+        version: 5.0.3(typescript@5.3.3)
 
 packages:
 
@@ -964,8 +964,8 @@ packages:
     resolution: {integrity: sha512-bSiSngZ/jWeX93BqeIAbImyTbEihizcwNjFoRUIY/T1wWQsfsm2Vw1agPKylXvQTU7iASGdHhyqRlqQzfz+Htg==}
     engines: {node: '>=18'}
 
-  solhint@5.0.1:
-    resolution: {integrity: sha512-QeQLS9HGCnIiibt+xiOa/+MuP7BWz9N7C5+Mj9pLHshdkNhuo3AzCpWmjfWVZBUuwIUO3YyCRVIcYLR3YOKGfg==}
+  solhint@5.0.3:
+    resolution: {integrity: sha512-OLCH6qm/mZTCpplTXzXTJGId1zrtNuDYP5c2e6snIv/hdRVxPfBBz/bAlL91bY/Accavkayp2Zp2BaDSrLVXTQ==}
     hasBin: true
 
   spdx-correct@3.2.0:
@@ -2045,7 +2045,7 @@ snapshots:
       ansi-styles: 6.2.1
       is-fullwidth-code-point: 5.0.0
 
-  solhint@5.0.1(typescript@5.3.3):
+  solhint@5.0.3(typescript@5.3.3):
     dependencies:
       '@solidity-parser/parser': 0.18.0
       ajv: 6.12.6
