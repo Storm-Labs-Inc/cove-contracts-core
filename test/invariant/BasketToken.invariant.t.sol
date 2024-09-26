@@ -5,16 +5,15 @@ import { StdInvariant } from "lib/forge-std/src/StdInvariant.sol";
 import { Clones } from "lib/openzeppelin-contracts/contracts/proxy/Clones.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { BasketToken } from "src/BasketToken.sol";
+import { InvariantHandler } from "test/invariant/InvariantHandler.t.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract BasketToken_InvariantTest is StdInvariant, BaseTest {
     BasketTokenHandler public basketTokenHandler;
-    BasketToken public basketTokenImpl;
 
     function setUp() public override {
         super.setUp();
-        basketTokenImpl = new BasketToken();
-        basketTokenHandler = new BasketTokenHandler(basketTokenImpl);
+        basketTokenHandler = new BasketTokenHandler(new BasketToken());
         vm.label(address(basketTokenHandler), "basketTokenHandler");
         targetContract(address(basketTokenHandler));
     }
