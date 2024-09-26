@@ -1,18 +1,34 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { CommonBase } from "lib/forge-std/src/Base.sol";
-import { StdCheats } from "lib/forge-std/src/StdCheats.sol";
-import { StdUtils } from "lib/forge-std/src/StdUtils.sol";
+import { console } from "forge-std/console.sol";
+import { Test } from "lib/forge-std/src/Test.sol";
 
-contract InvariantHandler is CommonBase, StdCheats, StdUtils {
+contract InvariantHandler is Test {
     address[] public actors;
     address internal currentActor;
+
+    constructor(uint256 actorCount) {
+        // Create actors and fund them with 100 ether
+        if (actorCount != 0) {
+            console.log("InvariantHandler: Creating %d actors", actorCount);
+            actors = new address[](actorCount);
+            for (uint256 i = 0; i < actorCount; i++) {
+                string memory name = string.concat("actor-", vm.toString(i));
+                actors[i] = makeAddr(name);
+                vm.deal(actors[i], 100 ether);
+            }
+        } else {
+            // If no actors are created, log a message
+            console.log("InvariantHandler: No actors created");
+        }
+    }
 
     modifier useActor(uint256 actorIndexSeed) {
         currentActor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
         vm.startPrank(currentActor);
         _;
         vm.stopPrank();
+        currentActor = address(this);
     }
 }

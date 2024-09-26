@@ -13,7 +13,7 @@ import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
-contract FeeCollectorTest is BaseTest, Constants {
+contract FeeCollectorTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     FeeCollector public feeCollector;

@@ -22,7 +22,7 @@ import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
-contract BasketTokenTest is BaseTest, Constants {
+contract BasketTokenTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     uint256 private constant MAX_USERS = 20;

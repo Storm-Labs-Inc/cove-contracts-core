@@ -22,7 +22,7 @@ import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
-contract BasketManagerTest is BaseTest, Constants {
+contract BasketManagerTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     BasketManager public basketManager;
