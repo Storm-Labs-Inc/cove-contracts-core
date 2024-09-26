@@ -77,7 +77,7 @@ library BasketManagerUtils {
     /// @notice Precision used for weight calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Maximum number of retries for a rebalance.
-    uint8 private constant _MAX_RETRIES = 8;
+    uint8 private constant _MAX_RETRIES = 3;
 
     /// EVENTS ///
     /// @notice Emitted when an internal trade is settled.
@@ -131,7 +131,7 @@ library BasketManagerUtils {
     /// @dev Reverts when the trade token amount is incorrect.
     error IncorrectTradeTokenAmount();
     /// @dev Reverts when given external trades do not match.
-    error ExternalTradeMisMatch();
+    error ExternalTradeMismatch();
     /// @dev Reverts when the delegatecall to the tokenswap adapter fails.
     error CompleteTokenSwapFailed();
 
@@ -343,20 +343,20 @@ library BasketManagerUtils {
         // if external trades are proposed and executed, finalize them and claim results from the trades
         if (self.rebalanceStatus.status == Status.TOKEN_SWAP_EXECUTED) {
             if (keccak256(abi.encode(externalTrades)) != self.externalTradesHash) {
-                revert ExternalTradeMisMatch();
+                revert ExternalTradeMismatch();
             }
             _getResultsOfExternalTrades(self, externalTrades);
         }
 
-        uint256 basketsToRebalanceLength = basketsToRebalance.length;
-        uint256[] memory totalBasketValue_ = new uint256[](basketsToRebalanceLength);
-        uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](basketsToRebalanceLength);
+        uint256 len = basketsToRebalance.length;
+        uint256[] memory totalBasketValue_ = new uint256[](len);
+        uint256[][] memory afterTradeBasketAssetAmounts_ = new uint256[][](len);
         _initializeBasketData(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_);
         // Confirm that target weights have been met, if max retries is reached continue regardless
         if (self.retryCount < _MAX_RETRIES) {
             if (!_validateTargetWeights(self, basketsToRebalance, afterTradeBasketAssetAmounts_, totalBasketValue_)) {
-                // If target weights are not met and we a have not reached max retries, revert to beginning of rebalance
-                // to allow for additional token swaps to be proposed and iterate retryCount.
+                // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
+                // to allow for additional token swaps to be proposed and increment retryCount.
                 self.retryCount += 1;
                 self.rebalanceStatus.timestamp = uint40(block.timestamp);
                 self.externalTradesHash = bytes32(0);
@@ -364,7 +364,6 @@ library BasketManagerUtils {
                 return;
             }
         }
-        self.retryCount = 0;
         _finalizeRebalance(self, basketsToRebalance);
     }
 
@@ -506,11 +505,13 @@ library BasketManagerUtils {
         self.rebalanceStatus.epoch += 1;
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
+        self.externalTradesHash = bytes32(0);
+        self.retryCount = 0;
 
         // Process the redeems for the given baskets
         // slither-disable-start calls-loop
-        uint256 basketsToRebalanceLength = basketsToRebalance.length;
-        for (uint256 i = 0; i < basketsToRebalanceLength;) {
+        uint256 len = basketsToRebalance.length;
+        for (uint256 i = 0; i < len;) {
             // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
             address basket = basketsToRebalance[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -553,10 +554,10 @@ library BasketManagerUtils {
                         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                         self.basketBalanceOf[basket][assets[0]] = balances[0] - withdrawAmount;
                     }
-                    // slither-disable-next-line reentrancy-no-eth,calls-loop
+                    // slither-disable-next-line reentrancy-no-eth
                     IERC20(assets[0]).forceApprove(basket, withdrawAmount);
                     // ERC20.transferFrom is called in BasketToken.fulfillRedeem
-                    // slither-disable-next-line reentrancy-no-eth,calls-loop
+                    // slither-disable-next-line reentrancy-no-eth
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
                 } else {
                     BasketToken(basket).fallbackRedeemTrigger();
@@ -612,7 +613,7 @@ library BasketManagerUtils {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 address basket = ownership.basket;
                 // Account for bought tokens
-                //TODO: confirm if this is the correct index
+                // TODO: confirm if this is the correct index
                 self.basketBalanceOf[basket][trade.buyToken] +=
                     FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18);
                 // Account for sold tokens
@@ -826,8 +827,8 @@ library BasketManagerUtils {
         returns (bool valid)
     {
         // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
-        uint256 basketsToRebalanceLength = basketsToRebalance.length;
-        for (uint256 i = 0; i < basketsToRebalanceLength;) {
+        uint256 len = basketsToRebalance.length;
+        for (uint256 i = 0; i < len;) {
             uint40 epoch = self.rebalanceStatus.epoch;
             address basket = basketsToRebalance[i];
             // slither-disable-next-line calls-loop

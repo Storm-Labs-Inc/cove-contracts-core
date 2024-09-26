@@ -287,8 +287,6 @@ contract BasketToken is
     /// @param requestId The id of the request.
     /// @param controller The address of the controller of the redemption request.
     /// @return shares The amount of shares pending redemption.
-    /// TODO: this will be incorrect for requestIds that have triggered a fallback, should be documented or explicitly
-    /// checked? (has no implact as cancelRedeemRequest does not allow a requestId to be specified)
     function pendingRedeemRequest(uint256 requestId, address controller) public view returns (uint256 shares) {
         RedeemRequestStruct storage redeemRequest = _redeemRequests[requestId];
         shares = redeemRequest.fulfilledAssets == 0 && !redeemRequest.fallbackTriggered

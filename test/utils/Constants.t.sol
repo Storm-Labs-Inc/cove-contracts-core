@@ -17,5 +17,5 @@ contract Constants {
     bytes4 public constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
     uint16 public constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 public constant _MAX_MANAGEMENT_FEE = 1e4;
-    uint8 public constant _MAX_RETRIES = 8;
+    uint8 public constant _MAX_RETRIES = 3;
 }

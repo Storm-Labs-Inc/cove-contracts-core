@@ -932,7 +932,7 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets);
     }
 
-    function testFuzz_completeRebalance_revertWhen_ExternalTradeMisMatch(
+    function testFuzz_completeRebalance_revertWhen_ExternalTradeMismatch(
         uint256 initialDepositAmount,
         uint256 sellWeight
     )
@@ -982,7 +982,7 @@ contract BasketManagerTest is BaseTest, Constants {
             abi.encode(claimedAmounts)
         );
         vm.prank(rebalancer);
-        vm.expectRevert(BasketManagerUtils.ExternalTradeMisMatch.selector);
+        vm.expectRevert(BasketManagerUtils.ExternalTradeMismatch.selector);
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets);
     }
 
@@ -1147,7 +1147,6 @@ contract BasketManagerTest is BaseTest, Constants {
         // Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = pairAsset;
-        // vm.prank(admin);
         address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
