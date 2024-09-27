@@ -120,31 +120,24 @@ contract BasketToken is
         string memory symbol_,
         uint256 bitFlag_,
         address strategy_,
+        address assetRegistry_,
         address admin_
     )
         public
         initializer
     {
-        if (admin_ == address(0) || strategy_ == address(0)) {
+        if (admin_ == address(0) || strategy_ == address(0) || assetRegistry_ == address(0)) {
             revert Errors.ZeroAddress();
         }
         basketManager = msg.sender;
         bitFlag = bitFlag_;
         strategy = strategy_;
+        assetRegistry = assetRegistry_;
         nextDepositRequestId = 2;
         nextRedeemRequestId = 3;
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         __ERC4626_init(asset_);
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
-    }
-
-    /// @notice Sets the asset registry address. Only callable by the contract admin.
-    /// @param newRegistry The new asset registry address.
-    function setAssetRegistry(address newRegistry) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newRegistry == address(0)) {
-            revert Errors.ZeroAddress();
-        }
-        assetRegistry = newRegistry;
     }
 
     /// @notice Returns the value of the basket in assets. This will be an estimate as it does not account for other

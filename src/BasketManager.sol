@@ -61,6 +61,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @param basketTokenImplementation Address of the basket token implementation.
     /// @param eulerRouter_ Address of the oracle registry.
     /// @param strategyRegistry_ Address of the strategy registry.
+    /// @param assetRegistry_ Address of the asset registry.
     /// @param admin Address of the admin.
     /// @param feeCollector_ Address of the fee collector.
     /// @param pauser Address of the pauser.
@@ -68,6 +69,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         address basketTokenImplementation,
         address eulerRouter_,
         address strategyRegistry_,
+        address assetRegistry_,
         address admin,
         address feeCollector_,
         address pauser
@@ -81,6 +83,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         if (admin == address(0)) revert Errors.ZeroAddress();
         if (feeCollector_ == address(0)) revert Errors.ZeroAddress();
         if (pauser == address(0)) revert Errors.ZeroAddress();
+        if (assetRegistry_ == address(0)) revert Errors.ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -88,6 +91,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         // Initialize the BasketManagerUtils struct
         _bmStorage.strategyRegistry = StrategyRegistry(strategyRegistry_);
         _bmStorage.eulerRouter = EulerRouter(eulerRouter_);
+        _bmStorage.assetRegistry = assetRegistry_;
         _bmStorage.basketTokenImplementation = basketTokenImplementation;
         _bmStorage.feeCollector = feeCollector_;
     }
