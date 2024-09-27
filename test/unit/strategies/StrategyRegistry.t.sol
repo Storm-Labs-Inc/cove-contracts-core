@@ -56,10 +56,4 @@ contract StrategyRegistryTest is BaseTest {
         vm.expectRevert(StrategyRegistry.StrategyNotSupported.selector);
         strategyRegistry.supportsBitFlag(bitFlag, strategy);
     }
-
-    // TODO: remove this after BasketManager is refactored to use AssetRegistry.getAssets(bitFlag)
-    function test_getAssets() public {
-        address[] memory ret = strategyRegistry.getAssets(0);
-        assertEq(ret.length, 0, "Should return empty array");
-    }
 }
