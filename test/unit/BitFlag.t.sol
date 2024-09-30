@@ -30,6 +30,19 @@ contract BitFlagTest is BaseTest {
         assertEq(libraryCount, 0, "Library count for all zeros should be 0");
     }
 
+    function testFuzz_maxBitIndex(uint256 bitFlag) public {
+        vm.assume(bitFlag != 0);
+        uint256 manualIndex = findMaxBitIndexManually(bitFlag);
+        uint256 libraryIndex = BitFlag.maxBitIndex(bitFlag);
+
+        assertEq(manualIndex, libraryIndex, "Manual index should match library index");
+    }
+
+    function test_maxBitIndex_revertsWhen_BitFlagMustBeNonZero() public {
+        vm.expectRevert(BitFlag.BitFlagMustBeNonZero.selector);
+        BitFlag.maxBitIndex(0);
+    }
+
     function countBitsManually(uint256 n) internal pure returns (uint256) {
         uint256 count = 0;
         while (n != 0) {
@@ -37,5 +50,14 @@ contract BitFlagTest is BaseTest {
             n >>= 1;
         }
         return count;
+    }
+
+    function findMaxBitIndexManually(uint256 n) internal pure returns (uint256) {
+        uint256 index = 0;
+        while (n != 0) {
+            n >>= 1;
+            index++;
+        }
+        return index - 1;
     }
 }
