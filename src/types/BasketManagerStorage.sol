@@ -58,4 +58,8 @@ struct BasketManagerStorage {
     RebalanceStatus rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
     bytes32 externalTradesHash;
+    /// @notice Current count of retries for the current rebalance epoch. May not exceed MAX_RETRIES.
+    uint8 retryCount;
+    /// @notice Address of the token swap adapter.
+    address tokenSwapAdapter;
 }
