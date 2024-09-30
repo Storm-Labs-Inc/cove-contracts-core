@@ -139,8 +139,10 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return assets The list of assets in the registry.
     function getAssets(uint256 bitFlag) external view returns (address[] memory assets) {
         uint256 maxLength = _assetList.length;
-        // If the bit flag is longer than the number of assets, truncate it
-        bitFlag &= ((1 << maxLength) - 1);
+        uint256 maxBitIndex = BitFlag.maxBitIndex(bitFlag);
+        if (maxBitIndex + 1 > maxLength) {
+            revert AssetExceedsMaximum();
+        }
 
         // Initialize the return array
         assets = new address[](BitFlag.popCount(bitFlag));

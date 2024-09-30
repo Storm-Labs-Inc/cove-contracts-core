@@ -3,6 +3,8 @@
 pragma solidity 0.8.23;
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
+
+import { BitFlag } from "src/libraries/BitFlag.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
@@ -317,6 +319,7 @@ contract AssetRegistry_Test is BaseTest {
 
     function testFuzz_getAssets(uint256 assetCount, uint256 bitFlag) public {
         vm.assume(assetCount <= MAX_ASSETS);
+        vm.assume(bitFlag > 0 && bitFlag < (1 << assetCount));
         address[] memory testAssets = _setupAssets(assetCount);
 
         // Get assets based on the fuzzed bitFlag
@@ -335,37 +338,31 @@ contract AssetRegistry_Test is BaseTest {
         assertEq(returnedAssets.length, expectedCount);
     }
 
-    function testFuzz_getAssets_emptyBitFlag(uint256 assetCount) public {
+    function testFuzz_getAssets_revertsWhen_emptyBitFlag(uint256 assetCount) public {
         vm.assume(assetCount <= MAX_ASSETS);
         _setupAssets(assetCount);
 
         // Get assets with empty bitFlag
-        address[] memory returnedAssets = assetRegistry.getAssets(0);
-
-        // Verify that an empty array is returned
-        assertEq(returnedAssets.length, 0);
+        vm.expectRevert(BitFlag.BitFlagMustBeNonZero.selector);
+        assetRegistry.getAssets(0);
     }
 
-    function testFuzz_getAssets_allBitsSet(uint256 numAssets) public {
+    function testFuzz_getAssets_revertsWhen_AssetExceedsMaximum(uint256 numAssets, uint256 bitFlag) public {
         vm.assume(numAssets > 0 && numAssets <= MAX_ASSETS);
-        address[] memory testAssets = _setupAssets(numAssets);
+        vm.assume(bitFlag > 0 && bitFlag >= (1 << numAssets));
+        _setupAssets(numAssets);
 
         // Get all assets
-        uint256 bitFlag = type(uint256).max;
-        address[] memory returnedAssets = assetRegistry.getAssets(bitFlag);
-
-        // Verify all assets are returned
-        assertEq(returnedAssets, testAssets);
+        vm.expectRevert(AssetRegistry.AssetExceedsMaximum.selector);
+        assetRegistry.getAssets(bitFlag);
     }
 
-    function testFuzz_getAssets_nonExistentAssets(uint256 bitFlag) public {
+    function testFuzz_getAssets_revertWhen_AssetExceedsMaximum_nonExistentAssets(uint256 bitFlag) public {
         vm.assume(bitFlag != 0);
 
         // Get assets with no assets added
-        address[] memory returnedAssets = assetRegistry.getAssets(bitFlag);
-
-        // Verify that an empty array is returned
-        assertEq(returnedAssets.length, 0);
+        vm.expectRevert(AssetRegistry.AssetExceedsMaximum.selector);
+        assetRegistry.getAssets(bitFlag);
     }
 
     function testFuzz_getAssetsBitFlag(uint256 assetCount, uint256[] memory assetIndices) public {
@@ -424,5 +421,46 @@ contract AssetRegistry_Test is BaseTest {
         }
         vm.expectRevert(AssetRegistry.AssetExceedsMaximum.selector);
         assetRegistry.getAssetsBitFlag(excessAssets);
+    }
+
+    function testFuzz_hasPausedAssets(uint256 pause, uint256 bitFlag) public {
+        // Find the highest bit of pause and add assets up to that index
+        // then pause the assets based on the pause bit
+        // then determine if the hasPausedAssets(bitFlag) should return true or false
+        // compare the result with a call to the function
+        vm.assume(pause < (1 << MAX_ASSETS));
+
+        // Setup assets based on the highest bit in the pause flag
+        uint256 highestBit = 0;
+        for (uint256 i = 0; i < MAX_ASSETS; i++) {
+            if ((pause >> i) & 1 == 1) {
+                highestBit = i;
+            }
+        }
+        vm.assume(bitFlag > 0 && bitFlag < (1 << (highestBit + 1)));
+
+        // Add assets up to the highest bit
+        address[] memory assets = _setupAssets(highestBit + 1);
+
+        // Pause assets based on the pause bit
+        vm.startPrank(users["admin"]);
+        for (uint256 i = 0; i <= highestBit; i++) {
+            if ((pause >> i) & 1 == 1) {
+                assetRegistry.setAssetStatus(assets[i], AssetRegistry.AssetStatus.PAUSED);
+            }
+        }
+
+        address[] memory bitFlagAssets = assetRegistry.getAssets(bitFlag);
+        bool expectedPaused = false;
+        for (uint256 i = 0; i < bitFlagAssets.length; i++) {
+            if (assetRegistry.getAssetStatus(bitFlagAssets[i]) == AssetRegistry.AssetStatus.PAUSED) {
+                expectedPaused = true;
+                break;
+            }
+        }
+
+        // Call the function and compare the result
+        bool result = assetRegistry.hasPausedAssets(bitFlag);
+        assertEq(result, expectedPaused, "hasPausedAssets result does not match expected");
     }
 }
