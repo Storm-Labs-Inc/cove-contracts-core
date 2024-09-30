@@ -125,6 +125,7 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(bm.getRoleMemberCount(PAUSER_ROLE), 1);
     }
 
+    /// forge-config: default.fuzz.runs = 1024
     function testFuzz_constructor_revertWhen_ZeroAddress(
         address basketTokenImplementation_,
         address eulerRouter_,
@@ -138,7 +139,7 @@ contract BasketManagerTest is BaseTest, Constants {
         public
     {
         // Use flag to determine which address to set to zero
-        flag = bound(flag, 0, 2 ** 7 - 2);
+        vm.assume(flag <= 2 ** 7 - 2);
         if (flag & 1 == 0) {
             basketTokenImplementation_ = address(0);
         }
