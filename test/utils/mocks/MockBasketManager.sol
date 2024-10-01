@@ -20,13 +20,14 @@ contract MockBasketManager is AccessControlEnumerable {
         string memory symbol,
         uint256 bitFlag,
         address strategy,
+        address assetRegistry,
         address owner
     )
         public
         returns (BasketToken basket)
     {
         basket = BasketToken(Clones.clone(address(basketTokenImplementation)));
-        basket.initialize(asset, basketName, symbol, bitFlag, strategy, owner);
+        basket.initialize(asset, basketName, symbol, bitFlag, strategy, assetRegistry, owner);
         BasketToken(basket).approve(address(basket), type(uint256).max);
         IERC20(asset).approve(address(basket), type(uint256).max);
         _grantRole(_BASKET_TOKEN_ROLE, address(basket));

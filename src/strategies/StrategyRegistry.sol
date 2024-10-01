@@ -34,9 +34,4 @@ contract StrategyRegistry is AccessControlEnumerable {
         }
         return WeightStrategy(weightStrategy).supportsBitFlag(bitFlag);
     }
-
-    /// @dev TODO: remove this after BasketManager is refactored to use AssetRegistry.getAssets(bitFlag)
-    function getAssets(uint256) external view returns (address[] memory) {
-        return new address[](0);
-    }
 }

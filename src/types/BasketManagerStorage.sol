@@ -34,6 +34,8 @@ struct BasketManagerStorage {
     StrategyRegistry strategyRegistry;
     /// @notice Address of the EulerRouter contract used to fetch oracle quotes for swaps.
     EulerRouter eulerRouter;
+    /// @notice Asset registry contract.
+    address assetRegistry;
     /// @notice Address of the feeCollector contract which will receive the management fee.
     address feeCollector;
     /// @notice The current management fee in BPS denominated in 1e4.

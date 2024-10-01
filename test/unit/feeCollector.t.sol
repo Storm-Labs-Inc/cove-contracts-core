@@ -29,23 +29,20 @@ contract FeeCollectorTest is BaseTest, Constants {
     function setUp() public override {
         super.setUp();
         admin = createUser("admin");
-        vm.label(admin, "admin");
         treasury = createUser("treasury");
-        vm.label(treasury, "treasury");
         sponsor = createUser("sponsor");
-        vm.label(sponsor, "sponsor");
         // create dummy asset
         dummyAsset = new ERC20Mock();
-        vm.label(address(dummyAsset), "dummyAsset");
         address basketTokenImplementation = address(new BasketToken());
         vm.label(basketTokenImplementation, "basketTokenImplementation");
         basketManager = address(new MockBasketManager(basketTokenImplementation));
-        vm.label(address(basketManager), "mockBasketManager");
         basketToken = address(
-            MockBasketManager(basketManager).createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, address(1), admin)
+            MockBasketManager(basketManager).createNewBasket(
+                ERC20(dummyAsset), "Test", "TEST", 1, createUser("strategyRegistry"), createUser("assetRegistry"), admin
+            )
         );
+        vm.label(basketToken, "basketToken");
         feeCollector = new FeeCollector(admin, basketManager, treasury);
-        vm.label(address(feeCollector), "feeCollector");
         vm.prank(admin);
         feeCollector.setSponsor(address(basketToken), sponsor);
     }

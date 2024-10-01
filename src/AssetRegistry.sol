@@ -42,6 +42,8 @@ contract AssetRegistry is AccessControlEnumerable {
     address[] private _assetList;
     /// @dev Mapping from asset address to AssetData struct containing the asset's index and status.
     mapping(address asset => AssetData) private _assetRegistry;
+    /// @notice Bit flag representing the enabled assets in the registry.
+    uint256 public enabledAssets;
 
     /// EVENTS ///
     /// @dev Emitted when a new asset is added to the registry.
@@ -91,6 +93,7 @@ contract AssetRegistry is AccessControlEnumerable {
         _assetList.push(asset);
         assetData.indexPlusOne = uint32(assetLength + 1);
         assetData.status = AssetStatus.ENABLED;
+        enabledAssets = enabledAssets | (1 << assetLength);
         emit AddAsset(asset);
     }
 
@@ -106,8 +109,17 @@ contract AssetRegistry is AccessControlEnumerable {
     function setAssetStatus(address asset, AssetStatus newStatus) external onlyRole(_MANAGER_ROLE) {
         if (asset == address(0)) revert Errors.ZeroAddress();
         AssetData storage assetData = _assetRegistry[asset];
-        if (assetData.indexPlusOne == 0) revert AssetNotEnabled();
+        uint256 indexPlusOne = assetData.indexPlusOne;
+        if (indexPlusOne == 0) revert AssetNotEnabled();
         if (newStatus == AssetStatus.DISABLED || assetData.status == newStatus) revert AssetInvalidStatusUpdate();
+        // Based on the index of the asset in the registry, update the enabledAssets bit flag
+        // If the new status is ENABLED, set the bit to 1, otherwise set it to 0
+        if (newStatus == AssetStatus.ENABLED) {
+            enabledAssets = enabledAssets | (1 << (indexPlusOne - 1));
+        } else {
+            // case: newStatus == AssetStatus.PAUSED
+            enabledAssets = enabledAssets & ~(1 << (indexPlusOne - 1));
+        }
 
         assetData.status = newStatus;
         emit SetAssetStatus(asset, newStatus);
@@ -119,7 +131,6 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return AssetStatus The status of the asset
     function getAssetStatus(address asset) external view returns (AssetStatus) {
         AssetData storage assetData = _assetRegistry[asset];
-        if (assetData.indexPlusOne == 0) return AssetStatus.DISABLED;
         return assetData.status;
     }
 
@@ -128,8 +139,12 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return assets The list of assets in the registry.
     function getAssets(uint256 bitFlag) external view returns (address[] memory assets) {
         uint256 maxLength = _assetList.length;
-        // If the bit flag is longer than the number of assets, truncate it
-        bitFlag &= ((1 << maxLength) - 1);
+
+        // If the bit flag is greater than the bit flag for the latest asset, revert
+        // This is to prevent accessing assets that are not present in the registry
+        if (bitFlag > (1 << maxLength) - 1) {
+            revert AssetExceedsMaximum();
+        }
 
         // Initialize the return array
         assets = new address[](BitFlag.popCount(bitFlag));
@@ -146,12 +161,21 @@ contract AssetRegistry is AccessControlEnumerable {
                 ++i;
             }
         }
+        // TODO: Determine if returning an empty array is the desired behavior by BasketToken/BasketManager
+        // or if an error should be thrown when no assets are found (bitFlag == 0)
     }
 
     /// @notice Retrieves the addresses of all assets in the registry without any filtering.
     /// @return assets The list of addresses of all assets in the registry.
     function getAllAssets() external view returns (address[] memory) {
         return _assetList;
+    }
+
+    /// @notice Checks if any assets in the given bit flag are paused.
+    /// @param bitFlag The bit flag representing a set of assets.
+    /// @return bool True if any of the assets are paused, false otherwise.
+    function hasPausedAssets(uint256 bitFlag) external view returns (bool) {
+        return (enabledAssets & bitFlag) != bitFlag;
     }
 
     /// @notice Retrieves the bit flag for a given list of assets.

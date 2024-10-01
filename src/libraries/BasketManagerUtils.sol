@@ -4,14 +4,13 @@ pragma solidity 0.8.23;
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { console } from "forge-std/console.sol";
+import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
-
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
@@ -169,34 +168,37 @@ library BasketManagerUtils {
         if (!self.strategyRegistry.supportsBitFlag(bitFlag, strategy)) {
             revert StrategyRegistryDoesNotSupportStrategy();
         }
-        // TODO: replace with AssetRegistry.getAssets(bitFlag) once AssetRegistry is implemented
-        address[] memory assets = self.strategyRegistry.getAssets(bitFlag);
-        if (assets.length == 0) {
-            revert AssetListEmpty();
-        }
-        if (assets[0] != baseAsset) {
-            revert BaseAssetMismatch();
-        }
-        basket = Clones.clone(self.basketTokenImplementation);
-        self.basketTokens.push(basket);
-        self.basketAssets[basket] = assets;
-        uint256 assetsLength = assets.length;
-        for (uint256 j = 0; j < assetsLength;) {
-            address asset = assets[j];
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            self.basketAssetToIndexPlusOne[basket][asset] = j + 1;
-            unchecked {
-                ++j;
+        address assetRegistry = self.assetRegistry;
+        {
+            address[] memory assets = AssetRegistry(assetRegistry).getAssets(bitFlag);
+            if (assets.length == 0) {
+                revert AssetListEmpty();
+            }
+            if (assets[0] != baseAsset) {
+                revert BaseAssetMismatch();
+            }
+            basket = Clones.clone(self.basketTokenImplementation);
+            self.basketTokens.push(basket);
+            self.basketAssets[basket] = assets;
+            self.basketIdToAddress[basketId] = basket;
+            uint256 assetsLength = assets.length;
+            for (uint256 j = 0; j < assetsLength;) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                self.basketAssetToIndexPlusOne[basket][assets[j]] = j + 1;
+                unchecked {
+                    ++j;
+                }
             }
         }
-        self.basketIdToAddress[basketId] = basket;
         unchecked {
             // Overflow not possible: basketTokensLength is less than the constant _MAX_NUM_OF_BASKET_TOKENS
             self.basketTokenToIndexPlusOne[basket] = basketTokensLength + 1;
         }
         // Interactions
         // TODO: have owner address to pass to basket tokens on initialization
-        BasketToken(basket).initialize(IERC20(baseAsset), basketName, symbol, bitFlag, strategy, address(0));
+        BasketToken(basket).initialize(
+            IERC20(baseAsset), basketName, symbol, bitFlag, strategy, assetRegistry, address(0)
+        );
     }
 
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
