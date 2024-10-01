@@ -139,8 +139,10 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @return assets The list of assets in the registry.
     function getAssets(uint256 bitFlag) external view returns (address[] memory assets) {
         uint256 maxLength = _assetList.length;
-        uint256 maxBitIndex = BitFlag.maxBitIndex(bitFlag);
-        if (maxBitIndex + 1 > maxLength) {
+
+        // If the bit flag is greater than the bit flag for the latest asset, revert
+        // This is to prevent accessing assets that are not present in the registry
+        if (bitFlag > (1 << maxLength) - 1) {
             revert AssetExceedsMaximum();
         }
 
@@ -159,6 +161,8 @@ contract AssetRegistry is AccessControlEnumerable {
                 ++i;
             }
         }
+        // TODO: Determine if returning an empty array is the desired behavior by BasketToken/BasketManager
+        // or if an error should be thrown when no assets are found (bitFlag == 0)
     }
 
     /// @notice Retrieves the addresses of all assets in the registry without any filtering.

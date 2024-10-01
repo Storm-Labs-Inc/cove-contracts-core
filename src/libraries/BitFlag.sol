@@ -49,46 +49,4 @@ library BitFlag {
             return (bitFlag * BYTE_MULTIPLIER) >> 248;
         }
     }
-
-    /// @dev Finds the index of the highest set bit in a bit flag.
-    function maxBitIndex(uint256 bitFlag) internal pure returns (uint256 index) {
-        // Ensure the bit flag is non-zero
-        if (bitFlag == 0) {
-            revert BitFlagMustBeNonZero();
-        }
-
-        assembly {
-            let x := bitFlag
-            index := 0
-            if gt(x, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) {
-                x := shr(128, x)
-                index := add(index, 128)
-            }
-            if gt(x, 0xFFFFFFFFFFFFFFFF) {
-                x := shr(64, x)
-                index := add(index, 64)
-            }
-            if gt(x, 0xFFFFFFFF) {
-                x := shr(32, x)
-                index := add(index, 32)
-            }
-            if gt(x, 0xFFFF) {
-                x := shr(16, x)
-                index := add(index, 16)
-            }
-            if gt(x, 0xFF) {
-                x := shr(8, x)
-                index := add(index, 8)
-            }
-            if gt(x, 0xF) {
-                x := shr(4, x)
-                index := add(index, 4)
-            }
-            if gt(x, 0x3) {
-                x := shr(2, x)
-                index := add(index, 2)
-            }
-            if gt(x, 0x1) { index := add(index, 1) }
-        }
-    }
 }

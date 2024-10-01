@@ -338,13 +338,13 @@ contract AssetRegistry_Test is BaseTest {
         assertEq(returnedAssets.length, expectedCount);
     }
 
-    function testFuzz_getAssets_revertsWhen_emptyBitFlag(uint256 assetCount) public {
+    function testFuzz_getAssets_passesWhen_EmptyBitFlag(uint256 assetCount) public {
         vm.assume(assetCount <= MAX_ASSETS);
         _setupAssets(assetCount);
 
         // Get assets with empty bitFlag
-        vm.expectRevert(BitFlag.BitFlagMustBeNonZero.selector);
-        assetRegistry.getAssets(0);
+        address[] memory assets = assetRegistry.getAssets(0);
+        assertEq(assets.length, 0, "Returned assets should be empty");
     }
 
     function testFuzz_getAssets_revertsWhen_AssetExceedsMaximum(uint256 numAssets, uint256 bitFlag) public {
