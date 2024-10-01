@@ -12,9 +12,6 @@ library BitFlag {
     // Binary: ...0000 0001 0000 0001
     uint256 private constant BYTE_MULTIPLIER = 0x0101010101010101010101010101010101010101010101010101010101010101;
 
-    /// @notice Thrown when attempting to perform an invalid operation on a zero bit flag.
-    error BitFlagMustBeNonZero();
-
     /// @dev Counts the number of set bits in a bit flag using parallel counting.
     /// This algorithm is based on the "Counting bits set, in parallel" technique from:
     /// https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
