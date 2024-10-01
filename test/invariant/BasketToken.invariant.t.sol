@@ -74,6 +74,7 @@ contract BasketTokenHandler is InvariantHandler {
         string memory symbol_,
         uint256 bitFlag_,
         address strategy_,
+        address assetRegistry_,
         address admin_
     )
         public
@@ -88,7 +89,7 @@ contract BasketTokenHandler is InvariantHandler {
 
         initialized = true;
         basketToken = BasketToken(Clones.clone(address(basketTokenImpl)));
-        basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, admin_);
+        basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, assetRegistry_, admin_);
     }
 
     function fulfillDeposit_revertsWhen_NotBasketManager(address sender, uint256 shares) public {
