@@ -2,6 +2,8 @@
 pragma solidity 0.8.23;
 
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { console } from "forge-std/console.sol";
 import { StdInvariant } from "lib/forge-std/src/StdInvariant.sol";
 import { Clones } from "lib/openzeppelin-contracts/contracts/proxy/Clones.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -50,6 +52,8 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
 }
 
 contract BasketTokenHandler is InvariantHandler {
+    using SafeERC20 for IERC20;
+
     BasketToken public basketTokenImpl;
     BasketToken public basketToken;
     bool public initialized = false;
@@ -118,6 +122,7 @@ contract BasketTokenHandler is InvariantHandler {
         address asset = address(basketToken.asset());
         deal(asset, currentActor, depositAmount);
         IERC20(asset).approve(address(basketToken), depositAmount);
+
         uint256 requestId = basketToken.requestDeposit(depositAmount, currentActor, currentActor);
         assertEq(requestId, nextRequestId, "requestId should match nextRequestId");
 
