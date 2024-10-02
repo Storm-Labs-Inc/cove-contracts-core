@@ -30,6 +30,7 @@ contract BasketTokenTest is BaseTest, Constants {
     BasketToken public basketTokenImplementation;
     MockBasketManager public basketManager;
     ERC20Mock public dummyAsset;
+    uint256 public basketBitFlag;
     address public assetRegistry;
     address public alice;
     address public owner;
@@ -42,6 +43,7 @@ contract BasketTokenTest is BaseTest, Constants {
         super.setUp();
         alice = createUser("alice");
         owner = createUser("owner");
+        basketBitFlag = 1;
         // create dummy asset
         dummyAsset = new ERC20Mock();
         feeCollector = address(new MockFeeCollector());
@@ -51,15 +53,13 @@ contract BasketTokenTest is BaseTest, Constants {
 
         vm.prank(address(owner));
         basket = basketManager.createNewBasket(
-            ERC20(dummyAsset), "Test", "TEST", 1, address(1), assetRegistry, address(owner)
+            ERC20(dummyAsset), "Test", "TEST", basketBitFlag, address(1), assetRegistry, address(owner)
         );
         vm.label(address(basket), "basketToken");
 
         // mock call to return ENABLED for the dummyAsset
         vm.mockCall(
-            address(assetRegistry),
-            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
-            abi.encode(uint8(AssetRegistry.AssetStatus.ENABLED))
+            address(assetRegistry), abi.encodeCall(AssetRegistry.hasPausedAssets, basket.bitFlag()), abi.encode(false)
         );
     }
 
@@ -357,9 +357,7 @@ contract BasketTokenTest is BaseTest, Constants {
         dummyAsset.mint(alice, amount);
 
         vm.mockCall(
-            address(assetRegistry),
-            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
-            abi.encode(uint8(AssetRegistry.AssetStatus.PAUSED))
+            address(assetRegistry), abi.encodeCall(AssetRegistry.hasPausedAssets, basket.bitFlag()), abi.encode(true)
         );
 
         vm.startPrank(alice);
@@ -373,31 +371,12 @@ contract BasketTokenTest is BaseTest, Constants {
         dummyAsset.mint(alice, amount);
 
         vm.mockCall(
-            address(assetRegistry),
-            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
-            abi.encode(uint8(AssetRegistry.AssetStatus.DISABLED))
+            address(assetRegistry), abi.encodeCall(AssetRegistry.hasPausedAssets, basket.bitFlag()), abi.encode(true)
         );
 
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
-        basket.requestDeposit(amount, alice, alice);
-    }
-
-    function testFuzz_requestDeposit_revertWhen_invalidAssetStatus(uint8 status) public {
-        vm.assume(status > 2);
-        uint256 amount = 1e18;
-        dummyAsset.mint(alice, amount);
-
-        vm.mockCall(
-            address(assetRegistry),
-            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
-            abi.encode(status)
-        );
-
-        vm.startPrank(alice);
-        dummyAsset.approve(address(basket), amount);
-        vm.expectRevert();
         basket.requestDeposit(amount, alice, alice);
     }
 
@@ -909,9 +888,7 @@ contract BasketTokenTest is BaseTest, Constants {
         dummyAsset.mint(alice, amount);
 
         vm.mockCall(
-            address(assetRegistry),
-            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
-            abi.encode(uint8(AssetRegistry.AssetStatus.PAUSED))
+            address(assetRegistry), abi.encodeCall(AssetRegistry.hasPausedAssets, basket.bitFlag()), abi.encode(true)
         );
 
         vm.startPrank(alice);
@@ -925,31 +902,12 @@ contract BasketTokenTest is BaseTest, Constants {
         dummyAsset.mint(alice, amount);
 
         vm.mockCall(
-            address(assetRegistry),
-            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
-            abi.encode(uint8(AssetRegistry.AssetStatus.DISABLED))
+            address(assetRegistry), abi.encodeCall(AssetRegistry.hasPausedAssets, basket.bitFlag()), abi.encode(true)
         );
 
         vm.startPrank(alice);
         dummyAsset.approve(address(basket), amount);
         vm.expectRevert(BasketToken.AssetPaused.selector);
-        basket.requestRedeem(amount, alice, alice);
-    }
-
-    function testFuzz_requestRedeem_revertWhen_invalidAssetStatus(uint8 status) public {
-        vm.assume(status > 2);
-        uint256 amount = 1e18;
-        dummyAsset.mint(alice, amount);
-
-        vm.mockCall(
-            address(assetRegistry),
-            abi.encodeCall(AssetRegistry.getAssetStatus, (address(dummyAsset))),
-            abi.encode(status)
-        );
-
-        vm.startPrank(alice);
-        dummyAsset.approve(address(basket), amount);
-        vm.expectRevert();
         basket.requestRedeem(amount, alice, alice);
     }
 
