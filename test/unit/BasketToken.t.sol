@@ -30,7 +30,6 @@ contract BasketTokenTest is BaseTest, Constants {
     BasketToken public basketTokenImplementation;
     MockBasketManager public basketManager;
     ERC20Mock public dummyAsset;
-    uint256 public basketBitFlag;
     address public assetRegistry;
     address public alice;
     address public owner;
@@ -43,7 +42,6 @@ contract BasketTokenTest is BaseTest, Constants {
         super.setUp();
         alice = createUser("alice");
         owner = createUser("owner");
-        basketBitFlag = 1;
         // create dummy asset
         dummyAsset = new ERC20Mock();
         feeCollector = address(new MockFeeCollector());
@@ -53,7 +51,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         vm.prank(address(owner));
         basket = basketManager.createNewBasket(
-            ERC20(dummyAsset), "Test", "TEST", basketBitFlag, address(1), assetRegistry, address(owner)
+            ERC20(dummyAsset), "Test", "TEST", 1, address(1), assetRegistry, address(owner)
         );
         vm.label(address(basket), "basketToken");
 
