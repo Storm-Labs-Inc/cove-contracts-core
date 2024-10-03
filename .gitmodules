@@ -20,3 +20,6 @@
 	path = lib/clones-with-immutable-args
 	url = https://github.com/wighawag/clones-with-immutable-args
 	branch = master
+[submodule "lib/farming"]
+	path = lib/farming
+	url = https://github.com/1inch/farming
