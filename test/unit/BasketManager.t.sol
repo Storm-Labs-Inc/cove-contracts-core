@@ -203,6 +203,7 @@ contract BasketManagerTest is BaseTest, Constants {
         );
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
         address basket = basketManager.createNewBasket(name, symbol, address(rootAsset), bitFlag, strategy);
@@ -230,6 +231,7 @@ contract BasketManagerTest is BaseTest, Constants {
         for (uint256 i = 0; i < 256; i++) {
             bitFlag += 1;
             strategy = address(uint160(strategy) + 1);
+            vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
             basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
             assertEq(basketManager.numOfBasketTokens(), i + 1);
         }
@@ -252,6 +254,7 @@ contract BasketManagerTest is BaseTest, Constants {
         );
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.startPrank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
@@ -309,8 +312,33 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(
             strategyRegistry, abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)), abi.encode(true)
         );
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.expectRevert(BasketManagerUtils.AssetListEmpty.selector);
+        vm.prank(manager);
+        basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
+    }
+
+    function test_createNewBasket_revertWhen_HasPausedAssets() public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        uint256 bitFlag = 1;
+        address strategy = address(uint160(1));
+        address[] memory assets = new address[](1);
+        assets[0] = rootAsset;
+        vm.mockCall(
+            basketTokenImplementation,
+            abi.encodeCall(
+                BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategy, assetRegistry, admin)
+            ),
+            new bytes(0)
+        );
+        vm.mockCall(
+            strategyRegistry, abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)), abi.encode(true)
+        );
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(true));
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
+        vm.expectRevert(BasketManagerUtils.AssetNotEnabled.selector);
         vm.prank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
@@ -334,6 +362,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(
             strategyRegistry, abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)), abi.encode(true)
         );
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.expectRevert(BasketManagerUtils.BaseAssetMismatch.selector);
         vm.prank(manager);
@@ -376,6 +405,7 @@ contract BasketManagerTest is BaseTest, Constants {
         );
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
+        vm.mockCall(assetRegistry, abi.encodeWithSelector(AssetRegistry.hasPausedAssets.selector), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeWithSelector(AssetRegistry.getAssets.selector), abi.encode(assets));
         address[] memory baskets = new address[](256);
         vm.startPrank(manager);
@@ -403,6 +433,7 @@ contract BasketManagerTest is BaseTest, Constants {
         );
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
+        vm.mockCall(assetRegistry, abi.encodeWithSelector(AssetRegistry.hasPausedAssets.selector), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeWithSelector(AssetRegistry.getAssets.selector), abi.encode(assets));
         address[] memory baskets = new address[](256);
         vm.startPrank(manager);
@@ -443,6 +474,16 @@ contract BasketManagerTest is BaseTest, Constants {
         targetBaskets[0] = basket;
 
         vm.expectRevert(BasketManagerUtils.RebalanceNotRequired.selector);
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+    }
+
+    function test_proposeRebalance_revertWhen_HasPausedAssets() public {
+        address basket = _setupBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (1)), abi.encode(true));
+        vm.expectRevert(BasketManagerUtils.AssetNotEnabled.selector);
         vm.prank(rebalancer);
         basketManager.proposeRebalance(targetBaskets);
     }
@@ -2124,10 +2165,12 @@ contract BasketManagerTest is BaseTest, Constants {
                 abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)),
                 abi.encode(true)
             );
+            vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
             vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
             vm.prank(manager);
             baskets[i] = basketManager.createNewBasket(name, symbol, baseAsset, bitFlag, strategy);
 
+            vm.mockCall(baskets[i], abi.encodeWithSelector(bytes4(keccak256("bitFlag()"))), abi.encode(bitFlag));
             vm.mockCall(
                 baskets[i], abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(initialDepositAmounts[i])
             );

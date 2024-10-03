@@ -133,6 +133,8 @@ library BasketManagerUtils {
     error ExternalTradeMismatch();
     /// @dev Reverts when the delegatecall to the tokenswap adapter fails.
     error CompleteTokenSwapFailed();
+    /// @dev Reverts when an asset included in a bit flag is not enabled in the asset registry.
+    error AssetNotEnabled();
 
     /// @notice Creates a new basket token with the given parameters.
     /// @param self BasketManagerStorage struct containing strategy data.
@@ -168,9 +170,12 @@ library BasketManagerUtils {
         if (!self.strategyRegistry.supportsBitFlag(bitFlag, strategy)) {
             revert StrategyRegistryDoesNotSupportStrategy();
         }
-        address assetRegistry = self.assetRegistry;
+        AssetRegistry assetRegistry = AssetRegistry(self.assetRegistry);
         {
-            address[] memory assets = AssetRegistry(assetRegistry).getAssets(bitFlag);
+            if (assetRegistry.hasPausedAssets(bitFlag)) {
+                revert AssetNotEnabled();
+            }
+            address[] memory assets = assetRegistry.getAssets(bitFlag);
             if (assets.length == 0) {
                 revert AssetListEmpty();
             }
@@ -197,7 +202,7 @@ library BasketManagerUtils {
         // Interactions
         // TODO: have owner address to pass to basket tokens on initialization
         BasketToken(basket).initialize(
-            IERC20(baseAsset), basketName, symbol, bitFlag, strategy, assetRegistry, address(0)
+            IERC20(baseAsset), basketName, symbol, bitFlag, strategy, address(assetRegistry), address(0)
         );
     }
 
@@ -217,6 +222,8 @@ library BasketManagerUtils {
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
+        address assetRegistry = self.assetRegistry;
+
         // Interactions
         bool shouldRebalance = false;
         for (uint256 i = 0; i < baskets.length;) {
@@ -228,15 +235,23 @@ library BasketManagerUtils {
             if (assets.length == 0) {
                 revert BasketTokenNotFound();
             }
+            if (AssetRegistry(assetRegistry).hasPausedAssets(BasketToken(basket).bitFlag())) {
+                revert AssetNotEnabled();
+            }
             // Harvest management fee
             BasketToken(basket).harvestManagementFee(self.managementFee, self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
-            // Process pending deposits and fulfill them
-            (uint256 totalSupply, uint256 pendingDeposit, uint256 pendingDepositValue) =
-                _processPendingDeposits(self, basket, basketValue, balances[0]);
-            balances[0] += pendingDeposit;
-            basketValue += pendingDepositValue;
+            uint256 totalSupply;
+            {
+                uint256 pendingDeposit;
+                uint256 pendingDepositValue;
+                // Process pending deposits and fulfill them
+                (totalSupply, pendingDeposit, pendingDepositValue) =
+                    _processPendingDeposits(self, basket, basketValue, balances[0]);
+                balances[0] += pendingDeposit;
+                basketValue += pendingDepositValue;
+            }
             uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
