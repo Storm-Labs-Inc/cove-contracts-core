@@ -39,7 +39,7 @@ runs:
         cache: pnpm
 
     - name: Install Python
-      uses: buildjet/setup-python@v4
+      uses: buildjet/setup-python@v5
       if: ${{ inputs.python-version != '' }}
       with:
         python-version: ${{ inputs.python-version }}
