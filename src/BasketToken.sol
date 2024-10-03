@@ -185,7 +185,7 @@ contract BasketToken is
         if (claimableDepositRequest(userLastDepositRequestId, controller) > 0) {
             revert MustClaimOutstandingDeposit();
         }
-        if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
+        if (AssetRegistry(assetRegistry).hasPausedAssets(bitFlag)) {
             revert AssetPaused();
         }
         // Effects
@@ -260,7 +260,7 @@ contract BasketToken is
                 _spendAllowance(owner, msg.sender, shares);
             }
         }
-        if (AssetRegistry(assetRegistry).getAssetStatus(asset()) != AssetRegistry.AssetStatus.ENABLED) {
+        if (AssetRegistry(assetRegistry).hasPausedAssets(bitFlag)) {
             revert AssetPaused();
         }
 
