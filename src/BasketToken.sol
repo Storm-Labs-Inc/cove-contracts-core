@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
+import { ERC20PluginsUpgradeable } from "./ERC20PluginsUpgradeable.sol";
+
 import { AccessControlEnumerableUpgradeable } from
     "@openzeppelin-upgradeable/contracts/access/extensions/AccessControlEnumerableUpgradeable.sol";
+import { ERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -18,6 +21,7 @@ import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 /// @notice Manages user deposits and redemptions, which are processed asynchronously by the Basket Manager.
 // slither-disable-next-line missing-inheritance
 contract BasketToken is
+    ERC20PluginsUpgradeable,
     ERC4626Upgradeable,
     AccessControlEnumerableUpgradeable,
     IERC7540Operator,
@@ -807,5 +811,29 @@ contract BasketToken is
         return interfaceID == 0x2f0a18c5 || interfaceID == 0xf815c03d
             || interfaceID == type(IERC7540Operator).interfaceId || interfaceID == type(IERC7540Deposit).interfaceId
             || interfaceID == type(IERC7540Redeem).interfaceId || super.supportsInterface(interfaceID);
+    }
+
+    function _update(
+        address from,
+        address to,
+        uint256 amount
+    )
+        internal
+        override(ERC20PluginsUpgradeable, ERC20Upgradeable)
+    {
+        ERC20PluginsUpgradeable._update(from, to, amount);
+    }
+
+    function balanceOf(address account)
+        public
+        view
+        override(ERC20PluginsUpgradeable, ERC20Upgradeable, IERC20)
+        returns (uint256)
+    {
+        return ERC20PluginsUpgradeable.balanceOf(account);
+    }
+
+    function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
+        return ERC4626Upgradeable.decimals();
     }
 }

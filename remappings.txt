@@ -5,3 +5,6 @@ forge-deploy/=lib/forge-deploy/contracts/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
 euler-price-oracle/=lib/euler-price-oracle/
 clones-with-immutable-args/=lib/clones-with-immutable-args/src/
+@1inch/solidity-utils/=lib/solidity-utils/
+@1inch/token-plugins/=lib/token-plugins/
+@1inch/farming/=lib/farming/
