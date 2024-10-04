@@ -26,9 +26,6 @@
 [submodule "lib/solidity-utils"]
 	path = lib/solidity-utils
 	url = https://github.com/1inch/solidity-utils
-[submodule "lib/token-plugins"]
-	path = lib/token-plugins
-	url = https://github.com/1inch/token-plugins
 [submodule "lib/token-plugins-upgradeable"]
 	path = lib/token-plugins-upgradeable
 	url = https://github.com/Storm-Labs-Inc/token-plugins-upgradeable

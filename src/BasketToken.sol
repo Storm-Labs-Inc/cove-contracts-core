@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { ERC20PluginsUpgradeable } from "./ERC20PluginsUpgradeable.sol";
-
 import { AccessControlEnumerableUpgradeable } from
     "@openzeppelin-upgradeable/contracts/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import { ERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
@@ -16,6 +14,7 @@ import { FeeCollector } from "src/FeeCollector.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
+import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC20PluginsUpgradeable.sol";
 
 /// @title BasketToken
 /// @notice Manages user deposits and redemptions, which are processed asynchronously by the Basket Manager.
