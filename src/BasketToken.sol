@@ -812,6 +812,7 @@ contract BasketToken is
             || interfaceID == type(IERC7540Redeem).interfaceId || super.supportsInterface(interfaceID);
     }
 
+    /// @dev Override to call the ERC20PluginsUpgradeable's _update function.
     function _update(
         address from,
         address to,
@@ -823,6 +824,8 @@ contract BasketToken is
         ERC20PluginsUpgradeable._update(from, to, amount);
     }
 
+    /// @dev Override to call the ERC20PluginsUpgradeable's balanceOf function.
+    /// See {IERC20-balanceOf}.
     function balanceOf(address account)
         public
         view
@@ -832,6 +835,8 @@ contract BasketToken is
         return ERC20PluginsUpgradeable.balanceOf(account);
     }
 
+    /// @dev Override to use ERC4626's decimals function.
+    /// See {IERC20Metadata-decimals}.
     function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
         return ERC4626Upgradeable.decimals();
     }
