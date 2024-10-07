@@ -25,7 +25,12 @@ contract InvariantHandler is Test {
     }
 
     modifier useActor(uint256 actorIndexSeed) {
-        currentActor = actors[bound(actorIndexSeed, 0, actors.length - 1)];
+        {
+            uint256 idx = bound(actorIndexSeed, 0, actors.length - 1);
+            console.log("InvariantHandler: Using actor %d", idx);
+            currentActor = actors[idx];
+        }
+        vm.stopPrank();
         vm.startPrank(currentActor);
         _;
         vm.stopPrank();

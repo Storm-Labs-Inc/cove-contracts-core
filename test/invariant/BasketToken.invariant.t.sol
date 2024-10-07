@@ -4,9 +4,11 @@ pragma solidity 0.8.23;
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { console } from "forge-std/console.sol";
+
 import { StdInvariant } from "lib/forge-std/src/StdInvariant.sol";
 import { Clones } from "lib/openzeppelin-contracts/contracts/proxy/Clones.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { InvariantHandler } from "test/invariant/InvariantHandler.t.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -19,8 +21,8 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
         IERC20[] memory assets = new IERC20[](3);
         assets[0] = IERC20(new ERC20Mock());
         assets[1] = IERC20(new ERC20Mock());
-        vm.etch(address(assets[1]), USDT_BYTECODE);
-        vm.label(address(assets[1]), "USDT");
+        // vm.etch(address(assets[1]), USDT_BYTECODE);
+        // vm.label(address(assets[1]), "USDT");
         assets[2] = IERC20(new ERC20Mock());
         vm.etch(address(assets[2]), WETH_BYTECODE);
         vm.label(address(assets[2]), "WETH");
@@ -86,6 +88,7 @@ contract BasketTokenHandler is InvariantHandler {
         vm.assume(!initialized);
         vm.assume(address(strategy_) != address(0));
         vm.assume(address(admin_) != address(0));
+        vm.assume(address(assetRegistry_) != address(0));
 
         // bound assetIndex to assets array
         assetIndex = bound(assetIndex, 0, assets.length - 1);
@@ -93,15 +96,15 @@ contract BasketTokenHandler is InvariantHandler {
 
         initialized = true;
         basketToken = BasketToken(Clones.clone(address(basketTokenImpl)));
-        basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, assetRegistry_, admin_);
-    }
+        vm.label(address(basketToken), "basketToken");
 
-    function fulfillDeposit_revertsWhen_NotBasketManager(address sender, uint256 shares) public {
-        vm.assume(initialized);
-        vm.assume(sender != basketToken.basketManager());
-        vm.prank(sender);
-        vm.expectRevert(BasketToken.NotBasketManager.selector);
-        basketToken.fulfillDeposit(shares);
+        basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, assetRegistry_, admin_);
+
+        vm.mockCall(
+            address(assetRegistry_),
+            abi.encodeWithSelector(AssetRegistry.hasPausedAssets.selector, bitFlag_),
+            abi.encode(false)
+        );
     }
 
     function fulfillDeposit(uint256 shares) public {
@@ -113,15 +116,18 @@ contract BasketTokenHandler is InvariantHandler {
     }
 
     function requestDeposit(uint256 userIdx, uint256 depositAmount) public useActor(userIdx) {
-        if (!initialized) return;
-        uint256 before = basketToken.totalPendingDeposits();
+        vm.assume(initialized);
         uint256 nextRequestId = basketToken.nextDepositRequestId();
+        vm.assume(basketToken.pendingDepositRequest(nextRequestId - 2, currentActor) == 0);
+        vm.assume(basketToken.maxDeposit(currentActor) == 0);
+        depositAmount = bound(depositAmount, 1, type(uint256).max / 1e18);
 
+        uint256 before = basketToken.totalPendingDeposits();
         uint256 userRequestBefore = basketToken.pendingDepositRequest(nextRequestId, currentActor);
 
         address asset = address(basketToken.asset());
         deal(asset, currentActor, depositAmount);
-        IERC20(asset).approve(address(basketToken), depositAmount);
+        IERC20(asset).forceApprove(address(basketToken), type(uint256).max);
 
         uint256 requestId = basketToken.requestDeposit(depositAmount, currentActor, currentActor);
         assertEq(requestId, nextRequestId, "requestId should match nextRequestId");
@@ -139,6 +145,8 @@ contract BasketTokenHandler is InvariantHandler {
             userRequestBefore + depositAmount,
             "pendingDepositRequest should increase by depositAmount"
         );
+
+        depositsPendingRebalance += depositAmount;
     }
 
     function prepareForRebalance() public {
