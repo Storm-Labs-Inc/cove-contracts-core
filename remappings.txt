@@ -1,7 +1,12 @@
 forge-std/=lib/forge-std/src/
 permit2/=lib/permit2/
 forge-deploy/=lib/forge-deploy/contracts/
-@openzeppelin/=lib/openzeppelin-contracts/
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
+@openzeppelin/=lib/openzeppelin-contracts/
 euler-price-oracle/=lib/euler-price-oracle/
 clones-with-immutable-args/=lib/clones-with-immutable-args/src/
+@1inch/solidity-utils/=lib/solidity-utils/
+@1inch/token-plugins/=lib/token-plugins/
+@1inch/farming/=lib/farming/
+token-plugins-upgradeable/=lib/token-plugins-upgradeable/

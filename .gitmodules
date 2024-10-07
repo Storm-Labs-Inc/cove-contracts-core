@@ -20,3 +20,12 @@
 	path = lib/clones-with-immutable-args
 	url = https://github.com/wighawag/clones-with-immutable-args
 	branch = master
+[submodule "lib/farming"]
+	path = lib/farming
+	url = https://github.com/1inch/farming
+[submodule "lib/solidity-utils"]
+	path = lib/solidity-utils
+	url = https://github.com/1inch/solidity-utils
+[submodule "lib/token-plugins-upgradeable"]
+	path = lib/token-plugins-upgradeable
+	url = https://github.com/Storm-Labs-Inc/token-plugins-upgradeable
