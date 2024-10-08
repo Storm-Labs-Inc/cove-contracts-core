@@ -3,30 +3,27 @@ pragma solidity 0.8.23;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IPyth } from "@pyth/IPyth.sol";
-import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-
 import { PythStructs } from "@pyth/PythStructs.sol";
+import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
-
-import { Create2 } from "@openzeppelin-upgradeable/lib/openzeppelin-contracts/contracts/utils/Create2.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 // import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
-import { ExternalTrade } from "src/types/Trades.sol";
 
+import { console } from "forge-std/console.sol";
+
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { AnchoredOracle } from "src/AnchoredOracle.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
+import { ExternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
-
-import { console } from "forge-std/console.sol";
-import { AnchoredOracle } from "src/AnchoredOracle.sol";
-
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 contract DeploySetup is BaseTest, Constants {
     using FixedPointMathLib for uint256;
@@ -37,7 +34,7 @@ contract DeploySetup is BaseTest, Constants {
     mapping(address => mapping(address => uint256)) public basketUserRequestId;
     address[] public assets;
 
-    /// Steps for completing a rebalance
+    // Steps for completing a rebalance
     // 1. Propose Rebalance
     // - permissioned to the _REBALANCER_ROLE
     // - Requirements for a rebalance to happen:
@@ -78,61 +75,26 @@ contract DeploySetup is BaseTest, Constants {
         // https://etherscan.io/block/20113049
         forkNetworkAt("mainnet", 20_892_640);
         super.setUp();
+        vm.startPrank(COVE_DEPLOYER_ADDRESS);
 
         // USERS
-        super.setUp();
         users["alice"] = createUser("alice");
-        users["admin"] = createUser("admin");
-        users["treasury"] = createUser("treasury");
-        users["pauser"] = createUser("pauser");
-        users["manager"] = createUser("manager");
-        users["rebalancer"] = createUser("rebalancer");
+        users["admin"] = COVE_COMMUNITY_MULTISIG;
+        users["treasury"] = COVE_OPS_MULTISIG;
+        users["pauser"] = COVE_OPS_MULTISIG;
+        users["manager"] = COVE_OPS_MULTISIG;
+        users["rebalancer"] = COVE_OPS_MULTISIG;
 
         // REGISTRIES
         contracts["assetRegistry"] = address(new AssetRegistry(users["admin"]));
         contracts["strategyRegistry"] = address(new StrategyRegistry(users["admin"]));
 
-        // COWSWAP ADAPTER
-
         // BASKET MANAGER
         contracts["basketTokenImplementation"] = address(new BasketToken());
-        vm.label(contracts["basketTokenImplementation"], "basketTokenImplementation");
         contracts["eulerRouter"] = address(new EulerRouter(users["admin"]));
-        vm.label(contracts["eulerRouter"], "eulerRouter");
-        // Compute the address of the FeeCollector using Create2
-        bytes32 salt = keccak256(abi.encodePacked(users["admin"], users["treasury"]));
-        bytes memory feeCollectorBytecode = type(FeeCollector).creationCode;
-        bytes memory feeCollectorInitCode = abi.encodePacked(
-            feeCollectorBytecode,
-            abi.encode(users["admin"], address(0), users["treasury"]) // Pass a placeholder for basketManager
-        );
-        bytes32 feeCollectorCodeHash = keccak256(feeCollectorInitCode);
-        address feeCollectorAddress = Create2.computeAddress(salt, feeCollectorCodeHash);
-        // Now deploy the BasketManager with the known FeeCollector address
-        BasketManager basketManager = new BasketManager(
-            contracts["basketTokenImplementation"],
-            contracts["eulerRouter"],
-            contracts["strategyRegistry"],
-            contracts["assetRegistry"],
-            users["admin"],
-            users["pauser"],
-            feeCollectorAddress // Pass the computed address
-        );
-        contracts["basketManager"] = address(basketManager);
-        vm.label(contracts["basketManager"], "basketManager");
-
-        // FEE COLLECTOR
-        // Now deploy the FeeCollector using Create2, passing the actual basketManager address
-        feeCollectorInitCode = abi.encodePacked(
-            feeCollectorBytecode, abi.encode(users["admin"], contracts["basketManager"], users["treasury"])
-        );
-        contracts["feeCollector"] = Create2.deploy(0, salt, feeCollectorInitCode);
-        vm.label(contracts["feeCollector"], "feeCollector");
-        vm.startPrank(users["admin"]);
-        basketManager.grantRole(MANAGER_ROLE, users["manager"]);
-        basketManager.grantRole(REBALANCER_ROLE, users["rebalancer"]);
-        basketManager.grantRole(PAUSER_ROLE, users["pauser"]);
-        basketManager.grantRole(TIMELOCK_ROLE, users["timelock"]);
+        bytes32 feeCollectorSalt = keccak256(abi.encodePacked("FeeCollector"));
+        _deployBasketManager(feeCollectorSalt);
+        _deployFeeCollector(feeCollectorSalt);
         vm.stopPrank();
     }
 
@@ -311,11 +273,11 @@ contract DeploySetup is BaseTest, Constants {
             }
             for (uint256 j; j < assets.length; j++) {
                 if (targetWeights[i] > currentWeights[i]) {
-                    uint256 buy = (targetWeights[i] - currentWeights[i]) * totalbasketValue / 1e18; // TODO check
+                    uint256 buy = (targetWeights[i] - currentWeights[i]) * totalbasketValue / 1e18; // TODO: check
                     console.log("target weight higher than current by :", targetWeights[i] - currentWeights[i]);
                     console.log("target weight higher than current by : $", buy);
                 } else {
-                    uint256 sell = (currentWeights[i] - targetWeights[i]) * totalbasketValue / 1e18; // TODO check
+                    uint256 sell = (currentWeights[i] - targetWeights[i]) * totalbasketValue / 1e18; // TODO: check
                     console.log("target weight lower than current by :", currentWeights[i] - targetWeights[i]);
                     console.log("target weight lower than current by : $", sell);
                 }
@@ -348,5 +310,44 @@ contract DeploySetup is BaseTest, Constants {
         PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
         res.publishTime = block.timestamp;
         vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (pythPriceFeed)), abi.encode(res));
+    }
+
+    /// DEPLOYMENTS ///
+    function _deployBasketManager(bytes32 feeCollectorSalt) internal {
+        CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
+        // Determine feeCollector deployment address
+        address feeCollectorAddress = factory.getDeployed(COVE_DEPLOYER_ADDRESS, feeCollectorSalt);
+        address basketManager = address(
+            new BasketManager(
+                contracts["basketTokenImplementation"],
+                contracts["eulerRouter"],
+                contracts["strategyRegistry"],
+                contracts["assetRegistry"],
+                users["admin"],
+                users["pauser"],
+                feeCollectorAddress
+            )
+        );
+        contracts["basketManager"] = basketManager;
+        vm.label(basketManager, "basketManager");
+        vm.stopPrank();
+        vm.startPrank(users["admin"]);
+        BasketManager bm = BasketManager(basketManager);
+        bm.grantRole(MANAGER_ROLE, users["manager"]);
+        bm.grantRole(REBALANCER_ROLE, users["rebalancer"]);
+        bm.grantRole(PAUSER_ROLE, users["pauser"]);
+        bm.grantRole(TIMELOCK_ROLE, users["timelock"]);
+        vm.stopPrank();
+    }
+
+    function _deployFeeCollector(bytes32 feeCollectorSalt) internal {
+        CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
+        // Prepare constructor arguments for FeeCollector
+        bytes memory constructorArgs = abi.encode(users["admin"], contracts["basketManager"], users["treasury"]);
+        // Deploy FeeCollector contract using CREATE3
+        bytes memory feeCollectorBytecode = abi.encodePacked(type(FeeCollector).creationCode, constructorArgs);
+        address feeCollector = factory.deploy(feeCollectorSalt, feeCollectorBytecode);
+        contracts["feeCollector"] = feeCollector;
+        vm.label(feeCollector, "feeCollector");
     }
 }
