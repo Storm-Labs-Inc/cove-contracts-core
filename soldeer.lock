@@ -14,7 +14,7 @@ integrity = "4bded842e12902cca59a500494d26586b3baea76b59150fd4e2b1d29078a2e71"
 
 [[dependencies]]
 name = "clones-with-immutable-args"
-version = "v1.1.1"
+version = "1.1.1"
 git = "https://github.com/wighawag/clones-with-immutable-args.git"
 rev = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce"
 
