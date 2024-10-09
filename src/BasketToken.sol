@@ -348,16 +348,18 @@ contract BasketToken is
     /// @return sharesPendingRedemption The total amount of shares pending redemption.
     function prepareForRebalance() public returns (uint256 sharesPendingRedemption) {
         _onlyBasketManager();
+        uint256 nextDepositRequestId_ = nextDepositRequestId;
+        uint256 nextRedeemRequestId_ = nextRedeemRequestId;
 
         // Check if previous deposit request has been fulfilled
-        uint256 currentDepositRequestId = nextDepositRequestId - 2;
+        uint256 currentDepositRequestId = nextDepositRequestId_ - 2;
         DepositRequestStruct storage previousDepositRequest = _depositRequests[currentDepositRequestId];
         if (previousDepositRequest.totalDepositAssets > 0 && previousDepositRequest.fulfilledShares == 0) {
             revert PreviousDepositRequestNotFulfilled();
         }
 
         // Check if previous redeem request has been fulfilled or fallbacked
-        uint256 currentRedeemRequestId = nextRedeemRequestId - 2;
+        uint256 currentRedeemRequestId = nextRedeemRequestId_ - 2;
         RedeemRequestStruct storage previousRedeemRequest = _redeemRequests[currentRedeemRequestId];
         if (previousRedeemRequest.totalRedeemShares > 0) {
             if (previousRedeemRequest.fulfilledAssets == 0 && !previousRedeemRequest.fallbackTriggered) {
@@ -365,12 +367,10 @@ contract BasketToken is
             }
         }
 
-        uint256 nextDepositRequestId_ = nextDepositRequestId;
         if (_depositRequests[nextDepositRequestId_].totalDepositAssets > 0) {
             nextDepositRequestId = nextDepositRequestId_ + 2;
         }
 
-        uint256 nextRedeemRequestId_ = nextRedeemRequestId;
         sharesPendingRedemption = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
         if (sharesPendingRedemption > 0) {
             nextRedeemRequestId = nextRedeemRequestId_ + 2;
