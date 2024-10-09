@@ -16,10 +16,8 @@ jobs:
     name: Lint
     runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
-      - name: Checkout repository without submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Base setup
         uses: ./.github/actions/base-setup
         with:
@@ -35,10 +33,8 @@ jobs:
       packages: read
       pull-requests: write
     steps:
-      - name: Checkout repository without submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Base setup
         uses: ./.github/actions/base-setup
         with:
@@ -81,10 +77,8 @@ jobs:
     runs-on: buildjet-2vcpu-ubuntu-2204
     permissions: write-all
     steps:
-      - name: Checkout repository without submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Base setup
         uses: ./.github/actions/base-setup
         with:
@@ -131,10 +125,8 @@ jobs:
     name: Test
     runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
-      - name: Checkout repository without submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Base setup
         uses: ./.github/actions/base-setup
         with:
@@ -156,10 +148,8 @@ jobs:
     runs-on: buildjet-16vcpu-ubuntu-2204
     permissions: write-all
     steps:
-      - name: Checkout repository without submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Base setup
         uses: ./.github/actions/base-setup
         with:
@@ -200,10 +190,8 @@ jobs:
       =='push' && github.ref == 'refs/heads/master')
     runs-on: buildjet-32vcpu-ubuntu-2204
     steps:
-      - name: Checkout repository without submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Base setup
         uses: ./.github/actions/base-setup
         with:
@@ -228,9 +216,7 @@ jobs:
     name: Spelling
     runs-on: buildjet-2vcpu-ubuntu-2204
     steps:
-      - name: Checkout repository without submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: false
       - name: Run codespell
         uses: codespell-project/actions-codespell@v2
