@@ -117,7 +117,6 @@ contract DeployUtils is Constants {
                 feeCollectorAddress
             )
         );
-        BasketManager bm = BasketManager(basketManager);
         // Admin must make below calls after deployment
         // bm.grantRole(MANAGER_ROLE, manager);
         // bm.grantRole(REBALANCER_ROLE, rebalancer);
