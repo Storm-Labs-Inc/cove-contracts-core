@@ -29,3 +29,6 @@
 [submodule "lib/token-plugins-upgradeable"]
 	path = lib/token-plugins-upgradeable
 	url = https://github.com/Storm-Labs-Inc/token-plugins-upgradeable
+[submodule "lib/create3-factory"]
+	path = lib/create3-factory
+	url = https://github.com/lifinance/create3-factory

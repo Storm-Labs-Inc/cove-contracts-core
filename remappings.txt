@@ -1,6 +1,8 @@
 forge-std/=lib/forge-std/src/
 permit2/=lib/permit2/
 forge-deploy/=lib/forge-deploy/contracts/
+create3-factory/=lib/create3-factory/
+solmate/utils/=lib/create3-factory/lib/solmate/src/utils/
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/
 @openzeppelin/=lib/openzeppelin-contracts/
