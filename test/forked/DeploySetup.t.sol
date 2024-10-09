@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
+import { console } from "forge-std/console.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IPyth } from "@pyth/IPyth.sol";
 import { PythStructs } from "@pyth/PythStructs.sol";
@@ -8,22 +10,20 @@ import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+
+import { BaseTest } from "test/utils/BaseTest.t.sol";
+import { Constants } from "test/utils/Constants.t.sol";
+
+import { AnchoredOracle } from "src/AnchoredOracle.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
-// import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
-
-import { console } from "forge-std/console.sol";
-
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
-import { AnchoredOracle } from "src/AnchoredOracle.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { ExternalTrade } from "src/types/Trades.sol";
-import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 
 contract DeploySetup is BaseTest, Constants {
     using FixedPointMathLib for uint256;
