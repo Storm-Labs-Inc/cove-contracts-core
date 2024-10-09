@@ -106,7 +106,7 @@ contract DeployUtils is Constants {
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Determine feeCollector deployment address
         address feeCollectorAddress = factory.getDeployed(COVE_DEPLOYER_ADDRESS, feeCollectorSalt);
-        address basketManager = address(
+        basketManager = address(
             new BasketManager(
                 basketTokenImplementation,
                 eulerRouter,
