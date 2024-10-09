@@ -18,4 +18,7 @@ contract Constants {
     uint16 public constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 public constant _MAX_MANAGEMENT_FEE = 1e4;
     uint8 public constant _MAX_RETRIES = 3;
+
+    // https://evc.wtf/docs/contracts/deployment-addresses/
+    address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
 }
