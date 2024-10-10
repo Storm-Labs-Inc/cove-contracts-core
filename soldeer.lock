@@ -1,0 +1,62 @@
+[[dependencies]]
+name = "@openzeppelin-contracts"
+version = "5.0.2"
+url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_0_2_14-03-2024_06:11:59_contracts.zip"
+checksum = "8bc4f0acc7c187771b878d46f7de4bfad1acad2eb5d096d9d05d34035853f5c3"
+integrity = "55881f6114aa36158566ef52b486d9d96b217c3e47d0e24bbd4994a8cfb5ee7c"
+
+[[dependencies]]
+name = "@openzeppelin-contracts-upgradeable"
+version = "5.0.2"
+url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts-upgradeable/5_0_2_14-03-2024_06:12:07_contracts-upgradeable.zip"
+checksum = "fb3f8db8541fc01636f91b0e7d9dd6f450f1bf7e2b4a17e96caf6e779ace8f5b"
+integrity = "4bded842e12902cca59a500494d26586b3baea76b59150fd4e2b1d29078a2e71"
+
+[[dependencies]]
+name = "clones-with-immutable-args"
+version = "1.1.1"
+git = "https://github.com/wighawag/clones-with-immutable-args.git"
+rev = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce"
+
+[[dependencies]]
+name = "euler-price-oracle"
+version = "1"
+git = "https://github.com/euler-xyz/euler-price-oracle.git"
+rev = "a638a0d7db33cb71cc992d6dcd532082a763db27"
+
+[[dependencies]]
+name = "farming"
+version = "3.2.0"
+git = "https://github.com/1inch/farming.git"
+rev = "b4e59e415352d3233ccd3c339d845a1eb2e1139b"
+
+[[dependencies]]
+name = "forge-deploy"
+version = "1"
+git = "https://github.com/Abracadabra-money/forge-deploy.git"
+rev = "a81ce1a5704bbee4686a13209bc17f80132542f9"
+
+[[dependencies]]
+name = "forge-std"
+version = "1.9.3"
+url = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_3_30-09-2024_08:27:09_forge-std-1.9.zip"
+checksum = "351b6f9cde3d9476cc07e48c1bca6b7fd93fa16dd9b450e5ad5d169d1dbd5938"
+integrity = "d53734fbd7201cd9e44de730ae045ed8958dd2c7b9493c30b322f6e6c21ca8b2"
+
+[[dependencies]]
+name = "permit2"
+version = "1"
+git = "https://github.com/Uniswap/permit2.git"
+rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+
+[[dependencies]]
+name = "solidity-utils"
+version = "5.3.0"
+git = "https://github.com/1inch/solidity-utils.git"
+rev = "2a69e2ea6c7551cfae4731752a579de9564b263e"
+
+[[dependencies]]
+name = "token-plugins-upgradeable"
+version = "1"
+git = "https://github.com/Storm-Labs-Inc/token-plugins-upgradeable.git"
+rev = "439806ce46954563a921059b6d44f792f4375312"
