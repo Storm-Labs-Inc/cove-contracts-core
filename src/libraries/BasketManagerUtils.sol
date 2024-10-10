@@ -242,7 +242,8 @@ library BasketManagerUtils {
             BasketToken(basket).harvestManagementFee(self.managementFee, self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
-            // Notify Basket Token of rebalance: // TODO double check this logic
+            // Notify Basket Token of rebalance:
+            // TODO double check this logic
             uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits(); // have to cache value before prepare
             uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 totalSupply;
