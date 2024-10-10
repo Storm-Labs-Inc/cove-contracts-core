@@ -2,11 +2,12 @@
 pragma solidity 0.8.23;
 
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -17,7 +18,8 @@ import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
-import { ERC20DecimalsMockImpl } from "test/utils/mocks/ERC20DecimalsMockImpl.sol";
+import { ERC20DecimalsMock } from "test/utils/mocks/ERC20DecimalsMock.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 import { MockFeeCollector } from "test/utils/mocks/MockFeeCollector.sol";
 
@@ -109,7 +111,7 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.assume(assetRegistry_ != address(0));
         BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
         // Added mock due to foundry test issue
-        ERC20DecimalsMockImpl mockERC20 = new ERC20DecimalsMockImpl(assetDecimals, "test", "TST");
+        ERC20DecimalsMock mockERC20 = new ERC20DecimalsMock(assetDecimals, "test", "TST");
         // Call initialize
         vm.prank(from);
         token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategy, assetRegistry_, tokenAdmin);
@@ -158,7 +160,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
         // Added mock due to foundry test issue
-        ERC20DecimalsMockImpl mockERC20 = new ERC20DecimalsMockImpl(assetDecimals, "test", "TST");
+        ERC20DecimalsMock mockERC20 = new ERC20DecimalsMock(assetDecimals, "test", "TST");
 
         // Call initialize
         vm.prank(from);

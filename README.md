@@ -10,8 +10,8 @@ Tested with node 18.16.1
 ```sh
 # Install node dependencies
 pnpm install
-# Install submodules as forge libraries
-forge install
+# Install submodules as soldeer dependencies
+forge soldeer install
 ```
 
 # Compilation

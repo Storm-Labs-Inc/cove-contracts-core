@@ -1,3 +1,3 @@
 {
-  "filter_paths": "(test/|src/deps/|script/|lib/|node_modules/|generated/)"
+  "filter_paths": "(test/|src/deps/|script/|dependencies/|node_modules/|generated/)"
 }
