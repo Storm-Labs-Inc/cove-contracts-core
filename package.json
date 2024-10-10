@@ -15,7 +15,7 @@
     "semgrep": "semgrep --config p/smart-contracts --exclude deps/ src/",
     "deployLocal": "DEPLOYMENT_CONTEXT=1-fork forge script script/Deployments.s.sol --rpc-url http://localhost:8545 --broadcast --private-key ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 -vvv && ./forge-deploy sync;",
     "forge-deploy:clean": "rm -rf deployments/1-fork/*",
-    "forge-deploy:build": "cd lib/forge-deploy && cargo build --release && cp target/release/forge-deploy ../../forge-deploy",
+    "forge-deploy:build": "cd dependencies/forge-deploy-1 && cargo build --release && cp target/release/forge-deploy ../../forge-deploy",
     "lint": "pnpm run lint:sol && pnpm run prettier:check",
     "lint:fix": "pnpm lint:fix:sol && pnpm run prettier:write",
     "lint:fix:sol": "forge fmt && pnpm run solhint:src --fix && pnpm run solhint:script --fix && pnpm run solhint:test --fix",

@@ -11,22 +11,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Generate commit hashes of direct submodule versions
-      run: |
-        git submodule status > ./lib/commit-hash
-      shell: bash
-
-    - name: Cache Submodules
+    - name: Cache Dependencies
       uses: buildjet/cache@v4
-      id: cache-submodules
       with:
-        path: ./lib
-        key: ${{ runner.os }}-submodules-${{ hashFiles('./lib/commit-hash') }}
-
-    - name: Checkout submodules
-      if: steps.cache-submodules.outputs.cache-hit != 'true'
-      run: git submodule update --init --recursive
-      shell: bash
+        path: ./dependencies
+        key: ${{ runner.os }}-dependencies-${{ hashFiles('./soldeer.lock') }}
 
     - uses: pnpm/action-setup@v4
       with:
@@ -54,6 +43,10 @@ runs:
       uses: foundry-rs/foundry-toolchain@v1
       with:
         version: nightly
+
+    - name: Install Soldeer dependencies
+      run: forge soldeer install
+      shell: bash
 
     - name: Install dependencies
       run: pnpm install
