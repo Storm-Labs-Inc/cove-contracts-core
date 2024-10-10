@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { CREATE3Factory } from "lib/create3-factory/src/CREATE3Factory.sol";
-import { EulerRouter } from "lib/euler-price-oracle/src/EulerRouter.sol";
-import { ChainlinkOracle } from "lib/euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
-import { PythOracle } from "lib/euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
+import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
+import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
 
 import { Constants } from "test/utils/Constants.t.sol";
 
