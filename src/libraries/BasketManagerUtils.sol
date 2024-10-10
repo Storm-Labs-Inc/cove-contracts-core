@@ -202,7 +202,7 @@ library BasketManagerUtils {
         // Interactions
         // TODO: have owner address to pass to basket tokens on initialization
         BasketToken(basket).initialize(
-            IERC20(baseAsset), basketName, symbol, bitFlag, strategy, address(assetRegistry), address(0)
+            IERC20(baseAsset), basketName, symbol, bitFlag, strategy, address(assetRegistry), address(1)
         );
     }
 
@@ -242,17 +242,19 @@ library BasketManagerUtils {
             BasketToken(basket).harvestManagementFee(self.managementFee, self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
+            // Notify Basket Token of rebalance:
+            // TODO double check this logic
+            uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits(); // have to cache value before prepare
+            uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 totalSupply;
             {
-                uint256 pendingDeposit;
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
-                (totalSupply, pendingDeposit, pendingDepositValue) =
-                    _processPendingDeposits(self, basket, basketValue, balances[0]);
+                (totalSupply, pendingDepositValue) =
+                    _processPendingDeposits(self, basket, basketValue, balances[0], pendingDeposit);
                 balances[0] += pendingDeposit;
                 basketValue += pendingDepositValue;
             }
-            uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
             if (pendingRedeems_ > 0) {
@@ -883,20 +885,20 @@ library BasketManagerUtils {
     /// @param basket Basket token address.
     /// @param basketValue Current value of the basket in USD.
     /// @param baseAssetBalance Current balance of the base asset in the basket.
+    /// @param pendingDeposit Current assets pending deposit in the given basket.
     /// @return totalSupply Total supply of the basket token after processing pending deposits.
-    /// @return pendingDeposit pending deposits of the base asset.
     /// @return pendingDepositValue Value of the pending deposits in USD.
     // slither-disable-next-line calls-loop
     function _processPendingDeposits(
         BasketManagerStorage storage self,
         address basket,
         uint256 basketValue,
-        uint256 baseAssetBalance
+        uint256 baseAssetBalance,
+        uint256 pendingDeposit
     )
         private
-        returns (uint256 totalSupply, uint256 pendingDeposit, uint256 pendingDepositValue)
+        returns (uint256 totalSupply, uint256 pendingDepositValue)
     {
-        pendingDeposit = BasketToken(basket).totalPendingDeposits();
         totalSupply = BasketToken(basket).totalSupply();
 
         if (pendingDeposit > 0) {
@@ -907,6 +909,7 @@ library BasketManagerUtils {
                 self.eulerRouter.getQuote(pendingDeposit, self.basketAssets[basket][0], _USD_ISO_4217_CODE);
             // Rounding direction: down
             // Division-by-zero is not possible: basketValue is greater than 0
+            console.log("basket value: ", basketValue);
             uint256 requiredDepositShares = basketValue > 0
                 ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
                 : pendingDeposit;

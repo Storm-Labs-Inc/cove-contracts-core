@@ -218,6 +218,13 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         return _bmStorage.retryCount;
     }
 
+    /// @notice Returns the addresses of all assets in the given basket.
+    /// @param basket Address of the basket.
+    /// @return Array of asset addresses.
+    function basketAssets(address basket) external view returns (address[] memory) {
+        return _bmStorage.basketAssets[basket];
+    }
+
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param basketsToRebalance Array of basket addresses to rebalance.
