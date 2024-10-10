@@ -55,3 +55,6 @@ lcov.info
 /forge-deploy
 
 .python-version
+
+# Soldeer
+/dependencies

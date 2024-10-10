@@ -35,4 +35,7 @@ contract Constants {
     address public constant COVE_DEPLOYER_ADDRESS = 0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5;
     address public constant COVE_OPS_MULTISIG = 0x71BDC5F3AbA49538C76d58Bc2ab4E3A1118dAe4c;
     address public constant COVE_COMMUNITY_MULTISIG = 0x7Bd578354b0B2f02E656f1bDC0e41a80f860534b;
+
+    // https://evc.wtf/docs/contracts/deployment-addresses/
+    address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
 }
