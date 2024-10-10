@@ -352,18 +352,20 @@ contract BasketToken is
         uint256 nextRedeemRequestId_ = nextRedeemRequestId;
 
         // Check if previous deposit request has been fulfilled
-        uint256 currentDepositRequestId = nextDepositRequestId_ - 2;
-        DepositRequestStruct storage previousDepositRequest = _depositRequests[currentDepositRequestId];
-        if (previousDepositRequest.totalDepositAssets > 0 && previousDepositRequest.fulfilledShares == 0) {
-            revert PreviousDepositRequestNotFulfilled();
+        DepositRequestStruct storage previousDepositRequest = _depositRequests[nextDepositRequestId_ - 2];
+        if (previousDepositRequest.totalDepositAssets > 0) {
+            if (previousDepositRequest.fulfilledShares == 0) {
+                revert PreviousDepositRequestNotFulfilled();
+            }
         }
 
         // Check if previous redeem request has been fulfilled or fallbacked
-        uint256 currentRedeemRequestId = nextRedeemRequestId_ - 2;
-        RedeemRequestStruct storage previousRedeemRequest = _redeemRequests[currentRedeemRequestId];
+        RedeemRequestStruct storage previousRedeemRequest = _redeemRequests[nextRedeemRequestId_ - 2];
         if (previousRedeemRequest.totalRedeemShares > 0) {
-            if (previousRedeemRequest.fulfilledAssets == 0 && !previousRedeemRequest.fallbackTriggered) {
-                revert PreviousRedeemRequestNotFulfilled();
+            if (previousRedeemRequest.fulfilledAssets == 0) {
+                if (!previousRedeemRequest.fallbackTriggered) {
+                    revert PreviousRedeemRequestNotFulfilled();
+                }
             }
         }
 
