@@ -98,10 +98,7 @@ contract DeployUtils is Constants {
         address StrategyRegistry,
         address assetRegistry,
         address admin,
-        address pauser,
-        address manager,
-        address rebalancer,
-        address timelock
+        address pauser
     )
         internal
         returns (address basketManager)
@@ -109,7 +106,7 @@ contract DeployUtils is Constants {
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Determine feeCollector deployment address
         address feeCollectorAddress = factory.getDeployed(COVE_DEPLOYER_ADDRESS, feeCollectorSalt);
-        address basketManager = address(
+        basketManager = address(
             new BasketManager(
                 basketTokenImplementation,
                 eulerRouter,
@@ -120,11 +117,10 @@ contract DeployUtils is Constants {
                 feeCollectorAddress
             )
         );
-        BasketManager bm = BasketManager(basketManager);
-        bm.grantRole(MANAGER_ROLE, manager);
-        bm.grantRole(REBALANCER_ROLE, rebalancer);
-        bm.grantRole(PAUSER_ROLE, pauser);
-        bm.grantRole(TIMELOCK_ROLE, timelock);
+        // Admin must make below calls after deployment
+        // bm.grantRole(MANAGER_ROLE, manager);
+        // bm.grantRole(REBALANCER_ROLE, rebalancer);
+        // bm.grantRole(TIMELOCK_ROLE, timelock);
     }
 
     // Uses CREATE3 to deploy a fee collector contract. Salt must be the same given to the basket manager deploy.
