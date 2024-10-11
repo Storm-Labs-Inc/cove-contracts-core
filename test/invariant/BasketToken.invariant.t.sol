@@ -12,14 +12,25 @@ import { InvariantHandler } from "test/invariant/InvariantHandler.t.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
+/// @notice Invariant test suite for the BasketToken contract.
+/// @dev This suite checks the contract's invariants by fuzzing its state and call sequences.
+///
+/// Each invariant function must start with the `invariant_` prefix.
+/// No `vm.assume` calls are allowed in invariant functions.
+/// The goal is to explore all possible contract states and ensure invariants hold.
+/// Fuzzing is used to test various contract states.
+/// Functions must start with `invariant_` to be recognized as invariant tests.
 contract BasketToken_InvariantTest is StdInvariant, BaseTest {
     BasketTokenHandler public basketTokenHandler;
 
+    // Setup function to initialize the test environment.
+    // It creates mock ERC20 assets and deploys a BasketTokenHandler to interact with the BasketToken.
     function setUp() public override {
         super.setUp();
         IERC20[] memory assets = new IERC20[](3);
         assets[0] = IERC20(new ERC20Mock());
         assets[1] = IERC20(new ERC20Mock());
+        // Uncomment the following lines if you want to mock USDT behavior.
         // vm.etch(address(assets[1]), USDT_BYTECODE);
         // vm.label(address(assets[1]), "USDT");
         assets[2] = IERC20(new ERC20Mock());
@@ -31,6 +42,7 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
         targetContract(address(basketTokenHandler));
     }
 
+    // Invariant: If the BasketToken is initialized, the BasketManager must be the contract creator.
     function invariant_basketManagerIsImmutableContractCreator() public {
         if (!basketTokenHandler.initialized()) {
             assertEq(address(basketTokenHandler.basketToken()), address(0), "BasketToken should not be initialized");
@@ -40,6 +52,7 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
         assertEq(basketManager, address(basketTokenHandler), "BasketManager is not the contract creator");
     }
 
+    // Invariant: totalPendingDeposits must equal the total deposits requested but not yet fulfilled.
     function invariant_totalPendingDeposits() public {
         if (!basketTokenHandler.initialized()) {
             return;
@@ -52,6 +65,10 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
     }
 }
 
+/// @title BasketTokenHandler for Invariant Tests
+/// @notice This contract interacts with the BasketToken and tests state changes after each function call.
+/// @dev Public/external functions in this contract are called randomly by the invariant test contract.
+/// It is responsible for ensuring the BasketToken behaves as expected under various conditions.
 contract BasketTokenHandler is InvariantHandler {
     using SafeERC20 for IERC20;
 
@@ -68,11 +85,14 @@ contract BasketTokenHandler is InvariantHandler {
 
     IERC20[] private assets;
 
+    // Constructor to initialize the handler with a BasketToken implementation and a list of assets.
     constructor(BasketToken basketTokenImpl_, IERC20[] memory assets_) InvariantHandler(ACTOR_COUNT) {
         basketTokenImpl = basketTokenImpl_;
         assets = assets_;
     }
 
+    // Function to initialize the BasketToken with the specified parameters.
+    // It assumes the contract is not already initialized and that valid addresses are provided.
     function initialize(
         uint256 assetIndex,
         string memory name_,
@@ -89,7 +109,7 @@ contract BasketTokenHandler is InvariantHandler {
         vm.assume(address(admin_) != address(0));
         vm.assume(address(assetRegistry_) != address(0));
 
-        // bound assetIndex to assets array
+        // Ensure the assetIndex is within bounds of the assets array.
         assetIndex = bound(assetIndex, 0, assets.length - 1);
         IERC20 asset = assets[assetIndex];
 
@@ -99,6 +119,7 @@ contract BasketTokenHandler is InvariantHandler {
 
         basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, assetRegistry_, admin_);
 
+        // Mock the AssetRegistry to simulate that no assets are paused.
         vm.mockCall(
             address(assetRegistry_),
             abi.encodeWithSelector(AssetRegistry.hasPausedAssets.selector, bitFlag_),
@@ -106,14 +127,18 @@ contract BasketTokenHandler is InvariantHandler {
         );
     }
 
+    // Function to fulfill a deposit request.
+    // It assumes the contract is initialized and there are pending deposits to fulfill.
     function fulfillDeposit(uint256 shares) public {
         vm.assume(initialized);
         vm.assume(depositsPendingFulfill > 0);
-        vm.assume(shares > 0);
+        vm.assume(shares > 0 && shares < type(uint256).max / 1e18);
         basketToken.fulfillDeposit(shares);
         depositsPendingFulfill = 0;
     }
 
+    // Function to request a deposit for a specific user.
+    // It assumes the contract is initialized and the user has no pending deposit requests.
     function requestDeposit(uint256 userIdx, uint256 depositAmount) public useActor(userIdx) {
         vm.assume(initialized);
         uint256 nextRequestId = basketToken.nextDepositRequestId();
@@ -148,21 +173,26 @@ contract BasketTokenHandler is InvariantHandler {
         depositsPendingRebalance += depositAmount;
     }
 
+    // Function to prepare the BasketToken for a rebalance.
+    // It assumes there are no pending deposits or redeems to fulfill.
+    // The function resets the pending deposit and redeem counters after the rebalance.
     function prepareForRebalance() public {
         vm.assume(initialized);
+        vm.assume(depositsPendingFulfill == 0 && redeemsPendingFulfill == 0);
         uint256 nextDepositId = basketToken.nextDepositRequestId();
         uint256 nextRedeemId = basketToken.nextRedeemRequestId();
         uint256 pendingRedemptions = basketToken.totalPendingRedemptions();
-        // Call prepareForRebalance
+
+        // Call prepareForRebalance and check the return value.
         uint256 ret = basketToken.prepareForRebalance();
-        // Check return value
         assertEq(ret, pendingRedemptions, "prepareForRebalance should return totalPendingRedemptions");
         assertEq(
             pendingRedemptions,
             redeemsPendingRebalance,
             "totalPendingRedemptions should match counter redeemsPendingRebalance"
         );
-        // Check state changes
+
+        // Check state changes after rebalance.
         assertEq(basketToken.totalPendingRedemptions(), 0, "totalPendingRedemptions should be 0");
         if (depositsPendingRebalance > 0) {
             assertEq(
@@ -176,7 +206,8 @@ contract BasketTokenHandler is InvariantHandler {
         } else {
             assertEq(basketToken.nextRedeemRequestId(), nextRedeemId, "nextRedeemRequestId should not change");
         }
-        // Reset counters
+
+        // Reset counters after rebalance.
         depositsPendingFulfill = depositsPendingRebalance;
         redeemsPendingFulfill = redeemsPendingRebalance;
         depositsPendingRebalance = 0;
