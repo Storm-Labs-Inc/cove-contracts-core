@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { console } from "forge-std/console.sol";
-
-import { StdInvariant } from "lib/forge-std/src/StdInvariant.sol";
-import { Clones } from "lib/openzeppelin-contracts/contracts/proxy/Clones.sol";
-import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { InvariantHandler } from "test/invariant/InvariantHandler.t.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 contract BasketToken_InvariantTest is StdInvariant, BaseTest {
     BasketTokenHandler public basketTokenHandler;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
+import { Test } from "forge-std/Test.sol";
 import { console } from "forge-std/console.sol";
-import { Test } from "lib/forge-std/src/Test.sol";
 
 contract InvariantHandler is Test {
     address[] public actors;
