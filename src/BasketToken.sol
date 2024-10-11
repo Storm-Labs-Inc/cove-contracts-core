@@ -104,6 +104,8 @@ contract BasketToken is
     error DepositRequestAlreadyFulfilled();
     error RedeemRequestAlreadyFulfilled();
     error RedeemRequestAlreadyFallbacked();
+    error PreviousDepositRequestNotFulfilled();
+    error PreviousRedeemRequestNotFulfilled();
 
     /// @notice Disables initializer functions.
     constructor() payable {
@@ -347,11 +349,30 @@ contract BasketToken is
     function prepareForRebalance() public returns (uint256 sharesPendingRedemption) {
         _onlyBasketManager();
         uint256 nextDepositRequestId_ = nextDepositRequestId;
+        uint256 nextRedeemRequestId_ = nextRedeemRequestId;
+
+        // Check if previous deposit request has been fulfilled
+        DepositRequestStruct storage previousDepositRequest = _depositRequests[nextDepositRequestId_ - 2];
+        if (previousDepositRequest.totalDepositAssets > 0) {
+            if (previousDepositRequest.fulfilledShares == 0) {
+                revert PreviousDepositRequestNotFulfilled();
+            }
+        }
+
+        // Check if previous redeem request has been fulfilled or fallbacked
+        RedeemRequestStruct storage previousRedeemRequest = _redeemRequests[nextRedeemRequestId_ - 2];
+        if (previousRedeemRequest.totalRedeemShares > 0) {
+            if (previousRedeemRequest.fulfilledAssets == 0) {
+                if (!previousRedeemRequest.fallbackTriggered) {
+                    revert PreviousRedeemRequestNotFulfilled();
+                }
+            }
+        }
+
         if (_depositRequests[nextDepositRequestId_].totalDepositAssets > 0) {
             nextDepositRequestId = nextDepositRequestId_ + 2;
         }
 
-        uint256 nextRedeemRequestId_ = nextRedeemRequestId;
         sharesPendingRedemption = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
         if (sharesPendingRedemption > 0) {
             nextRedeemRequestId = nextRedeemRequestId_ + 2;
