@@ -10,7 +10,6 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20DecimalsMock } from "test/utils/mocks/ERC20DecimalsMock.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
