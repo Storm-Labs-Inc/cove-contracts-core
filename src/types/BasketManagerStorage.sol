@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 /// @notice Enum representing the status of a rebalance.
