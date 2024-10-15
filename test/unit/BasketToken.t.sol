@@ -1119,6 +1119,34 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.nextDepositRequestId(), nextDepositRequestId);
     }
 
+    function testFuzz_prepareForRebalance_revertsWhen_PreviousDepositRequestNotFulfilled(
+        uint256 amount,
+        address from
+    )
+        public
+    {
+        testFuzz_requestDeposit(amount, from);
+        vm.startPrank(address(basketManager));
+        basket.prepareForRebalance();
+        vm.expectRevert(BasketToken.PreviousDepositRequestNotFulfilled.selector);
+        basket.prepareForRebalance();
+    }
+
+    function test_prepareForRebalance_revertsWhen_PreviousRedeemRequestNotFulfilled(
+        uint256 amount,
+        uint256 issuedShares,
+        address[MAX_USERS] calldata callers,
+        address[MAX_USERS] calldata dests
+    )
+        public
+    {
+        testFuzz_requestRedeem(amount, issuedShares, callers, dests);
+        vm.startPrank(address(basketManager));
+        basket.prepareForRebalance();
+        vm.expectRevert(BasketToken.PreviousRedeemRequestNotFulfilled.selector);
+        basket.prepareForRebalance();
+    }
+
     function testFuzz_fulfillRedeem_revertsWhen_RedeemRequestAlreadyFulfilled(
         uint256 amount,
         uint256 issuedShares,
