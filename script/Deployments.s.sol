@@ -147,7 +147,7 @@ contract Deployments is DeployScript, Constants {
         }
     }
 
-    // Checks thatn a deployment exists
+    // Checks that a deployment exists
     function checkDeployment(string memory name) public view returns (address addr) {
         if (deployer.has(name)) {
             addr = deployer.getAddress(name);
@@ -160,7 +160,7 @@ contract Deployments is DeployScript, Constants {
         addr = deployer.getAddress(name);
     }
 
-    // Performs calls to grant permissions once deployment is successfull
+    // Performs calls to grant permissions once deployment is successful
     function _setupPermissions() internal {
         require(msg.sender == COVE_DEPLOYER_ADDRESS, "Must use COVE DEPLOYER");
         BasketManager bm = BasketManager(deployer.getAddress("BasketManager"));
@@ -171,7 +171,7 @@ contract Deployments is DeployScript, Constants {
         bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
-    // Adds assets to the asset registry. Trys are used as the call will fail if the assets have already been added.
+    // Adds assets to the asset registry. Try is used as the call will fail if the assets have already been added.
     function _addAssets(address baseAsset, address quoteAsset) internal {
         AssetRegistry assetRegistry = AssetRegistry(deployer.getAddress("AssetRegistry"));
         try assetRegistry.addAsset(baseAsset) { } catch { }
