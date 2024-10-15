@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { EulerRouter } from "src/deps/euler-price-oracle/EulerRouter.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
