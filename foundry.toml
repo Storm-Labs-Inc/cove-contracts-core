@@ -11,7 +11,18 @@ ffi = true
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 2_000_000
-remappings = ["@openzeppelin-contracts-5.0.2/=dependencies/@openzeppelin-contracts-5.0.2/", "@openzeppelin-contracts-upgradeable-5.0.2/=dependencies/@openzeppelin-contracts-upgradeable-5.0.2/", "clones-with-immutable-args-1.1.1/=dependencies/clones-with-immutable-args-1.1.1/", "euler-price-oracle-1/=dependencies/euler-price-oracle-1/", "farming-3.2.0/=dependencies/farming-3.2.0/", "forge-deploy-1/=dependencies/forge-deploy-1/", "forge-std-1.9.3/=dependencies/forge-std-1.9.3/", "lifinance/create3-factory-0/=dependencies/lifinance/create3-factory-0/", "permit2-1/=dependencies/permit2-1/", "solidity-utils-5.3.0/=dependencies/solidity-utils-5.3.0/", "token-plugins-upgradeable-1/=dependencies/token-plugins-upgradeable-1/",
+remappings = [
+    "@openzeppelin-contracts-5.0.2/=dependencies/@openzeppelin-contracts-5.0.2/",
+    "@openzeppelin-contracts-upgradeable-5.0.2/=dependencies/@openzeppelin-contracts-upgradeable-5.0.2/",
+    "clones-with-immutable-args-1.1.1/=dependencies/clones-with-immutable-args-1.1.1/",
+    "euler-price-oracle-1/=dependencies/euler-price-oracle-1/",
+    "farming-3.2.0/=dependencies/farming-3.2.0/",
+    "forge-deploy-1/=dependencies/forge-deploy-1/",
+    "forge-std-1.9.3/=dependencies/forge-std-1.9.3/",
+    "lifinance/create3-factory-0/=dependencies/lifinance-create3-factory-0/",
+    "permit2-1/=dependencies/permit2-1/",
+    "solidity-utils-5.3.0/=dependencies/solidity-utils-5.3.0/",
+    "token-plugins-upgradeable-1/=dependencies/token-plugins-upgradeable-1/",
 ]
 
 [fmt]
