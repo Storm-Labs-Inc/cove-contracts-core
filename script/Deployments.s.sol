@@ -113,9 +113,10 @@ contract Deployments is DeployScript, Constants {
         address baseAsset,
         address quoteAsset,
         bytes32 pythPriceFeed,
-        uint256 maxStaleness,
+        uint256 pythMaxStaleness,
         uint256 maxConfWidth,
         address chainLinkPriceFeed,
+        uint256 chainLinkMaxStaleness,
         uint256 maxDivergence,
         bool isProduction
     )
@@ -127,9 +128,10 @@ contract Deployments is DeployScript, Constants {
         }
         require(msg.sender == COVE_OPS_MULTISIG, "Caller must be COVE MULTISIG");
         deployer.setAutoBroadcast(isProduction);
-        address primary =
-            address(new PythOracle(Constants.PYTH, baseAsset, quoteAsset, pythPriceFeed, maxStaleness, maxConfWidth));
-        address anchor = address(new ChainlinkOracle(baseAsset, quoteAsset, chainLinkPriceFeed, maxStaleness));
+        address primary = address(
+            new PythOracle(Constants.PYTH, baseAsset, quoteAsset, pythPriceFeed, pythMaxStaleness, maxConfWidth)
+        );
+        address anchor = address(new ChainlinkOracle(baseAsset, quoteAsset, chainLinkPriceFeed, chainLinkMaxStaleness));
         string memory oracleName = string.concat(name, "_AnchoredOracle");
         address anchoredOracle =
             address(deployer.deploy_AnchoredOracle(oracleName, address(primary), address(anchor), maxDivergence));
