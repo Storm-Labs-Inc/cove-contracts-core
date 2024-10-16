@@ -30,7 +30,7 @@ contract Deployments is DeployScript, Constants {
     address public basketTokenImplementation;
 
     function deploy(bool isProduction) public {
-        require(msg.sender == COVE_DEPLOYER_ADDRESS, "Must use COVE DEPLOYER");
+        require(msg.sender == COVE_DEPLOYER_ADDRESS, "Caller must be COVE DEPLOYER");
         admin = COVE_OPS_MULTISIG;
         treasury = COVE_OPS_MULTISIG;
         pauser = COVE_OPS_MULTISIG;
@@ -50,10 +50,7 @@ contract Deployments is DeployScript, Constants {
         _deployBasketManager(feeCollectorSalt);
         // FeeCollector
         _deployFeeCollector(feeCollectorSalt);
-        if (!isProduction) {
-            vm.startPrank(COVE_DEPLOYER_ADDRESS);
-        }
-        _setupPermissions();
+        _setupPermissions(isProduction);
     }
 
     modifier deployIfMissing(string memory name) {
@@ -128,7 +125,7 @@ contract Deployments is DeployScript, Constants {
         if (!isProduction) {
             vm.startPrank(COVE_OPS_MULTISIG);
         }
-        require(msg.sender == COVE_OPS_MULTISIG, "Must use COVE MULTISIG");
+        require(msg.sender == COVE_OPS_MULTISIG, "Caller must be COVE MULTISIG");
         deployer.setAutoBroadcast(isProduction);
         address primary =
             address(new PythOracle(Constants.PYTH, baseAsset, quoteAsset, pythPriceFeed, maxStaleness, maxConfWidth));
@@ -161,14 +158,20 @@ contract Deployments is DeployScript, Constants {
     }
 
     // Performs calls to grant permissions once deployment is successful
-    function _setupPermissions() internal {
-        require(msg.sender == COVE_DEPLOYER_ADDRESS, "Must use COVE DEPLOYER");
+    function _setupPermissions(bool isProduction) internal {
+        if (!isProduction) {
+            vm.startPrank(COVE_DEPLOYER_ADDRESS);
+        }
+        require(msg.sender == COVE_DEPLOYER_ADDRESS, "Caller must be COVE DEPLOYER");
         BasketManager bm = BasketManager(deployer.getAddress("BasketManager"));
         bm.grantRole(MANAGER_ROLE, manager);
         bm.grantRole(REBALANCER_ROLE, rebalancer);
         bm.grantRole(TIMELOCK_ROLE, timelock);
         bm.grantRole(PAUSER_ROLE, pauser);
         bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
+        if (!isProduction) {
+            vm.stopPrank();
+        }
     }
 
     // Adds assets to the asset registry. Try is used as the call will fail if the assets have already been added.
