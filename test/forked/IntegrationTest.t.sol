@@ -81,6 +81,9 @@ contract IntegrationTest is BaseTest, Constants {
         vm.allowCheatcodes(0xa5F044DA84f50f2F6fD7c309C5A8225BCE8b886B);
         vm.startPrank(COVE_DEPLOYER_ADDRESS);
         deployments = new Deployments();
+        address[] memory assets = new address[](2);
+        assets[0] = USD;
+        assets[1] = WETH;
         uint64[] memory initialWeights = new uint64[](2);
         initialWeights[0] = 0.5e18;
         initialWeights[1] = 0.5e18;
@@ -90,7 +93,7 @@ contract IntegrationTest is BaseTest, Constants {
         uint256 bitFlag = deployments.getBitflagFromIndicies(assetIndices);
         BasketTokenDeployment[] memory basketTokenDeployments = new BasketTokenDeployment[](1);
         basketTokenDeployments[0] = BasketTokenDeployment({
-            asset: WETH,
+            assets: assets,
             name: "Test",
             symbol: "TEST",
             bitFlag: bitFlag,

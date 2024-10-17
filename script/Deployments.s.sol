@@ -20,7 +20,7 @@ import { Constants } from "test/utils/Constants.t.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 
 struct BasketTokenDeployment {
-    address asset;
+    address[] assets;
     string name;
     string symbol;
     uint256 bitFlag;
@@ -114,12 +114,10 @@ contract Deployments is DeployScript, Constants {
 
     function _deployBasketTokenAndStrategy(BasketTokenDeployment memory deployment) private {
         address strategy = _deployStrategy(deployment);
-        // TODO: any way to handle this better, if other basket use USD this will fail in the current bm setup.
-        try AssetRegistry(deployer.getAddress("AssetRegistry")).addAsset(USD) { } catch { }
         bytes memory basketTokenConstructorArgs = abi.encode(
             string.concat(deployment.name, "_basketToken"),
             deployment.name,
-            deployment.asset,
+            deployment.assets[0],
             deployment.bitFlag,
             strategy
         );
@@ -127,7 +125,7 @@ contract Deployments is DeployScript, Constants {
         address basketAddress = BasketManager(basketManagerAddress).createNewBasket(
             string.concat(deployment.name, "_basketToken"),
             deployment.name,
-            deployment.asset,
+            deployment.assets[0],
             deployment.bitFlag,
             strategy
         );
@@ -202,7 +200,9 @@ contract Deployments is DeployScript, Constants {
             abi.encode(true)
         );
         AssetRegistry assetRegistry = AssetRegistry(deployer.getAddress("AssetRegistry"));
-        try assetRegistry.addAsset(address(deployment.asset)) { } catch { }
+        for (uint256 i = 0; i < deployment.assets.length; i++) {
+            try assetRegistry.addAsset(deployment.assets[i]) { } catch { }
+        }
     }
 
     // Deploys a pyth oracle for given base and quote assets
@@ -215,6 +215,7 @@ contract Deployments is DeployScript, Constants {
         uint256 maxConfWidth
     )
         private
+        deployIfMissing(string.concat(name, "_PythOracle"))
         returns (address primary)
     {
         bytes memory pythOracleContsructorArgs =
@@ -240,6 +241,7 @@ contract Deployments is DeployScript, Constants {
         uint256 chainLinkMaxStaleness
     )
         private
+        deployIfMissing(string.concat(name, "_ChainlinkOracle"))
         returns (address anchor)
     {
         bytes memory chainLinkOracleContsructorArgs =
@@ -256,6 +258,7 @@ contract Deployments is DeployScript, Constants {
 
     // Deploys a pyth oracle and chainlink oracle. Deploys an anchored oracle using the two privously deployed oracles.
     // Adds the assets to the asset registry. Sets the anchored oracle for the given assets in the euler router.
+    // TODO: This should be updated to create pairs between all assets in the basket
     function _deployAnchoredOracleForPair(
         BasketTokenDeployment memory deployment,
         OracleOptions memory oracleOptions
@@ -265,23 +268,25 @@ contract Deployments is DeployScript, Constants {
     {
         address primary = _deployPythOracle(
             deployment.name,
-            deployment.asset,
-            USD,
+            deployment.assets[0],
+            deployment.assets[1],
             oracleOptions.pythPriceFeed,
             oracleOptions.pythMaxStaleness,
             oracleOptions.pythMaxConfWidth
         );
         address anchor = _deployChainlinkOracle(
             deployment.name,
-            deployment.asset,
-            USD,
+            deployment.assets[0],
+            deployment.assets[1],
             oracleOptions.chainlinkPriceFeed,
             oracleOptions.chainlinkMaxStaleness
         );
         string memory oracleName = string.concat(deployment.name, "_AnchoredOracle");
         address anchoredOracle =
             address(deployer.deploy_AnchoredOracle(oracleName, primary, anchor, oracleOptions.maxDivergence));
-        EulerRouter(deployer.getAddress("EulerRouter")).govSetConfig(deployment.asset, USD, anchoredOracle);
+        EulerRouter(deployer.getAddress("EulerRouter")).govSetConfig(
+            deployment.assets[0], deployment.assets[1], anchoredOracle
+        );
     }
 
     // Performs calls to grant permissions once deployment is successful
