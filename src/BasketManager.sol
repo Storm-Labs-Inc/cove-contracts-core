@@ -387,13 +387,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
 
     /// @notice Claims the swap fee for the given asset and sends it to protocol treasury defined in the FeeCollector.
     /// @param asset Address of the asset to collect the swap fee for.
-    function collectSwapFee(address asset) external {
-        uint256 collectedFees = _bmStorage.collectedSwapFees[asset];
-        if (collectedFees == 0) {
-            revert Errors.ZeroAmount();
+    function collectSwapFee(address asset) external onlyRole(_MANAGER_ROLE) returns (uint256 collectedFees) {
+        collectedFees = _bmStorage.collectedSwapFees[asset];
+        if (collectedFees != 0) {
+            _bmStorage.collectedSwapFees[asset] = 0;
+            IERC20(asset).safeTransfer(FeeCollector(_bmStorage.feeCollector).protocolTreasury(), collectedFees);
         }
-        _bmStorage.collectedSwapFees[asset] = 0;
-        IERC20(asset).safeTransfer(FeeCollector(_bmStorage.feeCollector).protocolTreasury(), collectedFees);
     }
 
     /// PAUSING FUNCTIONS ///

@@ -737,14 +737,14 @@ library BasketManagerUtils {
             });
 
             // Calculate fee on sellAmount
-            info.feeOnSell = (trade.sellAmount * swapFee) / 10_000;
+            info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
             info.netSellAmount = trade.sellAmount - info.feeOnSell;
 
             // Calculate initial buyAmount based on netSellAmount
             uint256 initialBuyAmount = self.eulerRouter.getQuote(info.netSellAmount, trade.sellToken, trade.buyToken);
 
             // Calculate fee on buyAmount
-            info.feeOnBuy = (initialBuyAmount * swapFee) / 10_000;
+            info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
