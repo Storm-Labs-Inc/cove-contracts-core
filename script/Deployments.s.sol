@@ -363,7 +363,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     // First deploys a pyth oracle and chainlink oracle. Then Deploys an anchored oracle using the two privously
     // deployed oracles.
     // Enable the anchored oracle for the given asset and USD
-    // Note: This is for deplying asset/USD anchored oracle for both pyth and chainlink that have asset/USD price feeds
+    // Note: This is for deploying asset/USD anchored oracle for both pyth and chainlink that have asset/USD price feeds
     // Assets without direct USD price feed should not use this function to deploy their USD oracles.
     // TODO: Add a chaining oracle for assets without direct USD price feed
     // (e.g. a chaining oracle for pyth + 4626 or pyth + pyth or chainlink + 4626 or chainlink + chainlink)
