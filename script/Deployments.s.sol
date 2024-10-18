@@ -51,13 +51,17 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     address public rebalancer;
     address public basketTokenImplementation;
 
+    bool public isProduction;
+
     bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
 
+    // Called from DeployScript's run() function.
     function deploy() public {
         deploy(true);
     }
 
-    function deploy(bool isProduction) public {
+    function deploy(bool isProduction_) public {
+        isProduction = isProduction_;
         // Start the prank if not in production
         if (!isProduction) {
             vm.startPrank(COVE_DEPLOYER_ADDRESS);
@@ -165,6 +169,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment) private {
         // Set initial weights for the strategy
         ManagedWeightStrategy strategy = ManagedWeightStrategy(deployment.strategy);
+        if (isProduction) {
+            vm.broadcast();
+        }
         strategy.setTargetWeights(deployment.bitFlag, deployment.initialWeights);
 
         bytes memory basketTokenConstructorArgs = abi.encode(
@@ -175,6 +182,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             deployment.strategy
         );
         address basketManager = getAddress("BasketManager");
+        if (isProduction) {
+            vm.broadcast();
+        }
         address basketToken = BasketManager(basketManager).createNewBasket(
             string.concat(deployment.name, "_basketToken"),
             deployment.name,
@@ -218,6 +228,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             feeCollectorAddress,
             COVE_DEPLOYER_ADDRESS
         );
+        if (isProduction) {
+            vm.broadcast();
+        }
         bm.grantRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
     }
 
@@ -238,6 +251,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         bytes memory constructorArgs = abi.encode(EVC, admin);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(EulerRouter).creationCode, constructorArgs);
+        if (isProduction) {
+            vm.broadcast();
+        }
         address eulerRouter = address(new EulerRouter(EVC, COVE_DEPLOYER_ADDRESS));
         deployer.save("EulerRouter", eulerRouter, "EulerRouter.sol:EulerRouter", constructorArgs, creationBytecode);
         require(getAddress("EulerRouter") == eulerRouter, "Failed to save EulerRouter deployment");
@@ -259,14 +275,23 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             )
         );
         ManagedWeightStrategy mwStrategy = ManagedWeightStrategy(strategy);
+        if (isProduction) {
+            vm.startBroadcast();
+        }
         mwStrategy.grantRole(MANAGER_ROLE, externalManager);
         mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
         mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         StrategyRegistry(getAddress("StrategyRegistry")).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
+        if (isProduction) {
+            vm.stopBroadcast();
+        }
     }
 
     function _addAssetToAssetRegistry(address asset) private {
         AssetRegistry assetRegistry = AssetRegistry(getAddress("AssetRegistry"));
+        if (isProduction) {
+            vm.broadcast();
+        }
         assetRegistry.addAsset(asset);
     }
 
@@ -285,6 +310,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     {
         bytes memory pythOracleContsructorArgs =
             abi.encode(PYTH, baseAsset, quoteAsset, pythPriceFeed, pythMaxStaleness, maxConfWidth);
+        if (isProduction) {
+            vm.broadcast();
+        }
         pythOracle = address(
             new PythOracle(Constants.PYTH, baseAsset, quoteAsset, pythPriceFeed, pythMaxStaleness, maxConfWidth)
         );
@@ -314,6 +342,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     {
         bytes memory chainLinkOracleContsructorArgs =
             abi.encode(baseAsset, quoteAsset, chainLinkPriceFeed, chainLinkMaxStaleness);
+        if (isProduction) {
+            vm.broadcast();
+        }
         chainlinkOracle = address(new ChainlinkOracle(baseAsset, quoteAsset, chainLinkPriceFeed, chainLinkMaxStaleness));
         deployer.save(
             string.concat(assetName, "_ChainlinkOracle"),
@@ -362,11 +393,18 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             )
         );
         // Register the asset/USD anchored oracle
-        EulerRouter(getAddress("EulerRouter")).govSetConfig(asset, USD, anchoredOracle);
+        EulerRouter eulerRouter = EulerRouter(getAddress("EulerRouter"));
+        if (isProduction) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(asset, USD, anchoredOracle);
     }
 
     // Performs calls to grant permissions once deployment is successful
     function _cleanPermissions() private {
+        if (isProduction) {
+            vm.startBroadcast();
+        }
         // AssetRegistry
         AssetRegistry assetRegistry = AssetRegistry(getAddress("AssetRegistry"));
         assetRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -390,13 +428,13 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
         bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+
+        if (isProduction) {
+            vm.stopBroadcast();
+        }
     }
 
     function _assetsToBitFlag(address[] memory assets) private view returns (uint256 bitFlag) {
         return AssetRegistry(getAddress("AssetRegistry")).getAssetsBitFlag(assets);
     }
 }
-
-// example run in current setup: DEPLOYMENT_CONTEXT=1-fork forge script script/Deployments.s.sol --rpc-url
-// http://localhost:8545 --broadcast --private-key <key> -v
-// && ./forge-deploy sync;
