@@ -79,49 +79,21 @@ contract IntegrationTest is BaseTest, Constants {
         super.setUp();
         // Allow cheatcodes for contract deployed by deploy script
         vm.allowCheatcodes(0xa5F044DA84f50f2F6fD7c309C5A8225BCE8b886B);
-        vm.startPrank(COVE_DEPLOYER_ADDRESS);
         deployments = new Deployments();
-        address[] memory assets = new address[](2);
-        assets[0] = USD;
-        assets[1] = WETH;
-        uint64[] memory initialWeights = new uint64[](2);
-        initialWeights[0] = 0.5e18;
-        initialWeights[1] = 0.5e18;
-        uint8[] memory assetIndices = new uint8[](2);
-        assetIndices[0] = 0;
-        assetIndices[1] = 1;
-        uint256 bitFlag = deployments.getBitflagFromIndicies(assetIndices);
-        BasketTokenDeployment[] memory basketTokenDeployments = new BasketTokenDeployment[](1);
-        basketTokenDeployments[0] = BasketTokenDeployment({
-            assets: assets,
-            name: "Test",
-            symbol: "TEST",
-            bitFlag: bitFlag,
-            initialWeights: initialWeights
-        });
-        OracleOptions[] memory oracleOptions = new OracleOptions[](1);
-        oracleOptions[0] = OracleOptions({
-            pythPriceFeed: PYTH_ETH_USD_FEED,
-            pythMaxStaleness: 15 minutes,
-            pythMaxConfWidth: 500,
-            chainlinkPriceFeed: CHAINLINK_ETH_USD_FEED,
-            chainlinkMaxStaleness: 1 days,
-            maxDivergence: 0.5e18
-        });
-        deployments.deploy(basketTokenDeployments, oracleOptions, false);
-        vm.stopPrank();
+        deployments.deploy(false);
+
+        bm = BasketManager(deployments.getAddress("BasketManager"));
     }
 
     function test_setUp() public view {
-        assert(deployments.checkDeployment("BasketManager") != address(0));
-        assert(deployments.checkDeployment("AssetRegistry") != address(0));
-        assert(deployments.checkDeployment("StrategyRegistry") != address(0));
-        assert(deployments.checkDeployment("EulerRouter") != address(0));
-        assert(deployments.checkDeployment("Test_BasketToken") != address(0));
-        assert(deployments.checkDeployment("FeeCollector") != address(0));
-        assert(deployments.checkDeployment("Test_ManagedWeightStrategy") != address(0));
-        assert(deployments.checkDeployment("Test_PythOracle") != address(0));
-        assert(deployments.checkDeployment("Test_ChainlinkOracle") != address(0));
-        assert(deployments.checkDeployment("Test_AnchoredOracle") != address(0));
+        // forge-deploy checks
+        assertNotEq(address(bm), address(0));
+        assertNotEq(deployments.getAddress("AssetRegistry"), address(0));
+        assertNotEq(deployments.getAddress("StrategyRegistry"), address(0));
+        assertNotEq(deployments.getAddress("EulerRouter"), address(0));
+        assertNotEq(deployments.getAddress("FeeCollector"), address(0));
+
+        // Launch parameter checks
+        assertEq(bm.numOfBasketTokens(), 1); // TODO: update this after finalizing the launch basket tokens
     }
 }
