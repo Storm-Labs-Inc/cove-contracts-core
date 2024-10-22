@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
-import { AccessControlEnumerableUpgradeable } from
-    "@openzeppelin-upgradeable/contracts/access/extensions/AccessControlEnumerableUpgradeable.sol";
 import { ERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC165Upgradeable } from "@openzeppelin-upgradeable/contracts/utils/introspection/ERC165Upgradeable.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
@@ -22,7 +21,7 @@ import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC
 contract BasketToken is
     ERC20PluginsUpgradeable,
     ERC4626Upgradeable,
-    AccessControlEnumerableUpgradeable,
+    ERC165Upgradeable,
     IERC7540Operator,
     IERC7540Deposit,
     IERC7540Redeem
@@ -118,20 +117,18 @@ contract BasketToken is
     /// @param symbol_ Symbol of the token, prefixed with "cb".
     /// @param bitFlag_ Bitflag representing selected assets.
     /// @param strategy_ Strategy contract address.
-    /// @param admin_ Administrator address with elevated permissions.
     function initialize(
         IERC20 asset_,
         string memory name_,
         string memory symbol_,
         uint256 bitFlag_,
         address strategy_,
-        address assetRegistry_,
-        address admin_
+        address assetRegistry_
     )
         public
         initializer
     {
-        if (admin_ == address(0) || strategy_ == address(0) || assetRegistry_ == address(0)) {
+        if (strategy_ == address(0) || assetRegistry_ == address(0)) {
             revert Errors.ZeroAddress();
         }
         basketManager = msg.sender;
@@ -140,7 +137,6 @@ contract BasketToken is
         assetRegistry = assetRegistry_;
         nextDepositRequestId = 2;
         nextRedeemRequestId = 3;
-        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         __ERC4626_init(asset_);
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
     }

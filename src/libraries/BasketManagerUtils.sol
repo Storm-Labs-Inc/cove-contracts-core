@@ -200,10 +200,7 @@ library BasketManagerUtils {
             self.basketTokenToIndexPlusOne[basket] = basketTokensLength + 1;
         }
         // Interactions
-        // TODO: have owner address to pass to basket tokens on initialization
-        BasketToken(basket).initialize(
-            IERC20(baseAsset), basketName, symbol, bitFlag, strategy, address(assetRegistry), address(1)
-        );
+        BasketToken(basket).initialize(IERC20(baseAsset), basketName, symbol, bitFlag, strategy, address(assetRegistry));
     }
 
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
