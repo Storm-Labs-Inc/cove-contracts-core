@@ -464,7 +464,7 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(basketManager.rebalanceStatus().basketHash, keccak256(abi.encodePacked(targetBaskets)));
     }
 
-    function testFuzz_proposeRebalance_processDesposits_passesWhen_targetBalancesMet(uint256 initialDepositAmount)
+    function testFuzz_proposeRebalance_processDeposits_passesWhen_targetBalancesMet(uint256 initialDepositAmount)
         public
     {
         initialDepositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
