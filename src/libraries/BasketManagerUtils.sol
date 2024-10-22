@@ -239,7 +239,7 @@ library BasketManagerUtils {
                 revert AssetNotEnabled();
             }
             // Harvest management fee
-            BasketToken(basket).harvestManagementFee(self.managementFee, self.feeCollector);
+            BasketToken(basket).harvestManagementFee(self.managementFees[basket], self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:

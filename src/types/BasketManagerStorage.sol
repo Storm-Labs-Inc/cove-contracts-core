@@ -38,8 +38,8 @@ struct BasketManagerStorage {
     address assetRegistry;
     /// @notice Address of the feeCollector contract which will receive the management fee.
     address feeCollector;
-    /// @notice The current management fee in BPS denominated in 1e4.
-    uint16 managementFee;
+    /// @notice The current management fee in BPS denominated in 1e4 for a given basket  address.
+    mapping(address => uint16) managementFees;
     /// @notice Address of the BasketToken implementation.
     address basketTokenImplementation;
     /// @notice Array of all basket tokens.

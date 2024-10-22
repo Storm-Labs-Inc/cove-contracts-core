@@ -194,10 +194,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         return address(_bmStorage.feeCollector);
     }
 
-    /// @notice Returns the management fee in BPS denominated in 1e4.
+    /// @notice Returns the management fee of a basket in BPS denominated in 1e4.
+    /// @param basket Address of the basket.
     /// @return Management fee.
-    function managementFee() external view returns (uint16) {
-        return _bmStorage.managementFee;
+    function managementFee(address basket) external view returns (uint16) {
+        return _bmStorage.managementFees[basket];
     }
 
     /// @notice Returns the address of the strategy registry.
@@ -341,17 +342,21 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /// @notice Set the management fee to be given to the treausry on rebalance.
+    /// @param basket Address of the basket token.
     /// @param managementFee_ Management fee in BPS denominated in 1e4.
     /// @dev Only callable by the timelock.
-    function setManagementFee(uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
+    function setManagementFee(address basket, uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
+        if (basket == address(0)) {
+            revert Errors.ZeroAddress();
+        }
         if (managementFee_ > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
         if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
-        emit ManagementFeeSet(_bmStorage.managementFee, managementFee_);
-        _bmStorage.managementFee = managementFee_;
+        emit ManagementFeeSet(_bmStorage.managementFees[basket], managementFee_);
+        _bmStorage.managementFees[basket] = managementFee_;
     }
 
     /// PAUSING FUNCTIONS ///
