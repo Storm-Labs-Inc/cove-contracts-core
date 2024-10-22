@@ -456,14 +456,27 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(basketManager.rebalanceStatus().basketHash, keccak256(abi.encodePacked(targetBaskets)));
     }
 
-    function test_proposeRebalance_revertWhen_depositTooLittle_RebalanceNotRequired() public {
-        address basket = _setupBasketAndMocks(100);
-        address[] memory targetBaskets = new address[](1);
-        targetBaskets[0] = basket;
-
-        vm.expectRevert(BasketManagerUtils.RebalanceNotRequired.selector);
+    function testFuzz_proposeRebalance_processDeposits_passesWhen_targetBalancesMet(uint256 initialDepositAmount)
+        public
+    {
+        initialDepositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
+        address[][] memory assetsPerBasket = new address[][](1);
+        assetsPerBasket[0] = new address[](2);
+        assetsPerBasket[0][0] = rootAsset;
+        assetsPerBasket[0][1] = pairAsset;
+        uint256[][] memory weightsPerBasket = new uint256[][](1);
+        weightsPerBasket[0] = new uint256[](2);
+        weightsPerBasket[0][0] = 1e18;
+        weightsPerBasket[0][1] = 0;
+        uint256[] memory initialDepositAmounts = new uint256[](1);
+        initialDepositAmounts[0] = initialDepositAmount;
+        address[] memory baskets = _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts);
         vm.prank(rebalancer);
-        basketManager.proposeRebalance(targetBaskets);
+        basketManager.proposeRebalance(baskets);
+
+        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        assertEq(basketManager.rebalanceStatus().basketHash, keccak256(abi.encodePacked(baskets)));
     }
 
     function test_proposeRebalance_revertWhen_noDeposits_RebalanceNotRequired() public {
