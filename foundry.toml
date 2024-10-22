@@ -3,8 +3,8 @@ src = "src"
 out = "out"
 libs = ["lib", "node_modules", "dependencies"]
 fs_permissions = [
-	{ access = "read", path = "./deployments" },
-	{ access = "read", path = "./out" },
+    { access = "read", path = "./deployments" },
+    { access = "read", path = "./out" },
 ]
 solc = '0.8.23'
 ffi = true

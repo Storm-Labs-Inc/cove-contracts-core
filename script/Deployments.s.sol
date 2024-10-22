@@ -117,7 +117,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         _addAssetToAssetRegistry(ETH_SUSDE);
 
         // Deploy launch strategies
-        _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet's V1"); // TODO: confirm strategy name
+        _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
 
         // Deploy launch basket tokens
         address[] memory basketAssets = new address[](2); // TODO: confirm assets with Gauntlet
@@ -128,11 +128,11 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         initialWeights[1] = 0.5e18;
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
-                name: "Gauntlet's WETH/SUSDE Basket", // TODO: confirm basket name
+                name: "Gauntlet WETH-SUSDE Basket", // TODO: confirm basket name
                 symbol: "GVT1", // TODO: confirm symbol
                 rootAsset: ETH_WETH, // TODO: confirm root asset
                 bitFlag: _assetsToBitFlag(basketAssets),
-                strategy: getAddress("Gauntlet's V1_ManagedWeightStrategy"), // TODO: confirm strategy
+                strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"), // TODO: confirm strategy
                 initialWeights: initialWeights
             })
         );
