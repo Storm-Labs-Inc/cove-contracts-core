@@ -255,6 +255,9 @@ library BasketManagerUtils {
             // Notify Basket Token of rebalance:
             // TODO double check this logic
             uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits(); // have to cache value before prepare
+            if (pendingDeposit > 0) {
+                shouldRebalance = true;
+            }
             uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 totalSupply;
             {
