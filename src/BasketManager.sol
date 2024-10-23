@@ -2,9 +2,12 @@
 pragma solidity 0.8.23;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { FeeCollector } from "src/FeeCollector.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
@@ -18,6 +21,7 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerStorage;
+    using SafeERC20 for IERC20;
 
     /// CONSTANTS ///
     /// @notice Manager role. Managers can create new baskets.
@@ -28,10 +32,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     bytes32 private constant _REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
-    /// @dev Role given to a timelock contract that can set critical parameters.
+    /// @notice Role given to a timelock contract that can set critical parameters.
     bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
     /// @notice Maximum management fee in BPS denominated in 1e4.
     uint16 private constant _MAX_MANAGEMENT_FEE = 10_000;
+    /// @notice Maximum swap fee in BPS denominated in 1e4.
+    uint16 private constant _MAX_SWAP_FEE = 30;
 
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
@@ -42,6 +48,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// EVENTS ///
     /// @notice Emitted when the management fee is set.
     event ManagementFeeSet(uint16 oldFee, uint16 newFee);
+    /// @notice Emitted when the swap fee is set.
+    event SwapFeeSet(uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
 
@@ -53,6 +61,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     error MustWaitForRebalanceToComplete();
     error Unauthorized();
     error InvalidManagementFee();
+    error InvalidSwapFee();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -90,28 +99,6 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     }
 
     /// PUBLIC FUNCTIONS ///
-
-    /// @notice Creates a new basket token with the given parameters.
-    /// @param basketName Name of the basket.
-    /// @param symbol Symbol of the basket.
-    /// @param bitFlag Asset selection bitFlag for the basket.
-    /// @param strategy Address of the strategy contract for the basket.
-    function createNewBasket(
-        string calldata basketName,
-        string calldata symbol,
-        address baseAsset,
-        uint256 bitFlag,
-        address strategy
-    )
-        external
-        payable
-        whenNotPaused
-        onlyRole(_MANAGER_ROLE)
-        returns (address basket)
-    {
-        basket = _bmStorage.createNewBasket(basketName, symbol, baseAsset, bitFlag, strategy);
-        _grantRole(_BASKET_TOKEN_ROLE, basket);
-    }
 
     /// @notice Returns the index of the basket token in the basketTokens array.
     /// @dev Reverts if the basket token does not exist.
@@ -196,6 +183,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         return _bmStorage.managementFee;
     }
 
+    /// @notice Returns the swap fee in BPS denominated in 1e4.
+    /// @return Swap fee.
+    function swapFee() external view returns (uint16) {
+        return _bmStorage.swapFee;
+    }
+
     /// @notice Returns the address of the strategy registry.
     /// @return Address of the strategy registry.
     function strategyRegistry() external view returns (address) {
@@ -219,6 +212,28 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @return Array of asset addresses.
     function basketAssets(address basket) external view returns (address[] memory) {
         return _bmStorage.basketAssets[basket];
+    }
+
+    /// @notice Creates a new basket token with the given parameters.
+    /// @param basketName Name of the basket.
+    /// @param symbol Symbol of the basket.
+    /// @param bitFlag Asset selection bitFlag for the basket.
+    /// @param strategy Address of the strategy contract for the basket.
+    function createNewBasket(
+        string calldata basketName,
+        string calldata symbol,
+        address baseAsset,
+        uint256 bitFlag,
+        address strategy
+    )
+        external
+        payable
+        whenNotPaused
+        onlyRole(_MANAGER_ROLE)
+        returns (address basket)
+    {
+        basket = _bmStorage.createNewBasket(basketName, symbol, baseAsset, bitFlag, strategy);
+        _grantRole(_BASKET_TOKEN_ROLE, basket);
     }
 
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
@@ -336,6 +351,8 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _bmStorage.proRataRedeem(totalSupplyBefore, burnedShares, to);
     }
 
+    /// FEE FUNCTIONS ///
+
     /// @notice Set the management fee to be given to the treausry on rebalance.
     /// @param managementFee_ Management fee in BPS denominated in 1e4.
     /// @dev Only callable by the timelock.
@@ -348,6 +365,30 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         }
         emit ManagementFeeSet(_bmStorage.managementFee, managementFee_);
         _bmStorage.managementFee = managementFee_;
+    }
+
+    /// @notice Set the swap fee to be given to the treasury on rebalance.
+    /// @param swapFee_ Swap fee in BPS denominated in 1e4.
+    /// @dev Only callable by the timelock.
+    function setSwapFee(uint16 swapFee_) external onlyRole(_TIMELOCK_ROLE) {
+        if (swapFee_ > _MAX_SWAP_FEE) {
+            revert InvalidSwapFee();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit SwapFeeSet(_bmStorage.swapFee, swapFee_);
+        _bmStorage.swapFee = swapFee_;
+    }
+
+    /// @notice Claims the swap fee for the given asset and sends it to protocol treasury defined in the FeeCollector.
+    /// @param asset Address of the asset to collect the swap fee for.
+    function collectSwapFee(address asset) external onlyRole(_MANAGER_ROLE) returns (uint256 collectedFees) {
+        collectedFees = _bmStorage.collectedSwapFees[asset];
+        if (collectedFees != 0) {
+            _bmStorage.collectedSwapFees[asset] = 0;
+            IERC20(asset).safeTransfer(FeeCollector(_bmStorage.feeCollector).protocolTreasury(), collectedFees);
+        }
     }
 
     /// PAUSING FUNCTIONS ///
