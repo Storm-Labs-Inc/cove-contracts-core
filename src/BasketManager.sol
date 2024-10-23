@@ -371,7 +371,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         _bmStorage.managementFee = managementFee_;
     }
 
-    /// @notice Set the swap fee to be given to the treausry on rebalance.
+    /// @notice Set the swap fee to be given to the treasury on rebalance.
     /// @param swapFee_ Swap fee in BPS denominated in 1e4.
     /// @dev Only callable by the timelock.
     function setSwapFee(uint16 swapFee_) external onlyRole(_TIMELOCK_ROLE) {
