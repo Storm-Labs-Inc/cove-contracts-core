@@ -17,12 +17,10 @@ contract FeeCollector is AccessControlEnumerable {
     uint16 private constant _MAX_FEE = 1e4;
 
     /// STATE VARIABLES ///
-    // slither-disable-start uninitialized-state,constable-states
     /// @notice The address of the protocol treasury
-    address private _protocolTreasury;
+    address public protocolTreasury;
     /// @notice The BasketManager contract
     BasketManager internal immutable _basketManager;
-    // slither-disable-end uninitialized-state,constable-states
     /// @notice Mapping of basket tokens to their sponsor addresses
     mapping(address basketToken => address sponsor) public basketTokenSponsors;
     /// @notice Mapping of basket tokens to their sponsor split percentages
@@ -60,7 +58,7 @@ contract FeeCollector is AccessControlEnumerable {
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _basketManager = BasketManager(basketManager);
-        _protocolTreasury = treasury;
+        protocolTreasury = treasury;
     }
 
     /// @notice Set the protocol treasury address
@@ -69,7 +67,7 @@ contract FeeCollector is AccessControlEnumerable {
         if (treasury == address(0)) {
             revert Errors.ZeroAddress();
         }
-        _protocolTreasury = treasury;
+        protocolTreasury = treasury;
         emit TreasurySet(treasury);
     }
 
@@ -131,7 +129,7 @@ contract FeeCollector is AccessControlEnumerable {
     /// @notice Claim the treasury fee for a given basket token, only callable by the protocol treasury or admin
     /// @param basketToken The address of the basket token
     function claimTreasuryFee(address basketToken) external {
-        if (msg.sender != _protocolTreasury) {
+        if (msg.sender != protocolTreasury) {
             if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
                 revert Unauthorized();
             }
@@ -139,10 +137,10 @@ contract FeeCollector is AccessControlEnumerable {
         _checkIfBasketToken(basketToken);
         uint256 fee = claimableTreasuryFees[basketToken];
         claimableTreasuryFees[basketToken] = 0;
-        BasketToken(basketToken).proRataRedeem(fee, _protocolTreasury, address(this));
+        BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
     }
 
-    function _checkIfBasketToken(address token) internal {
+    function _checkIfBasketToken(address token) internal view {
         if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, token)) {
             revert NotBasketToken();
         }
