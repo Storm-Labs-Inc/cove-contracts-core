@@ -44,6 +44,12 @@ checksum = "351b6f9cde3d9476cc07e48c1bca6b7fd93fa16dd9b450e5ad5d169d1dbd5938"
 integrity = "d53734fbd7201cd9e44de730ae045ed8958dd2c7b9493c30b322f6e6c21ca8b2"
 
 [[dependencies]]
+name = "lifinance/create3-factory"
+version = "0"
+git = "https://github.com/lifinance/create3-factory.git"
+rev = "93b667acda0dafcafb6e193610b421ea003f46a9"
+
+[[dependencies]]
 name = "permit2"
 version = "1"
 git = "https://github.com/Uniswap/permit2.git"
