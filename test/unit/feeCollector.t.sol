@@ -38,7 +38,7 @@ contract FeeCollectorTest is BaseTest, Constants {
         basketManager = address(new MockBasketManager(basketTokenImplementation));
         basketToken = address(
             MockBasketManager(basketManager).createNewBasket(
-                ERC20(dummyAsset), "Test", "TEST", 1, createUser("strategyRegistry"), createUser("assetRegistry"), admin
+                ERC20(dummyAsset), "Test", "TEST", 1, createUser("strategyRegistry"), createUser("assetRegistry")
             )
         );
         vm.label(basketToken, "basketToken");
