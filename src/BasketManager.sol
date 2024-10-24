@@ -46,10 +46,10 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     mapping(bytes32 => bool) public isOrderValid;
 
     /// EVENTS ///
-    /// @notice Emitted when the management fee is set.
-    event ManagementFeeSet(uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the swap fee is set.
     event SwapFeeSet(uint16 oldFee, uint16 newFee);
+    /// @notice Emitted when the management fee is set.
+    event ManagementFeeSet(address indexed basket, uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
 
@@ -177,10 +177,11 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
         return address(_bmStorage.feeCollector);
     }
 
-    /// @notice Returns the management fee in BPS denominated in 1e4.
+    /// @notice Returns the management fee of a basket in BPS denominated in 1e4.
+    /// @param basket Address of the basket.
     /// @return Management fee.
-    function managementFee() external view returns (uint16) {
-        return _bmStorage.managementFee;
+    function managementFee(address basket) external view returns (uint16) {
+        return _bmStorage.managementFees[basket];
     }
 
     /// @notice Returns the swap fee in BPS denominated in 1e4.
@@ -354,17 +355,20 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// FEE FUNCTIONS ///
 
     /// @notice Set the management fee to be given to the treausry on rebalance.
+    /// @param basket Address of the basket token.
     /// @param managementFee_ Management fee in BPS denominated in 1e4.
     /// @dev Only callable by the timelock.
-    function setManagementFee(uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
+    /// @dev Setting the management fee of the 0 address will set the default management fee for newly created baskets.
+    function setManagementFee(address basket, uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
         if (managementFee_ > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
+        // TODO: change below to a basket specific check instead of a global check
         if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
-        emit ManagementFeeSet(_bmStorage.managementFee, managementFee_);
-        _bmStorage.managementFee = managementFee_;
+        emit ManagementFeeSet(basket, _bmStorage.managementFees[basket], managementFee_);
+        _bmStorage.managementFees[basket] = managementFee_;
     }
 
     /// @notice Set the swap fee to be given to the treasury on rebalance.

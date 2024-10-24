@@ -196,6 +196,8 @@ library BasketManagerUtils {
             self.basketTokens.push(basket);
             self.basketAssets[basket] = assets;
             self.basketIdToAddress[basketId] = basket;
+            // The set default management fee will given to the zero address
+            self.managementFees[basket] = self.managementFees[address(0)];
             uint256 assetsLength = assets.length;
             for (uint256 j = 0; j < assetsLength;) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -246,7 +248,7 @@ library BasketManagerUtils {
                 revert AssetNotEnabled();
             }
             // Harvest management fee
-            BasketToken(basket).harvestManagementFee(self.managementFee, self.feeCollector);
+            BasketToken(basket).harvestManagementFee(self.managementFees[basket], self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:
