@@ -49,7 +49,7 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @notice Emitted when the swap fee is set.
     event SwapFeeSet(uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the management fee is set.
-    event ManagementFeeSet(address basket, uint16 oldFee, uint16 newFee);
+    event ManagementFeeSet(address indexed basket, uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
 
