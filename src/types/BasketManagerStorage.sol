@@ -39,8 +39,9 @@ struct BasketManagerStorage {
     /// @notice Address of the FeeCollector contract responsible for receiving management fees.
     /// Swap fees are directed to the protocol treasury via feeCollector.protocolTreasury().
     address feeCollector;
-    /// @notice The current management fee, expressed in basis points, applied to the total value of each basket token.
-    uint16 managementFee;
+    /// @notice The current management fee, expressed in basis points, applied to the total value of each basket token
+    /// for a given basket  address.
+    mapping(address => uint16) managementFees;
     /// @notice The current swap fee, expressed in basis points, applied to the value of internal swaps.
     uint16 swapFee;
     /// @notice Address of the BasketToken implementation.

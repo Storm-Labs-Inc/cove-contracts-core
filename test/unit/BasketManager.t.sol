@@ -91,8 +91,6 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.grantRole(TIMELOCK_ROLE, timelock);
         basketManager.grantRole(PAUSER_ROLE, pauser);
         vm.stopPrank();
-
-        tokenSwapAdapter = createUser("tokenSwapAdapter");
         vm.label(address(basketManager), "basketManager");
     }
 
@@ -194,6 +192,9 @@ contract BasketManagerTest is BaseTest, Constants {
         );
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
+        // Set the default management fee
+        vm.prank(timelock);
+        basketManager.setManagementFee(address(0), 1e4);
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
@@ -205,6 +206,7 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(basketManager.basketTokenToRebalanceAssetToIndex(basket, address(rootAsset)), 0);
         assertEq(basketManager.basketTokenToIndex(basket), 0);
         assertEq(basketManager.basketAssets(basket), assets);
+        assertEq(basketManager.managementFee(basket), 1e4);
     }
 
     function testFuzz_createNewBasket_revertWhen_BasketTokenMaxExceeded(uint256 bitFlag, address strategy) public {
@@ -2133,33 +2135,36 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.executeTokenSwap(trades, "");
     }
 
-    function testFuzz_setManagementFee(uint16 fee) public {
+    function testFuzz_setManagementFee(address basket, uint16 fee) public {
         vm.assume(fee <= MAX_MANAGEMENT_FEE);
         vm.prank(timelock);
-        basketManager.setManagementFee(fee);
-        assertEq(basketManager.managementFee(), fee);
+        basketManager.setManagementFee(basket, fee);
+        assertEq(basketManager.managementFee(basket), fee);
     }
 
-    function testFuzz_setManagementFee_revertsWhen_calledByNonTimelock(address caller) public {
+    function testFuzz_setManagementFee_revertsWhen_calledByNonTimelock(address basket, address caller) public {
         vm.assume(caller != timelock);
+        vm.assume(basket != address(0));
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
-        basketManager.setManagementFee(10);
+        basketManager.setManagementFee(basket, 10);
     }
 
-    function testFuzz_setManagementFee_revertWhen_invalidManagementFee(uint16 fee) public {
+    function testFuzz_setManagementFee_revertWhen_invalidManagementFee(address basket, uint16 fee) public {
         vm.assume(fee > MAX_MANAGEMENT_FEE);
+        vm.assume(basket != address(0));
         vm.expectRevert(BasketManager.InvalidManagementFee.selector);
         vm.prank(timelock);
-        basketManager.setManagementFee(fee);
+        basketManager.setManagementFee(basket, fee);
     }
 
-    function testFuzz_setManagementfee_revertWhen_MustWaitForRebalanceToComplete(uint16 fee) public {
+    function testFuzz_setManagementfee_revertWhen_MustWaitForRebalanceToComplete(address basket, uint16 fee) public {
         vm.assume(fee <= MAX_MANAGEMENT_FEE);
+        vm.assume(basket != address(0));
         test_proposeRebalance_processesDeposits();
         vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(timelock);
-        basketManager.setManagementFee(fee);
+        basketManager.setManagementFee(basket, fee);
     }
 
     function testFuzz_setSwapFee(uint16 fee) public {
