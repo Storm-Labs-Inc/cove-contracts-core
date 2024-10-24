@@ -3,6 +3,7 @@ pragma solidity 0.8.23;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -130,7 +131,7 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(bm.getRoleMemberCount(PAUSER_ROLE), 1);
     }
 
-    /// forge-config: default.fuzz.runs = 1024
+    /// forge-config: default.fuzz.runs = 2048
     function testFuzz_constructor_revertWhen_ZeroAddress(
         address basketTokenImplementation_,
         address eulerRouter_,
