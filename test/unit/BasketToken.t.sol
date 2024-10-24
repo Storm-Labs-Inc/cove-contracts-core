@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.23;
 
-import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
-
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -52,9 +49,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assetRegistry = createUser("assetRegistry");
 
         vm.prank(address(owner));
-        basket = basketManager.createNewBasket(
-            ERC20(dummyAsset), "Test", "TEST", 1, address(1), assetRegistry, address(owner)
-        );
+        basket = basketManager.createNewBasket(ERC20(dummyAsset), "Test", "TEST", 1, address(1), assetRegistry);
         vm.label(address(basket), "basketToken");
 
         // mock call to return ENABLED for the dummyAsset
@@ -69,14 +64,13 @@ contract BasketTokenTest is BaseTest, Constants {
         string memory symbol,
         uint256 bitFlag,
         address strategy,
-        address assetRegistry_,
-        address owner_
+        address assetRegistry_
     )
         public
     {
         BasketToken tokenImpl = new BasketToken();
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        tokenImpl.initialize(ERC20(asset), name, symbol, bitFlag, strategy, assetRegistry_, owner_);
+        tokenImpl.initialize(ERC20(asset), name, symbol, bitFlag, strategy, assetRegistry_);
     }
 
     function testFuzz_initialize_revertWhen_alreadyInitialized(
@@ -85,13 +79,12 @@ contract BasketTokenTest is BaseTest, Constants {
         string memory symbol,
         uint256 bitFlag,
         address strategy,
-        address assetRegistry_,
-        address owner_
+        address assetRegistry_
     )
         public
     {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        basket.initialize(ERC20(asset), name, symbol, bitFlag, strategy, assetRegistry_, owner_);
+        basket.initialize(ERC20(asset), name, symbol, bitFlag, strategy, assetRegistry_);
     }
 
     function testFuzz_initialize(
@@ -101,12 +94,10 @@ contract BasketTokenTest is BaseTest, Constants {
         string memory symbol,
         uint256 bitFlag,
         address strategy,
-        address assetRegistry_,
-        address tokenAdmin
+        address assetRegistry_
     )
         public
     {
-        vm.assume(tokenAdmin != address(0));
         vm.assume(strategy != address(0));
         vm.assume(assetRegistry_ != address(0));
         BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
@@ -114,7 +105,7 @@ contract BasketTokenTest is BaseTest, Constants {
         ERC20DecimalsMock mockERC20 = new ERC20DecimalsMock(assetDecimals, "test", "TST");
         // Call initialize
         vm.prank(from);
-        token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategy, assetRegistry_, tokenAdmin);
+        token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategy, assetRegistry_);
 
         // Check state
         assertEq(token.asset(), address(mockERC20));
@@ -125,7 +116,6 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(token.strategy(), strategy);
         assertEq(token.assetRegistry(), assetRegistry_);
         assertEq(token.basketManager(), from);
-        assertTrue(token.hasRole(DEFAULT_ADMIN_ROLE, tokenAdmin));
         // https://eips.ethereum.org/EIPS/eip-165
         bytes4 erc165 = 0x01ffc9a7;
         // https://eips.ethereum.org/EIPS/eip-7575#erc-165-support
@@ -141,31 +131,6 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(token.supportsInterface(erc7540Operator), true);
         assertEq(token.supportsInterface(erc7540Deposit), true);
         assertEq(token.supportsInterface(erc7540Redeem), true);
-        assertEq(token.supportsInterface(type(IAccessControl).interfaceId), true);
-    }
-
-    function testFuzz_initialize_revertsWhen_ownerZero(
-        address from,
-        uint8 assetDecimals,
-        string memory name,
-        string memory symbol,
-        uint256 bitFlag,
-        address strategy,
-        address assetRegistry_
-    )
-        public
-    {
-        vm.assume(strategy != address(0));
-        vm.assume(assetRegistry_ != address(0));
-
-        BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
-        // Added mock due to foundry test issue
-        ERC20DecimalsMock mockERC20 = new ERC20DecimalsMock(assetDecimals, "test", "TST");
-
-        // Call initialize
-        vm.prank(from);
-        vm.expectRevert(Errors.ZeroAddress.selector);
-        token.initialize(ERC20(mockERC20), name, symbol, bitFlag, strategy, assetRegistry_, address(0));
     }
 
     function testFuzz_initialize_revertsWhen_strategyZero(
@@ -175,13 +140,11 @@ contract BasketTokenTest is BaseTest, Constants {
         string memory name,
         string memory symbol,
         uint256 bitFlag,
-        address assetRegistry_,
-        address owner_
+        address assetRegistry_
     )
         public
     {
         vm.assume(asset != address(0));
-        vm.assume(owner_ != address(0));
         vm.assume(assetRegistry_ != address(0));
         BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
         vm.mockCall(asset, abi.encodeWithSelector(ERC20.decimals.selector), abi.encode(assetDecimals));
@@ -189,7 +152,7 @@ contract BasketTokenTest is BaseTest, Constants {
         // Call initialize
         vm.prank(from);
         vm.expectRevert(Errors.ZeroAddress.selector);
-        token.initialize(ERC20(asset), name, symbol, bitFlag, address(0), assetRegistry_, owner_);
+        token.initialize(ERC20(asset), name, symbol, bitFlag, address(0), assetRegistry_);
     }
 
     function testFuzz_initialize_revertsWhen_assetRegistryZero(
@@ -199,13 +162,11 @@ contract BasketTokenTest is BaseTest, Constants {
         string memory name,
         string memory symbol,
         uint256 bitFlag,
-        address strategy,
-        address owner_
+        address strategy
     )
         public
     {
         vm.assume(asset != address(0));
-        vm.assume(owner_ != address(0));
         vm.assume(strategy != address(0));
         BasketToken token = BasketToken(Clones.clone(address(basketTokenImplementation)));
         vm.mockCall(asset, abi.encodeWithSelector(ERC20.decimals.selector), abi.encode(assetDecimals));
@@ -213,7 +174,7 @@ contract BasketTokenTest is BaseTest, Constants {
         // Call initialize
         vm.prank(from);
         vm.expectRevert(Errors.ZeroAddress.selector);
-        token.initialize(ERC20(asset), name, symbol, bitFlag, strategy, address(0), owner_);
+        token.initialize(ERC20(asset), name, symbol, bitFlag, strategy, address(0));
     }
 
     function testFuzz_requestDeposit(uint256 amount, address from) public returns (uint256 requestId) {

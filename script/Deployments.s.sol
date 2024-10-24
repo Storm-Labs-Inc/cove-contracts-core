@@ -225,8 +225,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             getAddress("StrategyRegistry"),
             getAddress("AssetRegistry"),
             COVE_DEPLOYER_ADDRESS,
-            feeCollectorAddress,
-            COVE_DEPLOYER_ADDRESS
+            feeCollectorAddress
         );
         if (isProduction) {
             vm.broadcast();
