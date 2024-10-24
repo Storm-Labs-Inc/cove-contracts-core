@@ -362,13 +362,12 @@ contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
     /// @param basket Address of the basket token.
     /// @param managementFee_ Management fee in BPS denominated in 1e4.
     /// @dev Only callable by the timelock.
+    /// @dev Setting the management fee of the 0 address will set the default management fee for newly created baskets.
     function setManagementFee(address basket, uint16 managementFee_) external onlyRole(_TIMELOCK_ROLE) {
-        if (basket == address(0)) {
-            revert Errors.ZeroAddress();
-        }
         if (managementFee_ > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
+        // TODO: change below to a basket specific check instead of a global check
         if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }

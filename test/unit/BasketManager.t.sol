@@ -206,6 +206,9 @@ contract BasketManagerTest is BaseTest, Constants {
         );
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
+        // Set the default management fee
+        vm.prank(timelock);
+        basketManager.setManagementFee(address(0), 1e4);
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
@@ -217,6 +220,7 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(basketManager.basketTokenToRebalanceAssetToIndex(basket, address(rootAsset)), 0);
         assertEq(basketManager.basketTokenToIndex(basket), 0);
         assertEq(basketManager.basketAssets(basket), assets);
+        assertEq(basketManager.managementFee(basket), 1e4);
     }
 
     function testFuzz_createNewBasket_revertWhen_BasketTokenMaxExceeded(uint256 bitFlag, address strategy) public {
@@ -2157,16 +2161,9 @@ contract BasketManagerTest is BaseTest, Constants {
 
     function testFuzz_setManagementFee(address basket, uint16 fee) public {
         vm.assume(fee <= MAX_MANAGEMENT_FEE);
-        vm.assume(basket != address(0));
         vm.prank(timelock);
         basketManager.setManagementFee(basket, fee);
         assertEq(basketManager.managementFee(basket), fee);
-    }
-
-    function test_setManagementFee_revertsWhen_zeroAddress() public {
-        vm.prank(timelock);
-        vm.expectRevert(Errors.ZeroAddress.selector);
-        basketManager.setManagementFee(address(0), 0);
     }
 
     function testFuzz_setManagementFee_revertsWhen_calledByNonTimelock(address basket, address caller) public {
