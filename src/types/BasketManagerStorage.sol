@@ -36,10 +36,13 @@ struct BasketManagerStorage {
     EulerRouter eulerRouter;
     /// @notice Asset registry contract.
     address assetRegistry;
-    /// @notice Address of the feeCollector contract which will receive the management fee.
+    /// @notice Address of the FeeCollector contract responsible for receiving management fees.
+    /// Swap fees are directed to the protocol treasury via feeCollector.protocolTreasury().
     address feeCollector;
-    /// @notice The current management fee in BPS denominated in 1e4.
+    /// @notice The current management fee, expressed in basis points, applied to the total value of each basket token.
     uint16 managementFee;
+    /// @notice The current swap fee, expressed in basis points, applied to the value of internal swaps.
+    uint16 swapFee;
     /// @notice Address of the BasketToken implementation.
     address basketTokenImplementation;
     /// @notice Array of all basket tokens.
@@ -56,6 +59,8 @@ struct BasketManagerStorage {
     mapping(address basketToken => uint256 indexPlusOne) basketTokenToIndexPlusOne;
     /// @notice Mapping of basket token to pending redeeming shares.
     mapping(address basketToken => uint256 pendingRedeems) pendingRedeems;
+    /// @notice Mapping of asset to collected swap fees.
+    mapping(address asset => uint256 fees) collectedSwapFees;
     /// @notice Rebalance status.
     RebalanceStatus rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
