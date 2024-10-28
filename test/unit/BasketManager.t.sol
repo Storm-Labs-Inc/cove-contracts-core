@@ -329,14 +329,15 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
 
-    function test_createNewBasket_revertWhen_BaseAssetMismatch() public {
+    function test_createNewBasket_passesWhen_BaseAssetNotFirst() public {
         string memory name = "basket";
         string memory symbol = "b";
         uint256 bitFlag = 1;
         address strategy = address(uint160(1));
         address wrongAsset = address(new ERC20Mock());
-        address[] memory assets = new address[](1);
+        address[] memory assets = new address[](2);
         assets[0] = wrongAsset;
+        assets[1] = rootAsset;
 
         vm.mockCall(
             basketTokenImplementation,
@@ -348,7 +349,6 @@ contract BasketManagerTest is BaseTest, Constants {
         );
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
-        vm.expectRevert(BasketManagerUtils.BaseAssetMismatch.selector);
         vm.prank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
     }
