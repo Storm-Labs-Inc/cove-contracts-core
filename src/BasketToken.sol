@@ -3,7 +3,7 @@ pragma solidity 0.8.23;
 
 import { ERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
-
+import { MulticallUpgradeable } from "@openzeppelin-upgradeable/contracts/utils/MulticallUpgradeable.sol";
 import { ERC165Upgradeable } from "@openzeppelin-upgradeable/contracts/utils/introspection/ERC165Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -25,7 +25,8 @@ contract BasketToken is
     ERC165Upgradeable,
     IERC7540Operator,
     IERC7540Deposit,
-    IERC7540Redeem
+    IERC7540Redeem,
+    MulticallUpgradeable
 {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
