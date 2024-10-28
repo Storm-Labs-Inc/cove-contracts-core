@@ -5,7 +5,7 @@ import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensio
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
@@ -18,7 +18,7 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// in the BasketManagerUtils contract.
-contract BasketManager is ReentrancyGuard, AccessControlEnumerable, Pausable {
+contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pausable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerStorage;
     using SafeERC20 for IERC20;
