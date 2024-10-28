@@ -252,19 +252,17 @@ library BasketManagerUtils {
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:
-            // TODO double check this logic
-            uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits(); // have to cache value before prepare
-            if (pendingDeposit > 0) {
+            (uint256 pendingRedeems_, uint256 pendingDeposits) = BasketToken(basket).prepareForRebalance();
+            if (pendingDeposits > 0) {
                 shouldRebalance = true;
             }
-            uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 totalSupply;
             {
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
                 (totalSupply, pendingDepositValue) =
-                    _processPendingDeposits(self, basket, basketValue, balances[0], pendingDeposit);
-                balances[0] += pendingDeposit;
+                    _processPendingDeposits(self, basket, basketValue, balances[0], pendingDeposits);
+                balances[0] += pendingDeposits;
                 basketValue += pendingDepositValue;
             }
             uint256 requiredWithdrawValue = 0;

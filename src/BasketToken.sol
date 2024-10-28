@@ -344,10 +344,14 @@ contract BasketToken is
     /// rebalance process regardless of the presence of any pending deposits or redemptions. When there are no pending
     /// deposits or redeems, the epoch is not advanced.
     /// @return sharesPendingRedemption The total amount of shares pending redemption.
-    function prepareForRebalance() public returns (uint256 sharesPendingRedemption) {
+    function prepareForRebalance() public returns (uint256 sharesPendingRedemption, uint256 pendingDeposits) {
         _onlyBasketManager();
         uint256 nextDepositRequestId_ = nextDepositRequestId;
         uint256 nextRedeemRequestId_ = nextRedeemRequestId;
+        // Get cuurent pending deposits
+        console.log("buh");
+        pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
+        console.log("buh2");
 
         // Check if previous deposit request has been fulfilled
         DepositRequestStruct storage previousDepositRequest = _depositRequests[nextDepositRequestId_ - 2];
