@@ -190,7 +190,7 @@ library BasketManagerUtils {
                 revert AssetListEmpty();
             }
             basket = Clones.clone(self.basketTokenImplementation);
-            _checkForBaseAsset(self, basket, assets, baseAsset);
+            _setBaseAssetIndex(self, basket, assets, baseAsset);
             self.basketTokens.push(basket);
             self.basketAssets[basket] = assets;
             self.basketIdToAddress[basketId] = basket;
@@ -1087,13 +1087,14 @@ library BasketManagerUtils {
         }
     }
 
-    /// @notice Internal function to check if the base asset is present in the given basket. Sets the index is present.
+    /// @notice Internal function to store the index of the base asset for a given basket. Reverts if the base asset is
+    /// not present in the basket's assets.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param basket Basket token address.
     /// @param assets Array of asset addresses in the basket.
     /// @param baseAsset Base asset address.
     /// @dev If the base asset is not present in the basket, this function will revert.
-    function _checkForBaseAsset(
+    function _setBaseAssetIndex(
         BasketManagerStorage storage self,
         address basket,
         address[] memory assets,
