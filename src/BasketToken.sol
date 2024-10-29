@@ -348,7 +348,7 @@ contract BasketToken is
         _onlyBasketManager();
         uint256 nextDepositRequestId_ = nextDepositRequestId;
         uint256 nextRedeemRequestId_ = nextRedeemRequestId;
-        // Get cuurent pending deposits
+        // Get current pending deposits
         pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
 
         // Check if previous deposit request has been fulfilled
