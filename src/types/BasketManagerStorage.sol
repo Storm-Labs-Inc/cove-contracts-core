@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
