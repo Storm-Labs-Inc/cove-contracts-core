@@ -141,6 +141,7 @@ contract BasketToken is
         nextRedeemRequestId = 3;
         __ERC4626_init(asset_);
         __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
+        __ERC20Plugins_init(8, 2_000_000);
     }
 
     /// @notice Returns the value of the basket in assets. This will be an estimate as it does not account for other
@@ -544,6 +545,9 @@ contract BasketToken is
     /// @param from Address to redeem shares from.
     function proRataRedeem(uint256 shares, address to, address from) public {
         // Effects
+        uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
+        address feeCollector = BasketManager(basketManager).feeCollector();
+        _harvestManagementFee(feeBps, feeCollector);
         if (msg.sender != from) {
             _spendAllowance(from, msg.sender, shares);
         }
@@ -556,10 +560,14 @@ contract BasketToken is
     /// @notice Harvests the management fee, records the fee has been taken and mints the fee to the treasury.
     /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
     /// @param feeCollector The address to receive the management fee.
-    // slither-disable-next-line timestamp
     function harvestManagementFee(uint16 feeBps, address feeCollector) external {
         // Checks
         _onlyBasketManager();
+        _harvestManagementFee(feeBps, feeCollector);
+    }
+
+    // slither-disable-next-line timestamp
+    function _harvestManagementFee(uint16 feeBps, address feeCollector) internal {
         if (feeBps > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
