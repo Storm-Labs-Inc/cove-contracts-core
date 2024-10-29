@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 

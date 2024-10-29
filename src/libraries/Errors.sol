@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 
 /// @title Errors
 /// @notice Library containing shared custom errors the protocol may revert with.

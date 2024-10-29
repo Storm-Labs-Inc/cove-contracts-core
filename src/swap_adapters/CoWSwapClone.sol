@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -7,6 +7,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { Clone } from "clones-with-immutable-args/Clone.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
+// slither-disable-start locked-ether
 /// @title CoWSwapClone
 /// @notice A contract that implements the ERC1271 interface for signature validation and manages token trades. This
 /// contract is designed to be used as a clone with immutable arguments, leveraging the `ClonesWithImmutableArgs`
@@ -188,3 +189,4 @@ contract CoWSwapClone is IERC1271, Clone {
         return _getArgAddress(132);
     }
 }
+// slither-disable-end locked-ether
