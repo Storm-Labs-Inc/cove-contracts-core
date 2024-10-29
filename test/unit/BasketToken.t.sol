@@ -1682,6 +1682,16 @@ contract BasketTokenTest is BaseTest, Constants {
                 abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, sharesToRedeem, to),
                 abi.encode(0)
             );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.feeCollector.selector),
+                abi.encode(feeCollector)
+            );
 
             // Call proRataRedeem
             vm.prank(from);
@@ -1725,6 +1735,16 @@ contract BasketTokenTest is BaseTest, Constants {
                 abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, sharesToRedeem, to),
                 abi.encode(0)
             );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.feeCollector.selector),
+                abi.encode(feeCollector)
+            );
 
             // Call proRataRedeem
             vm.prank(caller);
@@ -1761,6 +1781,18 @@ contract BasketTokenTest is BaseTest, Constants {
             // Approve token spend
             vm.prank(from);
             basket.approve(caller, approveAmount);
+
+            // Mock proRataRedeem
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.feeCollector.selector),
+                abi.encode(feeCollector)
+            );
 
             // Call proRataRedeem
             vm.prank(caller);
