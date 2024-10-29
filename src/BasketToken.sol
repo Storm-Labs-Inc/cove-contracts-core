@@ -349,9 +349,7 @@ contract BasketToken is
         uint256 nextDepositRequestId_ = nextDepositRequestId;
         uint256 nextRedeemRequestId_ = nextRedeemRequestId;
         // Get cuurent pending deposits
-        console.log("buh");
         pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
-        console.log("buh2");
 
         // Check if previous deposit request has been fulfilled
         DepositRequestStruct storage previousDepositRequest = _depositRequests[nextDepositRequestId_ - 2];
