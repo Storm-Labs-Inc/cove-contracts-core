@@ -1036,7 +1036,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Call prepareForRebalance
         vm.prank(address(basketManager));
-        (uint256 preFulfilledShares,) = basket.prepareForRebalance();
+        (, uint256 preFulfilledShares) = basket.prepareForRebalance();
 
         // Check state
         assertEq(
@@ -1061,7 +1061,7 @@ contract BasketTokenTest is BaseTest, Constants {
     function test_prepareForRebalance_returnsZeroWhen_ZeroPendingRedeems() public {
         assertEq(basket.totalPendingRedemptions(), 0);
         vm.prank(address(basketManager));
-        (uint256 pendingShares,) = basket.prepareForRebalance();
+        (, uint256 pendingShares) = basket.prepareForRebalance();
         assertEq(pendingShares, 0);
     }
 
