@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.23;
+pragma solidity 0.8.28;
 
 library BitFlag {
     // Bit masks used in the popCount algorithm
