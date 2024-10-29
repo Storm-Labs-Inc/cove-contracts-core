@@ -1101,10 +1101,15 @@ library BasketManagerUtils {
     )
         private
     {
-        for (uint256 i = 0; i < assets.length; i++) {
+        uint256 len = assets.length;
+        for (uint256 i = 0; i < len;) {
             if (assets[i] == baseAsset) {
                 self.basketTokenToBaseAssetIdexPlusOne[basket] = i + 1;
                 return;
+            }
+            unchecked {
+                // Overflow not possible: i is less than len
+                ++i;
             }
         }
         revert BaseAssetMismatch();

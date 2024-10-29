@@ -9,8 +9,6 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
-
-import { FeeCollector } from "src/FeeCollector.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
@@ -351,6 +349,30 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
         basketManager.createNewBasket(name, symbol, rootAsset, bitFlag, strategy);
+    }
+
+    function testFuzz_createNewBasket_revertWhen_baseAssetNotIncluded(uint256 bitFlag, address strategy) public {
+        string memory name = "basket";
+        string memory symbol = "b";
+        vm.mockCall(
+            basketTokenImplementation,
+            abi.encodeCall(BasketToken.initialize, (IERC20(rootAsset), name, symbol, bitFlag, strategy, assetRegistry)),
+            new bytes(0)
+        );
+        vm.mockCall(
+            strategyRegistry, abi.encodeCall(StrategyRegistry.supportsBitFlag, (bitFlag, strategy)), abi.encode(true)
+        );
+        address[] memory assets = new address[](1);
+        assets[0] = pairAsset;
+        // Set the default management fee
+        vm.prank(timelock);
+        basketManager.setManagementFee(address(0), 1e4);
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
+        // Mock the call to getAssets to not include base asset
+        vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
+        vm.expectRevert(BasketManagerUtils.BaseAssetMismatch.selector);
+        vm.prank(manager);
+        basketManager.createNewBasket(name, symbol, address(rootAsset), bitFlag, strategy);
     }
 
     function test_createNewBasket_revertWhen_BaseAssetIsZeroAddress() public {
