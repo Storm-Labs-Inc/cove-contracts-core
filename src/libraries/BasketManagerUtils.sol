@@ -189,10 +189,8 @@ library BasketManagerUtils {
             if (assets.length == 0) {
                 revert AssetListEmpty();
             }
-            if (assets[0] != baseAsset) {
-                revert BaseAssetMismatch();
-            }
             basket = Clones.clone(self.basketTokenImplementation);
+            _setBaseAssetIndex(self, basket, assets, baseAsset);
             self.basketTokens.push(basket);
             self.basketAssets[basket] = assets;
             self.basketIdToAddress[basketId] = basket;
@@ -256,22 +254,27 @@ library BasketManagerUtils {
             }
             uint256 totalSupply;
             {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
-                (totalSupply, pendingDepositValue) =
-                    _processPendingDeposits(self, basket, basketValue, balances[0], pendingDeposits);
-                balances[0] += pendingDeposits;
+                (totalSupply, pendingDepositValue) = _processPendingDeposits(
+                    self, basket, basketValue, balances[baseAssetIndex], pendingDeposits, baseAssetIndex
+                );
+                balances[baseAssetIndex] += pendingDeposits;
                 basketValue += pendingDepositValue;
             }
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
-            if (pendingRedeems_ > 0) {
+            if (pendingRedeems > 0) {
                 shouldRebalance = true;
                 if (totalSupply > 0) {
-                    // Rounding direction: down
+                    // totalSupply cannot be 0 when pendingRedeems is greater than 0, as redemptions
+                    // can only occur if there are issued shares (i.e., totalSupply > 0).
                     // Division-by-zero is not possible: totalSupply is greater than 0
-                    requiredWithdrawValue = basketValue * pendingRedeems_ / totalSupply;
+                    requiredWithdrawValue = FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, totalSupply);
                     if (requiredWithdrawValue > basketValue) {
+                        // This should never happen, but if it does, withdraw the entire basket value
                         requiredWithdrawValue = basketValue;
                     }
                     unchecked {
@@ -280,7 +283,7 @@ library BasketManagerUtils {
                     }
                 }
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                self.pendingRedeems[basket] = pendingRedeems_;
+                self.pendingRedeems[basket] = pendingRedeems;
             }
             uint256[] memory targetBalances =
                 _calculateTargetBalances(self, basket, basketValue, requiredWithdrawValue, assets);
@@ -564,26 +567,29 @@ library BasketManagerUtils {
 
             // If there are pending redeems, process them
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            uint256 pendingRedeems_ = self.pendingRedeems[basket];
-            if (pendingRedeems_ > 0) {
+            uint256 pendingRedeems = self.pendingRedeems[basket];
+            if (pendingRedeems > 0) {
                 // slither-disable-next-line costly-loop
                 delete self.pendingRedeems[basket]; // nosemgrep
                 // Assume the first asset listed in the basket is the base asset
                 // Rounding direction: down
-                // Division-by-zero is not possible: priceOfAssets[0] is greater than 0, totalSupply is greater than 0
+                // Division-by-zero is not possible: priceOfAssets[baseAssetIndex] is greater than 0, totalSupply is
+                // greater than 0
                 // when pendingRedeems is greater than 0
                 uint256 rawAmount =
-                    FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems_, BasketToken(basket).totalSupply());
+                    FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply());
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 withdrawAmount = self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[0]);
-                if (withdrawAmount <= balances[0]) {
+                uint256 withdrawAmount =
+                    self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
+                if (withdrawAmount <= balances[baseAssetIndex]) {
                     unchecked {
-                        // Overflow not possible: withdrawAmount is less than or equal to balances[0]
+                        // Overflow not possible: withdrawAmount is less than or equal to balances[baseAssetIndex]
                         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                        self.basketBalanceOf[basket][assets[0]] = balances[0] - withdrawAmount;
+                        self.basketBalanceOf[basket][assets[baseAssetIndex]] = balances[baseAssetIndex] - withdrawAmount;
                     }
                     // slither-disable-next-line reentrancy-no-eth
-                    IERC20(assets[0]).forceApprove(basket, withdrawAmount);
+                    IERC20(assets[baseAssetIndex]).forceApprove(basket, withdrawAmount);
                     // ERC20.transferFrom is called in BasketToken.fulfillRedeem
                     // slither-disable-next-line reentrancy-no-eth
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
@@ -934,7 +940,8 @@ library BasketManagerUtils {
         address basket,
         uint256 basketValue,
         uint256 baseAssetBalance,
-        uint256 pendingDeposit
+        uint256 pendingDeposit,
+        uint256 baseAssetIndex
     )
         private
         returns (uint256 totalSupply, uint256 pendingDepositValue)
@@ -946,7 +953,7 @@ library BasketManagerUtils {
             // Round direction: down
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             pendingDepositValue =
-                self.eulerRouter.getQuote(pendingDeposit, self.basketAssets[basket][0], _USD_ISO_4217_CODE);
+                self.eulerRouter.getQuote(pendingDeposit, self.basketAssets[basket][baseAssetIndex], _USD_ISO_4217_CODE);
             // Rounding direction: down
             // Division-by-zero is not possible: basketValue is greater than 0
             console.log("basket value: ", basketValue);
@@ -955,7 +962,7 @@ library BasketManagerUtils {
                 : pendingDeposit;
             totalSupply += requiredDepositShares;
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            self.basketBalanceOf[basket][self.basketAssets[basket][0]] += baseAssetBalance + pendingDeposit;
+            self.basketBalanceOf[basket][self.basketAssets[basket][baseAssetIndex]] += baseAssetBalance + pendingDeposit;
             // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
             BasketToken(basket).fulfillDeposit(requiredDepositShares);
         }
@@ -1000,7 +1007,10 @@ library BasketManagerUtils {
             }
         }
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        targetBalances[0] += self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[0]);
+        uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
+        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+        targetBalances[baseAssetIndex] +=
+            self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
     }
 
     /// @notice Internal function to calculate the current value of all assets in a given basket.
@@ -1074,5 +1084,34 @@ library BasketManagerUtils {
                 ++j;
             }
         }
+    }
+
+    /// @notice Internal function to store the index of the base asset for a given basket. Reverts if the base asset is
+    /// not present in the basket's assets.
+    /// @param self BasketManagerStorage struct containing strategy data.
+    /// @param basket Basket token address.
+    /// @param assets Array of asset addresses in the basket.
+    /// @param baseAsset Base asset address.
+    /// @dev If the base asset is not present in the basket, this function will revert.
+    function _setBaseAssetIndex(
+        BasketManagerStorage storage self,
+        address basket,
+        address[] memory assets,
+        address baseAsset
+    )
+        private
+    {
+        uint256 len = assets.length;
+        for (uint256 i = 0; i < len;) {
+            if (assets[i] == baseAsset) {
+                self.basketTokenToBaseAssetIdexPlusOne[basket] = i + 1;
+                return;
+            }
+            unchecked {
+                // Overflow not possible: i is less than len
+                ++i;
+            }
+        }
+        revert BaseAssetMismatch();
     }
 }
