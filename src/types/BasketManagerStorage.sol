@@ -62,6 +62,7 @@ struct BasketManagerStorage {
     mapping(address basketToken => uint256 pendingRedeems) pendingRedeems;
     /// @notice Mapping of asset to collected swap fees.
     mapping(address asset => uint256 fees) collectedSwapFees;
+    mapping(address basket => uint256 indexPlusOne) basketTokenToBaseAssetIdexPlusOne;
     /// @notice Rebalance status.
     RebalanceStatus rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
