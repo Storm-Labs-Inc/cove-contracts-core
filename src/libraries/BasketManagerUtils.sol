@@ -271,10 +271,12 @@ library BasketManagerUtils {
             if (pendingRedeems > 0) {
                 shouldRebalance = true;
                 if (totalSupply > 0) {
-                    // Rounding direction: down
+                    // totalSupply cannot be 0 when pendingRedeems is greater than 0, as redemptions
+                    // can only occur if there are issued shares (i.e., totalSupply > 0).
                     // Division-by-zero is not possible: totalSupply is greater than 0
-                    requiredWithdrawValue = basketValue * pendingRedeems / totalSupply;
+                    requiredWithdrawValue = FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, totalSupply);
                     if (requiredWithdrawValue > basketValue) {
+                        // This should never happen, but if it does, withdraw the entire basket value
                         requiredWithdrawValue = basketValue;
                     }
                     unchecked {
