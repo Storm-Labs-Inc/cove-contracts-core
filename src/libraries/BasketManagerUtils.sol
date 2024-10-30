@@ -250,12 +250,10 @@ library BasketManagerUtils {
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:
-            // TODO double check this logic
-            uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits(); // have to cache value before prepare
-            if (pendingDeposit > 0) {
+            (uint256 pendingDeposits, uint256 pendingRedeems_) = BasketToken(basket).prepareForRebalance();
+            if (pendingDeposits > 0) {
                 shouldRebalance = true;
             }
-            uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 totalSupply;
             {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -348,6 +346,7 @@ library BasketManagerUtils {
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param self BasketManagerStorage struct containing strategy data.
+    /// @param externalTrades Array of external trades matching those proposed for rebalance.
     /// @param baskets Array of basket addresses proposed for rebalance.
     // slither-disable-next-line cyclomatic-complexity
     function completeRebalance(

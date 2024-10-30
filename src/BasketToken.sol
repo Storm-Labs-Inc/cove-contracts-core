@@ -340,11 +340,12 @@ contract BasketToken is
     }
 
     /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
-    /// current epoch. Records the total amount of shares pending redemption. This is called at the first step of the
-    /// rebalance process regardless of the presence of any pending deposits or redemptions. When there are no pending
-    /// deposits or redeems, the epoch is not advanced.
+    /// current epoch. Returns the total amount of assets pending deposit and shares pending redemption. This is called
+    /// at the first step of the rebalance process regardless of the presence of any pending deposits or redemptions.
+    /// When there are no pending deposits or redeems, the epoch is not advanced.
+    /// @return pendingDeposits The total amount of assets pending deposit.
     /// @return sharesPendingRedemption The total amount of shares pending redemption.
-    function prepareForRebalance() public returns (uint256 sharesPendingRedemption) {
+    function prepareForRebalance() public returns (uint256 pendingDeposits, uint256 sharesPendingRedemption) {
         _onlyBasketManager();
         uint256 nextDepositRequestId_ = nextDepositRequestId;
         uint256 nextRedeemRequestId_ = nextRedeemRequestId;
@@ -367,7 +368,9 @@ contract BasketToken is
             }
         }
 
-        if (_depositRequests[nextDepositRequestId_].totalDepositAssets > 0) {
+        // Get current pending deposits
+        pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
+        if (pendingDeposits > 0) {
             nextDepositRequestId = nextDepositRequestId_ + 2;
         }
 
