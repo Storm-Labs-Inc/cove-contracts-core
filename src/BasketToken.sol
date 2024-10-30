@@ -340,13 +340,22 @@ contract BasketToken is
         IERC20(asset()).safeTransfer(msg.sender, assets);
     }
 
-    /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
-    /// current epoch. Records the total amount of shares pending redemption. This is called at the first step of the
-    /// rebalance process regardless of the presence of any pending deposits or redemptions. When there are no pending
-    /// deposits or redeems, the epoch is not advanced.
-    /// @return sharesPendingRedemption The total amount of shares pending redemption.
-    function prepareForRebalance() public returns (uint256 sharesPendingRedemption) {
+    /// @notice Advances the redeem epoch, locking in the current state and preventing further redeem requests for this epoch.
+    /// This function is called by the basket manager as the first step in the rebalance process, regardless of whether
+    /// there are pending deposits or redemptions. If no pending deposits or redemptions exist, the epoch is not advanced.
+    /// @dev This function also records the total amount of shares pending redemption for the current epoch.
+    /// @param feeBps The management fee in basis points to be harvested.
+    /// @param feeCollector The address that will receive the harvested management fee.
+    /// @return sharesPendingRedemption The total number of shares that are pending redemption for the current epoch.
+    function prepareForRebalance(
+        uint16 feeBps,
+        address feeCollector
+    )
+        external
+        returns (uint256 sharesPendingRedemption)
+    {
         _onlyBasketManager();
+        _harvestManagementFee(feeBps, feeCollector);
         uint256 nextDepositRequestId_ = nextDepositRequestId;
         uint256 nextRedeemRequestId_ = nextRedeemRequestId;
 
@@ -557,17 +566,9 @@ contract BasketToken is
         BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
     }
 
-    /// @notice Harvests the management fee, records the fee has been taken and mints the fee to the treasury.
-    /// @param feeBps The fee denominated in _MANAGEMENT_FEE_DECIMALS to be harvested.
-    /// @param feeCollector The address to receive the management fee.
-    function harvestManagementFee(uint16 feeBps, address feeCollector) external {
-        // Checks
-        _onlyBasketManager();
-        _harvestManagementFee(feeBps, feeCollector);
-    }
-
     // slither-disable-next-line timestamp
     function _harvestManagementFee(uint16 feeBps, address feeCollector) internal {
+        // Checks
         if (feeBps > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
@@ -577,17 +578,19 @@ contract BasketToken is
         lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
         if (feeBps != 0) {
             if (timeSinceLastHarvest != 0) {
-                // remove shares held by the treasury or currently pending redemption from calculation
-                uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
-                    - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
-                uint256 fee = FixedPointMathLib.fullMulDiv(
-                    currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
-                );
-                if (fee != 0) {
-                    emit ManagementFeeHarvested(fee);
-                    _mint(feeCollector, fee);
-                    // Interactions
-                    FeeCollector(feeCollector).notifyHarvestFee(fee);
+                if (timeSinceLastHarvest != block.timestamp) {
+                    // remove shares held by the treasury or currently pending redemption from calculation
+                    uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
+                        - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
+                    uint256 fee = FixedPointMathLib.fullMulDiv(
+                        currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
+                    );
+                    if (fee != 0) {
+                        emit ManagementFeeHarvested(fee);
+                        _mint(feeCollector, fee);
+                        // Interactions
+                        FeeCollector(feeCollector).notifyHarvestFee(fee);
+                    }
                 }
             }
         }
