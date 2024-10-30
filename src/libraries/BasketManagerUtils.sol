@@ -252,19 +252,17 @@ library BasketManagerUtils {
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:
-            // TODO double check this logic
-            uint256 pendingDeposit = BasketToken(basket).totalPendingDeposits(); // have to cache value before prepare
-            if (pendingDeposit > 0) {
+            (uint256 pendingDeposits, uint256 pendingRedeems_) = BasketToken(basket).prepareForRebalance();
+            if (pendingDeposits > 0) {
                 shouldRebalance = true;
             }
-            uint256 pendingRedeems_ = BasketToken(basket).prepareForRebalance();
             uint256 totalSupply;
             {
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
                 (totalSupply, pendingDepositValue) =
-                    _processPendingDeposits(self, basket, basketValue, balances[0], pendingDeposit);
-                balances[0] += pendingDeposit;
+                    _processPendingDeposits(self, basket, basketValue, balances[0], pendingDeposits);
+                balances[0] += pendingDeposits;
                 basketValue += pendingDepositValue;
             }
             uint256 requiredWithdrawValue = 0;
@@ -347,6 +345,7 @@ library BasketManagerUtils {
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param self BasketManagerStorage struct containing strategy data.
+    /// @param externalTrades Array of external trades matching those proposed for rebalance.
     /// @param baskets Array of basket addresses proposed for rebalance.
     // slither-disable-next-line cyclomatic-complexity
     function completeRebalance(
