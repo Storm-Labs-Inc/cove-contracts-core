@@ -340,19 +340,21 @@ contract BasketToken is
         IERC20(asset()).safeTransfer(msg.sender, assets);
     }
 
-    /// @notice Advances the redeem epoch, locking in the current state and preventing further redeem requests for this epoch.
-    /// This function is called by the basket manager as the first step in the rebalance process, regardless of whether
-    /// there are pending deposits or redemptions. If no pending deposits or redemptions exist, the epoch is not advanced.
+    /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
+    /// current epoch. Returns the total amount of assets pending deposit and shares pending redemption. This is called
+    /// at the first step of the rebalance process regardless of the presence of any pending deposits or redemptions.
+    /// When there are no pending deposits or redeems, the epoch is not advanced.
     /// @dev This function also records the total amount of shares pending redemption for the current epoch.
     /// @param feeBps The management fee in basis points to be harvested.
     /// @param feeCollector The address that will receive the harvested management fee.
-    /// @return sharesPendingRedemption The total number of shares that are pending redemption for the current epoch.
+    /// @return pendingDeposits The total amount of assets pending deposit.
+    /// @return sharesPendingRedemption The total amount of shares pending redemption.
     function prepareForRebalance(
         uint16 feeBps,
         address feeCollector
     )
         external
-        returns (uint256 sharesPendingRedemption)
+        returns (uint256 pendingDeposits, uint256 sharesPendingRedemption)
     {
         _onlyBasketManager();
         _harvestManagementFee(feeBps, feeCollector);
@@ -377,7 +379,9 @@ contract BasketToken is
             }
         }
 
-        if (_depositRequests[nextDepositRequestId_].totalDepositAssets > 0) {
+        // Get current pending deposits
+        pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
+        if (pendingDeposits > 0) {
             nextDepositRequestId = nextDepositRequestId_ + 2;
         }
 
