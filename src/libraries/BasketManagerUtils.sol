@@ -83,6 +83,8 @@ library BasketManagerUtils {
     uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Maximum number of retries for a rebalance.
     uint8 private constant _MAX_RETRIES = 3;
+    /// @notice Minimum time between rebalances.
+    uint40 private constant _REBALANCE_COOLDOWN = 1 hours;
 
     /// EVENTS ///
     /// @notice Emitted when an internal trade is settled.
@@ -129,6 +131,8 @@ library BasketManagerUtils {
     error NoRebalanceInProgress();
     /// @dev Reverts when it is too early to complete the rebalance.
     error TooEarlyToCompleteRebalance();
+    /// @dev Reverts when it is too early to propose a rebalance.
+    error TooEarlyToProposeRebalance();
     /// @dev Reverts when a rebalance is not required.
     error RebalanceNotRequired();
     /// @dev Reverts when the external trade slippage exceeds the allowed limit.
@@ -224,6 +228,9 @@ library BasketManagerUtils {
         // Revert if a rebalance is already in progress
         if (self.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
+        }
+        if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN) {
+            revert TooEarlyToProposeRebalance();
         }
 
         // Effects

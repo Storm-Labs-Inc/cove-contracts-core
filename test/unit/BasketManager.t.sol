@@ -54,6 +54,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
     function setUp() public override {
         super.setUp();
+        vm.warp(1 weeks);
         alice = createUser("alice");
         admin = createUser("admin");
         feeCollector = createUser("feeCollector");
@@ -523,6 +524,15 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(targetBaskets);
     }
 
+    function test_proposeRebalance_revertsWhen_tooEarlyToProposeRebalance() public {
+        address basket = testFuzz_completeRebalance_externalTrade(1e18, 5e18);
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.expectRevert(BasketManagerUtils.TooEarlyToProposeRebalance.selector);
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+    }
+
     function testFuzz_completeRebalance_passWhen_redeemingShares(uint16 fee) public {
         uint256 intialDepositAmount = 10_000;
         uint256 initialSplit = 5e17; // 50 / 50 between both baskets
@@ -539,6 +549,7 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         vm.prank(rebalancer);
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets);
+        vm.warp(block.timestamp + 1 weeks + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeCall(BasketToken.prepareForRebalance, ()), abi.encode(10_000));
@@ -559,13 +570,19 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets);
     }
 
-    function testFuzz_completeRebalance_externalTrade(uint256 initialDepositAmount, uint256 sellWeight) public {
+    function testFuzz_completeRebalance_externalTrade(
+        uint256 initialDepositAmount,
+        uint256 sellWeight
+    )
+        public
+        returns (address basket)
+    {
         _setTokenSwapAdapter();
         initialDepositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
         sellWeight = bound(sellWeight, 0, 1e18);
         (ExternalTrade[] memory trades, address[] memory targetBaskets) =
             testFuzz_proposeTokenSwap_externalTrade(sellWeight, initialDepositAmount);
-        address basket = targetBaskets[0];
+        basket = targetBaskets[0];
 
         // Mock calls for executeTokenSwap
         uint256 numTrades = trades.length;
