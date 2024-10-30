@@ -250,7 +250,7 @@ library BasketManagerUtils {
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:
-            (uint256 pendingDeposits, uint256 pendingRedeems_) = BasketToken(basket).prepareForRebalance();
+            (uint256 pendingDeposits, uint256 pendingRedeems) = BasketToken(basket).prepareForRebalance();
             if (pendingDeposits > 0) {
                 shouldRebalance = true;
             }
@@ -261,19 +261,19 @@ library BasketManagerUtils {
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
                 (totalSupply, pendingDepositValue) = _processPendingDeposits(
-                    self, basket, basketValue, balances[baseAssetIndex], pendingDeposit, baseAssetIndex
+                    self, basket, basketValue, balances[baseAssetIndex], pendingDeposits, baseAssetIndex
                 );
-                balances[baseAssetIndex] += pendingDeposit;
+                balances[baseAssetIndex] += pendingDeposits;
                 basketValue += pendingDepositValue;
             }
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
-            if (pendingRedeems_ > 0) {
+            if (pendingRedeems > 0) {
                 shouldRebalance = true;
                 if (totalSupply > 0) {
                     // Rounding direction: down
                     // Division-by-zero is not possible: totalSupply is greater than 0
-                    requiredWithdrawValue = basketValue * pendingRedeems_ / totalSupply;
+                    requiredWithdrawValue = basketValue * pendingRedeems / totalSupply;
                     if (requiredWithdrawValue > basketValue) {
                         requiredWithdrawValue = basketValue;
                     }
@@ -283,7 +283,7 @@ library BasketManagerUtils {
                     }
                 }
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                self.pendingRedeems[basket] = pendingRedeems_;
+                self.pendingRedeems[basket] = pendingRedeems;
             }
             uint256[] memory targetBalances =
                 _calculateTargetBalances(self, basket, basketValue, requiredWithdrawValue, assets);
@@ -567,8 +567,8 @@ library BasketManagerUtils {
 
             // If there are pending redeems, process them
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            uint256 pendingRedeems_ = self.pendingRedeems[basket];
-            if (pendingRedeems_ > 0) {
+            uint256 pendingRedeems = self.pendingRedeems[basket];
+            if (pendingRedeems > 0) {
                 // slither-disable-next-line costly-loop
                 delete self.pendingRedeems[basket]; // nosemgrep
                 // Assume the first asset listed in the basket is the base asset
@@ -577,7 +577,7 @@ library BasketManagerUtils {
                 // greater than 0
                 // when pendingRedeems is greater than 0
                 uint256 rawAmount =
-                    FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems_, BasketToken(basket).totalSupply());
+                    FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply());
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 withdrawAmount =
