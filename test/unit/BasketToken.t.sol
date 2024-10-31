@@ -1902,9 +1902,19 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_deposit(totalDepositAmount, issuedShares);
         assertEq(basket.balanceOf(feeCollector), 0);
 
+        uint256 timePerHarvest = uint256(365 days) / timesHarvested;
+        uint256 startTimestamp = block.timestamp;
+        vm.startPrank(address(basketManager));
+
+        // Harvest the fee multiple times
+        for (uint256 i = 1; i < timesHarvested; i++) {
+            uint256 elapsedTime = i * timePerHarvest;
+            vm.warp(startTimestamp + elapsedTime);
+            basket.prepareForRebalance(feeBps, feeCollector);
+        }
+
         // Warp to the end of the year
-        vm.warp(block.timestamp + 365 days);
-        vm.prank(address(basketManager));
+        vm.warp(startTimestamp + 365 days);
         basket.prepareForRebalance(feeBps, feeCollector);
 
         uint256 balance = basket.balanceOf(feeCollector);
