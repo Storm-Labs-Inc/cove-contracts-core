@@ -357,7 +357,6 @@ contract BasketToken is
         returns (uint256 pendingDeposits, uint256 sharesPendingRedemption)
     {
         _onlyBasketManager();
-        _harvestManagementFee(feeBps, feeCollector);
         uint256 nextDepositRequestId_ = nextDepositRequestId;
         uint256 nextRedeemRequestId_ = nextRedeemRequestId;
 
@@ -389,6 +388,8 @@ contract BasketToken is
         if (sharesPendingRedemption > 0) {
             nextRedeemRequestId = nextRedeemRequestId_ + 2;
         }
+
+        _harvestManagementFee(feeBps, feeCollector);
     }
 
     /// @notice Fulfills all pending redeem requests. Only callable by the basket manager. Burns the shares which are
