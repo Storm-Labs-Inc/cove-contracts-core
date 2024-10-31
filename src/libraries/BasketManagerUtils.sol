@@ -226,6 +226,7 @@ library BasketManagerUtils {
 
         // Effects
         self.rebalanceStatus.basketHash = keccak256(abi.encodePacked(baskets));
+        self.rebalanceStatus.basketMask = _createRebalanceBitMap(self, baskets);
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
@@ -428,10 +429,11 @@ library BasketManagerUtils {
         if (to == address(0)) {
             revert Errors.ZeroAddress();
         }
-        // Revert if a rebalance is in progress
-        if (self.rebalanceStatus.status != Status.NOT_STARTED) {
+        // Revert if the basket is currently rebalancing
+        if ((self.rebalanceStatus.basketMask & (1 << self.basketTokenToIndexPlusOne[msg.sender] - 1)) != 0) {
             revert MustWaitForRebalanceToComplete();
         }
+
         // Effects
         address basket = msg.sender;
         address[] storage assets = self.basketAssets[basket];
@@ -535,6 +537,7 @@ library BasketManagerUtils {
     function _finalizeRebalance(BasketManagerStorage storage self, address[] calldata baskets) private {
         // Advance the rebalance epoch and reset the status
         self.rebalanceStatus.basketHash = bytes32(0);
+        self.rebalanceStatus.basketMask = 0;
         self.rebalanceStatus.epoch += 1;
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
@@ -1115,5 +1118,28 @@ library BasketManagerUtils {
             }
         }
         revert BaseAssetMismatch();
+    }
+
+    /// @notice Internal function to create a bitmask for baskets being rebalanced.
+    /// @param self BasketManagerStorage struct containing strategy data.
+    /// @param baskets Array of basket addresses currently being rebalanced.
+    /// @return basketMask Bitmask for baskets being rebalanced.
+    function _createRebalanceBitMap(
+        BasketManagerStorage storage self,
+        address[] memory baskets
+    )
+        private
+        view
+        returns (uint256 basketMask)
+    {
+        // Create the bitmask for baskets being rebalanced
+        basketMask = 0;
+        for (uint256 i = 0; i < baskets.length; i++) {
+            uint256 indexPlusOne = self.basketTokenToIndexPlusOne[baskets[i]];
+            if (indexPlusOne == 0) {
+                revert BasketTokenNotFound();
+            }
+            basketMask |= (1 << indexPlusOne - 1);
+        }
     }
 }
