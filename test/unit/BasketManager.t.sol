@@ -2262,12 +2262,19 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.setManagementFee(basket, fee);
     }
 
-    function testFuzz_setManagementfee_revertWhen_MustWaitForRebalanceToComplete(uint16 fee) public {
+    function testFuzz_setManagementFee_revertWhen_MustWaitForRebalanceToComplete(uint16 fee) public {
         vm.assume(fee <= MAX_MANAGEMENT_FEE);
         address basket = test_proposeRebalance_processesDeposits();
         vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(timelock);
         basketManager.setManagementFee(basket, fee);
+    }
+
+    function testFuzz_setManagementFee_revertWhen_basketTokenNotFound(address basket) public {
+        vm.assume(basket != address(0));
+        vm.expectRevert(BasketManagerUtils.BasketTokenNotFound.selector);
+        vm.prank(timelock);
+        basketManager.setManagementFee(basket, 0);
     }
 
     function testFuzz_setSwapFee(uint16 fee) public {
