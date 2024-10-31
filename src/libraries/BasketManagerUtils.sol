@@ -1134,12 +1134,18 @@ library BasketManagerUtils {
     {
         // Create the bitmask for baskets being rebalanced
         basketMask = 0;
-        for (uint256 i = 0; i < baskets.length; i++) {
+        uint256 len = baskets.length;
+        for (uint256 i = 0; i < len;) {
             uint256 indexPlusOne = self.basketTokenToIndexPlusOne[baskets[i]];
             if (indexPlusOne == 0) {
                 revert BasketTokenNotFound();
             }
             basketMask |= (1 << indexPlusOne - 1);
+            //
+            unchecked {
+                // Overflow not possible: i is less than len
+                ++i;
+            }
         }
     }
 }
