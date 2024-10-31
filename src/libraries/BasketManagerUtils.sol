@@ -83,8 +83,8 @@ library BasketManagerUtils {
     uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Maximum number of retries for a rebalance.
     uint8 private constant _MAX_RETRIES = 3;
-    /// @notice Minimum time between rebalances.
-    uint40 private constant _REBALANCE_COOLDOWN = 1 hours;
+    /// @notice Minimum time between rebalances in seconds.
+    uint40 private constant _REBALANCE_COOLDOWN_SEC = 1 hours;
 
     /// EVENTS ///
     /// @notice Emitted when an internal trade is settled.
@@ -227,7 +227,7 @@ library BasketManagerUtils {
         if (self.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
-        if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN) {
+        if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN_SEC) {
             revert TooEarlyToProposeRebalance();
         }
 
