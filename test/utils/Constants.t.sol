@@ -5,7 +5,9 @@ contract Constants {
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-    bytes32 public constant REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
+    bytes32 public constant REBALANCE_PROPOSER_ROLE = keccak256("REBALANCE_PROPOSER_ROLE");
+    bytes32 public constant TOKENSWAP_PROPOSER_ROLE = keccak256("TOKENSWAP_PROPOSER_ROLE");
+    bytes32 public constant TOKENSWAP_EXECUTOR_ROLE = keccak256("TOKENSWAP_EXECUTOR_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     bytes32 public constant TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");

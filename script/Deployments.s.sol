@@ -48,7 +48,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     address public pauser;
     address public manager;
     address public timelock;
-    address public rebalancer;
+    address public rebalanceProposer;
+    address public tokenswapProposer;
+    address public tokenswapExecutor;
     address public basketTokenImplementation;
 
     bool public isProduction;
@@ -78,7 +80,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         pauser = COVE_OPS_MULTISIG;
         manager = COVE_OPS_MULTISIG;
         timelock = COVE_OPS_MULTISIG;
-        rebalancer = COVE_OPS_MULTISIG;
+        rebalanceProposer = COVE_OPS_MULTISIG;
+        tokenswapProposer = COVE_OPS_MULTISIG;
+        tokenswapExecutor = COVE_OPS_MULTISIG;
 
         // Deploy unique core contracts
         _deployCoreContracts();
@@ -421,7 +425,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         // BasketManager
         BasketManager bm = BasketManager(getAddress("BasketManager"));
         bm.grantRole(MANAGER_ROLE, manager);
-        bm.grantRole(REBALANCER_ROLE, rebalancer);
+        bm.grantRole(REBALANCE_PROPOSER_ROLE, rebalanceProposer);
+        bm.grantRole(TOKENSWAP_PROPOSER_ROLE, tokenswapProposer);
+        bm.grantRole(TOKENSWAP_EXECUTOR_ROLE, tokenswapExecutor);
         bm.grantRole(TIMELOCK_ROLE, timelock);
         bm.grantRole(PAUSER_ROLE, pauser);
         bm.grantRole(DEFAULT_ADMIN_ROLE, admin);

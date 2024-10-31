@@ -28,8 +28,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     bytes32 private constant _MANAGER_ROLE = keccak256("MANAGER_ROLE");
     /// @notice Pauser role.
     bytes32 private constant _PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    /// @notice Rebalancer role. Rebalancers can propose rebalance, propose token swap, and execute token swap.
-    bytes32 private constant _REBALANCER_ROLE = keccak256("REBALANCER_ROLE");
+    /// @notice Rebalance Proposer role. Rebalance proposers can propose a new rebalance.
+    bytes32 private constant _REBALANCE_PROPOSER_ROLE = keccak256("REBALANCE_PROPOSER_ROLE");
+    /// @notice TokenSwap Proposer role. Token swap proposers can propose a new token swap.
+    bytes32 private constant _TOKENSWAP_PROPOSER_ROLE = keccak256("TOKENSWAP_PROPOSER_ROLE");
+    /// @notice TokenSwap Executor role. Token swap executors can execute a token swap.
+    bytes32 private constant _TOKENSWAP_EXECUTOR_ROLE = keccak256("TOKENSWAP_EXECUTOR_ROLE");
     /// @notice Basket token role. Given to the basket token contracts when they are created.
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     /// @notice Role given to a timelock contract that can set critical parameters.
@@ -242,7 +246,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @param basketsToRebalance Array of basket addresses to rebalance.
     function proposeRebalance(address[] calldata basketsToRebalance)
         external
-        onlyRole(_REBALANCER_ROLE)
+        onlyRole(_REBALANCE_PROPOSER_ROLE)
         nonReentrant
         whenNotPaused
     {
@@ -261,7 +265,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         address[] calldata basketsToRebalance
     )
         external
-        onlyRole(_REBALANCER_ROLE)
+        onlyRole(_TOKENSWAP_PROPOSER_ROLE)
         nonReentrant
         whenNotPaused
     {
@@ -278,7 +282,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         bytes calldata data
     )
         external
-        onlyRole(_REBALANCER_ROLE)
+        onlyRole(_TOKENSWAP_EXECUTOR_ROLE)
         nonReentrant
         whenNotPaused
     {
