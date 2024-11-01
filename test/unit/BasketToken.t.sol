@@ -278,7 +278,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // prepareForRebalance is called
         vm.prank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
 
         // Attempt to make a second deposit without waiting for the first one to be fulfilled
         vm.prank(alice);
@@ -303,7 +303,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.requestDeposit(amount, alice, alice);
         vm.stopPrank();
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
 
@@ -369,7 +369,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Call fulfillDeposit
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
 
@@ -394,7 +394,7 @@ contract BasketTokenTest is BaseTest, Constants {
     {
         testFuzz_requestDeposit(totalAmount, from);
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         vm.expectRevert(BasketToken.CannotFulfillWithZeroShares.selector);
         basket.fulfillDeposit(0);
     }
@@ -411,7 +411,7 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_withdraw(totalDepositAmount, issuedShares, redeemAmount);
         assertEq(basket.totalPendingDeposits(), 0);
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         vm.expectRevert(BasketToken.DepositRequestAlreadyFulfilled.selector);
         basket.fulfillDeposit(issuedShares);
     }
@@ -439,7 +439,7 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.assume(issuedShares > 0);
         testFuzz_requestDeposit(amount, from);
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.expectRevert(BasketToken.DepositRequestAlreadyFulfilled.selector);
         basket.fulfillDeposit(issuedShares);
@@ -881,7 +881,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.requestDeposit(amount, alice, alice);
         vm.stopPrank();
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
         vm.startPrank(alice);
@@ -889,7 +889,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.requestRedeem(issuedShares / 2, alice, alice);
         vm.stopPrank();
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         basket.fulfillRedeem(amount);
         vm.expectRevert(BasketToken.MustClaimOutstandingRedeem.selector);
         vm.stopPrank();
@@ -915,7 +915,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Call prepareForRebalance and fulfillRedeem
         vm.prank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
 
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address caller = fuzzedUsers[i];
@@ -948,7 +948,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Call prepareForRebalance and fulfillRedeem
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         basket.fulfillRedeem(fulfillAmount);
 
         vm.stopPrank();
@@ -999,7 +999,7 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_requestRedeem(amount, issuedShares);
         // Call prepareForRebalance and fulfillRedeem with zero amount
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         vm.expectRevert(BasketToken.CannotFulfillWithZeroAssets.selector);
         basket.fulfillRedeem(0);
     }
@@ -1036,7 +1036,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Call prepareForRebalance
         vm.prank(address(basketManager));
-        (, uint256 preFulfilledShares) = basket.prepareForRebalance();
+        (, uint256 preFulfilledShares) = basket.prepareForRebalance(0, feeCollector);
 
         // Check state
         assertEq(
@@ -1061,7 +1061,7 @@ contract BasketTokenTest is BaseTest, Constants {
     function test_prepareForRebalance_returnsZeroWhen_ZeroPendingRedeems() public {
         assertEq(basket.totalPendingRedemptions(), 0);
         vm.prank(address(basketManager));
-        (, uint256 pendingShares) = basket.prepareForRebalance();
+        (, uint256 pendingShares) = basket.prepareForRebalance(0, feeCollector);
         assertEq(pendingShares, 0);
     }
 
@@ -1069,7 +1069,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.totalPendingRedemptions(), 0);
         uint256 nextRedeemRequestId = basket.nextRedeemRequestId();
         vm.prank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         assertEq(basket.nextRedeemRequestId(), nextRedeemRequestId);
     }
 
@@ -1077,7 +1077,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.totalPendingDeposits(), 0);
         uint256 nextDepositRequestId = basket.nextDepositRequestId();
         vm.prank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         assertEq(basket.nextDepositRequestId(), nextDepositRequestId);
     }
 
@@ -1089,9 +1089,9 @@ contract BasketTokenTest is BaseTest, Constants {
     {
         testFuzz_requestDeposit(amount, from);
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         vm.expectRevert(BasketToken.PreviousDepositRequestNotFulfilled.selector);
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
     }
 
     function test_prepareForRebalance_revertsWhen_PreviousRedeemRequestNotFulfilled(
@@ -1104,9 +1104,9 @@ contract BasketTokenTest is BaseTest, Constants {
     {
         testFuzz_requestRedeem(amount, issuedShares, callers, dests);
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         vm.expectRevert(BasketToken.PreviousRedeemRequestNotFulfilled.selector);
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
     }
 
     function testFuzz_fulfillRedeem_revertsWhen_RedeemRequestAlreadyFulfilled(
@@ -1200,7 +1200,7 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.assume(from != basket.basketManager());
         vm.expectRevert(BasketToken.NotBasketManager.selector);
         vm.prank(from);
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
     }
 
     function testFuzz_redeem(
@@ -1587,7 +1587,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.requestDeposit(amount, alice, alice);
         vm.stopPrank();
         vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
         vm.startPrank(alice);
@@ -1597,7 +1597,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.claimFallbackShares();
         vm.stopPrank();
         vm.prank(address(basketManager));
-        basket.prepareForRebalance();
+        basket.prepareForRebalance(0, feeCollector);
         vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroClaimableFallbackShares.selector));
         vm.prank(alice);
         basket.claimFallbackShares();
@@ -1683,6 +1683,16 @@ contract BasketTokenTest is BaseTest, Constants {
                 abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, sharesToRedeem, to),
                 abi.encode(0)
             );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.feeCollector.selector),
+                abi.encode(feeCollector)
+            );
 
             // Call proRataRedeem
             vm.prank(from);
@@ -1726,6 +1736,16 @@ contract BasketTokenTest is BaseTest, Constants {
                 abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, sharesToRedeem, to),
                 abi.encode(0)
             );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.feeCollector.selector),
+                abi.encode(feeCollector)
+            );
 
             // Call proRataRedeem
             vm.prank(caller);
@@ -1762,6 +1782,18 @@ contract BasketTokenTest is BaseTest, Constants {
             // Approve token spend
             vm.prank(from);
             basket.approve(caller, approveAmount);
+
+            // Mock proRataRedeem
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.feeCollector.selector),
+                abi.encode(feeCollector)
+            );
 
             // Call proRataRedeem
             vm.prank(caller);
@@ -1839,11 +1871,12 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_deposit(totalDepositAmount, issuedShares);
         assertEq(basket.balanceOf(feeCollector), 0);
         // First harvest sets the date to start accruing rewards for the feeCollector
-        vm.startPrank(address(basketManager));
-        basket.harvestManagementFee(0, feeCollector);
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
         assertEq(basket.balanceOf(feeCollector), 0);
         vm.warp(block.timestamp + 365 days);
-        basket.harvestManagementFee(feeBps, feeCollector);
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(feeBps, feeCollector);
         uint256 balance = basket.balanceOf(feeCollector);
         uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
         if (expected > 0) {
@@ -1851,7 +1884,7 @@ contract BasketTokenTest is BaseTest, Constants {
         }
     }
 
-    function testFuzz_harvestManagementFee(
+    function testFuzz_prepareForRebalance(
         uint256 totalDepositAmount,
         uint256 issuedShares,
         uint16 feeBps,
@@ -1864,26 +1897,25 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.assume(timesHarvested > 0 && timesHarvested <= 365);
         vm.assume(issuedShares > 1e4 && issuedShares < (type(uint256).max / (feeBps * timesHarvested)) / 1e18);
         vm.assume((feeBps * issuedShares / 1e4) / timesHarvested > 1);
-        testFuzz_deposit(totalDepositAmount, issuedShares);
-        assertEq(basket.balanceOf(feeCollector), 0);
 
         // First harvest sets the date to start accruing rewards for the feeCollector
-        vm.startPrank(address(basketManager));
-        basket.harvestManagementFee(0, feeCollector);
+        testFuzz_deposit(totalDepositAmount, issuedShares);
         assertEq(basket.balanceOf(feeCollector), 0);
 
         uint256 timePerHarvest = uint256(365 days) / timesHarvested;
         uint256 startTimestamp = block.timestamp;
+        vm.startPrank(address(basketManager));
 
+        // Harvest the fee multiple times
         for (uint256 i = 1; i < timesHarvested; i++) {
             uint256 elapsedTime = i * timePerHarvest;
             vm.warp(startTimestamp + elapsedTime);
-            basket.harvestManagementFee(feeBps, feeCollector);
+            basket.prepareForRebalance(feeBps, feeCollector);
         }
 
         // Warp to the end of the year
         vm.warp(startTimestamp + 365 days);
-        basket.harvestManagementFee(feeBps, feeCollector);
+        basket.prepareForRebalance(feeBps, feeCollector);
 
         uint256 balance = basket.balanceOf(feeCollector);
         uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
@@ -1891,7 +1923,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertApproxEqAbs(balance, expected, 366);
     }
 
-    function testFuzz_harvestManagementFee_CorrectCalculationWithTreasuryWithdraw(
+    function testFuzz_prepareForRebalance_CorrectCalculationWithTreasuryWithdraw(
         uint256 totalDepositAmount,
         uint256 issuedShares,
         uint16 feeBps,
@@ -1905,57 +1937,40 @@ contract BasketTokenTest is BaseTest, Constants {
         // vm.assume(withdrawAmount > 0 && withdrawAmount < issuedShares);
         testFuzz_deposit(totalDepositAmount, issuedShares);
         assertEq(basket.balanceOf(feeCollector), 0);
-        // First harvest sets the date to start accruing rewards for the feeCollector
-        vm.startPrank(address(basketManager));
-        basket.harvestManagementFee(0, feeCollector);
-        assertEq(basket.balanceOf(feeCollector), 0);
-        vm.warp(block.timestamp + 365 days / 2);
-        basket.harvestManagementFee(feeBps, feeCollector);
-        vm.stopPrank();
-        uint256 harvestedFee = basket.balanceOf(feeCollector);
-        vm.assume(withdrawAmount > 0 && withdrawAmount <= harvestedFee);
-        // Half a year has passed, feeCollector requests to withdraw its earned fee
-        vm.warp(block.timestamp + 365 days / 2);
+
+        // a year has passed, trigger the first harvest
+        vm.warp(block.timestamp + 365 days);
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(feeBps, feeCollector);
+
+        // Fuzz and bound the withdraw amount
+        withdrawAmount = bound(withdrawAmount, 1, basket.balanceOf(feeCollector));
+
+        // Request redeem from feeCollector
         vm.prank(feeCollector);
         basket.requestRedeem(withdrawAmount, feeCollector, feeCollector);
         uint256 feeCollectorPendingRequest =
             basket.pendingRedeemRequest(basket.lastRedeemRequestId(feeCollector), feeCollector);
-        vm.startPrank(address(basketManager));
-        basket.prepareForRebalance();
-        basket.harvestManagementFee(feeBps, feeCollector);
+        assertEq(feeCollectorPendingRequest, withdrawAmount);
+
+        // Prepare for rebalance
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(feeBps, feeCollector);
+
+        // Sum the balance of the feeCollector and the pending request
         uint256 balance = basket.balanceOf(feeCollector) + feeCollectorPendingRequest;
         uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
-        if (expected > 0) {
-            assertApproxEqAbs(balance, expected, 366);
-        }
+        assertEq(
+            balance,
+            expected,
+            "Fee calculation mismatch: expected sum of current and pending balances to equal calculated fee"
+        );
     }
 
-    function testFuzz_harvestManagementFee_returnsWhenZeroFee(uint16 feeBps) public {
-        vm.assume(feeBps <= MAX_MANAGEMENT_FEE);
-        uint256 balanceBefore = basket.balanceOf(feeCollector);
-        vm.prank(address(basketManager));
-        basket.harvestManagementFee(feeBps, alice);
-        assertEq(basket.balanceOf(feeCollector), balanceBefore);
-    }
-
-    function testFuzz_harvestManagementFee_revertsWhen_NotBasketManager(
-        address caller,
-        uint16 feeBps,
-        address receiver
-    )
-        public
-    {
-        vm.assume(caller != address(basketManager));
-        vm.assume(feeBps <= MAX_MANAGEMENT_FEE);
-        vm.expectRevert(BasketToken.NotBasketManager.selector);
-        vm.prank(caller);
-        basket.harvestManagementFee(feeBps, receiver);
-    }
-
-    function testFuzz_harvestManagementFee_revertsWhen_feeBPSMax(uint16 feeBps, address receiver) public {
+    function testFuzz_prepareForRebalance_revertsWhen_feeBPSMax(uint16 feeBps, address receiver) public {
         vm.assume(feeBps > MAX_MANAGEMENT_FEE);
         vm.prank(address(basketManager));
         vm.expectRevert(abi.encodeWithSelector(BasketToken.InvalidManagementFee.selector));
-        basket.harvestManagementFee(feeBps, receiver);
+        basket.prepareForRebalance(feeBps, receiver);
     }
 }

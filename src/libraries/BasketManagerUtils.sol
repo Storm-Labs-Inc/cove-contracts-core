@@ -245,12 +245,11 @@ library BasketManagerUtils {
             if (AssetRegistry(assetRegistry).hasPausedAssets(BasketToken(basket).bitFlag())) {
                 revert AssetNotEnabled();
             }
-            // Harvest management fee
-            BasketToken(basket).harvestManagementFee(self.managementFees[basket], self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:
-            (uint256 pendingDeposits, uint256 pendingRedeems) = BasketToken(basket).prepareForRebalance();
+            (uint256 pendingDeposits, uint256 pendingRedeems) =
+                BasketToken(basket).prepareForRebalance(self.managementFees[basket], self.feeCollector);
             if (pendingDeposits > 0) {
                 shouldRebalance = true;
             }
