@@ -233,7 +233,7 @@ library BasketManagerUtils {
 
         // Effects
         self.rebalanceStatus.basketHash = keccak256(abi.encodePacked(baskets));
-        self.rebalanceStatus.basketMask = _createRebalanceBitMap(self, baskets);
+        self.rebalanceStatus.basketMask = _createRebalanceBitMask(self, baskets);
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
@@ -1130,7 +1130,8 @@ library BasketManagerUtils {
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param baskets Array of basket addresses currently being rebalanced.
     /// @return basketMask Bitmask for baskets being rebalanced.
-    function _createRebalanceBitMap(
+    /// @dev A bitmask like 00000011 indicates that the first two baskets are being rebalanced.
+    function _createRebalanceBitMask(
         BasketManagerStorage storage self,
         address[] memory baskets
     )
@@ -1147,7 +1148,6 @@ library BasketManagerUtils {
                 revert BasketTokenNotFound();
             }
             basketMask |= (1 << indexPlusOne - 1);
-            //
             unchecked {
                 // Overflow not possible: i is less than len
                 ++i;
