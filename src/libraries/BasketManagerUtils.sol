@@ -83,6 +83,8 @@ library BasketManagerUtils {
     uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Maximum number of retries for a rebalance.
     uint8 private constant _MAX_RETRIES = 3;
+    /// @notice Minimum time between rebalances in seconds.
+    uint40 private constant _REBALANCE_COOLDOWN_SEC = 1 hours;
 
     /// EVENTS ///
     /// @notice Emitted when an internal trade is settled.
@@ -129,6 +131,8 @@ library BasketManagerUtils {
     error NoRebalanceInProgress();
     /// @dev Reverts when it is too early to complete the rebalance.
     error TooEarlyToCompleteRebalance();
+    /// @dev Reverts when it is too early to propose a rebalance.
+    error TooEarlyToProposeRebalance();
     /// @dev Reverts when a rebalance is not required.
     error RebalanceNotRequired();
     /// @dev Reverts when the external trade slippage exceeds the allowed limit.
@@ -223,6 +227,9 @@ library BasketManagerUtils {
         if (self.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
+        if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN_SEC) {
+            revert TooEarlyToProposeRebalance();
+        }
 
         // Effects
         self.rebalanceStatus.basketHash = keccak256(abi.encodePacked(baskets));
@@ -246,12 +253,11 @@ library BasketManagerUtils {
             if (AssetRegistry(assetRegistry).hasPausedAssets(BasketToken(basket).bitFlag())) {
                 revert AssetNotEnabled();
             }
-            // Harvest management fee
-            BasketToken(basket).harvestManagementFee(self.managementFees[basket], self.feeCollector);
             // Calculate current basket value
             (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
             // Notify Basket Token of rebalance:
-            (uint256 pendingDeposits, uint256 pendingRedeems) = BasketToken(basket).prepareForRebalance();
+            (uint256 pendingDeposits, uint256 pendingRedeems) =
+                BasketToken(basket).prepareForRebalance(self.managementFees[basket], self.feeCollector);
             if (pendingDeposits > 0) {
                 shouldRebalance = true;
             }
