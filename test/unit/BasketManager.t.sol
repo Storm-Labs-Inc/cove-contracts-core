@@ -558,7 +558,7 @@ contract BasketManagerTest is BaseTest, Constants {
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.expectRevert(BasketManagerUtils.TooEarlyToProposeRebalance.selector);
-        vm.prank(rebalancer);
+        vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(targetBaskets);
     }
 
