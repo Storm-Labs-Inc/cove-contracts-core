@@ -62,6 +62,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error Unauthorized();
     error InvalidManagementFee();
     error InvalidSwapFee();
+    error BasketTokenNotFound();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -363,9 +364,16 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (managementFee_ > _MAX_MANAGEMENT_FEE) {
             revert InvalidManagementFee();
         }
-        // TODO: change below to a basket specific check instead of a global check
-        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalanceToComplete();
+
+        // Check if the basket is currently rebalancing
+        if (basket != address(0)) {
+            uint256 indexPlusOne = _bmStorage.basketTokenToIndexPlusOne[basket];
+            if (indexPlusOne == 0) {
+                revert BasketTokenNotFound();
+            }
+            if ((_bmStorage.rebalanceStatus.basketMask & (1 << indexPlusOne - 1)) != 0) {
+                revert MustWaitForRebalanceToComplete();
+            }
         }
         emit ManagementFeeSet(basket, _bmStorage.managementFees[basket], managementFee_);
         _bmStorage.managementFees[basket] = managementFee_;

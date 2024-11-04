@@ -20,6 +20,8 @@ enum Status {
 struct RebalanceStatus {
     // Hash of the baskets proposed for rebalance.
     bytes32 basketHash;
+    // Bitmask representing baskets currently being rebalanced.
+    uint256 basketMask;
     // Epoch of the rebalance.
     uint40 epoch;
     // Timestamp of the last action.
