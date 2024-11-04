@@ -460,8 +460,8 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.basketTokenToIndex(basket);
     }
 
-    function test_proposeRebalance_processesDeposits() public {
-        address basket = _setupBasketAndMocks();
+    function test_proposeRebalance_processesDeposits() public returns (address basket) {
+        basket = _setupBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
         vm.prank(rebalanceProposer);
@@ -469,6 +469,7 @@ contract BasketManagerTest is BaseTest, Constants {
 
         assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        assertEq(basketManager.rebalanceStatus().basketMask, 1);
         assertEq(basketManager.rebalanceStatus().basketHash, keccak256(abi.encodePacked(targetBaskets)));
     }
 
@@ -1991,6 +1992,46 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(IERC20(pairAsset).balanceOf(address(this)), asset1balance.fullMulDiv(burnedShares, totalSupplyBefore));
     }
 
+    function testFuzz_proRataRedeem_passWhen_otherBasketRebalancing(uint256 initialDepositAmount) public {
+        initialDepositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
+        // Create two baskets
+        address[][] memory assetsPerBasket = new address[][](2);
+        assetsPerBasket[0] = new address[](2);
+        assetsPerBasket[0][0] = rootAsset;
+        assetsPerBasket[0][1] = pairAsset;
+        assetsPerBasket[1] = new address[](2);
+        assetsPerBasket[1][0] = address(1);
+        assetsPerBasket[1][1] = address(2);
+        uint256[][] memory weightsPerBasket = new uint256[][](2);
+        weightsPerBasket[0] = new uint256[](2);
+        weightsPerBasket[0][0] = 1e18;
+        weightsPerBasket[0][1] = 0;
+        weightsPerBasket[1] = new uint256[](2);
+        weightsPerBasket[1][0] = 1e18;
+        weightsPerBasket[1][1] = 0;
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = initialDepositAmount;
+        initialDepositAmounts[1] = initialDepositAmount;
+        // Below deposits into both baskets
+        address[] memory baskets = _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts);
+        address rebalancingBasket = baskets[0];
+        address nonRebalancingBasket = baskets[1];
+        // Rebalance with only one basket
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = rebalancingBasket;
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+        // Redeem some half of the shares from non-rebalancing basket
+        uint256 totalSupplyBefore = initialDepositAmount; // Assume price of share == price of deposit token
+        uint256 burnedShares = initialDepositAmount / 2;
+        uint256 asset0balance = basketManager.basketBalanceOf(nonRebalancingBasket, rootAsset);
+        uint256 asset1balance = basketManager.basketBalanceOf(nonRebalancingBasket, pairAsset);
+        vm.prank(nonRebalancingBasket);
+        basketManager.proRataRedeem(totalSupplyBefore, burnedShares, address(this));
+        assertEq(IERC20(rootAsset).balanceOf(address(this)), asset0balance.fullMulDiv(burnedShares, totalSupplyBefore));
+        assertEq(IERC20(pairAsset).balanceOf(address(this)), asset1balance.fullMulDiv(burnedShares, totalSupplyBefore));
+    }
+
     function test_proRataRedeem_revertWhen_CannotBurnMoreSharesThanTotalSupply(
         uint256 initialSplit,
         uint256 depositAmount,
@@ -2168,15 +2209,56 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.executeTokenSwap(trades, "");
     }
 
-    function testFuzz_setManagementFee(address basket, uint16 fee) public {
+    function testFuzz_setManagementFee(uint16 fee) public {
         vm.assume(fee <= MAX_MANAGEMENT_FEE);
+        address basket = _setupBasketAndMocks();
         vm.prank(timelock);
         basketManager.setManagementFee(basket, fee);
         assertEq(basketManager.managementFee(basket), fee);
     }
 
-    function testFuzz_setManagementFee_revertsWhen_calledByNonTimelock(address basket, address caller) public {
+    function testFuzz_setManagementFee_passesWhen_otherBasketRebalancing(
+        uint256 initialDepositAmount,
+        uint16 fee
+    )
+        public
+    {
+        vm.assume(fee <= MAX_MANAGEMENT_FEE);
+        initialDepositAmount = bound(initialDepositAmount, 1e4, type(uint256).max / 1e36);
+        // Create two baskets
+        address[][] memory assetsPerBasket = new address[][](2);
+        assetsPerBasket[0] = new address[](2);
+        assetsPerBasket[0][0] = rootAsset;
+        assetsPerBasket[0][1] = pairAsset;
+        assetsPerBasket[1] = new address[](2);
+        assetsPerBasket[1][0] = address(1);
+        assetsPerBasket[1][1] = address(2);
+        uint256[][] memory weightsPerBasket = new uint256[][](2);
+        weightsPerBasket[0] = new uint256[](2);
+        weightsPerBasket[0][0] = 1e18;
+        weightsPerBasket[0][1] = 0;
+        weightsPerBasket[1] = new uint256[](2);
+        weightsPerBasket[1][0] = 1e18;
+        weightsPerBasket[1][1] = 0;
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = initialDepositAmount;
+        initialDepositAmounts[1] = initialDepositAmount;
+        // Below deposits into both baskets
+        address[] memory baskets = _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts);
+        address rebalancingBasket = baskets[0];
+        address nonRebalancingBasket = baskets[1];
+        // Rebalance with only one basket
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = rebalancingBasket;
+        vm.prank(rebalancer);
+        basketManager.proposeRebalance(targetBaskets);
+        vm.prank(timelock);
+        basketManager.setManagementFee(nonRebalancingBasket, fee);
+    }
+
+    function testFuzz_setManagementFee_revertsWhen_calledByNonTimelock(address caller) public {
         vm.assume(caller != timelock);
+        address basket = _setupBasketAndMocks();
         vm.assume(basket != address(0));
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
@@ -2191,13 +2273,19 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.setManagementFee(basket, fee);
     }
 
-    function testFuzz_setManagementfee_revertWhen_MustWaitForRebalanceToComplete(address basket, uint16 fee) public {
+    function testFuzz_setManagementFee_revertWhen_MustWaitForRebalanceToComplete(uint16 fee) public {
         vm.assume(fee <= MAX_MANAGEMENT_FEE);
-        vm.assume(basket != address(0));
-        test_proposeRebalance_processesDeposits();
+        address basket = test_proposeRebalance_processesDeposits();
         vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(timelock);
         basketManager.setManagementFee(basket, fee);
+    }
+
+    function testFuzz_setManagementFee_revertWhen_basketTokenNotFound(address basket) public {
+        vm.assume(basket != address(0));
+        vm.expectRevert(BasketManagerUtils.BasketTokenNotFound.selector);
+        vm.prank(timelock);
+        basketManager.setManagementFee(basket, 0);
     }
 
     function testFuzz_setSwapFee(uint16 fee) public {

@@ -1836,6 +1836,7 @@ contract BasketTokenTest is BaseTest, Constants {
             abi.encode(
                 RebalanceStatus({
                     basketHash: bytes32(0),
+                    basketMask: uint256(0),
                     epoch: epoch,
                     timestamp: uint40(0),
                     status: Status.NOT_STARTED
