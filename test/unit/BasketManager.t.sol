@@ -2019,7 +2019,7 @@ contract BasketManagerTest is BaseTest, Constants {
         // Rebalance with only one basket
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = rebalancingBasket;
-        vm.prank(rebalancer);
+        vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(targetBaskets);
         // Redeem some half of the shares from non-rebalancing basket
         uint256 totalSupplyBefore = initialDepositAmount; // Assume price of share == price of deposit token
@@ -2250,7 +2250,7 @@ contract BasketManagerTest is BaseTest, Constants {
         // Rebalance with only one basket
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = rebalancingBasket;
-        vm.prank(rebalancer);
+        vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(targetBaskets);
         vm.prank(timelock);
         basketManager.setManagementFee(nonRebalancingBasket, fee);
