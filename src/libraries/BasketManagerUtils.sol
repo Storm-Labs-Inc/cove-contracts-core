@@ -227,6 +227,7 @@ library BasketManagerUtils {
         if (self.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
+        // slither-disable-next-line timestamp
         if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN_SEC) {
             revert TooEarlyToProposeRebalance();
         }
@@ -296,7 +297,7 @@ library BasketManagerUtils {
             }
             uint256[] memory targetBalances =
                 _calculateTargetBalances(self, basket, basketValue, requiredWithdrawValue, assets);
-            if (_checkForRebalance(self, assets, balances, targetBalances)) {
+            if (_checkForRebalance(assets, balances, targetBalances)) {
                 shouldRebalance = true;
             }
             // slither-disable-end calls-loop
@@ -1056,13 +1057,11 @@ library BasketManagerUtils {
     }
 
     /// @notice Internal function to check if a rebalance is required for the given basket.
-    /// @param self BasketManagerStorage struct containing strategy data.
     /// @param assets Array of asset addresses in the basket.
     /// @param balances Array of balances of each asset in the basket.
     /// @param targetBalances Array of target balances for each asset in the basket.
     /// @return shouldRebalance Boolean indicating if a rebalance is required.
     function _checkForRebalance(
-        BasketManagerStorage storage self,
         address[] memory assets,
         uint256[] memory balances,
         uint256[] memory targetBalances
@@ -1073,18 +1072,11 @@ library BasketManagerUtils {
     {
         uint256 assetsLength = assets.length;
         for (uint256 j = 0; j < assetsLength;) {
-            // Check if the target balance is different by more than 500 USD
-            // NOTE: This implies it requires only one asset to be different by more than 500 USD
-            //       to trigger a rebalance. This is placeholder logic and should be updated.
-            // TODO: Update the logic to trigger a rebalance
             console.log("balances[%s]: %s", j, balances[j]);
             console.log("targetBalances[%s]: %s", j, targetBalances[j]);
-            // TODO: verify what scale pyth returns for USD denominated value
-            // TODO: is there a way to move this into the if statement that works with semgrep
             // slither-disable-start calls-loop
             if (
-                self.eulerRouter.getQuote(MathUtils.diff(balances[j], targetBalances[j]), assets[j], _USD_ISO_4217_CODE)
-                    > 500 // nosemgrep
+                MathUtils.diff(balances[j], targetBalances[j]) > 0 // nosemgrep
             ) {
                 shouldRebalance = true;
                 break;
