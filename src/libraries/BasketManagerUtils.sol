@@ -227,6 +227,7 @@ library BasketManagerUtils {
         if (self.rebalanceStatus.status != Status.NOT_STARTED) {
             revert MustWaitForRebalanceToComplete();
         }
+        // slither-disable-next-line timestamp
         if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN_SEC) {
             revert TooEarlyToProposeRebalance();
         }
