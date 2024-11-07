@@ -1071,14 +1071,8 @@ library BasketManagerUtils {
     {
         uint256 assetsLength = assets.length;
         for (uint256 j = 0; j < assetsLength;) {
-            // Check if the target balance is different by more than 500 USD
-            // NOTE: This implies it requires only one asset to be different by more than 500 USD
-            //       to trigger a rebalance. This is placeholder logic and should be updated.
-            // TODO: Update the logic to trigger a rebalance
             console.log("balances[%s]: %s", j, balances[j]);
             console.log("targetBalances[%s]: %s", j, targetBalances[j]);
-            // TODO: verify what scale pyth returns for USD denominated value
-            // TODO: is there a way to move this into the if statement that works with semgrep
             // slither-disable-start calls-loop
             if (
                 MathUtils.diff(balances[j], targetBalances[j]) > 0 // nosemgrep
