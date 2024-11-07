@@ -482,10 +482,12 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         eulerRouter.govSetConfig(asset, USD, anchoredOracle);
     }
 
-    // First deploys a pyth oracle. Then Deploys two chainlink oracles, one for the base asset pair and one between the
-    // quote asset of that pair and USD. Then deploys a cross adapter that will resolve this chain of two oracles. Then
-    // deploys an anchored oracle the deployed pyth oracle and cross adapter. Enable the anchored oracle for the given
-    // asset and USD.
+    // A helper function that does the following (in order):
+    // - Deploys a pyth oracle.
+    // - Deploys two chainlink oracles (one for the base asset pair and one between the quote asset of that pair and USD).
+    // - Deploys a cross adapter that will resolve this chain of two oracles.
+    // - Deploys an anchored oracle with the deployed pyth oracle and cross adapter.
+    // - Enable the anchored oracle for the given asset and USD.
     // Note: This is for deploying assets without direct USD chainlink price feed.
     // (e.g. a chaining oracle for pyth + 4626 or pyth + pyth or chainlink + 4626 or chainlink + chainlink)
     // (e.g. sfrxETH, yETH, yvWETH-1, crvUSD, sFRAX, weETH, ezETH, rsETH)
