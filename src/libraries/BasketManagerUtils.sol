@@ -1047,7 +1047,11 @@ library BasketManagerUtils {
             balances[j] = self.basketBalanceOf[basket][assets[j]];
             // Rounding direction: down
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+            // TODO double check / test below
+            if (balances[j] > 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+            }
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;

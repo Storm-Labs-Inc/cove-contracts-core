@@ -54,6 +54,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     address public basketTokenImplementation;
 
     bool public isProduction;
+    // TODO see if this is needed
+    BasketTokenDeployment[] public basketTokenDeploymentList;
 
     bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
 
@@ -120,6 +122,37 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         );
         _addAssetToAssetRegistry(ETH_SUSDE);
 
+        // TODO: below do not work with pyth contract for some reason
+        // // 2. GHO
+        // _deployDefaultAnchoredOracleForAsset(
+        //     ETH_GHO,
+        //     "GHO",
+        //     OracleOptions({
+        //         pythPriceFeed: PYTH_GHO_USD_FEED,
+        //         pythMaxStaleness: 15 minutes,
+        //         pythMaxConfWidth: 100,
+        //         chainlinkPriceFeed: ETH_CHAINLINK_GHO_USD_FEED,
+        //         chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+        //         maxDivergence: 0.5e18
+        //     })
+        // );
+        // _addAssetToAssetRegistry(ETH_GHO);
+
+        // // 3. CBBTC
+        // _deployDefaultAnchoredOracleForAsset(
+        //     ETH_CBBTC,
+        //     "CBBTC",
+        //     OracleOptions({
+        //         pythPriceFeed: PYTH_CBBTC_USD_FEED,
+        //         pythMaxStaleness: 15 minutes,
+        //         pythMaxConfWidth: 100,
+        //         chainlinkPriceFeed: ETH_CHAINLINK_CBBTC_USD_FEED,
+        //         chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+        //         maxDivergence: 0.5e18
+        //     })
+        // );
+        // _addAssetToAssetRegistry(ETH_CBBTC);
+
         // Deploy launch strategies
         _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
 
@@ -127,9 +160,13 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         address[] memory basketAssets = new address[](2); // TODO: confirm assets with Gauntlet
         basketAssets[0] = ETH_WETH;
         basketAssets[1] = ETH_SUSDE;
+        // basketAssets[2] = ETH_GHO;
+        // basketAssets[3] = ETH_CBBTC;
         uint64[] memory initialWeights = new uint64[](2); // TODO: confirm initial weights with Guantlet
-        initialWeights[0] = 0.5e18;
-        initialWeights[1] = 0.5e18;
+        initialWeights[0] = 1e18;
+        initialWeights[1] = 0;
+        // initialWeights[2] = 0;
+        // initialWeights[3] = 0;
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
                 name: "Gauntlet WETH-SUSDE Basket", // TODO: confirm basket name
@@ -214,6 +251,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             AssetRegistry(getAddress("AssetRegistry")).getAssets(deployment.bitFlag),
             "Failed to set basket assets in BasketManager"
         );
+        // Save the deployment to the array
+        basketTokenDeploymentList.push(deployment);
     }
 
     // Deploys basket manager given a fee collector salt which must be used to deploy the fee collector using CREATE3.
@@ -379,6 +418,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         private
         deployIfMissing(string.concat(assetName, "_AnchoredOracle"))
     {
+        // Save the deployment to the array
         address primary = _deployPythOracle(
             assetName,
             asset,
