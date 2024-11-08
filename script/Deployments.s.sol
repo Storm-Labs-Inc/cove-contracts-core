@@ -484,7 +484,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     // A helper function that does the following (in order):
     // - Deploys a pyth oracle.
-    // - Deploys two chainlink oracles (one for the base asset pair and one between the quote asset of that pair and USD).
+    // - Deploys two chainlink oracles (one for the base asset pair and one between the quote asset of that pair and
+    // USD).
     // - Deploys a cross adapter that will resolve this chain of two oracles.
     // - Deploys an anchored oracle with the deployed pyth oracle and cross adapter.
     // - Enable the anchored oracle for the given asset and USD.
