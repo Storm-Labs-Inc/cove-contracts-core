@@ -26,13 +26,18 @@ contract Constants {
     address public constant PYTH = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
     address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public constant USD = address(840); // USD ISO 4217 currency code
+    address public constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
 
     // EXTERNAL WEGHT STRATEGISTS
     // TODO: Update this address
     address public constant GAUNTLET_STRATEGIST = 0x00000000000000000000000000000000DeaDBeef;
 
     // ASSET ADDRESSES
-    address public constant ETH_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant ETH_CBBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
+    address public constant ETH_EZETH = 0xbf5495Efe5DB9ce00f80364C8B423567e58d2110;
+    address public constant ETH_GHO = 0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f;
+    address public constant ETH_RETH = 0xae78736Cd615f374D3085123A210448E74Fc6393;
+    address public constant ETH_RSETH = 0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7;
     address public constant ETH_SUSDE = 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497;
     address public constant ETH_WEETH = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
     address public constant ETH_EZETH = 0xbf5495Efe5DB9ce00f80364C8B423567e58d2110;
@@ -47,6 +52,7 @@ contract Constants {
     // ETH/USD
     bytes32 public constant PYTH_ETH_USD_FEED = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
     address public constant ETH_CHAINLINK_ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
+
     // SUSDE/USD
     bytes32 public constant PYTH_SUSE_USD_FEED = 0xca3ba9a619a4b3755c10ac7d5e760275aa95e9823d38a84fedd416856cdba37c;
     address public constant ETH_CHAINLINK_SUSDE_USD_FEED = 0xFF3BC18cCBd5999CE63E788A1c250a88626aD099;

@@ -3,6 +3,8 @@ pragma solidity ^0.8.23;
 
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+
+import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
@@ -122,54 +124,101 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         );
         _addAssetToAssetRegistry(ETH_SUSDE);
 
-        // TODO: below do not work with pyth contract for some reason
-        // // 2. GHO
-        // _deployDefaultAnchoredOracleForAsset(
-        //     ETH_GHO,
-        //     "GHO",
-        //     OracleOptions({
-        //         pythPriceFeed: PYTH_GHO_USD_FEED,
-        //         pythMaxStaleness: 15 minutes,
-        //         pythMaxConfWidth: 100,
-        //         chainlinkPriceFeed: ETH_CHAINLINK_GHO_USD_FEED,
-        //         chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-        //         maxDivergence: 0.5e18
-        //     })
-        // );
-        // _addAssetToAssetRegistry(ETH_GHO);
+        // 2. weETH/ETH -> USD
+        _deployChainlinkCrossAdapterForNonUSDPair(
+            ETH_WEETH,
+            "weETH",
+            OracleOptions({
+                pythPriceFeed: PYTH_WEETH_USD_FEED,
+                pythMaxStaleness: 15 minutes,
+                pythMaxConfWidth: 100,
+                chainlinkPriceFeed: ETH_CHAINLINK_WEETH_ETH_FEED,
+                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                maxDivergence: 0.5e18
+            }),
+            ETH,
+            "ETH",
+            ETH_CHAINLINK_ETH_USD_FEED
+        );
+        _addAssetToAssetRegistry(ETH_WEETH);
 
-        // // 3. CBBTC
-        // _deployDefaultAnchoredOracleForAsset(
-        //     ETH_CBBTC,
-        //     "CBBTC",
-        //     OracleOptions({
-        //         pythPriceFeed: PYTH_CBBTC_USD_FEED,
-        //         pythMaxStaleness: 15 minutes,
-        //         pythMaxConfWidth: 100,
-        //         chainlinkPriceFeed: ETH_CHAINLINK_CBBTC_USD_FEED,
-        //         chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-        //         maxDivergence: 0.5e18
-        //     })
-        // );
-        // _addAssetToAssetRegistry(ETH_CBBTC);
+        // 3. ezETH/ETH -> USD
+        _deployChainlinkCrossAdapterForNonUSDPair(
+            ETH_EZETH,
+            "ezETH",
+            OracleOptions({
+                pythPriceFeed: PYTH_EZETH_USD_FEED,
+                pythMaxStaleness: 15 minutes,
+                pythMaxConfWidth: 100,
+                chainlinkPriceFeed: ETH_CHAINLINK_EZETH_ETH_FEED,
+                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                maxDivergence: 0.5e18
+            }),
+            ETH,
+            "ETH",
+            ETH_CHAINLINK_ETH_USD_FEED
+        );
+        _addAssetToAssetRegistry(ETH_EZETH);
+
+        // 4. rsETH/ETH -> USD
+        _deployChainlinkCrossAdapterForNonUSDPair(
+            ETH_RSETH,
+            "rsETH",
+            OracleOptions({
+                pythPriceFeed: PYTH_RSETH_USD_FEED,
+                pythMaxStaleness: 15 minutes,
+                pythMaxConfWidth: 100,
+                chainlinkPriceFeed: ETH_CHAINLINK_RSETH_ETH_FEED,
+                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                maxDivergence: 0.5e18
+            }),
+            ETH,
+            "ETH",
+            ETH_CHAINLINK_ETH_USD_FEED
+        );
+        _addAssetToAssetRegistry(ETH_RSETH);
+
+        // 5. rETH/ETH -> USD
+        _deployChainlinkCrossAdapterForNonUSDPair(
+            ETH_RETH,
+            "rETH",
+            OracleOptions({
+                pythPriceFeed: PYTH_RETH_USD_FEED,
+                pythMaxStaleness: 15 minutes,
+                pythMaxConfWidth: 100,
+                chainlinkPriceFeed: ETH_CHAINLINK_RETH_ETH_FEED,
+                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                maxDivergence: 0.5e18
+            }),
+            ETH,
+            "ETH",
+            ETH_CHAINLINK_ETH_USD_FEED
+        );
+        _addAssetToAssetRegistry(ETH_RETH);
 
         // Deploy launch strategies
         _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
 
         // Deploy launch basket tokens
-        address[] memory basketAssets = new address[](2); // TODO: confirm assets with Gauntlet
+        address[] memory basketAssets = new address[](6); // TODO: confirm assets with Gauntlet
         basketAssets[0] = ETH_WETH;
         basketAssets[1] = ETH_SUSDE;
-        // basketAssets[2] = ETH_GHO;
-        // basketAssets[3] = ETH_CBBTC;
-        uint64[] memory initialWeights = new uint64[](2); // TODO: confirm initial weights with Guantlet
-        initialWeights[0] = 1e18;
-        initialWeights[1] = 0;
-        // initialWeights[2] = 0;
-        // initialWeights[3] = 0;
+        basketAssets[2] = ETH_WEETH;
+        basketAssets[3] = ETH_EZETH;
+        basketAssets[4] = ETH_RSETH;
+        basketAssets[5] = ETH_RETH;
+
+        uint64[] memory initialWeights = new uint64[](6); // TODO: confirm initial weights with Guantlet
+        initialWeights[0] = 2e17;
+        initialWeights[1] = 1.6e17;
+        initialWeights[2] = 1.6e17;
+        initialWeights[3] = 1.6e17;
+        initialWeights[4] = 1.6e17;
+        initialWeights[5] = 1.6e17;
+
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
-                name: "Gauntlet WETH-SUSDE Basket", // TODO: confirm basket name
+                name: "Gauntlet All Asset Basket", // TODO: confirm basket name
                 symbol: "GVT1", // TODO: confirm symbol
                 rootAsset: ETH_WETH, // TODO: confirm root asset
                 bitFlag: _assetsToBitFlag(basketAssets),
@@ -405,11 +454,6 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     // First deploys a pyth oracle and chainlink oracle. Then Deploys an anchored oracle using the two privously
     // deployed oracles.
     // Enable the anchored oracle for the given asset and USD
-    // Note: This is for deploying asset/USD anchored oracle for both pyth and chainlink that have asset/USD price feeds
-    // Assets without direct USD price feed should not use this function to deploy their USD oracles.
-    // TODO: Add a chaining oracle for assets without direct USD price feed
-    // (e.g. a chaining oracle for pyth + 4626 or pyth + pyth or chainlink + 4626 or chainlink + chainlink)
-    // (e.g. sfrxETH, yETH, yvWETH-1, crvUSD, sFRAX, weETH, ezETH, rsETH)
     function _deployDefaultAnchoredOracleForAsset(
         address asset,
         string memory assetName,
@@ -433,6 +477,85 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         address anchoredOracle = address(
             deployer.deploy_AnchoredOracle(
                 string.concat(assetName, "_AnchoredOracle"), primary, anchor, oracleOptions.maxDivergence
+            )
+        );
+        // Register the asset/USD anchored oracle
+        EulerRouter eulerRouter = EulerRouter(getAddress("EulerRouter"));
+        if (isProduction) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(asset, USD, anchoredOracle);
+    }
+
+    // A helper function that does the following (in order):
+    // - Deploys a pyth oracle.
+    // - Deploys two chainlink oracles (one for the base asset pair and one between the quote asset of that pair and
+    // USD).
+    // - Deploys a cross adapter that will resolve this chain of two oracles.
+    // - Deploys an anchored oracle with the deployed pyth oracle and cross adapter.
+    // - Enable the anchored oracle for the given asset and USD.
+    // Note: This is for deploying assets without direct USD chainlink price feed.
+    // (e.g. a chaining oracle for pyth + 4626 or pyth + pyth or chainlink + 4626 or chainlink + chainlink)
+    // (e.g. sfrxETH, yETH, yvWETH-1, crvUSD, sFRAX, weETH, ezETH, rsETH)
+    function _deployChainlinkCrossAdapterForNonUSDPair(
+        address asset,
+        string memory assetName,
+        OracleOptions memory oracleOptions,
+        address crossAsset,
+        string memory crossAssetName,
+        address chainlinkCrossFeed
+    )
+        private
+        deployIfMissing(string.concat(assetName, "_CrossAdapter"))
+    {
+        address primary = _deployPythOracle(
+            assetName,
+            asset,
+            USD,
+            oracleOptions.pythPriceFeed,
+            oracleOptions.pythMaxStaleness,
+            oracleOptions.pythMaxConfWidth
+        );
+        // Asset -> CrossAsset chainlink oracle
+        address chainLinkBaseCrossOracle = _deployChainlinkOracle(
+            assetName, asset, crossAsset, oracleOptions.chainlinkPriceFeed, oracleOptions.chainlinkMaxStaleness
+        );
+        require(chainLinkBaseCrossOracle != address(0), string.concat("Failed to deploy ChainlinkOracle: ", assetName));
+        // CrossAsset -> USD chainlink oracle
+        // Check if the crossAsset oracle is already deployed
+        address chainLinkCrossUSDOracle = getAddress(string.concat(crossAssetName, "_ChainlinkOracle"));
+        if (chainLinkCrossUSDOracle == address(0)) {
+            chainLinkCrossUSDOracle = _deployChainlinkOracle(
+                crossAssetName, crossAsset, USD, chainlinkCrossFeed, oracleOptions.chainlinkMaxStaleness
+            );
+        }
+        require(
+            chainLinkCrossUSDOracle != address(0),
+            string.concat("Failed to deploy cross ChainlinkOracle: ", crossAssetName)
+        );
+
+        bytes memory crossAdapterContsructorArgs =
+            abi.encode(asset, crossAsset, USD, chainLinkBaseCrossOracle, chainLinkCrossUSDOracle);
+        if (isProduction) {
+            vm.broadcast();
+        }
+        address crossAdapter =
+            address(new CrossAdapter(asset, crossAsset, USD, chainLinkBaseCrossOracle, chainLinkCrossUSDOracle));
+        deployer.save(
+            string.concat(assetName, "_CrossAdapter"),
+            crossAdapter,
+            "CrossAdapter.sol:CrossAdapter",
+            crossAdapterContsructorArgs,
+            abi.encodePacked(type(CrossAdapter).creationCode, crossAdapterContsructorArgs)
+        );
+        assertEq(
+            getAddress(string.concat(assetName, "_CrossAdapter")),
+            crossAdapter,
+            "Failed to save CrossAdapter deployment"
+        );
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                string.concat(assetName, "_AnchoredOracle"), primary, crossAdapter, oracleOptions.maxDivergence
             )
         );
         // Register the asset/USD anchored oracle
