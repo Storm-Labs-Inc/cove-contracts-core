@@ -32,15 +32,28 @@ contract FeeCollector is AccessControlEnumerable {
     mapping(address basketToken => uint256 claimableFees) public claimableSponsorFees;
 
     /// EVENTS ///
+    /// @notice Emitted when the sponsor for a basket token is set.
+    /// @param basketToken The address of the basket token.
+    /// @param sponsor The address of the sponsor that was set.
     event SponsorSet(address indexed basketToken, address indexed sponsor);
+    /// @notice Emitted when the sponsor fee split for a basket token is set.
+    /// @param basketToken The address of the basket token.
+    /// @param sponsorSplit The percentage of fees allocated to the sponsor, denominated in _FEE_SPLIT_DECIMALS.
     event SponsorSplitSet(address indexed basketToken, uint16 sponsorSplit);
+    /// @notice Emitted when the protocol treasury address is set.
+    /// @param treasury The address of the new protocol treasury.
     event TreasurySet(address indexed treasury);
 
     /// ERRORS ///
+    /// @notice Thrown when attempting to set a sponsor fee split higher than 100%.
     error SponsorSplitTooHigh();
+    /// @notice Thrown when attempting to set a sponsor fee split for a basket token with no sponsor.
     error NoSponsor();
+    /// @notice Thrown when an unauthorized address attempts to call a restricted function.
     error Unauthorized();
+    /// @notice Thrown when attempting to perform an action on an address that is not a basket token.
     error NotBasketToken();
+    /// @notice Thrown when attempting to claim treasury fees from an address that is not the protocol treasury.
     error NotTreasury();
 
     /// @notice Constructor to set the admin, basket manager, and protocol treasury
