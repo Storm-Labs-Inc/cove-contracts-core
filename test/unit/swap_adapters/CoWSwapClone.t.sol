@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { Test } from "forge-std/Test.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
-import { Test } from "forge-std/Test.sol";
+
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
+
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
-import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 contract CoWSwapCloneTest is Test {
     using GPv2Order for GPv2Order.Data;

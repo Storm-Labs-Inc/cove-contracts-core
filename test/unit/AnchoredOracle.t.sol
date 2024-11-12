@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { BaseTest } from "test/utils/BaseTest.t.sol";
-
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+
 import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
 
-import { AnchoredOracle } from "src/AnchoredOracle.sol";
+import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
+
+import { AnchoredOracle } from "src/AnchoredOracle.sol";
 
 contract AnchoredOracleTest is BaseTest {
     /// @notice The lower bound for `maxDivergence`, 0.1%.
