@@ -5,7 +5,6 @@ import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Clone } from "clones-with-immutable-args/Clone.sol";
-
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
 // slither-disable-start locked-ether
