@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
-import { WeightStrategy } from "./WeightStrategy.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 /// @title AutomaticWeightStrategy
 /// @notice A strategy that returns the target weights based on external market cap data. This could be used for

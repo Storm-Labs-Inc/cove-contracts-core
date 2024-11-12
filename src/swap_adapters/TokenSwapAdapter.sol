@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { ExternalTrade } from "../types/Trades.sol";
+import { ExternalTrade } from "src/types/Trades.sol";
 
 /// @title TokenSwapAdapter
 /// @notice Abstract contract for token swap adapters
