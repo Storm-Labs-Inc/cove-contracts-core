@@ -220,6 +220,7 @@ library BasketManagerUtils {
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the
     /// target balance and the current balance of any asset in the basket is more than 500 USD.
     /// @param baskets Array of basket addresses to rebalance.
+    // solhint-disable code-complexity
     // slither-disable-next-line cyclomatic-complexity
     function proposeRebalance(BasketManagerStorage storage self, address[] calldata baskets) external {
         // Checks
@@ -310,6 +311,7 @@ library BasketManagerUtils {
             revert RebalanceNotRequired();
         }
     }
+    // solhint-enable code-complexity
 
     // @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
     /// If the proposed token swap results are not close to the target balances, this function will revert.
@@ -628,10 +630,11 @@ library BasketManagerUtils {
         private
         returns (uint256[2][] memory claimedAmounts)
     {
-        // slither-disable-start low-level-calls
+        // solhint-disable avoid-low-level-calls
+        // slither-disable-next-line low-level-calls
         (bool success, bytes memory data) =
             self.tokenSwapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.completeTokenSwap, (externalTrades)));
-        // slither-disable-end low-level-calls
+        // solhint-enable avoid-low-level-calls
         if (!success) {
             // assume this low-level call never fails
             revert CompleteTokenSwapFailed();
@@ -851,6 +854,7 @@ library BasketManagerUtils {
                 ) {
                     revert IncorrectTradeTokenAmount();
                 }
+                // solhint-disable-next-line max-line-length
                 afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] = afterTradeAmounts_[ownershipInfo
                     .basketIndex][ownershipInfo.sellTokenAssetIndex] - ownershipSellAmount;
                 afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] =

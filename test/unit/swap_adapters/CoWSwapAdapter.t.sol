@@ -14,7 +14,7 @@ contract CoWSwapAdapterTest is Test {
     /// @dev Hash of the `_PROXY_INITCODE`.
     /// Equivalent to `keccak256(abi.encodePacked(hex"67363d3d37363d34f03d5260086018f3"))`.
     bytes32 internal constant _PROXY_INITCODE_HASH = 0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f;
-    address clone;
+    address internal clone;
 
     struct ExternalTradeWithoutBasketOwnership {
         address sellToken;
@@ -120,6 +120,7 @@ contract CoWSwapAdapterTest is Test {
     /// @dev Returns the deterministic address for `salt` with `deployer`.
     function _predictDeterministicAddress(bytes32 salt, address deployer) internal pure returns (address deployed) {
         /// @solidity memory-safe-assembly
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
             mstore(0x00, deployer) // Store `deployer`.

@@ -1053,7 +1053,7 @@ contract BasketTokenTest is BaseTest, Constants {
             assertEq(
                 basket.pendingRedeemRequest(requestId, fuzzedUsers[i]),
                 pendingShares[i],
-                "testFuzz_prepareForRebalance: Pending redeem requests should be greater than 0 after prepareForRebalance"
+                "testFuzz_prepareForRebalance: Pending redeem requests should be >0 after prepareForRebalance"
             );
         }
     }

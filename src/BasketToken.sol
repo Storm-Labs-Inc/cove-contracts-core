@@ -810,6 +810,7 @@ contract BasketToken is
             : FixedPointMathLib.fullMulDiv(fulfilledShares, depositAssets, totalDepositAssets);
     }
 
+    // solhint-disable custom-errors,gas-custom-errors,reason-string
     // Preview functions always revert for async flows
     function previewDeposit(uint256) public pure override returns (uint256) {
         revert();
@@ -829,6 +830,7 @@ contract BasketToken is
     function previewRedeem(uint256) public pure override returns (uint256) {
         revert();
     }
+    // solhint-enable custom-errors,gas-custom-errors,reason-string
 
     /// @notice Returns true if the redemption request's fallback has been triggered.
     /// @param requestId The id of the request.

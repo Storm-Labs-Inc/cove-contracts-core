@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+// TODO: remove this
+// solhint-disable no-unused-import
 import { console } from "forge-std/console.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -25,6 +27,7 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { BasketTokenDeployment, Deployments, OracleOptions } from "script/Deployments.s.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
+// solhint-enable no-unused-import
 
 // Steps for completing a rebalance
 // 1. Propose Rebalance

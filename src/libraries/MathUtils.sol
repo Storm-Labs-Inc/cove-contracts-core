@@ -4,15 +4,17 @@ pragma solidity 0.8.28;
 /// @title MathUtils
 /// @notice A library to perform math operations with optimizations.
 /// @dev This library is based on the code snippet from the OpenZeppelin Contracts Math library.
-/// https://github.com/OpenZeppelin/openzeppelin-contracts/blob/05d4bf57ffed8c65256ff4ede5c3cf7a0b738e7d/contracts/utils/math/Math.sol
+/// https://tinyurl.com/8xp62yvx
 library MathUtils {
     /// @dev Cast a boolean (false or true) to a uint256 (0 or 1) with no jump.
     function toUint(bool b) internal pure returns (uint256 u) {
         /// @solidity memory-safe-assembly
+        // solhint-disable no-inline-assembly
         // slither-disable-next-line assembly
         assembly {
             u := iszero(iszero(b))
         }
+        // solhint-enable no-inline-assembly
     }
 
     /// @dev Branchless ternary evaluation for `a ? b : c`. Gas costs are constant.
