@@ -27,7 +27,7 @@ jobs:
 
   slither:
     name: Slither
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: buildjet-2vcpu-ubuntu-2204
     permissions:
       contents: read
       packages: read
@@ -123,7 +123,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -145,7 +145,7 @@ jobs:
 
   compare-gas-reports:
     name: Compare gas reports
-    runs-on: buildjet-16vcpu-ubuntu-2204
+    runs-on: buildjet-4vcpu-ubuntu-2204
     permissions: write-all
     steps:
       - name: Checkout repository
@@ -188,7 +188,7 @@ jobs:
     if:
       (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master') || (github.event_name
       =='push' && github.ref == 'refs/heads/master')
-    runs-on: buildjet-32vcpu-ubuntu-2204
+    runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
