@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC20PluginsUpgradeable.sol";
-
 import { ERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { MulticallUpgradeable } from "@openzeppelin-upgradeable/contracts/utils/MulticallUpgradeable.sol";
