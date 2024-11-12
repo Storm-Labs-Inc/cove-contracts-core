@@ -2,10 +2,10 @@
 
 pragma solidity 0.8.28;
 
-import { AssetRegistry } from "src/AssetRegistry.sol";
-
-import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
+
+import { AssetRegistry } from "src/AssetRegistry.sol";
+import { Errors } from "src/libraries/Errors.sol";
 
 contract AssetRegistry_Test is BaseTest {
     AssetRegistry public assetRegistry;

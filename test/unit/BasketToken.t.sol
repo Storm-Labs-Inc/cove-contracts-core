@@ -7,18 +7,20 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-import { AssetRegistry } from "src/AssetRegistry.sol";
-import { BasketManager } from "src/BasketManager.sol";
-import { BasketToken } from "src/BasketToken.sol";
-import { Errors } from "src/libraries/Errors.sol";
-import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
-import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
+
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20DecimalsMock } from "test/utils/mocks/ERC20DecimalsMock.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 import { MockFeeCollector } from "test/utils/mocks/MockFeeCollector.sol";
+
+import { AssetRegistry } from "src/AssetRegistry.sol";
+import { BasketManager } from "src/BasketManager.sol";
+import { BasketToken } from "src/BasketToken.sol";
+import { Errors } from "src/libraries/Errors.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
+import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
 contract BasketTokenTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;

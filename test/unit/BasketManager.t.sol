@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
-
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+
+import { BaseTest } from "test/utils/BaseTest.t.sol";
+import { Constants } from "test/utils/Constants.t.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
+import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
+
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -15,10 +21,6 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
-import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
-import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
-import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 
 contract BasketManagerTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;

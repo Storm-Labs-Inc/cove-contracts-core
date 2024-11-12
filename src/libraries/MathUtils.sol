@@ -4,7 +4,8 @@ pragma solidity 0.8.28;
 /// @title MathUtils
 /// @notice A library to perform math operations with optimizations.
 /// @dev This library is based on the code snippet from the OpenZeppelin Contracts Math library.
-/// https://tinyurl.com/8xp62yvx
+// solhint-disable-next-line max-line-length
+/// https://github.com/OpenZeppelin/openzeppelin-contracts/blob/05d4bf57ffed8c65256ff4ede5c3cf7a0b738e7d/contracts/utils/math/Math.sol
 library MathUtils {
     /// @dev Cast a boolean (false or true) to a uint256 (0 or 1) with no jump.
     function toUint(bool b) internal pure returns (uint256 u) {

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { TokenSwapAdapter } from "./TokenSwapAdapter.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
@@ -9,6 +8,7 @@ import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithIm
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
+import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { ExternalTrade } from "src/types/Trades.sol";
 
 /// @title CoWSwapAdapter

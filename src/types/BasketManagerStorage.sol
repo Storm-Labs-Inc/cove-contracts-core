@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 /// @notice Enum representing the status of a rebalance.

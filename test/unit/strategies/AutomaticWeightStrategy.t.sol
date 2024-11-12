@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { AutomaticWeightStrategy } from "src/strategies/AutomaticWeightStrategy.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
+
+import { AutomaticWeightStrategy } from "src/strategies/AutomaticWeightStrategy.sol";
 
 contract AutomaticWeightStrategyTest is BaseTest {
     AutomaticWeightStrategy public automaticWeightStrategy;
