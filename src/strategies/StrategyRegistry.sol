@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
-import { WeightStrategy } from "./WeightStrategy.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 /// @title StrategyRegistry
 /// @notice A registry for weight strategies that allows checking if a strategy supports a specific bit flag.
