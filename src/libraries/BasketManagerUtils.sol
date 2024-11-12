@@ -931,14 +931,10 @@ library BasketManagerUtils {
                 uint256 assetValueInUSD =
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                  self.eulerRouter.getQuote(afterTradeAmounts_[i][j], asset, _USD_ISO_4217_CODE);
-                console.log("asset, assetValueInUSD: ", asset, assetValueInUSD);
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValue_[i]);
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
-                    console.log("basket, asset: ", basket, asset);
-                    console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
-                    console.log("afterTradeWeight: %s, usdValue: %s", afterTradeWeight, assetValueInUSD);
                     return false;
                 }
                 unchecked {
@@ -984,7 +980,6 @@ library BasketManagerUtils {
                 self.eulerRouter.getQuote(pendingDeposit, self.basketAssets[basket][baseAssetIndex], _USD_ISO_4217_CODE);
             // Rounding direction: down
             // Division-by-zero is not possible: basketValue is greater than 0
-            console.log("basket value: ", basketValue);
             uint256 requiredDepositShares = basketValue > 0
                 ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
                 : pendingDeposit;
@@ -1088,8 +1083,6 @@ library BasketManagerUtils {
     {
         uint256 assetsLength = assets.length;
         for (uint256 j = 0; j < assetsLength;) {
-            console.log("balances[%s]: %s", j, balances[j]);
-            console.log("targetBalances[%s]: %s", j, targetBalances[j]);
             // slither-disable-start calls-loop
             if (
                 MathUtils.diff(balances[j], targetBalances[j]) > 0 // nosemgrep
