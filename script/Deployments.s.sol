@@ -147,7 +147,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             ETH_EZETH,
             "ezETH",
             OracleOptions({
-                pythPriceFeed: PYTH_EZETH_USD_FEED,
+                pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to ezETH feed once found
                 pythMaxStaleness: 15 minutes,
                 pythMaxConfWidth: 100,
                 chainlinkPriceFeed: ETH_CHAINLINK_EZETH_ETH_FEED,
@@ -165,7 +165,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             ETH_RSETH,
             "rsETH",
             OracleOptions({
-                pythPriceFeed: PYTH_RSETH_USD_FEED,
+                pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to rsETH feed once found
                 pythMaxStaleness: 15 minutes,
                 pythMaxConfWidth: 100,
                 chainlinkPriceFeed: ETH_CHAINLINK_RSETH_ETH_FEED,
@@ -209,12 +209,12 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         basketAssets[5] = ETH_RETH;
 
         uint64[] memory initialWeights = new uint64[](6); // TODO: confirm initial weights with Guantlet
-        initialWeights[0] = 2e17;
-        initialWeights[1] = 1.6e17;
-        initialWeights[2] = 1.6e17;
-        initialWeights[3] = 1.6e17;
-        initialWeights[4] = 1.6e17;
-        initialWeights[5] = 1.6e17;
+        initialWeights[0] = 1e18;
+        initialWeights[1] = 0;
+        initialWeights[2] = 0;
+        initialWeights[3] = 0;
+        initialWeights[4] = 0;
+        initialWeights[5] = 0;
 
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
