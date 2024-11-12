@@ -55,6 +55,7 @@ contract CoWSwapClone is IERC1271, Clone {
     /// stored order digest. Second parameter is not used.
     /// @param orderDigest The digest of the order to validate.
     /// @return A magic value if the signature is valid, otherwise a non-magic value.
+    // solhint-disable-next-line code-complexity
     function isValidSignature(
         bytes32 orderDigest,
         bytes calldata encodedOrder

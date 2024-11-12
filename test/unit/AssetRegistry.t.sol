@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 
-import { BitFlag } from "src/libraries/BitFlag.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 

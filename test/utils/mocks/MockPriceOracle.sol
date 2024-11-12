@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 contract MockPriceOracle {
-    mapping(address => mapping(address => uint256)) prices;
+    mapping(address => mapping(address => uint256)) internal prices;
 
     function setPrice(address base, address quote, uint256 price) external {
         prices[base][quote] = price;

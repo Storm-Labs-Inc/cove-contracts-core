@@ -301,9 +301,11 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.rebalanceStatus.status = Status.TOKEN_SWAP_EXECUTED;
         _bmStorage.rebalanceStatus.timestamp = uint40(block.timestamp);
 
+        // solhint-disable avoid-low-level-calls
         // slither-disable-next-line low-level-calls
         (bool success,) =
             swapAdapter.delegatecall(abi.encodeCall(TokenSwapAdapter.executeTokenSwap, (externalTrades, data)));
+        // solhint-enable avoid-low-level-calls
         if (!success) {
             revert ExecuteTokenSwapFailed();
         }
