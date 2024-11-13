@@ -52,6 +52,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
                 validTo
             );
             unchecked {
+                // Overflow not possible: i is bounded by externalTrades.length
                 ++i;
             }
         }
@@ -86,6 +87,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
             (uint256 claimedSellAmount, uint256 claimedBuyAmount) = CoWSwapClone(swapContract).claim();
             claimedAmounts[i] = [claimedSellAmount, claimedBuyAmount];
             unchecked {
+                // Overflow not possible: i is bounded by externalTrades.length
                 ++i;
             }
         }

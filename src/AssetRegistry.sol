@@ -158,6 +158,7 @@ contract AssetRegistry is AccessControlEnumerable {
             }
             bitFlag >>= 1;
             unchecked {
+                // Overflow not possible: i is bounded by maxLength which is less than 2^256 - 1
                 ++i;
             }
         }
@@ -201,7 +202,10 @@ contract AssetRegistry is AccessControlEnumerable {
             }
 
             unchecked {
+                // Overflow not possible: indexPlusOne is bounded by _assetList.length which is less than 2^256 - 1
+                // Underflow not possible: indexPlusOne is checked to be non-zero
                 bitFlag |= 1 << (indexPlusOne - 1);
+                // Overflow not possible: i is bounded by assetsLength which is less than 2^256 - 1
                 ++i;
             }
         }
