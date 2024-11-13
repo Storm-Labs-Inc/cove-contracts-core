@@ -51,6 +51,7 @@ library MathUtils {
 
     function diff(uint256 a, uint256 b) internal pure returns (uint256) {
         unchecked {
+            // Safe from overflow/underflow: result is always less than larger input.
             // TODO: Measure the gas costs of the following line after more test cases are added.
             // return ternary(a > b, a - b, b - a);
             return a > b ? a - b : b - a;

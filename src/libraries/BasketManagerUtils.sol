@@ -207,6 +207,7 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketAssetToIndexPlusOne[basket][assets[j]] = j + 1;
                 unchecked {
+                    // Overflow not possible: j is bounded by assets.length
                     ++j;
                 }
             }
@@ -783,7 +784,12 @@ library BasketManagerUtils {
                 revert IncorrectTradeTokenAmount();
             }
 
-            // Settle the internal trades and track the balance changes
+            // Settle the internal trades and track the balance changes.
+            // This unchecked block is safe because:
+            // - The subtraction operations can't underflow since the if checks above ensure the values being
+            //   subtracted are less than or equal to the corresponding values in basketBalances.
+            // - The addition operations can't overflow since the total supply of each token is limited and the
+            //   amounts being added are always less than the total supply.
             unchecked {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketBalanceOf[trade.fromBasket][trade.sellToken] =
@@ -868,6 +874,7 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 + self.eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, _USD_ISO_4217_CODE);
                 unchecked {
+                    // Overflow not possible: j is bounded by trade.basketTradeOwnership.length
                     ++j;
                 }
             }
@@ -884,6 +891,7 @@ library BasketManagerUtils {
                 }
             }
             unchecked {
+                // Overflow not possible: i is bounded by baskets.length
                 ++i;
             }
             emit ExternalTradeValidated(trade, info.internalMinAmount);
@@ -934,10 +942,12 @@ library BasketManagerUtils {
                     return false;
                 }
                 unchecked {
+                    // Overflow not possible: j is bounded by proposedTargetWeightsLength
                     ++j;
                 }
             }
             unchecked {
+                // Overflow not possible: i is bounded by len
                 ++i;
             }
         }
