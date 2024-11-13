@@ -14,7 +14,6 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { BasketTokenDeployment, Deployments, OracleOptions } from "script/Deployments.s.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
@@ -63,7 +62,7 @@ import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunction
 // the basket tokens are notified and users with pending redemptions must claim their shares back and request a
 // redeem once again.
 
-contract IntegrationTest is BaseTest, Constants {
+contract IntegrationTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     mapping(string => address) public contracts;

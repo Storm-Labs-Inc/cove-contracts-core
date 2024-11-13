@@ -14,12 +14,6 @@ import { AnchoredOracle } from "src/AnchoredOracle.sol";
 
 contract AnchoredOracle_ForkedTest is BaseTest {
     uint256 public MAX_DIVERGENCE = 0.02e18; // 2.0%
-    address public ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    address public USD = address(840); // USD ISO 4217 currency code
-    // Ref: https://github.com/euler-xyz/euler-price-oracle/blob/experiments/test/adapter/pyth/PythFeeds.sol
-    address public PYTH = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
-    bytes32 public PYTH_ETH_USD_FEED = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
-    address public CHAINLINK_ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
 
     PythOracle public primary;
     ChainlinkOracle public anchor;
@@ -34,7 +28,7 @@ contract AnchoredOracle_ForkedTest is BaseTest {
         // https://pyth.network/price-feeds/crypto-eth-usd
         primary = new PythOracle(PYTH, ETH, USD, PYTH_ETH_USD_FEED, 15 minutes, 500);
         // https://data.chain.link/feeds/ethereum/mainnet/eth-usd
-        anchor = new ChainlinkOracle(ETH, USD, CHAINLINK_ETH_USD_FEED, 1 days);
+        anchor = new ChainlinkOracle(ETH, USD, ETH_CHAINLINK_ETH_USD_FEED, 1 days);
         oracle = new AnchoredOracle(address(primary), address(anchor), MAX_DIVERGENCE);
     }
 

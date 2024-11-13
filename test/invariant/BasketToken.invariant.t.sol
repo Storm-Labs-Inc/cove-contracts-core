@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.23;
+// solhint-disable one-contract-per-file
+pragma solidity 0.8.28;
 
 import { StdInvariant } from "forge-std/StdInvariant.sol";
-import { console } from "forge-std/console.sol";
 
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -84,7 +84,7 @@ contract BasketTokenHandler is InvariantHandler {
     uint256 public redeemsPendingRebalance;
     uint256 private redeemsPendingFulfill;
 
-    uint256 constant ACTOR_COUNT = 5;
+    uint256 private constant ACTOR_COUNT = 5;
 
     IERC20[] private assets;
 
@@ -102,14 +102,12 @@ contract BasketTokenHandler is InvariantHandler {
         string memory symbol_,
         uint256 bitFlag_,
         address strategy_,
-        address assetRegistry_,
-        address admin_
+        address assetRegistry_
     )
         public
     {
         vm.assume(!initialized);
         vm.assume(address(strategy_) != address(0));
-        vm.assume(address(admin_) != address(0));
         vm.assume(address(assetRegistry_) != address(0));
 
         // Ensure the assetIndex is within bounds of the assets array.
@@ -120,7 +118,7 @@ contract BasketTokenHandler is InvariantHandler {
         basketToken = BasketToken(Clones.clone(address(basketTokenImpl)));
         vm.label(address(basketToken), "basketToken");
 
-        basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, assetRegistry_, admin_);
+        basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, assetRegistry_);
 
         // Mock the AssetRegistry to simulate that no assets are paused.
         vm.mockCall(
@@ -187,8 +185,9 @@ contract BasketTokenHandler is InvariantHandler {
         uint256 pendingRedemptions = basketToken.totalPendingRedemptions();
 
         // Call prepareForRebalance and check the return value.
-        uint256 ret = basketToken.prepareForRebalance();
-        assertEq(ret, pendingRedemptions, "prepareForRebalance should return totalPendingRedemptions");
+        // TODO: verify this is correct change to prepareForRebalance / fix parameters
+        (, uint256 redeems) = basketToken.prepareForRebalance(0, address(0));
+        assertEq(redeems, pendingRedemptions, "prepareForRebalance should return totalPendingRedemptions");
         assertEq(
             pendingRedemptions,
             redeemsPendingRebalance,
