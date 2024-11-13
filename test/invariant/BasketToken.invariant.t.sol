@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 
+import { StdInvariant } from "forge-std/StdInvariant.sol";
+import { console } from "forge-std/console.sol";
+
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { StdInvariant } from "forge-std/StdInvariant.sol";
-import { console } from "forge-std/console.sol";
-import { AssetRegistry } from "src/AssetRegistry.sol";
-import { BasketToken } from "src/BasketToken.sol";
+
 import { InvariantHandler } from "test/invariant/InvariantHandler.t.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
+
+import { AssetRegistry } from "src/AssetRegistry.sol";
+import { BasketToken } from "src/BasketToken.sol";
 
 /// @notice Invariant test suite for the BasketToken contract.
 /// @dev This suite checks the contract's invariants by fuzzing its state and call sequences.
