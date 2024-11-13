@@ -1,5 +1,5 @@
 {
-  "name": "basket-manager",
+  "name": "cove-contracts-core",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -45,7 +45,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "BUSL-1.1",
   "devDependencies": {
     "@commitlint/cli": "^18.6.0",
     "@commitlint/config-conventional": "^18.6.0",
