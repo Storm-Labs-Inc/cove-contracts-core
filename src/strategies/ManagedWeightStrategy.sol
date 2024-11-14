@@ -82,6 +82,7 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
         for (uint256 i = 0; i < assetCount;) {
             sum += newTargetWeights[i];
             unchecked {
+                // Overflow not possible: i is bounded by assetCount
                 ++i;
             }
         }

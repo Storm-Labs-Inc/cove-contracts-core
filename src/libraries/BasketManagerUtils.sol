@@ -207,6 +207,7 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketAssetToIndexPlusOne[basket][assets[j]] = j + 1;
                 unchecked {
+                    // Overflow not possible: j is bounded by assets.length
                     ++j;
                 }
             }
@@ -268,7 +269,7 @@ library BasketManagerUtils {
             uint256 totalSupply;
             {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
                 (totalSupply, pendingDepositValue) = _processPendingDeposits(
@@ -594,7 +595,7 @@ library BasketManagerUtils {
                 // when pendingRedeems is greater than 0
                 uint256 rawAmount =
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply());
-                uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 withdrawAmount =
                     self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
@@ -783,7 +784,12 @@ library BasketManagerUtils {
                 revert IncorrectTradeTokenAmount();
             }
 
-            // Settle the internal trades and track the balance changes
+            // Settle the internal trades and track the balance changes.
+            // This unchecked block is safe because:
+            // - The subtraction operations can't underflow since the if checks above ensure the values being
+            //   subtracted are less than or equal to the corresponding values in basketBalances.
+            // - The addition operations can't overflow since the total supply of each token is limited and the
+            //   amounts being added are always less than the total supply.
             unchecked {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketBalanceOf[trade.fromBasket][trade.sellToken] =
@@ -868,6 +874,7 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 + self.eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, _USD_ISO_4217_CODE);
                 unchecked {
+                    // Overflow not possible: j is bounded by trade.basketTradeOwnership.length
                     ++j;
                 }
             }
@@ -884,6 +891,7 @@ library BasketManagerUtils {
                 }
             }
             unchecked {
+                // Overflow not possible: i is bounded by baskets.length
                 ++i;
             }
             emit ExternalTradeValidated(trade, info.internalMinAmount);
@@ -934,10 +942,12 @@ library BasketManagerUtils {
                     return false;
                 }
                 unchecked {
+                    // Overflow not possible: j is bounded by proposedTargetWeightsLength
                     ++j;
                 }
             }
             unchecked {
+                // Overflow not possible: i is bounded by len
                 ++i;
             }
         }
@@ -1025,7 +1035,7 @@ library BasketManagerUtils {
             }
         }
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
+        uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
         targetBalances[baseAssetIndex] +=
             self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
@@ -1113,7 +1123,7 @@ library BasketManagerUtils {
         uint256 len = assets.length;
         for (uint256 i = 0; i < len;) {
             if (assets[i] == baseAsset) {
-                self.basketTokenToBaseAssetIdexPlusOne[basket] = i + 1;
+                self.basketTokenToBaseAssetIndexPlusOne[basket] = i + 1;
                 return;
             }
             unchecked {
