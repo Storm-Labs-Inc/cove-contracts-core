@@ -30,6 +30,7 @@ contract CoWSwapClone is IERC1271, Clone {
     using GPv2Order for GPv2Order.Data;
     using SafeERC20 for IERC20;
 
+    /// CONSTANTS ///
     // Constants for ERC1271 signature validation
     bytes4 internal constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
     bytes4 internal constant _ERC1271_NON_MAGIC_VALUE = 0xffffffff;
@@ -41,6 +42,32 @@ contract CoWSwapClone is IERC1271, Clone {
     /// https://docs.cow.fi/cow-protocol/reference/contracts/core
     address internal constant _VAULT_RELAYER = 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110;
 
+    /// EVENTS ///
+    /// @notice Emitted when a new order is created.
+    /// @param sellToken The address of the token to be sold.
+    /// @param buyToken The address of the token to be bought.
+    /// @param sellAmount The amount of the sell token.
+    /// @param minBuyAmount The minimum amount of the buy token.
+    /// @param validTo The timestamp until which the order is valid.
+    /// @param receiver The address that will receive the bought tokens.
+    /// @param operator The address of the operator allowed to manage the trade.
+    event OrderCreated(
+        address indexed sellToken,
+        address indexed buyToken,
+        uint256 sellAmount,
+        uint256 minBuyAmount,
+        uint32 validTo,
+        address indexed receiver,
+        address operator
+    );
+    /// @notice Emitted when an order is claimed.
+    /// @param operator The address of the operator who claimed the order.
+    /// @param claimedSellAmount The amount of sell tokens claimed.
+    /// @param claimedBuyAmount The amount of buy tokens claimed.
+    event OrderClaimed(address indexed operator, uint256 claimedSellAmount, uint256 claimedBuyAmount);
+
+    /// ERRORS ///
+    /// @notice Thrown when the caller is not the operator or receiver of the order.
     error CallerIsNotOperatorOrReceiver();
 
     /// @notice Initializes the CoWSwapClone contract by approving the vault relayer to spend the maximum amount of the
@@ -48,7 +75,7 @@ contract CoWSwapClone is IERC1271, Clone {
     /// @dev This function should be called after the clone is deployed to set up the necessary token approvals.
     function initialize() external payable {
         IERC20(sellToken()).forceApprove(_VAULT_RELAYER, type(uint256).max);
-        // TODO: emit events for each trade
+        emit OrderCreated(sellToken(), buyToken(), sellAmount(), minBuyAmount(), validTo(), receiver(), operator());
     }
 
     /// @notice Validates the signature of an order. The order is considered valid if the order digest matches the
@@ -136,6 +163,8 @@ contract CoWSwapClone is IERC1271, Clone {
         if (claimedBuyAmount > 0) {
             IERC20(buyToken()).safeTransfer(receiver(), claimedBuyAmount);
         }
+
+        emit OrderClaimed(msg.sender, claimedSellAmount, claimedBuyAmount);
     }
 
     // Immutable fields stored in the contract's bytecode
