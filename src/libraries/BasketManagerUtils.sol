@@ -267,7 +267,7 @@ library BasketManagerUtils {
             uint256 totalSupply;
             {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
                 (totalSupply, pendingDepositValue) = _processPendingDeposits(
@@ -593,7 +593,7 @@ library BasketManagerUtils {
                 // when pendingRedeems is greater than 0
                 uint256 rawAmount =
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply());
-                uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 withdrawAmount =
                     self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
@@ -1028,7 +1028,7 @@ library BasketManagerUtils {
             }
         }
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        uint256 baseAssetIndex = self.basketTokenToBaseAssetIdexPlusOne[basket] - 1;
+        uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
         targetBalances[baseAssetIndex] +=
             self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
@@ -1114,7 +1114,7 @@ library BasketManagerUtils {
         uint256 len = assets.length;
         for (uint256 i = 0; i < len;) {
             if (assets[i] == baseAsset) {
-                self.basketTokenToBaseAssetIdexPlusOne[basket] = i + 1;
+                self.basketTokenToBaseAssetIndexPlusOne[basket] = i + 1;
                 return;
             }
             unchecked {
