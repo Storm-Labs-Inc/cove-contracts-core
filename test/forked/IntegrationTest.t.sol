@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-// TODO: remove this
-// solhint-disable no-unused-import
 import { console } from "forge-std/console.sol";
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -24,10 +21,8 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { BasketTokenDeployment, OracleOptions } from "src/BasketTokenDeployment.sol";
-
 import { Deployer, DeployerFunctions } from "src/deployer/DeployerFunctions.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
-
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
