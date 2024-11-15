@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { AssetRegistry } from "src/AssetRegistry.sol";
+import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
-
-import { BitFlag } from "src/libraries/BitFlag.sol";
-
-import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract StrategyRegistryTest is BaseTest {
     StrategyRegistry public strategyRegistry;

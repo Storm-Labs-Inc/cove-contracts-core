@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 /// @notice Enum representing the status of a rebalance.
@@ -64,7 +65,8 @@ struct BasketManagerStorage {
     mapping(address basketToken => uint256 pendingRedeems) pendingRedeems;
     /// @notice Mapping of asset to collected swap fees.
     mapping(address asset => uint256 fees) collectedSwapFees;
-    mapping(address basket => uint256 indexPlusOne) basketTokenToBaseAssetIdexPlusOne;
+    /// @notice Mapping of basket token to base asset index plus one. 0 means the base asset does not exist.
+    mapping(address basket => uint256 indexPlusOne) basketTokenToBaseAssetIndexPlusOne;
     /// @notice Rebalance status.
     RebalanceStatus rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap

@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
+import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BitFlag } from "src/libraries/BitFlag.sol";
-
 import { Errors } from "src/libraries/Errors.sol";
+import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
-import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract ManagedWeightStrategyTest is BaseTest {
     ManagedWeightStrategy public customStrategy;

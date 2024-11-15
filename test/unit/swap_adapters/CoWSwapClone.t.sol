@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { Test } from "forge-std/Test.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
-import { Test } from "forge-std/Test.sol";
+
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
+
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
-import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 contract CoWSwapCloneTest is Test {
     using GPv2Order for GPv2Order.Data;
@@ -89,6 +92,9 @@ contract CoWSwapCloneTest is Test {
         vm.expectCall(
             sellToken, abi.encodeWithSelector(IERC20(sellToken).approve.selector, _VAULT_RELAYER, type(uint256).max)
         );
+        // Check that the OrderCreated event was emitted correctly
+        vm.expectEmit();
+        emit CoWSwapClone.OrderCreated(sellToken, buyToken, sellAmount, minBuyAmount, validTo, receiver, operator);
         CoWSwapClone(clone).initialize();
         uint256 allowanceAfter = IERC20(sellToken).allowance(address(clone), _VAULT_RELAYER);
         assertEq(allowanceAfter, type(uint256).max, "Allowance should be max after initialization");
@@ -450,6 +456,10 @@ contract CoWSwapCloneTest is Test {
         // Mint tokens to the clone contract
         deal(address(sellToken), address(clone), initialSellBalance);
         deal(address(buyToken), address(clone), initialBuyBalance);
+
+        // Check that the OrderClaimed event was emitted correctly
+        vm.expectEmit();
+        emit CoWSwapClone.OrderClaimed(operator, initialSellBalance, initialBuyBalance);
 
         // Claim the tokens
         vm.prank(operator);

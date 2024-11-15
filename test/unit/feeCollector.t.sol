@@ -3,13 +3,15 @@ pragma solidity 0.8.28;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-import { BasketToken } from "src/BasketToken.sol";
-import { FeeCollector } from "src/FeeCollector.sol";
-import { Errors } from "src/libraries/Errors.sol";
+
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
+
+import { BasketToken } from "src/BasketToken.sol";
+import { FeeCollector } from "src/FeeCollector.sol";
+import { Errors } from "src/libraries/Errors.sol";
 
 contract FeeCollectorTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;

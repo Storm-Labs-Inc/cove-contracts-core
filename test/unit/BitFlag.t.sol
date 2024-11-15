@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { BitFlag } from "src/libraries/BitFlag.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
+
+import { BitFlag } from "src/libraries/BitFlag.sol";
 
 contract BitFlagTest is BaseTest {
     function testFuzz_popCount(uint256 bitFlag) public {

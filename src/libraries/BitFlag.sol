@@ -18,6 +18,10 @@ library BitFlag {
     /// @param bitFlag The bit flag to count the number of set bits.
     /// @return count The number of set bits in the bit flag.
     function popCount(uint256 bitFlag) internal pure returns (uint256) {
+        // The unchecked block is safe from overflow/underflow because:
+        // 1. Each step only involves bitwise operations and additions, which can't overflow uint256.
+        // 2. The maximum possible value of bitFlag is 2^256-1, which can be safely multiplied by BYTE_MULTIPLIER.
+        // 3. The final result is always in the range [0, 256], so the right shift by 248 bits can't underflow.
         unchecked {
             // Optimization: If all bits are set, return 256 immediately
             if (bitFlag == type(uint256).max) {

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { WeightStrategy } from "./WeightStrategy.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+
 import { BasketManager } from "src/BasketManager.sol";
 import { BitFlag } from "src/libraries/BitFlag.sol";
 import { Errors } from "src/libraries/Errors.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
 /// @title ManagedWeightStrategy
@@ -81,6 +82,7 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
         for (uint256 i = 0; i < assetCount;) {
             sum += newTargetWeights[i];
             unchecked {
+                // Overflow not possible: i is bounded by assetCount
                 ++i;
             }
         }
