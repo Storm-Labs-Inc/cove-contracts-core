@@ -58,7 +58,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     address public basketTokenImplementation;
 
     bool public isProduction;
-    // TODO see if this is needed
+    // TODO: see if this is needed
     BasketTokenDeployment[] public basketTokenDeploymentList;
 
     bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
