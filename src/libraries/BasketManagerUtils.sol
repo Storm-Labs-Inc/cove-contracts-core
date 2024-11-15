@@ -769,12 +769,25 @@ library BasketManagerUtils {
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
+                console.log("info.netBuyAmount:", info.netBuyAmount);
+                console.log("trade.minAmount:", trade.minAmount);
+                console.log("trade.maxAmount:", trade.maxAmount);
                 revert InternalTradeMinMaxAmountNotReached();
             }
             if (trade.sellAmount > basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]) {
+                console.log("trade.sellAmount:", trade.sellAmount);
+                console.log(
+                    "basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]:",
+                    basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]
+                );
                 revert IncorrectTradeTokenAmount();
             }
             if (info.netBuyAmount > basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]) {
+                console.log("info.netBuyAmount:", info.netBuyAmount);
+                console.log(
+                    "basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]:",
+                    basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]
+                );
                 revert IncorrectTradeTokenAmount();
             }
 

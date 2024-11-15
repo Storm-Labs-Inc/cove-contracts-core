@@ -221,7 +221,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                 name: "Gauntlet All Asset Basket", // TODO: confirm basket name
                 symbol: "GVT1", // TODO: confirm symbol
                 rootAsset: ETH_WETH, // TODO: confirm root asset
-                bitFlag: _assetsToBitFlag(basketAssets),
+                bitFlag: assetsToBitFlag(basketAssets),
                 strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"), // TODO: confirm strategy
                 initialWeights: initialWeights
             })
@@ -602,7 +602,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         }
     }
 
-    function _assetsToBitFlag(address[] memory assets) private view returns (uint256 bitFlag) {
+    function assetsToBitFlag(address[] memory assets) public view returns (uint256 bitFlag) {
         return AssetRegistry(getAddress("AssetRegistry")).getAssetsBitFlag(assets);
     }
 }

@@ -18,131 +18,95 @@ import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
-import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
-import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
-import { BasketTokenDeployment, Deployments, OracleOptions } from "script/Deployments.s.sol";
+import { Deployments } from "script/Deployments.s.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
+import { MockTradeAdapter } from "test/utils/mocks/MockTradeAdapter.sol";
 
-// Steps for completing a rebalance
-// 1. Propose Rebalance
-// - permissioned to the _REBALANCER_ROLE
-// - Requirements for a rebalance to happen:
-//   - any pending deposits / redeems
-//   - have an imbalance in target vs current weights for basket larger than $500
-// - Call proposeRebalance() with array of target basket tokens
-//   - Note: currently you can propose any number of baskets as long as one meets the above requirement.
-//     This is so all provided baskets are considered for internal trades. This may involve additional checks in the
-// future
-// - If successful, the rebalance status is updated to REBALANCE_PROPOSED and timer is started.
-//   Basket tokens involved in this rebalance have their requestIds incremented so that any future deposit/redeem
-// requests are handled by the next redemption cycle.
-// 2. Propose token swaps
-// - Permissioned to the _REBALANCER_ROLE
-// - Provide arrays of internal/external token swaps
-// - These trades MUST result in the targeted weights ($ wise) for this call to succeed.
-// - If successful, the rebalance status is TOKEN_SWAP_PROPOSED
-// 3. Execute Token swaps
-// - Permissioned to the _REBALANCER_ROLE
-// - If external trades are proposed, they must be executed on the token swap adapter. This can only happen after a set
-// amount of time has passed to allow for the trades to happen.
-// - Calling execute token swap can result in any amount of trade success. The function returns all tokens back to the
-// basket manager.
-// - When token swaps are executed, the status is updated to TOKEN_SWAP_EXECUTED
-// 4. Complete Rebalance
-// - Permissionless
-// - This must be called at least 15 minutes after propose token swap has been called.
-// - If external trades have been executed, gets the results and updates internal accounting
-// - Processes internal trades and pending redemptions.
-// - Note: In the instance the target weights have not been met by the time of calling completeRebalance(), a retry is
-// initiated.
-//   In this case, the status is set to REBALANCE_PROPOSED to allow for additional internal/external trades to be
-// proposed and the steps above repeated.
-//   If the retry cycle happens the maximum amount of times, the rebalance is completed regardless.
-//   If pending redemptions cannot be fulfilled because of an incomplete rebalance, the basket tokens are notified and
-// users with pending redemptions must claim their shares back and request a redeem once again.
+struct SurplusDeficit {
+    uint256 surplusUSD; // USD value of surplus
+    uint256 deficitUSD; // USD value of deficit
+}
 
 contract IntegrationTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;
 
-    mapping(string => address) public contracts;
-    mapping(address => mapping(address => uint256)) public basketUserPendingDeposits;
-    mapping(address => mapping(address => uint256)) public basketUserPendingRedeems;
-    mapping(address => mapping(address => uint256)) public basketUserRequestId;
+    InternalTrade[] private tempInternalTrades;
+    uint256 private internalTradeCount;
+
+    mapping(address => uint256) public totalDeficitUSD;
+    mapping(address => mapping(address => SurplusDeficit)) public surplusDeficitMap;
     mapping(address => string) public assetNames;
+
     BasketManager public bm;
     Deployments public deployments;
-    address public mockSwapAdapter;
+    address public mockTradeAdapter;
+    uint256 public bitflag;
 
-    mapping(bytes32 => uint256) public tradeAmounts; // To avoid duplicate trades
+    mapping(address => bool) private assetExists; // Mapping to track added assets
 
     function setUp() public override {
-        // Fork Ethereum mainnet at block 20892640 for consistent testing and to cache RPC calls
-        // https://etherscan.io/block/20892640
         forkNetworkAt("mainnet", 20_892_640);
         super.setUp();
-        // Allow cheatcodes for contract deployed by deploy script
         vm.allowCheatcodes(0xa5F044DA84f50f2F6fD7c309C5A8225BCE8b886B);
+
         deployments = new Deployments();
         deployments.deploy(false);
 
         bm = BasketManager(deployments.getAddress("BasketManager"));
 
-        // We use a mock token swap adapter as using CowSwap is not possible in a forked environment
-        mockSwapAdapter = createUser("MockTokenSwapAdapter");
-        vm.prank(deployments.admin());
-        bm.setTokenSwapAdapter(mockSwapAdapter);
-        // Store asset names for oracle lookups
         assetNames[ETH_WETH] = "WETH";
+        vm.label(ETH_WETH, "WETH");
         assetNames[ETH_SUSDE] = "SUSDE";
+        vm.label(ETH_SUSDE, "SUSDE");
         assetNames[ETH_WEETH] = "weETH";
+        vm.label(ETH_WEETH, "weETH");
         assetNames[ETH_EZETH] = "ezETH";
         assetNames[ETH_RSETH] = "rsETH";
         assetNames[ETH_RETH] = "rETH";
+
+        mockTradeAdapter = address(new MockTradeAdapter());
+        vm.prank(deployments.admin());
+        bm.setTokenSwapAdapter(address(mockTradeAdapter));
+
+        address[] memory basketAssets = bm.basketAssets(bm.basketTokens()[0]);
+        bitflag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(basketAssets);
     }
 
     function test_setUp() public view {
-        // Forge-deploy checks
         assertNotEq(address(bm), address(0));
         assertNotEq(deployments.getAddress("AssetRegistry"), address(0));
         assertNotEq(deployments.getAddress("StrategyRegistry"), address(0));
         assertNotEq(deployments.getAddress("EulerRouter"), address(0));
         assertNotEq(deployments.getAddress("FeeCollector"), address(0));
 
-        // Launch parameter checks
-        assertEq(bm.numOfBasketTokens(), 1); // TODO: Update this after finalizing the launch basket tokens
+        assertEq(bm.numOfBasketTokens(), 1);
     }
 
     function testFuzz_completeRebalance_processDeposits(uint256 numUsers, uint256 entropy) public {
         numUsers = bound(numUsers, 1, 100);
 
-        // Request deposit for all users
         address[] memory basketTokens = bm.basketTokens();
 
         for (uint256 i = 0; i < numUsers; ++i) {
             address user = vm.addr(i + 1);
-            // Generate pseudo-random amount
             uint256 amount = uint256(keccak256(abi.encodePacked(i, entropy))) % (1000 ether - 1e4) + 1e4;
             for (uint256 j = 0; j < basketTokens.length; ++j) {
                 _requestDepositToBasket(user, basketTokens[j], amount);
             }
         }
 
-        // Propose rebalance
         _updatePythOracleTimeStamps();
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
         assertEq(bm.rebalanceStatus().timestamp, block.timestamp);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
-        assertEq(bm.rebalanceStatus().basketMask, 1);
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encodePacked(basketTokens)));
 
-        // Propose token swaps
-        // Note: For the first rebalance no trades are proposed and only deposits are processed
         ExternalTrade[] memory externalTradesLocal = new ExternalTrade[](0);
         InternalTrade[] memory internalTradesLocal = new InternalTrade[](0);
 
@@ -152,7 +116,6 @@ contract IntegrationTest is BaseTest, Constants {
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
 
         vm.warp(block.timestamp + 15 minutes);
-        // Complete rebalance
         bm.completeRebalance(externalTradesLocal, basketTokens);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
@@ -160,66 +123,143 @@ contract IntegrationTest is BaseTest, Constants {
     function test_calculateExternalTrades() public {
         testFuzz_completeRebalance_processDeposits(100, 100);
         vm.warp(block.timestamp + REBALANCE_COOLDOWN_SEC);
+
         uint64[] memory newTargetWeights = new uint64[](6);
-        newTargetWeights[0] = 5e17; // 50%
-        newTargetWeights[1] = 5e17; // 50%
-        newTargetWeights[2] = 0; // 0%
+        newTargetWeights[0] = 5e17; // 50% ETH_WETH
+        newTargetWeights[1] = 1e17; // 50% ETH_SUSDE
+        newTargetWeights[2] = 1e17; // 0% ETH_WEETH
+        newTargetWeights[3] = 1e17; // 0% ETH_EZETH
+        newTargetWeights[4] = 1e17; // 0% ETH_RSETH
+        newTargetWeights[5] = 1e17; // 0% ETH_RETH
+        uint64[][] memory targetWegihts = new uint64[][](1);
+        targetWegihts[0] = newTargetWeights;
+
+        address[] memory basketTokens = new address[](1);
+        basketTokens[0] = bm.basketTokens()[0];
+
+        _updatePythOracleTimeStamps();
+
+        ManagedWeightStrategy strategy =
+            ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
+        vm.prank(GAUNTLET_STRATEGIST);
+        strategy.setTargetWeights(bitflag, newTargetWeights);
+
+        vm.prank(deployments.rebalanceProposer());
+        bm.proposeRebalance(basketTokens);
+
+        (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+            _findInternalAndExternalTrades(basketTokens, targetWegihts);
+
+        vm.prank(deployments.tokenSwapProposer());
+        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
+        _giveAssetsToSwapAdapter(externalTrades);
+
+        vm.prank(deployments.tokenSwapExecutor());
+        bm.executeTokenSwap(externalTrades, "");
+
+        vm.warp(block.timestamp + 15 minutes);
+        bm.completeRebalance(externalTrades, basketTokens);
+        assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
+    }
+
+    function test_calculateInternalTrades() public {
+        // Create a new basket to trade into
+        address[] memory newBasketAssets0 = new address[](2);
+        newBasketAssets0[0] = ETH_SUSDE;
+        newBasketAssets0[1] = ETH_WEETH;
+        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        uint256 basket0Bitflag = deployments.assetsToBitFlag(newBasketAssets0);
+        ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
+        uint64[] memory intitialTargetWeights0 = new uint64[](2);
+        intitialTargetWeights0[0] = 1e18;
+        intitialTargetWeights0[1] = 0;
+
+        vm.startPrank(GAUNTLET_STRATEGIST);
+        strategy.setTargetWeights(basket0Bitflag, intitialTargetWeights0);
+        vm.stopPrank();
+        vm.startPrank(deployments.admin());
+        vm.label(
+            bm.createNewBasket("Test Basket0", "TEST0", address(ETH_SUSDE), basket0Bitflag, strategyAddress),
+            "2AssetBasket0"
+        );
+        vm.stopPrank();
+        // Fuzzes deposits into both baskets as well as externally trade to get all assets in the base basket
+        test_calculateExternalTrades();
+        // testFuzz_completeRebalance_processDeposits(100, 100);
+        vm.warp(block.timestamp + REBALANCE_COOLDOWN_SEC);
+
+        uint64[] memory newTargetWeights0 = new uint64[](2);
+        newTargetWeights0[0] = 0;
+        newTargetWeights0[1] = 1e18; // ETH_WEETH
+
+        uint64[] memory newTargetWeights = new uint64[](6);
+        newTargetWeights[0] = 0; // 50%
+        newTargetWeights[1] = 1e18; // 100 % add need for ETH_SUSDE
+        newTargetWeights[2] = 0; // 0% remove this baskets need for ETH_WEETH
         newTargetWeights[3] = 0; // 0%
         newTargetWeights[4] = 0; // 0%
         newTargetWeights[5] = 0; // 0%
 
-        // Calculate external trades
-        _updatePythOracleTimeStamps();
-        ExternalTrade[] memory externalTrades = _calculateExternalTrades(newTargetWeights);
+        uint64[][] memory newTargetWeightsTotal = new uint64[][](2);
+        newTargetWeightsTotal[0] = newTargetWeights;
+        newTargetWeightsTotal[1] = newTargetWeights0;
 
-        // Update strategy with new target weights
-        ManagedWeightStrategy strategy =
-            ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
-        address[] memory basketAssets = bm.basketAssets(bm.basketTokens()[0]);
-        uint256 bitflag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(basketAssets);
-
-        vm.prank(GAUNTLET_STRATEGIST);
-        strategy.setTargetWeights(bitflag, newTargetWeights);
-
-        // Propose rebalance
         address[] memory basketTokens = bm.basketTokens();
+
+        _updatePythOracleTimeStamps();
+
+        vm.startPrank(GAUNTLET_STRATEGIST);
+        strategy.setTargetWeights(basket0Bitflag, newTargetWeights0);
+        strategy.setTargetWeights(bitflag, newTargetWeights);
+        vm.stopPrank();
+
         vm.prank(deployments.rebalanceProposer());
+        console.log("Proposing rebalance");
         bm.proposeRebalance(basketTokens);
 
-        // Propose token swap with calculated trades
+        (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+            _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
+
         vm.prank(deployments.tokenSwapProposer());
-        InternalTrade[] memory internalTrades = new InternalTrade[](0);
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
+        _giveAssetsToSwapAdapter(externalTrades);
+
+        vm.prank(deployments.tokenSwapExecutor());
+        bm.executeTokenSwap(externalTrades, "");
+
         vm.warp(block.timestamp + 15 minutes);
         bm.completeRebalance(externalTrades, basketTokens);
+        assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
-    // Calculate external trades based on new target weights
-    function _calculateExternalTrades(uint64[] memory newTargetWeights)
-        internal
-        view
-        returns (ExternalTrade[] memory)
-    {
-        address basketToken = bm.basketTokens()[0];
+    function _findSurplusAndDeficits(address basketToken, uint64[] memory newTargetWeights) internal {
         address[] memory basketAssets = bm.basketAssets(basketToken);
         uint256 assetCount = basketAssets.length;
 
         require(newTargetWeights.length == assetCount, "Mismatched weights and assets");
 
-        // Fetch current balances and prices
+        // Calculate current USD values of all basket assets
         (uint256[] memory currentValuesUSD, uint256 totalValueUSD) = _getCurrentUSDValue(basketToken, basketAssets);
-
-        // Calculate desired values based on new target weights
+        // Based on the totalUSD value of the basket find the desired values of each asset base on the new target
+        // weights
         uint256[] memory desiredValuesUSD = _calculateDesiredValues(totalValueUSD, newTargetWeights);
-
-        // Determine surplus and deficit for each asset
+        // Find the surplus and deficits of each asset
         (uint256[] memory surplusUSD, uint256[] memory deficitUSD) =
             _calculateDeficitSurplus(currentValuesUSD, desiredValuesUSD, assetCount);
-
-        // Identify assets to sell (surplus) and buy (deficit)
-        ExternalTrade[] memory trades = _identifyAndPrepareTrades(basketToken, basketAssets, surplusUSD, deficitUSD);
-
-        return trades;
+        // Update the surplusDeficitMap for each asset to keep track of the surplus and deficits across baskets
+        for (uint256 i = 0; i < assetCount; ++i) {
+            if (surplusUSD[i] > 0 || deficitUSD[i] > 0) {
+                console.log("Surplus/Deficit found");
+                console.log("Asset:", basketAssets[i]);
+                console.log("Asset name: ", assetNames[basketAssets[i]]);
+                console.log("Basket:", basketToken);
+                console.log("Surplus USD:", surplusUSD[i]);
+                console.log("basketBalanceOf :", bm.basketBalanceOf(basketToken, basketAssets[i]));
+                console.log("Deficit USD:", deficitUSD[i]);
+                surplusDeficitMap[basketAssets[i]][basketToken] =
+                    SurplusDeficit({ surplusUSD: surplusUSD[i], deficitUSD: deficitUSD[i] });
+            }
+        }
     }
 
     function _getCurrentUSDValue(
@@ -236,11 +276,15 @@ contract IntegrationTest is BaseTest, Constants {
 
         for (uint256 i = 0; i < assetCount; ++i) {
             uint256 balance = bm.basketBalanceOf(basketToken, basketAssets[i]);
-            // Skip if asset balance is 0
             if (balance == 0) {
                 continue;
             }
-            currentValuesUSD[i] = _getAssetValue(basketAssets[i], balance);
+            string memory assetName = assetNames[basketAssets[i]];
+            AnchoredOracle assetOracle =
+                AnchoredOracle(deployments.getAddress(string(abi.encodePacked(assetName, "_AnchoredOracle"))));
+            currentValuesUSD[i] = assetOracle.getQuote(balance, basketAssets[i], USD);
+            console.log("basket balanceOf: ", balance);
+            console.log("usdValue :", currentValuesUSD[i]);
             totalValueUSD += currentValuesUSD[i];
         }
     }
@@ -278,108 +322,302 @@ contract IntegrationTest is BaseTest, Constants {
             } else if (desiredValuesUSD[i] > currentValuesUSD[i]) {
                 deficitUSD[i] = desiredValuesUSD[i] - currentValuesUSD[i];
             }
-            // No action needed if values are equal
         }
     }
 
-    function _identifyAndPrepareTrades(
-        address basketToken,
-        address[] memory basketAssets,
-        uint256[] memory surplusUSD,
-        uint256[] memory deficitUSD
+    function _findInternalAndExternalTrades(
+        address[] memory baskets,
+        uint64[][] memory newTargetWeights
     )
         internal
-        view
-        returns (ExternalTrade[] memory trades)
+        returns (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades)
     {
-        uint256 assetCount = basketAssets.length;
+        require(baskets.length == newTargetWeights.length, "Mismatched baskets and weights");
 
-        // Since we can't dynamically resize memory arrays, we estimate the maximum number of trades and trim later
-        ExternalTrade[] memory tempTrades = new ExternalTrade[](assetCount * assetCount);
-        uint256 tradeCount = 0;
+        // Reset the temporary storage
+        delete tempInternalTrades;
+        internalTradeCount = 0;
 
-        for (uint256 i = 0; i < assetCount; ++i) {
-            if (deficitUSD[i] > 0) {
-                uint256 remainingDeficitUSD = deficitUSD[i];
-                address deficitAsset = basketAssets[i];
-                for (uint256 j = 0; j < assetCount; ++j) {
-                    if (surplusUSD[j] > 0) {
-                        uint256 availableSurplusUSD = surplusUSD[j];
-                        address surplusAsset = basketAssets[j];
-                        uint256 tradeValueUSD =
-                            remainingDeficitUSD < availableSurplusUSD ? remainingDeficitUSD : availableSurplusUSD;
+        // Populate surplus and deficits for each asset
+        for (uint256 i = 0; i < baskets.length; ++i) {
+            _findSurplusAndDeficits(baskets[i], newTargetWeights[i]);
+        }
 
-                        // Prepare trade and add to array
-                        _addExternalTrade(
-                            basketToken,
-                            surplusAsset,
-                            deficitAsset,
-                            _valueToAmount(surplusAsset, tradeValueUSD), // sellAssetAmount
-                            _valueToAmount(deficitAsset, tradeValueUSD), // buyAssetAmount
-                            tempTrades,
-                            tradeCount
-                        );
-                        tradeCount++;
+        // Generate internal trades
+        _generateInternalTrades(baskets);
+        console.log("found n internal trades: ", internalTradeCount);
 
-                        // Update surplus and deficit
-                        surplusUSD[j] -= tradeValueUSD;
-                        remainingDeficitUSD -= tradeValueUSD;
+        // Copy to final array
+        internalTrades = new InternalTrade[](internalTradeCount);
+        for (uint256 i = 0; i < internalTradeCount; i++) {
+            internalTrades[i] = tempInternalTrades[i];
+        }
 
-                        if (remainingDeficitUSD == 0) {
-                            break; // Deficit met, move to next deficit asset
-                        }
-                    }
+        // Generate external trades
+        ExternalTrade[] memory externalTradesTemp = new ExternalTrade[](baskets.length * 10);
+        uint256 externalTradeCount = _generateExternalTrades(baskets, externalTradesTemp);
+        console.log("found n external trades: ", externalTradeCount);
+
+        // Trim external trades array
+        externalTrades = _trimExternalTradesArray(externalTradesTemp, externalTradeCount);
+    }
+
+    function _generateInternalTrades(address[] memory baskets) internal {
+        uint256 basketCount = baskets.length;
+
+        for (uint256 i = 0; i < basketCount; ++i) {
+            address basketFrom = baskets[i];
+            address[] memory assetsFrom = bm.basketAssets(basketFrom);
+
+            for (uint256 j = 0; j < basketCount; ++j) {
+                if (i == j) continue;
+                address basketTo = baskets[j];
+
+                for (uint256 k = 0; k < assetsFrom.length; ++k) {
+                    address asset = assetsFrom[k];
+                    _processInternalTrade(basketFrom, basketTo, asset);
                 }
             }
         }
+    }
 
-        // Trim the trades array to the actual number of trades
-        trades = new ExternalTrade[](tradeCount);
-        for (uint256 k = 0; k < tradeCount; ++k) {
-            trades[k] = tempTrades[k];
+    function _processInternalTrade(address basketFrom, address basketTo, address asset) internal {
+        uint256 surplusFrom = surplusDeficitMap[asset][basketFrom].surplusUSD;
+        uint256 deficitTo = surplusDeficitMap[asset][basketTo].deficitUSD;
+
+        address[] memory basketToAssets = bm.basketAssets(basketTo);
+        for (uint256 i = 0; i < basketToAssets.length; i++) {
+            address reciprocalAsset = basketToAssets[i];
+            if (reciprocalAsset == asset) continue;
+
+            uint256 reciprocalSurplus = surplusDeficitMap[reciprocalAsset][basketTo].surplusUSD;
+            uint256 reciprocalDeficit = surplusDeficitMap[reciprocalAsset][basketFrom].deficitUSD;
+
+            if (reciprocalSurplus > 0 && reciprocalDeficit > 0) {
+                _executeInternalTrade(
+                    basketFrom,
+                    basketTo,
+                    asset,
+                    reciprocalAsset,
+                    surplusFrom,
+                    deficitTo,
+                    reciprocalSurplus,
+                    reciprocalDeficit
+                );
+            }
         }
     }
 
-    function _addExternalTrade(
-        address basketToken,
+    function _executeInternalTrade(
+        address basketFrom,
+        address basketTo,
+        address asset,
+        address reciprocalAsset,
+        uint256 surplusFrom,
+        uint256 deficitTo,
+        uint256 reciprocalSurplus,
+        uint256 reciprocalDeficit
+    )
+        internal
+    {
+        uint256 tradeUSD = _min(_min(surplusFrom, deficitTo), _min(reciprocalSurplus, reciprocalDeficit));
+
+        if (tradeUSD == 0) return;
+
+        uint256 sellAmount = _valueToAmount(asset, tradeUSD);
+        uint256 minAmount = tradeUSD / _getAssetPrice(reciprocalAsset) * 10 ** ERC20(reciprocalAsset).decimals();
+
+        InternalTrade memory trade = InternalTrade({
+            fromBasket: basketFrom,
+            sellToken: asset,
+            buyToken: reciprocalAsset,
+            toBasket: basketTo,
+            sellAmount: sellAmount,
+            minAmount: (minAmount * 95) / 100,
+            maxAmount: (minAmount * 105) / 100
+        });
+
+        console.log("Two-sided Internal Trade Found:");
+        console.log("From Basket:", trade.fromBasket);
+        console.log("To Basket:", trade.toBasket);
+        console.log("Sell Token:", trade.sellToken);
+        console.log("Buy Token:", trade.buyToken);
+        console.log("Amount:", trade.sellAmount);
+
+        tempInternalTrades.push(trade);
+        internalTradeCount++;
+
+        // Update surplus and deficit maps
+        surplusDeficitMap[asset][basketFrom].surplusUSD -= tradeUSD;
+        surplusDeficitMap[asset][basketTo].deficitUSD -= tradeUSD;
+        surplusDeficitMap[reciprocalAsset][basketTo].surplusUSD -= tradeUSD;
+        surplusDeficitMap[reciprocalAsset][basketFrom].deficitUSD -= tradeUSD;
+    }
+
+    function _generateExternalTrades(
+        address[] memory baskets,
+        ExternalTrade[] memory externalTradesTemp
+    )
+        internal
+        returns (uint256 externalTradeCount)
+    {
+        externalTradeCount = 0;
+        for (uint256 i = 0; i < baskets.length; i++) {
+            address basket = baskets[i];
+            address[] memory assets = bm.basketAssets(basket);
+            // Process each potential sell asset
+            for (uint256 i = 0; i < assets.length; i++) {
+                address sellAsset = assets[i];
+                uint256 surplusUSD = surplusDeficitMap[sellAsset][basket].surplusUSD;
+
+                if (surplusUSD == 0) continue;
+
+                externalTradeCount =
+                    _processSellAsset(basket, sellAsset, surplusUSD, assets, externalTradesTemp, externalTradeCount);
+            }
+        }
+    }
+
+    function _processSellAsset(
+        address basket,
         address sellAsset,
-        address buyAsset,
-        uint256 sellAssetAmount,
-        uint256 minBuyAmount,
-        ExternalTrade[] memory trades,
+        uint256 surplusUSD,
+        address[] memory assets,
+        ExternalTrade[] memory externalTradesTemp,
         uint256 tradeCount
     )
         internal
-        view
+        returns (uint256)
     {
-        // Check if trade already exists
-        bool tradeExists = false;
-        for (uint256 i = 0; i < tradeCount; ++i) {
-            if (trades[i].sellToken == sellAsset && trades[i].buyToken == buyAsset) {
-                // Update existing trade
-                trades[i].sellAmount += sellAssetAmount;
-                trades[i].minAmount += (minBuyAmount * 95) / 100;
-                tradeExists = true;
-                break;
-            }
+        // Look for matching deficits
+        for (uint256 i = 0; i < assets.length; i++) {
+            address buyAsset = assets[i];
+            if (buyAsset == sellAsset) continue;
+
+            uint256 deficitUSD = surplusDeficitMap[buyAsset][basket].deficitUSD;
+            if (deficitUSD == 0) continue;
+
+            uint256 tradeUSD = _min(surplusUSD, deficitUSD);
+
+            tradeCount = _processExternalTrade(sellAsset, buyAsset, tradeUSD, basket, externalTradesTemp, tradeCount);
+
+            // Update surplus/deficit maps
+            surplusDeficitMap[sellAsset][basket].surplusUSD -= tradeUSD;
+            surplusDeficitMap[buyAsset][basket].deficitUSD -= tradeUSD;
+
+            // If we've used up all surplus, exit early
+            if (surplusDeficitMap[sellAsset][basket].surplusUSD == 0) break;
         }
 
-        if (!tradeExists) {
-            // Prepare trade ownership
-            BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
-            tradeOwnerships[0] = BasketTradeOwnership({ basket: basketToken, tradeOwnership: uint96(1e18) });
+        return tradeCount;
+    }
 
-            // Create new external trade
-            ExternalTrade memory newTrade = ExternalTrade({
+    // Takes a known surplus asset and a known deficit asset and adds the created external trade to externalTradesTemp.
+    // Updates the total surpluses.
+    function _processExternalTrade(
+        address sellAsset,
+        address buyAsset,
+        uint256 usdAmount,
+        address basket,
+        ExternalTrade[] memory externalTradesTemp,
+        uint256 externalTradeCount
+    )
+        internal
+        returns (uint256)
+    {
+        uint256 sellAmount = _valueToAmount(sellAsset, usdAmount);
+        uint256 minBuyAmount = _valueToAmount(buyAsset, usdAmount);
+
+        // Check if thers is already an instance of the propose external trade and prepare basket trade ownerships
+        // BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](baskets.length);
+        uint256 externalTradeIndexPlusOne = _checkForExistingExternalTrade(sellAsset, buyAsset, externalTradesTemp);
+
+        if (externalTradeIndexPlusOne == 0) {
+            BasketTradeOwnership[] memory ownership = new BasketTradeOwnership[](1);
+            ownership[0] = BasketTradeOwnership({ basket: basket, tradeOwnership: 1e18 });
+            ExternalTrade memory externalTrade = ExternalTrade({
                 sellToken: sellAsset,
                 buyToken: buyAsset,
-                sellAmount: sellAssetAmount,
-                minAmount: (minBuyAmount * 95) / 100, // Applying slippage tolerance
-                basketTradeOwnership: tradeOwnerships
+                sellAmount: sellAmount,
+                minAmount: (minBuyAmount * 95) / 100,
+                basketTradeOwnership: ownership
             });
+            console.log("External trade selltoken: ", externalTrade.sellToken);
+            console.log("External trade buytoken: ", externalTrade.buyToken);
+            console.log("External trade sellAmount: ", externalTrade.sellAmount);
+            console.log("External trade minAmount: ", externalTrade.minAmount);
 
-            // Add new trade to trades array
-            trades[tradeCount] = newTrade;
+            externalTradesTemp[externalTradeCount++] = externalTrade;
+        } else {
+            _updateExistingExternalTrade(externalTradesTemp, externalTradeIndexPlusOne - 1, basket, sellAmount);
+        }
+        return externalTradeCount;
+    }
+
+    function _updateExistingExternalTrade(
+        ExternalTrade[] memory externalTradesTemp,
+        uint256 tradeIndex,
+        address basket,
+        uint256 sellAmount
+    )
+        internal
+        pure
+    {
+        ExternalTrade memory trade = externalTradesTemp[tradeIndex];
+        uint256 newSellAmount = trade.sellAmount + sellAmount;
+        BasketTradeOwnership[] memory newOwnerships = new BasketTradeOwnership[](trade.basketTradeOwnership.length + 1);
+
+        // Calculate new ownership percentages
+        uint256 totalProcessed = 0;
+        for (uint256 i = 0; i < trade.basketTradeOwnership.length; i++) {
+            BasketTradeOwnership memory ownership = trade.basketTradeOwnership[i];
+            uint256 oldOwnerShipAmount = trade.sellAmount * ownership.tradeOwnership / 1e18;
+            uint256 newOwnership = oldOwnerShipAmount * 1e18 / newSellAmount;
+            newOwnerships[i].basket = ownership.basket;
+            newOwnerships[i].tradeOwnership = uint96(newOwnership);
+            totalProcessed += newOwnership;
+        }
+
+        // The last ownership gets the remaining percentage to ensure total = 100%
+        uint256 lastOwnership = 1e18 - totalProcessed;
+        newOwnerships[trade.basketTradeOwnership.length] =
+            BasketTradeOwnership({ basket: basket, tradeOwnership: uint96(lastOwnership) });
+
+        // Update trade
+        trade.basketTradeOwnership = newOwnerships;
+        trade.sellAmount = newSellAmount;
+        trade.minAmount = (newSellAmount * 95) / 100;
+        externalTradesTemp[tradeIndex] = trade;
+    }
+
+    function _checkForExistingExternalTrade(
+        address sellAsset,
+        address buyAsset,
+        ExternalTrade[] memory externalTradesTemp
+    )
+        internal
+        returns (uint256)
+    {
+        for (uint256 k = 0; k < externalTradesTemp.length; ++k) {
+            ExternalTrade memory trade = externalTradesTemp[k];
+            if (trade.sellToken == sellAsset && trade.buyToken == buyAsset) {
+                return k + 1;
+            }
+        }
+        return 0;
+    }
+
+    function _trimExternalTradesArray(
+        ExternalTrade[] memory tradesTemp,
+        uint256 count
+    )
+        internal
+        pure
+        returns (ExternalTrade[] memory trades)
+    {
+        trades = new ExternalTrade[](count);
+        for (uint256 i = 0; i < count; ++i) {
+            trades[i] = tradesTemp[i];
         }
     }
 
@@ -394,13 +632,6 @@ contract IntegrationTest is BaseTest, Constants {
         AnchoredOracle assetOracle =
             AnchoredOracle(deployments.getAddress(string(abi.encodePacked(assetName, "_AnchoredOracle"))));
         price = assetOracle.getQuote(10 ** ERC20(asset).decimals(), asset, USD);
-    }
-
-    function _getAssetValue(address asset, uint256 amount) internal view returns (uint256 value) {
-        string memory assetName = assetNames[asset];
-        AnchoredOracle assetOracle =
-            AnchoredOracle(deployments.getAddress(string(abi.encodePacked(assetName, "_AnchoredOracle"))));
-        value = assetOracle.getQuote(amount, asset, USD);
     }
 
     function _requestDepositToBasket(
@@ -421,38 +652,13 @@ contract IntegrationTest is BaseTest, Constants {
         vm.stopPrank();
     }
 
-    function _requestRedeemFromBasket(
-        address user,
-        address basket,
-        uint256 shares
-    )
-        internal
-        returns (uint256 requestId)
-    {
-        vm.startPrank(user);
-        BasketToken(basket).approve(user, shares);
-        uint256 balanceBefore = IERC20(basket).balanceOf(user);
-        requestId = BasketToken(basket).requestRedeem(shares, user, user);
-        assertEq(balanceBefore - shares, IERC20(basket).balanceOf(user));
-        vm.stopPrank();
+    function _giveAssetsToSwapAdapter(ExternalTrade[] memory trades) internal {
+        for (uint256 i = 0; i < trades.length; ++i) {
+            ExternalTrade memory trade = trades[i];
+            airdrop(IERC20(trade.buyToken), mockTradeAdapter, trade.minAmount);
+        }
     }
 
-    // Assumes oracles for all assets are deployed and added
-    function _createNewBasket(
-        string memory name,
-        address[] memory assets,
-        address baseAsset,
-        address strategy
-    )
-        internal
-        returns (address basket)
-    {
-        uint256 bitflag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(assets);
-        vm.prank(deployments.admin());
-        basket = bm.createNewBasket(string(abi.encodePacked(name, " Basket")), name, baseAsset, bitflag, strategy);
-    }
-
-    // Oracles are stuck on one block, mock updating oracle data with same price but with a valid publish time
     function _updatePythOracleTimeStamp(bytes32 pythPriceFeed) internal {
         PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
         res.publishTime = block.timestamp;
@@ -464,13 +670,14 @@ contract IntegrationTest is BaseTest, Constants {
         pythPriceFeeds[0] = PYTH_ETH_USD_FEED;
         pythPriceFeeds[1] = PYTH_SUSE_USD_FEED;
         pythPriceFeeds[2] = PYTH_WEETH_USD_FEED;
-        // pythPriceFeeds[3] = PYTH_EZETH_USD_FEED;
-        // pythPriceFeeds[4] = PYTH_RSETH_USD_FEED;
         pythPriceFeeds[3] = PYTH_RETH_USD_FEED;
 
-        // Currently doesn't work with Pyth contract
         for (uint256 i = 0; i < pythPriceFeeds.length; ++i) {
             _updatePythOracleTimeStamp(pythPriceFeeds[i]);
         }
+    }
+
+    function _min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
     }
 }
