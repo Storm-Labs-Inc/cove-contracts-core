@@ -8,6 +8,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -15,13 +16,12 @@ import { Constants } from "test/utils/Constants.t.sol";
 import { MockTradeAdapter } from "test/utils/mocks/MockTradeAdapter.sol";
 
 import { Deployments } from "script/Deployments.s.sol";
+import { BasketTokenDeployment, OracleOptions } from "script/Deployments.s.sol";
 
 import { AnchoredOracle } from "src/AnchoredOracle.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
-import { BasketTokenDeployment, OracleOptions } from "src/BasketTokenDeployment.sol";
-import { Deployer, DeployerFunctions } from "src/deployer/DeployerFunctions.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
