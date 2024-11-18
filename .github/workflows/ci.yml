@@ -26,6 +26,7 @@ jobs:
         uses: ./.github/actions/base-setup
         with:
           node-version: ${{ env.NODE_VERSION }}
+          rpc-cache: false
       - name: Lint all source files
         run: pnpm run lint
 
@@ -43,6 +44,7 @@ jobs:
         uses: ./.github/actions/base-setup
         with:
           node-version: ${{ env.NODE_VERSION }}
+          rpc-cache: false
 
       - name: Generate build info for slither
         run: pnpm run build:slither
@@ -88,6 +90,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
+          rpc-cache: false
       - name: Run Semgrep
         id: semgrep
         run: |
@@ -159,6 +162,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
+          rpc-cache-restore-keys: test-
       - name: Run Forge build and tests
         run: |
           forge --version
