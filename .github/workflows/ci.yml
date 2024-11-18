@@ -136,7 +136,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          cache-prefix: test
       - name: Run Forge build and tests
         run: |
           forge --version
@@ -160,7 +159,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          cache-prefix: gas
       - name: Run Forge build and tests
         run: |
           forge --version
@@ -203,7 +201,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          cache-prefix: coverage
       - name: Run Forge Coverage
         run: |
           pnpm build
