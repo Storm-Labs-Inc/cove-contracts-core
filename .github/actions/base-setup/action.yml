@@ -7,14 +7,6 @@ inputs:
   python-version:
     description: "Python version"
     required: true
-  rpc-cache:
-    description: "RPC cache"
-    required: false
-    default: "true"
-  rpc-cache-restore-keys:
-    description: "RPC cache restore keys"
-    required: false
-    default: ${{ github.job }}-
 
 runs:
   using: "composite"
@@ -51,8 +43,6 @@ runs:
       uses: penandlim/foundry-toolchain@master
       with:
         version: nightly
-        cache: ${{ inputs.rpc-cache == 'true' }}
-        cache-restore-keys: ${{ inputs.rpc-cache-restore-keys }}
 
     - name: Install Soldeer dependencies
       run: forge soldeer install
