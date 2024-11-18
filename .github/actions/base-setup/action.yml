@@ -7,6 +7,10 @@ inputs:
   python-version:
     description: "Python version"
     required: true
+  cache-prefix:
+    description: "Cache prefix to use for Foundry cache"
+    required: false
+    default: "default"
 
 runs:
   using: "composite"
@@ -43,6 +47,7 @@ runs:
       uses: foundry-rs/foundry-toolchain@v1
       with:
         version: nightly
+        cache-key: ${{ github.job }}-${{ inputs.cache-prefix }}-${{ github.sha }}
 
     - name: Install Soldeer dependencies
       run: forge soldeer install
