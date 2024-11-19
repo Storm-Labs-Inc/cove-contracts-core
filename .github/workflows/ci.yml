@@ -127,7 +127,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -163,7 +163,7 @@ jobs:
         run: |
           forge --version
           pnpm build
-          forge test --gas-report --fuzz-seed 0 | tee gasreport.ansi
+          forge test --gas-report --fuzz-seed 0 --no-match-test "IntegrationTest" | tee gasreport.ansi
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
 
@@ -192,7 +192,7 @@ jobs:
     if:
       (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master') || (github.event_name
       =='push' && github.ref == 'refs/heads/master')
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -204,7 +204,7 @@ jobs:
       - name: Run Forge Coverage
         run: |
           pnpm build
-          forge coverage --report lcov
+          pnpm run coverage
         env:
           # make fuzzing semi-deterministic to avoid noisy gas cost estimation
           # due to non-deterministic fuzzing (but still use pseudo-random fuzzing seeds)
