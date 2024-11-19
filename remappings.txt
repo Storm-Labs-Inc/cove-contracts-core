@@ -10,4 +10,6 @@ permit2/=dependencies/permit2-1/
 ethereum-vault-connector/=dependencies/euler-price-oracle-1/lib/ethereum-vault-connector/src/
 token-plugins-upgradeable/=dependencies/token-plugins-upgradeable-1/
 @1inch/solidity-utils/=dependencies/solidity-utils-5.3.0/
+@1inch/farming/=dependencies/farming-3.2.0/
+@1inch/token-plugins/=dependencies/token-plugins-upgradeable-1/
 forge-deploy/=dependencies/forge-deploy-1/contracts/

@@ -57,7 +57,7 @@ contract CoWSwapAdapterTest is Test {
                     externalTrades[i].buyToken,
                     externalTrades[i].sellAmount,
                     externalTrades[i].minAmount,
-                    uint32(block.timestamp + 15 minutes)
+                    uint32(vm.getBlockTimestamp() + 15 minutes)
                 )
             );
             address deployed = _predictDeterministicAddress(salt, address(adapter));
@@ -102,7 +102,7 @@ contract CoWSwapAdapterTest is Test {
                     externalTrades[i].buyToken,
                     externalTrades[i].sellAmount,
                     externalTrades[i].minAmount,
-                    uint32(block.timestamp + 15 minutes)
+                    uint32(vm.getBlockTimestamp() + 15 minutes)
                 )
             );
             address deployed = _predictDeterministicAddress(salt, address(adapter));
