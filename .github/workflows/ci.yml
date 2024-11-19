@@ -127,7 +127,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -192,7 +192,7 @@ jobs:
     if:
       (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master') || (github.event_name
       =='push' && github.ref == 'refs/heads/master')
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
