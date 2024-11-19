@@ -40,7 +40,7 @@ runs:
       shell: bash
 
     - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@v1.2.0
+      uses: penandlim/foundry-toolchain@master
       with:
         version: nightly
 
