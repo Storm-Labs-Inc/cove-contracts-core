@@ -9,7 +9,7 @@
     "build": "./forge-deploy gen-deployer && forge build --sizes",
     "build:slither": "forge clean && forge build --skip */test/** */script/** */generated/** --build-info",
     "test": "forge test -vvv --gas-report",
-    "coverage": "forge coverage --report lcov",
+    "coverage": "forge coverage --ir-minimum --report lcov",
     "slither": "pnpm run build:slither && slither . --ignore-compile",
     "slither-upgradeability": "for f in $(grep -l -r \"openzeppelin-upgradeable\" src); do c=$(echo \"${f##*/}\" | cut -f 1 -d \".\"); echo \"$c\"; slither-check-upgradeability $f $c; echo; done",
     "semgrep": "semgrep --config p/smart-contracts --exclude deps/ src/",
