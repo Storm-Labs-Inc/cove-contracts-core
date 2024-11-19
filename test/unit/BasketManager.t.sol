@@ -571,8 +571,11 @@ contract BasketManagerTest is BaseTest, Constants {
         address[] memory targetBaskets = testFuzz_proposeTokenSwap_internalTrade(initialSplit, intialDepositAmount, fee);
         address basket = targetBaskets[0];
 
+        uint256 currentTimestamp = block.timestamp;
+
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        currentTimestamp += 15 minutes + 1;
+        vm.warp(currentTimestamp);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(
@@ -582,7 +585,8 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(rootAsset, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets);
-        vm.warp(block.timestamp + 1 weeks + 1);
+        currentTimestamp += 1 weeks + 1;
+        vm.warp(currentTimestamp);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
@@ -592,7 +596,8 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.proposeRebalance(targetBaskets);
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        currentTimestamp += 15 minutes + 1;
+        vm.warp(currentTimestamp);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));

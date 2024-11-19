@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { console } from "forge-std/console.sol";
+
+import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -1906,7 +1909,9 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.balanceOf(feeCollector), 0);
 
         uint256 timePerHarvest = uint256(365 days) / timesHarvested;
-        uint256 startTimestamp = block.timestamp;
+        // Workaround for preventing via-ir compilation from preventing startTimestamp from being modified
+        // https://github.com/foundry-rs/foundry/issues/1373#issuecomment-2469863456
+        uint256 startTimestamp = (block.timestamp << 1) >> 1;
         vm.startPrank(address(basketManager));
 
         // Harvest the fee multiple times
@@ -1975,5 +1980,13 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.prank(address(basketManager));
         vm.expectRevert(abi.encodeWithSelector(BasketToken.InvalidManagementFee.selector));
         basket.prepareForRebalance(feeBps, receiver);
+    }
+
+    function test_addPlugin() public {
+        ERC20Mock rewardToken = new ERC20Mock();
+        FarmingPlugin farmingPlugin = new FarmingPlugin(basket, rewardToken, owner);
+
+        vm.prank(alice);
+        basket.addPlugin(address(farmingPlugin));
     }
 }
