@@ -8,6 +8,8 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
+import { AssetRegistry } from "src/AssetRegistry.sol";
+import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
@@ -15,8 +17,6 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
-import { BasketToken } from "src/BasketToken.sol";
-import { AssetRegistry } from "src/AssetRegistry.sol";
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
