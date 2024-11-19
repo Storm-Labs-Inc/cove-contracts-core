@@ -15,6 +15,8 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
+import { BasketToken } from "src/BasketToken.sol";
+import { AssetRegistry } from "src/AssetRegistry.sol";
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
@@ -68,6 +70,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error InvalidManagementFee();
     error InvalidSwapFee();
     error BasketTokenNotFound();
+    error InvalidBitFlag();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -143,6 +146,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     }
 
     /// @notice Returns the basket token address with the given basketId.
+    /// @dev The basketId is the keccak256 hash of the bitFlag and strategy address.
     /// @param basketId Basket ID.
     function basketIdToAddress(bytes32 basketId) external view returns (address) {
         return _bmStorage.basketIdToAddress[basketId];
@@ -408,6 +412,31 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             _bmStorage.collectedSwapFees[asset] = 0;
             IERC20(asset).safeTransfer(FeeCollector(_bmStorage.feeCollector).protocolTreasury(), collectedFees);
         }
+    }
+
+    /// @notice Updates the bitFlag for the given basket.
+    /// @param basket Address of the basket.
+    /// @param bitFlag New bitFlag. It must be inclusive of the current bitFlag.
+    function updateBitFlag(address basket, uint256 bitFlag) external onlyRole(_TIMELOCK_ROLE) {
+        // Checks
+        // Check if basket exists
+        uint256 indexPlusOne = _bmStorage.basketTokenToIndexPlusOne[basket];
+        if (indexPlusOne == 0) {
+            revert BasketTokenNotFound();
+        }
+        uint256 currentBitFlag = BasketToken(basket).bitFlag();
+        // Check if the new bitFlag is inclusive of the current bitFlag
+        if ((currentBitFlag & bitFlag) != currentBitFlag) {
+            revert InvalidBitFlag();
+        }
+        address strategy = BasketToken(basket).strategy();
+        bytes32 basketId = keccak256(abi.encodePacked(currentBitFlag, strategy));
+        // Remove the old bitFlag mapping and add the new bitFlag mapping
+        _bmStorage.basketIdToAddress[basketId] = address(0);
+        _bmStorage.basketIdToAddress[keccak256(abi.encodePacked(bitFlag, strategy))] = basket;
+        _bmStorage.basketAssets[basket] = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        // Update the bitFlag in the BasketToken contract
+        // TODO: BasketToken(basket).setBitFlag(bitFlag);
     }
 
     /// PAUSING FUNCTIONS ///
