@@ -153,7 +153,7 @@ contract BasketToken is
     /// @return The total value of the basket in assets.
     function totalAssets() public view override returns (uint256) {
         address[] memory assets = AssetRegistry(assetRegistry).getAssets(bitFlag);
-        uint256 totalValue;
+        uint256 usdAmount;
         uint256 assetsLength = assets.length;
 
         BasketManager bm = BasketManager(basketManager);
@@ -162,7 +162,7 @@ contract BasketToken is
         for (uint256 i = 0; i < assetsLength;) {
             uint256 assetBalance = bm.basketBalanceOf(address(this), assets[i]);
             // Rounding direction: down
-            totalValue += eulerRouter.getQuote(assetBalance, assets[i], _USD_ISO_4217_CODE);
+            usdAmount += eulerRouter.getQuote(assetBalance, assets[i], _USD_ISO_4217_CODE);
 
             unchecked {
                 // Overflow not possible: i is less than assetsLength
@@ -170,7 +170,7 @@ contract BasketToken is
             }
         }
 
-        return eulerRouter.getQuote(totalValue, _USD_ISO_4217_CODE, asset());
+        return eulerRouter.getQuote(usdAmount, _USD_ISO_4217_CODE, asset());
     }
 
     /// @notice Returns the current epoch's target weights for this basket.
