@@ -571,7 +571,9 @@ contract BasketManagerTest is BaseTest, Constants {
         address[] memory targetBaskets = testFuzz_proposeTokenSwap_internalTrade(initialSplit, intialDepositAmount, fee);
         address basket = targetBaskets[0];
 
-        uint256 currentTimestamp = block.timestamp;
+        // Workaround for preventing via-ir compilation from preventing currentTimestamp from being arbitrarily modified
+        // https://github.com/foundry-rs/foundry/issues/1373#issuecomment-2469863456
+        uint256 currentTimestamp = (block.timestamp << 1) >> 1;
 
         // Simulate the passage of time
         currentTimestamp += 15 minutes + 1;
