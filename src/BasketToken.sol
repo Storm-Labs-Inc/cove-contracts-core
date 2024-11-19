@@ -341,6 +341,13 @@ contract BasketToken is
         IERC20(asset()).safeTransfer(msg.sender, assets);
     }
 
+    /// @notice Sets the new bitflag for the basket.
+    /// @param bitFlag_ The new bitflag.
+    function setBitFlag(uint256 bitFlag_) public {
+        _onlyBasketManager();
+        bitFlag = bitFlag_;
+    }
+
     /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
     /// current epoch. Returns the total amount of assets pending deposit and shares pending redemption. This is called
     /// at the first step of the rebalance process regardless of the presence of any pending deposits or redemptions.

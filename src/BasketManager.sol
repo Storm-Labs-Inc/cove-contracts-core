@@ -17,6 +17,7 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
@@ -430,13 +431,16 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert InvalidBitFlag();
         }
         address strategy = BasketToken(basket).strategy();
+        if (!WeightStrategy(strategy).supportsBitFlag(bitFlag)) {
+            revert InvalidBitFlag();
+        }
         bytes32 basketId = keccak256(abi.encodePacked(currentBitFlag, strategy));
         // Remove the old bitFlag mapping and add the new bitFlag mapping
         _bmStorage.basketIdToAddress[basketId] = address(0);
         _bmStorage.basketIdToAddress[keccak256(abi.encodePacked(bitFlag, strategy))] = basket;
         _bmStorage.basketAssets[basket] = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
         // Update the bitFlag in the BasketToken contract
-        // TODO: BasketToken(basket).setBitFlag(bitFlag);
+        BasketToken(basket).setBitFlag(bitFlag);
     }
 
     /// PAUSING FUNCTIONS ///
