@@ -160,9 +160,11 @@ contract BasketToken is
         EulerRouter eulerRouter = EulerRouter(bm.eulerRouter());
 
         for (uint256 i = 0; i < assetsLength;) {
+            // slither-disable-start calls-loop
             uint256 assetBalance = bm.basketBalanceOf(address(this), assets[i]);
             // Rounding direction: down
             usdAmount += eulerRouter.getQuote(assetBalance, assets[i], _USD_ISO_4217_CODE);
+            // slither-disable-end calls-loop
 
             unchecked {
                 // Overflow not possible: i is less than assetsLength
