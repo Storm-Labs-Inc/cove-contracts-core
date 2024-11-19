@@ -362,7 +362,7 @@ contract BasketTokenTest is BaseTest, Constants {
                 depositAmounts[i] = remainingAmount;
             } else {
                 depositAmounts[i] =
-                    bound(uint256(keccak256(abi.encodePacked(block.timestamp, i))), 1, remainingAmount - 1);
+                    bound(uint256(keccak256(abi.encodePacked(vm.getBlockTimestamp(), i))), 1, remainingAmount - 1);
             }
             remainingAmount -= depositAmounts[i];
             requestId = testFuzz_requestDeposit(depositAmounts[i], fuzzedUsers[i]);
@@ -1880,7 +1880,7 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.prank(address(basketManager));
         basket.prepareForRebalance(0, feeCollector);
         assertEq(basket.balanceOf(feeCollector), 0);
-        vm.warp(block.timestamp + 365 days);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
         vm.prank(address(basketManager));
         basket.prepareForRebalance(feeBps, feeCollector);
         uint256 balance = basket.balanceOf(feeCollector);
@@ -1909,9 +1909,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.balanceOf(feeCollector), 0);
 
         uint256 timePerHarvest = uint256(365 days) / timesHarvested;
-        // Workaround for preventing via-ir compilation from preventing startTimestamp from being modified
-        // https://github.com/foundry-rs/foundry/issues/1373#issuecomment-2469863456
-        uint256 startTimestamp = (block.timestamp << 1) >> 1;
+        uint256 startTimestamp = vm.getBlockTimestamp();
         vm.startPrank(address(basketManager));
 
         // Harvest the fee multiple times
@@ -1947,7 +1945,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.balanceOf(feeCollector), 0);
 
         // a year has passed, trigger the first harvest
-        vm.warp(block.timestamp + 365 days);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
         vm.prank(address(basketManager));
         basket.prepareForRebalance(feeBps, feeCollector);
 
