@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.5.0;
 
-import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import '@openzeppelin/contracts/IERC20Permit.sol';
+import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
-import '../interfaces/ISelfPermit.sol';
-import '../interfaces/external/IERC20PermitAllowed.sol';
+import { ISelfPermit } from '../interfaces/ISelfPermit.sol';
+import { IERC20PermitAllowed } from '../interfaces/external/IERC20PermitAllowed.sol';
 
 /// @title Self Permit
 /// @notice Functionality to call permit on any EIP-2612-compliant token for use in the route
