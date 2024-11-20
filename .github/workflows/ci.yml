@@ -153,7 +153,7 @@ jobs:
 
   compare-gas-reports:
     name: Compare gas reports
-    runs-on: depot-ubuntu-22.04-4
+    runs-on: depot-ubuntu-22.04-16
 
     permissions: write-all
     steps:
@@ -218,7 +218,7 @@ jobs:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
