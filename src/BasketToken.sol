@@ -8,6 +8,7 @@ import { ERC165Upgradeable } from "@openzeppelin-upgradeable/contracts/utils/int
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC20PluginsUpgradeable.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -33,6 +34,8 @@ contract BasketToken is
     using SafeERC20 for IERC20;
 
     /// CONSTANTS ///
+    /// @notice ISO 4217 numeric code for USD, used as a constant address representation
+    address private constant _USD_ISO_4217_CODE = address(840);
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
 
@@ -153,8 +156,27 @@ contract BasketToken is
     /// factors that may affect the swap rates.
     /// @return The total value of the basket in assets.
     function totalAssets() public view override returns (uint256) {
-        // TODO: Replace this with value of the basket divided by the value of the asset
-        return 0;
+        address[] memory assets = AssetRegistry(assetRegistry).getAssets(bitFlag);
+        uint256 usdAmount;
+        uint256 assetsLength = assets.length;
+
+        BasketManager bm = BasketManager(basketManager);
+        EulerRouter eulerRouter = EulerRouter(bm.eulerRouter());
+
+        for (uint256 i = 0; i < assetsLength;) {
+            // slither-disable-start calls-loop
+            uint256 assetBalance = bm.basketBalanceOf(address(this), assets[i]);
+            // Rounding direction: down
+            usdAmount += eulerRouter.getQuote(assetBalance, assets[i], _USD_ISO_4217_CODE);
+            // slither-disable-end calls-loop
+
+            unchecked {
+                // Overflow not possible: i is less than assetsLength
+                ++i;
+            }
+        }
+
+        return eulerRouter.getQuote(usdAmount, _USD_ISO_4217_CODE, asset());
     }
 
     /// @notice Returns the current epoch's target weights for this basket.
