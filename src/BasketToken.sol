@@ -346,7 +346,7 @@ contract BasketToken is
     }
 
     /// @notice Sets the new bitflag for the basket.
-    /// @dev This can only be called by the Basket Manager.
+    /// @dev This can only be called by the Basket Manager therefore we assume that the new bitflag is valid.
     /// @param bitFlag_ The new bitflag.
     function setBitFlag(uint256 bitFlag_) public {
         _onlyBasketManager();
