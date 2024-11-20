@@ -18,6 +18,8 @@ import { BasketToken } from "src/BasketToken.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
@@ -2342,6 +2344,92 @@ contract BasketManagerTest is BaseTest, Constants {
         assertEq(pairAssetFee, IERC20(pairAsset).balanceOf(protocolTreasury));
     }
 
+    function testFuzz_updateBitFlag(uint256 newBitFlag) public {
+        address basket = _setupBasketAndMocks();
+        uint256 currentBitFlag = BasketToken(basket).bitFlag();
+        vm.assume((currentBitFlag & newBitFlag) == currentBitFlag);
+        vm.assume(currentBitFlag != newBitFlag);
+
+        address strategy = BasketToken(basket).strategy();
+        vm.mockCall(strategy, abi.encodeCall(WeightStrategy.supportsBitFlag, (newBitFlag)), abi.encode(true));
+        address[] memory newAssets = new address[](5);
+        for (uint256 i = 0; i < 5; i++) {
+            newAssets[i] = address(uint160(uint160(rootAsset) + i));
+        }
+        vm.mockCall(
+            address(assetRegistry), abi.encodeCall(AssetRegistry.getAssets, (newBitFlag)), abi.encode(newAssets)
+        );
+        vm.mockCall(basket, abi.encodeCall(BasketToken.setBitFlag, (newBitFlag)), "");
+        vm.prank(timelock);
+        basketManager.updateBitFlag(basket, newBitFlag);
+
+        // Check storage changes
+        bytes32 oldBasketId = keccak256(abi.encodePacked(currentBitFlag, strategy));
+        bytes32 newBasketId = keccak256(abi.encodePacked(newBitFlag, strategy));
+
+        assertEq(basketManager.basketIdToAddress(oldBasketId), address(0), "Old basketIdToAddress() not reset");
+        assertEq(basketManager.basketIdToAddress(newBasketId), basket, "New basketIdToAddress() not set correctly");
+
+        address[] memory updatedAssets = basketManager.basketAssets(basket);
+        for (uint256 i = 0; i < updatedAssets.length; i++) {
+            assertEq(updatedAssets[i], address(uint160(uint160(rootAsset) + i)), "basketAssets() not updated correctly");
+        }
+    }
+
+    function testFuzz_updateBitFlag_revertWhen_BasketTokenNotFound(address invalidBasket, uint256 newBitFlag) public {
+        address basket = _setupBasketAndMocks();
+        vm.assume(invalidBasket != basket);
+        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        vm.prank(timelock);
+        basketManager.updateBitFlag(invalidBasket, newBitFlag);
+    }
+
+    function testFuzz_updateBitFlag_revertWhen_BitFlagMustBeDifferent(uint256 newBitFlag) public {
+        address basket = _setupBasketAndMocks();
+        uint256 currentBitFlag = BasketToken(basket).bitFlag();
+        vm.assume(currentBitFlag == newBitFlag); // Ensure newBitFlag is the same as currentBitFlag
+        vm.expectRevert(BasketManager.BitFlagMustBeDifferent.selector);
+        vm.prank(timelock);
+        basketManager.updateBitFlag(basket, newBitFlag);
+    }
+
+    function testFuzz_updateBitFlag_revertWhen_BitFlagMustIncludeCurrent(uint256 newBitFlag) public {
+        address basket = _setupBasketAndMocks();
+        uint256 currentBitFlag = BasketToken(basket).bitFlag();
+        vm.assume((currentBitFlag & newBitFlag) != currentBitFlag); // Ensure newBitFlag doesn't include currentBitFlag
+        vm.expectRevert(BasketManager.BitFlagMustIncludeCurrent.selector);
+        vm.prank(timelock);
+        basketManager.updateBitFlag(basket, newBitFlag);
+    }
+
+    function testFuzz_updateBitFlag_revertWhen_BitFlagUnsupportedByStrategy(uint256 newBitFlag) public {
+        address basket = _setupBasketAndMocks();
+        uint256 currentBitFlag = BasketToken(basket).bitFlag();
+        vm.assume((currentBitFlag & newBitFlag) == currentBitFlag); // Ensure newBitFlag includes currentBitFlag
+        vm.assume(currentBitFlag != newBitFlag);
+        vm.mockCall(
+            BasketToken(basket).strategy(),
+            abi.encodeCall(WeightStrategy.supportsBitFlag, (newBitFlag)),
+            abi.encode(false)
+        );
+        vm.expectRevert(BasketManager.BitFlagUnsupportedByStrategy.selector);
+        vm.prank(timelock);
+        basketManager.updateBitFlag(basket, newBitFlag);
+    }
+
+    function testFuzz_updateBitFlag_revertWhen_CalledByNonTimelock(
+        address caller,
+        address basket,
+        uint256 newBitFlag
+    )
+        public
+    {
+        vm.assume(!basketManager.hasRole(TIMELOCK_ROLE, caller));
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.updateBitFlag(basket, newBitFlag);
+    }
+
     // Internal functions
     function _setTokenSwapAdapter() internal {
         vm.prank(timelock);
@@ -2359,7 +2447,7 @@ contract BasketManagerTest is BaseTest, Constants {
         string memory name = "basket";
         string memory symbol = "b";
         uint256 bitFlag = 1;
-        address strategy = address(uint160(1));
+        address strategy = address(uint160(uint256(keccak256("Strategy"))));
 
         uint256 numBaskets = assetsPerBasket.length;
         baskets = new address[](numBaskets);
@@ -2399,6 +2487,7 @@ contract BasketManagerTest is BaseTest, Constants {
                 abi.encodeWithSelector(BasketToken.prepareForRebalance.selector),
                 abi.encode(initialDepositAmounts[i], 0)
             );
+            vm.mockCall(baskets[i], abi.encodeWithSelector(bytes4(keccak256("strategy()"))), abi.encode(strategy));
             vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
             vm.mockCall(baskets[i], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
             vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.getTargetWeights.selector), abi.encode(weights));

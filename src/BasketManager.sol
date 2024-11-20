@@ -74,7 +74,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error InvalidManagementFee();
     error InvalidSwapFee();
     error BasketTokenNotFound();
-    error InvalidBitFlag();
+    error BitFlagMustBeDifferent();
+    error BitFlagMustIncludeCurrent();
+    error BitFlagUnsupportedByStrategy();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -429,13 +431,16 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert BasketTokenNotFound();
         }
         uint256 currentBitFlag = BasketToken(basket).bitFlag();
+        if (currentBitFlag == bitFlag) {
+            revert BitFlagMustBeDifferent();
+        }
         // Check if the new bitFlag is inclusive of the current bitFlag
         if ((currentBitFlag & bitFlag) != currentBitFlag) {
-            revert InvalidBitFlag();
+            revert BitFlagMustIncludeCurrent();
         }
         address strategy = BasketToken(basket).strategy();
         if (!WeightStrategy(strategy).supportsBitFlag(bitFlag)) {
-            revert InvalidBitFlag();
+            revert BitFlagUnsupportedByStrategy();
         }
         bytes32 basketId = keccak256(abi.encodePacked(currentBitFlag, strategy));
         // Remove the old bitFlag mapping and add the new bitFlag mapping
