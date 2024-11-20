@@ -10,6 +10,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { IERC20Plugins } from "token-plugins-upgradeable/contracts/interfaces/IERC20Plugins.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -1980,11 +1981,23 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.prepareForRebalance(feeBps, receiver);
     }
 
-    function test_addPlugin() public {
+    function test_multicall() public {
         ERC20Mock rewardToken = new ERC20Mock();
         FarmingPlugin farmingPlugin = new FarmingPlugin(basket, rewardToken, owner);
 
+        dummyAsset.mint(alice, 1e18);
+
         vm.prank(alice);
-        basket.addPlugin(address(farmingPlugin));
+        dummyAsset.approve(address(basket), 1e18);
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(IERC20Plugins.addPlugin.selector, address(farmingPlugin));
+        data[1] = abi.encodeWithSelector(BasketToken.requestDeposit.selector, 1e18, alice, alice);
+
+        vm.prank(alice);
+        basket.multicall(data);
+
+        assertTrue(basket.hasPlugin(alice, address(farmingPlugin)));
+        assertEq(dummyAsset.balanceOf(address(basket)), 1e18);
     }
 }
