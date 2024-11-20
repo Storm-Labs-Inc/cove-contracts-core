@@ -12,7 +12,7 @@ runs:
   using: "composite"
   steps:
     - name: Cache Dependencies
-      uses: buildjet/cache@v4
+      uses: actions/cache@v4
       with:
         path: ./dependencies
         key: ${{ runner.os }}-dependencies-${{ hashFiles('./soldeer.lock') }}
@@ -22,13 +22,13 @@ runs:
         version: 9
 
     - name: Install Node.js
-      uses: buildjet/setup-node@v4
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
 
     - name: Install Python
-      uses: buildjet/setup-python@v5
+      uses: actions/setup-python@v5
       if: ${{ inputs.python-version != '' }}
       with:
         python-version: ${{ inputs.python-version }}

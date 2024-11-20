@@ -18,7 +18,8 @@ concurrency:
 jobs:
   lint:
     name: Lint
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,7 +32,8 @@ jobs:
 
   slither:
     name: Slither
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04
+
     permissions:
       contents: read
       packages: read
@@ -78,7 +80,8 @@ jobs:
 
   semgrep:
     name: Semgrep
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04
+
     permissions: write-all
     steps:
       - name: Checkout repository
@@ -127,7 +130,8 @@ jobs:
 
   test:
     name: Test
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-4
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -149,7 +153,8 @@ jobs:
 
   compare-gas-reports:
     name: Compare gas reports
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-4
+
     permissions: write-all
     steps:
       - name: Checkout repository
@@ -192,7 +197,8 @@ jobs:
     if:
       (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master') || (github.event_name
       =='push' && github.ref == 'refs/heads/master')
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04-4
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -218,7 +224,8 @@ jobs:
 
   spelling:
     name: Spelling
-    runs-on: buildjet-2vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-22.04
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
