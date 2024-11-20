@@ -2,14 +2,23 @@
 pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 import { console } from "forge-std/console.sol";
+
 import { ExternalTrade } from "src/types/Trades.sol";
+// import { airdrop, takeaway } from "test/utils/BaseTest.t.sol";
 
 contract MockTradeAdapter {
     constructor() { }
 
-    function executeTokenSwap(ExternalTrade[] calldata externalTrades, bytes calldata data) external payable { }
+    // solhint-disable-next-line no-unused-vars
+    function executeTokenSwap(ExternalTrade[] calldata externalTrades, bytes calldata data) external payable {
+        for (uint256 i = 0; i < externalTrades.length; i++) {
+            // Mimic cowswaps transfer of funds to a clone contract
+            IERC20(externalTrades[i].sellToken).transfer(address(1), externalTrades[i].sellAmount);
+            console.log("executeTokenSwap: transfered token: ", externalTrades[i].sellToken);
+            console.log("executeTokenSwap: transfered amount: ", externalTrades[i].sellAmount);
+        }
+    }
 
     function completeTokenSwap(ExternalTrade[] calldata externalTrades)
         external
@@ -19,14 +28,18 @@ contract MockTradeAdapter {
         // Initialize return array
         claimedAmounts = new uint256[2][](externalTrades.length);
 
-        // Assume this contract has the tokens necessary to complete the swap, transfer the caller of the function all
-        // of them
+        // // Assume this contract has the tokens necessary to complete the swap
         for (uint256 i = 0; i < externalTrades.length; i++) {
-            ExternalTrade memory trade = externalTrades[i];
-
-            // Record claimed amounts
-            claimedAmounts[i][0] = trade.minAmount; // buy amount claimed
-            claimedAmounts[i][1] = 0; // sell amount left
+            // $PEPE flag for testing
+            if (IERC20(0x6982508145454Ce325dDbE47a25d4ec3d2311933).balanceOf(address(this)) == 0) {
+                claimedAmounts[i][0] = externalTrades[i].minAmount;
+                claimedAmounts[i][1] = 0;
+            } else {
+                claimedAmounts[i][0] = 0;
+                claimedAmounts[i][1] = externalTrades[i].sellAmount;
+                console.log("adapter trade failed giving back token: ", externalTrades[i].sellToken);
+                console.log("adapter trade failed giving back amount: ", externalTrades[i].sellAmount);
+            }
         }
 
         return claimedAmounts;
