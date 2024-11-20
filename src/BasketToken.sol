@@ -13,10 +13,11 @@ import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+
+import { SelfPermit } from "src/deps/uniswap-v3-periphery/base/SelfPermit.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
-import { SelfPermit } from "src/deps/uniswap-v3-periphery/base/SelfPermit.sol";
 
 /// @title BasketToken
 /// @notice Manages user deposits and redemptions, which are processed asynchronously by the Basket Manager.
