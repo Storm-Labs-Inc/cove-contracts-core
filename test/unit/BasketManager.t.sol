@@ -469,7 +469,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(targetBaskets);
 
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(basketManager.rebalanceStatus().basketMask, 1);
         assertEq(basketManager.rebalanceStatus().basketHash, keccak256(abi.encodePacked(targetBaskets)));
@@ -493,7 +493,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(baskets);
 
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(basketManager.rebalanceStatus().basketHash, keccak256(abi.encodePacked(baskets)));
     }
@@ -572,8 +572,7 @@ contract BasketManagerTest is BaseTest {
         address basket = targetBaskets[0];
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
-
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(
             basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(intialDepositAmount, 0)
@@ -582,8 +581,8 @@ contract BasketManagerTest is BaseTest {
         vm.mockCall(rootAsset, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets);
-        vm.warp(block.timestamp + 1 weeks + 1);
 
+        vm.warp(vm.getBlockTimestamp() + 1 weeks + 1);
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
@@ -592,7 +591,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
@@ -632,11 +631,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
@@ -685,11 +684,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
@@ -829,7 +828,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapExecutor);
         bm.executeTokenSwap(externalTrades, "");
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 0));
@@ -928,7 +927,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(externalTrades, "");
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 0));
@@ -990,7 +989,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
@@ -1031,11 +1030,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
@@ -1069,7 +1068,7 @@ contract BasketManagerTest is BaseTest {
         address basket = targetBaskets[0];
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
@@ -1133,7 +1132,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapProposer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
         // Token swaps have not been executed
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         basketManager.completeRebalance(externalTrades, baskets);
@@ -1170,11 +1169,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
@@ -1245,7 +1244,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
 
         // Confirm end state
-        assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
+        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
         return (externalTrades, baskets);
@@ -1385,7 +1384,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapProposer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets);
         // Confirm end state
-        assertEq(basketManager.rebalanceStatus().timestamp, uint40(block.timestamp));
+        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
 
@@ -1959,7 +1958,7 @@ contract BasketManagerTest is BaseTest {
         address basket = targetBaskets[0];
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
@@ -2150,7 +2149,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
     }
 
@@ -2490,11 +2489,11 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(externalTrades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
-        vm.warp(block.timestamp + 15 minutes + 1);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
         vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));

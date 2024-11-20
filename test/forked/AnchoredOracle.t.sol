@@ -40,7 +40,7 @@ contract AnchoredOracle_ForkedTest is BaseTest {
     function test_getQuote() public {
         // Ref: https://github.com/euler-xyz/euler-price-oracle/blob/experiments/test/adapter/pyth/PythOracle.fork.t.sol
         PythStructs.Price memory p = IPyth(PYTH).getPriceUnsafe(PYTH_ETH_USD_FEED);
-        p.publishTime = block.timestamp - 5 minutes;
+        p.publishTime = vm.getBlockTimestamp() - 5 minutes;
         vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (PYTH_ETH_USD_FEED)), abi.encode(p));
 
         uint256 outAmount = oracle.getQuote(1e18, ETH, USD);
