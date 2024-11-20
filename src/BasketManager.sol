@@ -61,6 +61,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     event ManagementFeeSet(address indexed basket, uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
+    /// @notice Emitted when the bitFlag of a basket is updated.
+    event BasketBitFlagUpdated(address indexed basket, uint256 oldBitFlag, uint256 newBitFlag);
 
     /// ERRORS ///
     error TokenSwapNotProposed();
@@ -440,6 +442,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.basketIdToAddress[basketId] = address(0);
         _bmStorage.basketIdToAddress[keccak256(abi.encodePacked(bitFlag, strategy))] = basket;
         _bmStorage.basketAssets[basket] = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        emit BasketBitFlagUpdated(basket, currentBitFlag, bitFlag);
         // Update the bitFlag in the BasketToken contract
         BasketToken(basket).setBitFlag(bitFlag);
     }
