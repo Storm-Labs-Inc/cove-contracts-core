@@ -16,6 +16,7 @@ import { FeeCollector } from "src/FeeCollector.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
+import { SelfPermit } from "src/deps/uniswap-v3-periphery/base/SelfPermit.sol";
 
 /// @title BasketToken
 /// @notice Manages user deposits and redemptions, which are processed asynchronously by the Basket Manager.
@@ -27,7 +28,8 @@ contract BasketToken is
     IERC7540Operator,
     IERC7540Deposit,
     IERC7540Redeem,
-    MulticallUpgradeable
+    MulticallUpgradeable,
+    SelfPermit
 {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
