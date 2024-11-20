@@ -22,13 +22,13 @@ runs:
         version: 9
 
     - name: Install Node.js
-      uses: blacksmith/setup-node@v5
+      uses: useblacksmith/setup-node@v5
       with:
         node-version: ${{ inputs.node-version }}
         cache: pnpm
 
     - name: Install Python
-      uses: blacksmith/setup-python@v6
+      uses: useblacksmith/setup-python@v6
       if: ${{ inputs.python-version != '' }}
       with:
         python-version: ${{ inputs.python-version }}
