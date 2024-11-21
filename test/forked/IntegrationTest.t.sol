@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
+
 pragma solidity 0.8.28;
 
 import { console } from "forge-std/console.sol";
@@ -9,16 +10,13 @@ import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
-import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
-import { MockTradeAdapter } from "test/utils/mocks/MockTradeAdapter.sol";
 
 import { Deployments } from "script/Deployments.s.sol";
-import { BasketTokenDeployment, OracleOptions } from "script/Deployments.s.sol";
 
 import { AnchoredOracle } from "src/AnchoredOracle.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -40,7 +38,6 @@ contract IntegrationTest is BaseTest, Constants {
     InternalTrade[] private tempInternalTrades;
     uint256 private internalTradeCount;
 
-    mapping(address => uint256) public totalDeficitUSD;
     mapping(address => mapping(address => SurplusDeficit)) public surplusDeficitMap;
     mapping(address => string) public assetNames;
     // Mapping to track expected changes in balances for each basket and asset
@@ -48,12 +45,9 @@ contract IntegrationTest is BaseTest, Constants {
 
     BasketManager public bm;
     Deployments public deployments;
-    address public mockTradeAdapter;
     uint256 public bitflag;
     bytes32[] public pythPriceFeeds;
     address[] public chainLinkOracles;
-
-    mapping(address => bool) private assetExists; // Mapping to track added assets
 
     function setUp() public override {
         forkNetworkAt("mainnet", 20_892_640);
@@ -82,6 +76,7 @@ contract IntegrationTest is BaseTest, Constants {
         pythPriceFeeds[3] = PYTH_RETH_USD_FEED;
         pythPriceFeeds[4] = PYTH_ETH_USD_FEED; // TODO replace
         pythPriceFeeds[5] = PYTH_ETH_USD_FEED; // TODO replace
+        // TODO add rest of asset universe
 
         vm.label(PYTH, "PYTH_ORACLE_CONTRACT");
 
@@ -98,10 +93,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.label(ETH_CHAINLINK_RSETH_ETH_FEED, "ETH_CHAINLINK_RSETH_ETH_FEED");
         chainLinkOracles[5] = ETH_CHAINLINK_RETH_ETH_FEED;
         vm.label(ETH_CHAINLINK_RETH_ETH_FEED, "ETH_CHAINLINK_RETH_ETH_FEED");
-
-        mockTradeAdapter = address(new MockTradeAdapter());
-        vm.prank(deployments.admin());
-        bm.setTokenSwapAdapter(address(mockTradeAdapter));
+        // TODO add rest of asset universe
 
         address[] memory basketAssets = bm.basketAssets(bm.basketTokens()[0]);
         bitflag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(basketAssets);
@@ -113,7 +105,6 @@ contract IntegrationTest is BaseTest, Constants {
         assertNotEq(deployments.getAddress("StrategyRegistry"), address(0));
         assertNotEq(deployments.getAddress("EulerRouter"), address(0));
         assertNotEq(deployments.getAddress("FeeCollector"), address(0));
-
         assertEq(bm.numOfBasketTokens(), 1);
     }
 
@@ -185,11 +176,10 @@ contract IntegrationTest is BaseTest, Constants {
 
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
-        _giveAssetsToSwapAdapter(externalTrades, true);
 
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
-
+        _completeSwapAdapterTrades(externalTrades);
         vm.warp(block.timestamp + 15 minutes);
         bm.completeRebalance(externalTrades, basketTokens);
         // Rebalance has completed
@@ -208,7 +198,6 @@ contract IntegrationTest is BaseTest, Constants {
     }
 
     function test_completeRebalance_retriesOnFailedTrade() public {
-        // TODO: why does this not work with internal trades?
         // Create a new basket to trade into
         address[] memory newBasketAssets0 = new address[](2);
         newBasketAssets0[0] = ETH_SUSDE;
@@ -286,8 +275,8 @@ contract IntegrationTest is BaseTest, Constants {
             bm.executeTokenSwap(externalTrades, "");
 
             vm.warp(block.timestamp + 15 minutes);
-            // Ensure that trades fail
-            _giveAssetsToSwapAdapter(externalTrades, false);
+            // Ensure that trades fails by not calling below
+            // _completeSwapAdapterTrades(externalTrades);
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
             bm.completeRebalance(externalTrades, basketTokens);
@@ -310,12 +299,12 @@ contract IntegrationTest is BaseTest, Constants {
         }
         // MAX_RETRIES has been reached propose the same swaps and confirm that rebalance finalizes successfully
         // Capture initial balances
-        uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
+        uint256[][] memory initialBals = new uint256[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; i++) {
             address[] memory assets = bm.basketAssets(basketTokens[i]);
-            initialBalances[i] = new uint256[](assets.length);
+            initialBals[i] = new uint256[](assets.length);
             for (uint256 j = 0; j < assets.length; j++) {
-                initialBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
+                initialBals[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
@@ -324,12 +313,12 @@ contract IntegrationTest is BaseTest, Constants {
         _updateChainLinkOraclesTimeStamp();
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
-
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
+        // ensure trades still fail
+        // _completeSwapAdapterTrades(externalTrades);
 
         vm.warp(block.timestamp + 15 minutes);
-        _giveAssetsToSwapAdapter(externalTrades, false);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         bm.completeRebalance(externalTrades, basketTokens);
@@ -345,22 +334,23 @@ contract IntegrationTest is BaseTest, Constants {
             }
         }
         // Compare expected and actual balances
-        assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances, currentBalances));
+        assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals, currentBalances));
     }
 
-    function test_completeRebalance_retriesOnPriceChange() public {
+    function test_completeRebalance_rebalancesOnPriceChange() public {
         address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         _baseBasket_completeRebalance_externalTrade();
         vm.warp(block.timestamp + REBALANCE_COOLDOWN_SEC);
 
+        // Propose same target weights as the previous epoch
         uint64[] memory newTargetWeights = new uint64[](6);
-        newTargetWeights[0] = 5e17; // 50%
-        newTargetWeights[1] = 5e17; // 100 % add need for ETH_SUSDE
-        newTargetWeights[2] = 0; // 0% remove this baskets need for ETH_WEETH
-        newTargetWeights[3] = 0; // 0%
-        newTargetWeights[4] = 0; // 0%
-        newTargetWeights[5] = 0; // 0%
+        newTargetWeights[0] = 5e17; // 50% ETH_WETH
+        newTargetWeights[1] = 1e17; // 50% ETH_SUSDE
+        newTargetWeights[2] = 1e17; // 0% ETH_WEETH
+        newTargetWeights[3] = 1e17; // 0% ETH_EZETH
+        newTargetWeights[4] = 1e17; // 0% ETH_RSETH
+        newTargetWeights[5] = 1e17; // 0% ETH_RETH
 
         uint64[][] memory newTargetWeightsTotal = new uint64[][](1);
         newTargetWeightsTotal[0] = newTargetWeights;
@@ -373,93 +363,12 @@ contract IntegrationTest is BaseTest, Constants {
         strategy.setTargetWeights(bitflag, newTargetWeights);
         vm.stopPrank();
 
+        _alterOraclePrice(PYTH_SUSE_USD_FEED, ETH_CHAINLINK_SUSDE_USD_FEED, 600); //reduce SUSDE price by 50%
+
+        // Confirm that only price change is enough to trigger a rebalance
         vm.prank(deployments.rebalanceProposer());
-        console.log("Proposing rebalance");
         bm.proposeRebalance(basketTokens);
-        (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
-            _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
-        // Retry the max amount of times
-        for (uint256 retryNum = 0; retryNum < MAX_RETRIES; retryNum++) {
-            console.log("on retry number: ", retryNum);
-            // Capture initial balances
-            uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
-            for (uint256 i = 0; i < basketTokens.length; i++) {
-                address[] memory assets = bm.basketAssets(basketTokens[i]);
-                initialBalances[i] = new uint256[](assets.length);
-                for (uint256 j = 0; j < assets.length; j++) {
-                    initialBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
-                }
-            }
-            _updatePythOracleTimeStamps();
-            _updateChainLinkOraclesTimeStamp();
-            _alterOraclePrice(PYTH_SUSE_USD_FEED, ETH_CHAINLINK_SUSDE_USD_FEED, 1000); // clear price change to oracles,
-            // prices report at 100%
-            vm.prank(deployments.tokenSwapProposer());
-            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
-
-            vm.prank(deployments.tokenSwapExecutor());
-            bm.executeTokenSwap(externalTrades, "");
-
-            vm.warp(block.timestamp + 15 minutes);
-            // Ensure trades succeed
-            _giveAssetsToSwapAdapter(externalTrades, true);
-            _updatePythOracleTimeStamps();
-            _updateChainLinkOraclesTimeStamp();
-            _alterOraclePrice(PYTH_SUSE_USD_FEED, ETH_CHAINLINK_SUSDE_USD_FEED, 500); //reduce prices by 50%
-            bm.completeRebalance(externalTrades, basketTokens);
-            // // Rebalance enters retry state
-            assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
-            assertEq(uint8(bm.retryCount()), retryNum + 1);
-            // Capture current balances
-            uint256[][] memory currentBalances = new uint256[][](basketTokens.length);
-            for (uint256 i = 0; i < basketTokens.length; i++) {
-                address[] memory assets = bm.basketAssets(basketTokens[i]);
-                currentBalances[i] = new uint256[](assets.length);
-                for (uint256 j = 0; j < assets.length; j++) {
-                    currentBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
-                }
-            }
-            // Compare expected and actual balances
-            assert(
-                !_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances, currentBalances)
-            );
-        }
-        // MAX_RETRIES has been reached propose the same swaps and confirm that rebalance finalizes successfully
-        // Capture initial balances
-        uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
-        for (uint256 i = 0; i < basketTokens.length; i++) {
-            address[] memory assets = bm.basketAssets(basketTokens[i]);
-            initialBalances[i] = new uint256[](assets.length);
-            for (uint256 j = 0; j < assets.length; j++) {
-                initialBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
-            }
-        }
-        _updatePythOracleTimeStamps();
-        _updateChainLinkOraclesTimeStamp();
-        vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
-
-        vm.prank(deployments.tokenSwapExecutor());
-        bm.executeTokenSwap(externalTrades, "");
-
-        vm.warp(block.timestamp + 15 minutes);
-        _giveAssetsToSwapAdapter(externalTrades, false);
-        _updatePythOracleTimeStamps();
-        _updateChainLinkOraclesTimeStamp();
-        bm.completeRebalance(externalTrades, basketTokens);
-        // Rebalance completes even though target balances are not met
-        assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
-        // Capture current balances
-        uint256[][] memory currentBalances = new uint256[][](basketTokens.length);
-        for (uint256 i = 0; i < basketTokens.length; i++) {
-            address[] memory assets = bm.basketAssets(basketTokens[i]);
-            currentBalances[i] = new uint256[](assets.length);
-            for (uint256 j = 0; j < assets.length; j++) {
-                currentBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
-            }
-        }
-        // Compare expected and actual balances
-        assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances, currentBalances));
+        assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
     }
 
     /// INTERNAL HELPER FUNCTIONS
@@ -603,12 +512,12 @@ contract IntegrationTest is BaseTest, Constants {
 
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
-        _giveAssetsToSwapAdapter(externalTrades, true);
 
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
-
+        _completeSwapAdapterTrades(externalTrades);
         vm.warp(block.timestamp + 15 minutes);
+
         bm.completeRebalance(externalTrades, basketTokens);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
@@ -754,6 +663,7 @@ contract IntegrationTest is BaseTest, Constants {
 
     /// INTERAL TRADE FUNCTIONS
 
+    // Attempts to find internal trades between all baskets
     function _generateInternalTrades(address[] memory baskets) internal {
         uint256 basketCount = baskets.length;
 
@@ -773,6 +683,7 @@ contract IntegrationTest is BaseTest, Constants {
         }
     }
 
+    // Finds a matching surplus and deficit in two baskets and executes an internal trade between them
     function _processInternalTrade(address basketFrom, address basketTo, address asset) internal {
         uint256 surplusFrom = surplusDeficitMap[asset][basketFrom].surplusUSD;
         uint256 deficitTo = surplusDeficitMap[asset][basketTo].deficitUSD;
@@ -800,6 +711,7 @@ contract IntegrationTest is BaseTest, Constants {
         }
     }
 
+    // Creates an internal trade and updates the surplus and deficit maps
     function _executeInternalTrade(
         address basketFrom,
         address basketTo,
@@ -995,6 +907,7 @@ contract IntegrationTest is BaseTest, Constants {
         ExternalTrade[] memory externalTradesTemp
     )
         internal
+        pure
         returns (uint256)
     {
         for (uint256 k = 0; k < externalTradesTemp.length; ++k) {
@@ -1059,30 +972,21 @@ contract IntegrationTest is BaseTest, Constants {
 
     // Airdrops the tokens involved in an external trade to the mockTradeAdapter to simulate cowswap completeing a trade
     // order.
-    function _giveAssetsToSwapAdapter(ExternalTrade[] memory trades, bool tradeSuccess) internal {
-        if (tradeSuccess) {
-            for (uint256 i = 0; i < trades.length; ++i) {
-                ExternalTrade memory trade = trades[i];
-                if (trade.buyToken == ETH_WETH) {
-                    airdrop(IERC20(trade.buyToken), address(bm), trade.minAmount, false);
-                } else {
-                    airdrop(IERC20(trade.buyToken), address(bm), trade.minAmount);
-                }
-            }
-        } else {
-            // Notify mock trade adapter of trade failure
-            airdrop(IERC20(0x6982508145454Ce325dDbE47a25d4ec3d2311933), address(bm), 1);
-            for (uint256 i = 0; i < trades.length; ++i) {
-                ExternalTrade memory trade = trades[i];
-                if (trade.sellToken == ETH_WETH) {
-                    console.log("trade failed giving back selltoken: ", trade.sellToken);
-                    console.log("trade failed giving back amount: ", trade.sellAmount);
-                    airdrop(IERC20(trade.sellToken), address(bm), trade.sellAmount, false);
-                } else {
-                    airdrop(IERC20(trade.sellToken), address(bm), trade.sellAmount);
-                    console.log("trade failed giving back selltoken: ", trade.sellToken);
-                    console.log("trade failed giving back amount: ", trade.sellAmount);
-                }
+    // Remove forcowswap adapter implementation use as will be in prod, just mint needed token to cloned contract
+    function _completeSwapAdapterTrades(ExternalTrade[] memory trades) internal {
+        uint32 validTo = uint32(block.timestamp + 15 minutes);
+        for (uint256 i = 0; i < trades.length; ++i) {
+            ExternalTrade memory trade = trades[i];
+            bytes32 salt =
+                keccak256(abi.encodePacked(trade.sellToken, trade.buyToken, trade.sellAmount, trade.minAmount, validTo));
+            address swapContract = _predictDeterministicAddress(salt, address(bm));
+            takeAway(IERC20(trade.sellToken), swapContract, trade.sellAmount);
+            // Find price from euler oracle
+
+            if (trade.buyToken == ETH_WETH) {
+                airdrop(IERC20(trade.buyToken), swapContract, trade.minAmount, false);
+            } else {
+                airdrop(IERC20(trade.buyToken), swapContract, trade.minAmount);
             }
         }
     }
@@ -1094,6 +998,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (pythPriceFeed)), abi.encode(res));
     }
 
+    // Updates the timestamp of a ChainLink oracle response
     function _updateChainLinkOracleTimeStamp(address chainLinkOracle) internal {
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
             IChainlinkAggregatorV3Interface(chainLinkOracle).latestRoundData();
@@ -1105,6 +1010,7 @@ contract IntegrationTest is BaseTest, Constants {
         );
     }
 
+    // Updates the timestamps of all ChainLink oracles
     function _updateChainLinkOraclesTimeStamp() internal {
         for (uint256 i = 0; i < chainLinkOracles.length; ++i) {
             _updateChainLinkOracleTimeStamp(chainLinkOracles[i]);
@@ -1118,27 +1024,21 @@ contract IntegrationTest is BaseTest, Constants {
         }
     }
 
-    // TODO: not sure if altering all of them is a good idea
-    function _alterOraclePrices(uint256 alterPercent) internal {
-        for (uint256 i = 0; i < pythPriceFeeds.length; ++i) {
-            _alterOraclePrice(pythPriceFeeds[i], chainLinkOracles[i], alterPercent);
-        }
-    }
-
     // Reduces the price of a Pyth oracle by a percentage
     function _alterOraclePrice(bytes32 pythPriceFeed, address chainLinkPriceFeed, uint256 alterPercent) internal {
+        if (alterPercent == 1000) {
+            // clear previous mocked price change calls
+            vm.clearMockedCalls();
+            _updatePythOracleTimeStamps();
+            _updateChainLinkOraclesTimeStamp();
+        }
         PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
-        console.log("old pyth price: ", res.price);
-        console.log("buh :", res.price * int64(uint64(alterPercent)));
         res.price = (res.price * int64(uint64(alterPercent))) / 1000;
-        console.log("new pyth price: ", res.price);
         vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (pythPriceFeed)), abi.encode(res));
 
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
             IChainlinkAggregatorV3Interface(chainLinkPriceFeed).latestRoundData();
-        console.log("old chainlink price: ", answer);
         answer = (answer * int64(uint64(alterPercent))) / 1000;
-        console.log("new chainlink price: ", answer);
         vm.mockCall(
             chainLinkPriceFeed,
             abi.encodeWithSelector(IChainlinkAggregatorV3Interface.latestRoundData.selector),

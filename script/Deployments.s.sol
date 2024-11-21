@@ -256,6 +256,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         _deployEulerRouter();
         _deployBasketManager(_FEE_COLLECTOR_SALT);
         _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        _deployAndSetCowSwapAdapter();
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment) private {
@@ -325,6 +326,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             vm.broadcast();
         }
         bm.grantRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+        bm.grantRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
     }
 
     // Uses CREATE3 to deploy a fee collector contract. Salt must be the same given to the basket manager deploy.
@@ -350,6 +352,15 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         address eulerRouter = address(new EulerRouter(EVC, COVE_DEPLOYER_ADDRESS));
         deployer.save("EulerRouter", eulerRouter, "EulerRouter.sol:EulerRouter", constructorArgs, creationBytecode);
         require(getAddress("EulerRouter") == eulerRouter, "Failed to save EulerRouter deployment");
+    }
+
+    // Deploys cow swap adapter, sets it as the token swap adapter in BasketManager
+    function _deployAndSetCowSwapAdapter() private deployIfMissing("CowSwapAdapter") {
+        address cowSwapCloneImplementation = address(deployer.deploy_CoWSwapClone("CoWSwapClone"));
+        address cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter("CowSwapAdapter", cowSwapCloneImplementation));
+        require(getAddress("CowSwapAdapter") == cowSwapAdapter, "Failed to save CowSwapAdapter deployment");
+        address basketManager = getAddress("BasketManager");
+        BasketManager(basketManager).setTokenSwapAdapter(cowSwapAdapter);
     }
 
     // Deploys a managed weight strategy for an external manager
@@ -598,6 +609,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
         bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
 
         if (isProduction) {
             vm.stopBroadcast();

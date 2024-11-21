@@ -15,6 +15,9 @@ abstract contract BaseTest is Test {
     }
 
     uint256 internal _MAX_UINT256 = type(uint256).max;
+    /// @dev Hash of the `_PROXY_INITCODE`.
+    /// Equivalent to `keccak256(abi.encodePacked(hex"67363d3d37363d34f03d5260086018f3"))`.
+    bytes32 internal constant _PROXY_INITCODE_HASH = 0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f;
 
     mapping(string => address) public users;
     mapping(string => Fork) public forks;
@@ -131,6 +134,27 @@ abstract contract BaseTest is Test {
             if (a[i] != b[i]) {
                 revert("BaseTest:assertEq(): Arrays are not equal");
             }
+        }
+    }
+
+    /// @dev Returns the deterministic address for `salt` with `deployer`.
+    function _predictDeterministicAddress(bytes32 salt, address deployer) internal pure returns (address deployed) {
+        /// @solidity memory-safe-assembly
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            let m := mload(0x40) // Cache the free memory pointer.
+            mstore(0x00, deployer) // Store `deployer`.
+            mstore8(0x0b, 0xff) // Store the prefix.
+            mstore(0x20, salt) // Store the salt.
+            mstore(0x40, _PROXY_INITCODE_HASH) // Store the bytecode hash.
+
+            mstore(0x14, keccak256(0x0b, 0x55)) // Store the proxy's address.
+            mstore(0x40, m) // Restore the free memory pointer.
+            // 0xd6 = 0xc0 (short RLP prefix) + 0x16 (length of: 0x94 ++ proxy ++ 0x01).
+            // 0x94 = 0x80 + 0x14 (0x14 = the length of an address, 20 bytes, in hex).
+            mstore(0x00, 0xd694)
+            mstore8(0x34, 0x01) // Nonce of the proxy contract (1).
+            deployed := and(keccak256(0x1e, 0x17), 0xffffffffffffffffffffffffffffffffffffffff)
         }
     }
 }

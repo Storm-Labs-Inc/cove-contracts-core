@@ -645,8 +645,8 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(initialDepositAmount));
         // Mock results of external trade
         uint256[2][] memory claimedAmounts = new uint256[2][](numTrades);
-        // 0 in the 1st position is the result of a 100% successful trade
-        claimedAmounts[0] = [initialDepositAmount * sellWeight / 1e18, 0];
+        // 0 in the 1 index is the result of a 100% successful trade
+        claimedAmounts[0] = [0, initialDepositAmount * sellWeight / 1e18];
         vm.mockCall(
             address(tokenSwapAdapter),
             abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
@@ -698,8 +698,8 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(initialDepositAmount));
         // Mock results of external trade
         uint256[2][] memory claimedAmounts = new uint256[2][](numTrades);
-        // 0 in the 0th place is the result of a 100% un-successful trade
-        claimedAmounts[0] = [0, initialDepositAmount * sellWeight / 1e18];
+        // 0 in the 1 index is the result of a 100% un-successful trade
+        claimedAmounts[0] = [initialDepositAmount * sellWeight / 1e18, 0];
         vm.mockCall(
             address(tokenSwapAdapter),
             abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
@@ -843,7 +843,7 @@ contract BasketManagerTest is BaseTest, Constants {
         // We mock a partially successful trade so that target weights are not met and but enough tokens are available
         // to meet pending redemptions
         uint256 succesfulSellAmount = externalTrades[0].sellAmount * 7e17 / 1e18;
-        claimedAmounts[0] = [succesfulSellAmount, externalTrades[0].sellAmount - succesfulSellAmount];
+        claimedAmounts[0] = [externalTrades[0].sellAmount - succesfulSellAmount, succesfulSellAmount];
         vm.mockCall(
             address(tokenSwapAdapter),
             abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
@@ -943,7 +943,7 @@ contract BasketManagerTest is BaseTest, Constants {
         // to meet pending redemptions
         uint256 tradeSuccess = 7e17;
         uint256 succesfulSellAmount = externalTrades[0].sellAmount * tradeSuccess / 1e18;
-        claimedAmounts[0] = [succesfulSellAmount, externalTrades[0].sellAmount - succesfulSellAmount];
+        claimedAmounts[0] = [externalTrades[0].sellAmount - succesfulSellAmount, succesfulSellAmount];
         vm.mockCall(
             address(tokenSwapAdapter),
             abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
@@ -1044,8 +1044,8 @@ contract BasketManagerTest is BaseTest, Constants {
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(initialDepositAmount));
         // Mock results of external trade
         uint256[2][] memory claimedAmounts = new uint256[2][](numTrades);
-        // 0 in the 1st position is the result of a 100% successful trade
-        claimedAmounts[0] = [initialDepositAmount * sellWeight / 1e18, 0];
+        // 0 in the 0 index is the result of a 100% successful trade
+        claimedAmounts[0] = [0, initialDepositAmount * sellWeight / 1e18];
         vm.mockCall(
             address(tokenSwapAdapter),
             abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
@@ -2504,10 +2504,10 @@ contract BasketManagerTest is BaseTest, Constants {
         // Mock results of external trade
         uint256[2][] memory claimedAmounts = new uint256[2][](numTrades);
         // tradeSuccess => 1e18 for a 100% successful trade, 0 for 100% unsuccessful trade
-        // 0 in the 0th place is the result of a 100% unsuccessful trade
-        // 0 in the 1st place is the result of a 100% successful trade
+        // 0 in the 1 index is the result of a 100% unsuccessful trade
+        // 0 in the 0 index is the result of a 100% successful trade
         uint256 succesfulSellAmount = externalTrades[0].sellAmount * tradeSuccess / 1e18;
-        claimedAmounts[0] = [succesfulSellAmount, externalTrades[0].sellAmount - succesfulSellAmount];
+        claimedAmounts[0] = [externalTrades[0].sellAmount - succesfulSellAmount, succesfulSellAmount];
         vm.mockCall(
             address(tokenSwapAdapter),
             abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
