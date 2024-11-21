@@ -2460,7 +2460,7 @@ contract BasketManagerTest is BaseTest, Constants {
         bytes32 newBasketId = keccak256(abi.encodePacked(newBitFlag, strategy));
 
         // Assert the new id is already taken
-        assertTrue(basket.basketIdToAddress(newBasketId) != address(0));
+        assertTrue(basketManager.basketIdToAddress(newBasketId) != address(0));
 
         // Expect revert due to BasketIdAlreadyExists
         vm.expectRevert(BasketManager.BasketIdAlreadyExists.selector);
