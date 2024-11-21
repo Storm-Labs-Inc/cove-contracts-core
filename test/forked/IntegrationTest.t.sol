@@ -661,7 +661,7 @@ contract IntegrationTest is BaseTest, Constants {
         externalTrades = _trimExternalTradesArray(externalTradesTemp, externalTradeCount);
     }
 
-    /// INTERAL TRADE FUNCTIONS
+    /// INTERNAL TRADE FUNCTIONS
 
     // Attempts to find internal trades between all baskets
     function _generateInternalTrades(address[] memory baskets) internal {
