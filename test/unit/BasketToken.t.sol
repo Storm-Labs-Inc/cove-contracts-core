@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -184,7 +186,8 @@ contract BasketTokenTest is BaseTest, Constants {
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
-        // uint256 totalAssetsBefore = basket.totalAssets();
+        _totalAssetsMockCall();
+        uint256 totalAssetsBefore = basket.totalAssets();
         uint256 balanceBefore = basket.balanceOf(from);
         uint256 dummyAssetBalanceBefore = dummyAsset.balanceOf(from);
         uint256 totalPendingDepositBefore = basket.totalPendingDeposits();
@@ -199,7 +202,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
-        // assertEq(basket.totalAssets(), totalAssetsBefore);
+        assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(from), balanceBefore);
         assertEq(basket.maxDeposit(from), maxDepositBefore);
         assertEq(basket.maxMint(from), maxMintBefore);
@@ -215,8 +218,8 @@ contract BasketTokenTest is BaseTest, Constants {
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
-        // TODO: enable totalAssets check when totalAssets is implemented
-        // uint256 totalAssetsBefore = basket.totalAssets();
+        _totalAssetsMockCall();
+        uint256 totalAssetsBefore = basket.totalAssets();
         uint256 balanceBefore = basket.balanceOf(from);
         uint256 dummyAssetBalanceBefore = dummyAsset.balanceOf(from);
         uint256 totalPendingDepositBefore = basket.totalPendingDeposits();
@@ -233,8 +236,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
-        // TODO: enable totalAssets check when totalAssets is implemented
-        // assertEq(basket.totalAssets(), totalAssetsBefore);
+        assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(controller), balanceBefore);
         assertEq(basket.maxDeposit(controller), maxDepositBefore);
         assertEq(basket.maxMint(controller), maxMintBefore);
@@ -359,7 +361,7 @@ contract BasketTokenTest is BaseTest, Constants {
                 depositAmounts[i] = remainingAmount;
             } else {
                 depositAmounts[i] =
-                    bound(uint256(keccak256(abi.encodePacked(block.timestamp, i))), 1, remainingAmount - 1);
+                    bound(uint256(keccak256(abi.encodePacked(vm.getBlockTimestamp(), i))), 1, remainingAmount - 1);
             }
             remainingAmount -= depositAmounts[i];
             requestId = testFuzz_requestDeposit(depositAmounts[i], fuzzedUsers[i]);
@@ -1856,9 +1858,55 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(expectedRet, ret);
     }
 
-    // TODO: implement this test after `totalAssets` is implemented
-    function test_totalAssets() public {
-        assertEq(basket.totalAssets(), 0);
+    function testFuzz_totalAssets(uint256 totalDepositAmount, uint256 issuedShares) public {
+        // Deposit assets into the basket
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+
+        _totalAssetsMockCall();
+
+        // Check that the actual total assets matches the expected value
+        assertEq(basket.totalAssets(), 1e18, "Total assets should match expected");
+    }
+
+    function _totalAssetsMockCall() public {
+        // Mock the call to assetRegistry to return a list of assets
+        address[] memory assets = new address[](1);
+        assets[0] = address(0x1);
+        vm.mockCall(
+            basket.assetRegistry(), abi.encodeCall(AssetRegistry.getAssets, (basket.bitFlag())), abi.encode(assets)
+        );
+
+        uint256 assetBalance = 1e18; // Assume each asset has a balance of 1 token
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.basketBalanceOf, (address(basket), address(0x1))),
+            abi.encode(assetBalance)
+        );
+
+        uint256 quote = 2e18; // Assume each asset is worth 2 USD
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.eulerRouter, ()),
+            abi.encode(address(0x123)) // Mock the eulerRouter address
+        );
+        vm.mockCall(
+            address(0x123), // Use the mocked eulerRouter address
+            abi.encodeCall(EulerRouter.getQuote, (assetBalance, address(0x1), USD)),
+            abi.encode(quote)
+        );
+
+        // Convert the expected total value to the basket's asset
+        uint256 expectedTotalAssets = 1e18; // Assume the basket asset is worth 1 USD
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.eulerRouter, ()),
+            abi.encode(address(0x123)) // Mock the eulerRouter address
+        );
+        vm.mockCall(
+            address(0x123), // Use the mocked eulerRouter address
+            abi.encodeCall(EulerRouter.getQuote, (quote, USD, basket.asset())),
+            abi.encode(expectedTotalAssets)
+        );
     }
 
     function testFuzz_harvestManagementFee1Year(
@@ -1877,7 +1925,7 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.prank(address(basketManager));
         basket.prepareForRebalance(0, feeCollector);
         assertEq(basket.balanceOf(feeCollector), 0);
-        vm.warp(block.timestamp + 365 days);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
         vm.prank(address(basketManager));
         basket.prepareForRebalance(feeBps, feeCollector);
         uint256 balance = basket.balanceOf(feeCollector);
@@ -1906,7 +1954,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.balanceOf(feeCollector), 0);
 
         uint256 timePerHarvest = uint256(365 days) / timesHarvested;
-        uint256 startTimestamp = block.timestamp;
+        uint256 startTimestamp = vm.getBlockTimestamp();
         vm.startPrank(address(basketManager));
 
         // Harvest the fee multiple times
@@ -1942,7 +1990,7 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.balanceOf(feeCollector), 0);
 
         // a year has passed, trigger the first harvest
-        vm.warp(block.timestamp + 365 days);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
         vm.prank(address(basketManager));
         basket.prepareForRebalance(feeBps, feeCollector);
 
@@ -1975,5 +2023,13 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.prank(address(basketManager));
         vm.expectRevert(abi.encodeWithSelector(BasketToken.InvalidManagementFee.selector));
         basket.prepareForRebalance(feeBps, receiver);
+    }
+
+    function test_addPlugin() public {
+        ERC20Mock rewardToken = new ERC20Mock();
+        FarmingPlugin farmingPlugin = new FarmingPlugin(basket, rewardToken, owner);
+
+        vm.prank(alice);
+        basket.addPlugin(address(farmingPlugin));
     }
 }
