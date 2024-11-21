@@ -61,7 +61,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
     /// @notice Emitted when the bitFlag of a basket is updated.
-    event BasketBitFlagUpdated(address indexed basket, uint256 oldBitFlag, uint256 newBitFlag, bytes32 oldId, bytes32 newId);
+    event BasketBitFlagUpdated(
+        address indexed basket, uint256 oldBitFlag, uint256 newBitFlag, bytes32 oldId, bytes32 newId
+    );
 
     /// ERRORS ///
     error TokenSwapNotProposed();
