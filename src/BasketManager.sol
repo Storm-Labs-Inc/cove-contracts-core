@@ -61,7 +61,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
     /// @notice Emitted when the bitFlag of a basket is updated.
-    event BasketBitFlagUpdated(address indexed basket, uint256 oldBitFlag, uint256 newBitFlag);
+    event BasketBitFlagUpdated(address indexed basket, uint256 oldBitFlag, uint256 newBitFlag, bytes32 oldId, bytes32 newId);
 
     /// ERRORS ///
     error TokenSwapNotProposed();
@@ -76,6 +76,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error BitFlagMustBeDifferent();
     error BitFlagMustIncludeCurrent();
     error BitFlagUnsupportedByStrategy();
+    error BasketIdAlreadyExists();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -441,12 +442,16 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (!WeightStrategy(strategy).supportsBitFlag(bitFlag)) {
             revert BitFlagUnsupportedByStrategy();
         }
-        bytes32 basketId = keccak256(abi.encodePacked(currentBitFlag, strategy));
+        bytes32 newId = keccak256(abi.encodePacked(bitFlag, strategy));
+        if (_bmStorage.basketIdToAddress[newId] != address(0)) {
+            revert BasketIdAlreadyExists();
+        }
         // Remove the old bitFlag mapping and add the new bitFlag mapping
-        _bmStorage.basketIdToAddress[basketId] = address(0);
-        _bmStorage.basketIdToAddress[keccak256(abi.encodePacked(bitFlag, strategy))] = basket;
+        bytes32 oldId = keccak256(abi.encodePacked(currentBitFlag, strategy));
+        _bmStorage.basketIdToAddress[oldId] = address(0);
+        _bmStorage.basketIdToAddress[newId] = basket;
         _bmStorage.basketAssets[basket] = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
-        emit BasketBitFlagUpdated(basket, currentBitFlag, bitFlag);
+        emit BasketBitFlagUpdated(basket, currentBitFlag, bitFlag, oldId, newId);
         // Update the bitFlag in the BasketToken contract
         BasketToken(basket).setBitFlag(bitFlag);
     }
