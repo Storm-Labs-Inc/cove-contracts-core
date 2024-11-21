@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { console } from "forge-std/console.sol";
-
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
@@ -11,6 +9,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20DecimalsMock } from "test/utils/mocks/ERC20DecimalsMock.sol";
@@ -187,7 +186,8 @@ contract BasketTokenTest is BaseTest {
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
-        // uint256 totalAssetsBefore = basket.totalAssets();
+        _totalAssetsMockCall();
+        uint256 totalAssetsBefore = basket.totalAssets();
         uint256 balanceBefore = basket.balanceOf(from);
         uint256 dummyAssetBalanceBefore = dummyAsset.balanceOf(from);
         uint256 totalPendingDepositBefore = basket.totalPendingDeposits();
@@ -202,7 +202,7 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
-        // assertEq(basket.totalAssets(), totalAssetsBefore);
+        assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(from), balanceBefore);
         assertEq(basket.maxDeposit(from), maxDepositBefore);
         assertEq(basket.maxMint(from), maxMintBefore);
@@ -218,8 +218,8 @@ contract BasketTokenTest is BaseTest {
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
-        // TODO: enable totalAssets check when totalAssets is implemented
-        // uint256 totalAssetsBefore = basket.totalAssets();
+        _totalAssetsMockCall();
+        uint256 totalAssetsBefore = basket.totalAssets();
         uint256 balanceBefore = basket.balanceOf(from);
         uint256 dummyAssetBalanceBefore = dummyAsset.balanceOf(from);
         uint256 totalPendingDepositBefore = basket.totalPendingDeposits();
@@ -236,8 +236,7 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
-        // TODO: enable totalAssets check when totalAssets is implemented
-        // assertEq(basket.totalAssets(), totalAssetsBefore);
+        assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(controller), balanceBefore);
         assertEq(basket.maxDeposit(controller), maxDepositBefore);
         assertEq(basket.maxMint(controller), maxMintBefore);
@@ -1859,9 +1858,55 @@ contract BasketTokenTest is BaseTest {
         assertEq(expectedRet, ret);
     }
 
-    // TODO: implement this test after `totalAssets` is implemented
-    function test_totalAssets() public {
-        assertEq(basket.totalAssets(), 0);
+    function testFuzz_totalAssets(uint256 totalDepositAmount, uint256 issuedShares) public {
+        // Deposit assets into the basket
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+
+        _totalAssetsMockCall();
+
+        // Check that the actual total assets matches the expected value
+        assertEq(basket.totalAssets(), 1e18, "Total assets should match expected");
+    }
+
+    function _totalAssetsMockCall() public {
+        // Mock the call to assetRegistry to return a list of assets
+        address[] memory assets = new address[](1);
+        assets[0] = address(0x1);
+        vm.mockCall(
+            basket.assetRegistry(), abi.encodeCall(AssetRegistry.getAssets, (basket.bitFlag())), abi.encode(assets)
+        );
+
+        uint256 assetBalance = 1e18; // Assume each asset has a balance of 1 token
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.basketBalanceOf, (address(basket), address(0x1))),
+            abi.encode(assetBalance)
+        );
+
+        uint256 quote = 2e18; // Assume each asset is worth 2 USD
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.eulerRouter, ()),
+            abi.encode(address(0x123)) // Mock the eulerRouter address
+        );
+        vm.mockCall(
+            address(0x123), // Use the mocked eulerRouter address
+            abi.encodeCall(EulerRouter.getQuote, (assetBalance, address(0x1), USD)),
+            abi.encode(quote)
+        );
+
+        // Convert the expected total value to the basket's asset
+        uint256 expectedTotalAssets = 1e18; // Assume the basket asset is worth 1 USD
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.eulerRouter, ()),
+            abi.encode(address(0x123)) // Mock the eulerRouter address
+        );
+        vm.mockCall(
+            address(0x123), // Use the mocked eulerRouter address
+            abi.encodeCall(EulerRouter.getQuote, (quote, USD, basket.asset())),
+            abi.encode(expectedTotalAssets)
+        );
     }
 
     function testFuzz_harvestManagementFee1Year(
