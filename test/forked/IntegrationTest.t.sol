@@ -972,7 +972,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.stopPrank();
     }
 
-    // Airdrops the tokens involved in an external trade to the mockTradeAdapter to simulate cowswap completeing a trade
+    // Airdrops the tokens involved in an external trade to the mockTradeAdapter to simulate cowswap completing a trade
     // order.
     // Remove forcowswap adapter implementation use as will be in prod, just mint needed token to cloned contract
     function _completeSwapAdapterTrades(ExternalTrade[] memory trades) internal {
