@@ -97,6 +97,8 @@ contract IntegrationTest is BaseTest, Constants {
 
         address[] memory basketAssets = bm.basketAssets(bm.basketTokens()[0]);
         bitflag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(basketAssets);
+        _updatePythOracleTimeStamps();
+        _updateChainLinkOraclesTimeStamp();
     }
 
     function test_setUp() public view {
@@ -131,7 +133,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.stopPrank();
         // Deposits into both baskets as well as externally trade to get all assets in the base basket
         _baseBasket_completeRebalance_externalTrade();
-        vm.warp(block.timestamp + REBALANCE_COOLDOWN_SEC);
+        vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
         uint64[] memory newTargetWeights0 = new uint64[](2);
         newTargetWeights0[0] = 0;
@@ -180,7 +182,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
         _completeSwapAdapterTrades(externalTrades);
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
         bm.completeRebalance(externalTrades, basketTokens);
         // Rebalance has completed
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
@@ -220,7 +222,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.stopPrank();
         // Deposits into both baskets as well as externally trade to get all assets in the base basket
         _baseBasket_completeRebalance_externalTrade();
-        vm.warp(block.timestamp + REBALANCE_COOLDOWN_SEC);
+        vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
         uint64[] memory newTargetWeights0 = new uint64[](2);
         newTargetWeights0[0] = 0;
@@ -274,7 +276,7 @@ contract IntegrationTest is BaseTest, Constants {
             vm.prank(deployments.tokenSwapExecutor());
             bm.executeTokenSwap(externalTrades, "");
 
-            vm.warp(block.timestamp + 15 minutes);
+            vm.warp(vm.getBlockTimestamp() + 15 minutes);
             // Ensure that trades fails by not calling below
             // _completeSwapAdapterTrades(externalTrades);
             _updatePythOracleTimeStamps();
@@ -318,7 +320,7 @@ contract IntegrationTest is BaseTest, Constants {
         // ensure trades still fail
         // _completeSwapAdapterTrades(externalTrades);
 
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         bm.completeRebalance(externalTrades, basketTokens);
@@ -341,7 +343,7 @@ contract IntegrationTest is BaseTest, Constants {
         address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         _baseBasket_completeRebalance_externalTrade();
-        vm.warp(block.timestamp + REBALANCE_COOLDOWN_SEC);
+        vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
         // Propose same target weights as the previous epoch
         uint64[] memory newTargetWeights = new uint64[](6);
@@ -390,7 +392,7 @@ contract IntegrationTest is BaseTest, Constants {
         _updatePythOracleTimeStamps();
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
-        assertEq(bm.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encodePacked(basketTokens)));
 
@@ -399,10 +401,10 @@ contract IntegrationTest is BaseTest, Constants {
 
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTradesLocal, externalTradesLocal, basketTokens);
-        assertEq(bm.rebalanceStatus().timestamp, block.timestamp);
+        assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
 
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
         bm.completeRebalance(externalTradesLocal, basketTokens);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
@@ -482,7 +484,7 @@ contract IntegrationTest is BaseTest, Constants {
     // For any new baskets created this will process their deposits if target weights are set.
     function _baseBasket_completeRebalance_externalTrade() internal {
         _completeRebalance_processDeposits(100, 100);
-        vm.warp(block.timestamp + REBALANCE_COOLDOWN_SEC);
+        vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
         uint64[] memory newTargetWeights = new uint64[](6);
         newTargetWeights[0] = 5e17; // 50% ETH_WETH
@@ -516,7 +518,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
         _completeSwapAdapterTrades(externalTrades);
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
 
         bm.completeRebalance(externalTrades, basketTokens);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
@@ -974,7 +976,7 @@ contract IntegrationTest is BaseTest, Constants {
     // order.
     // Remove forcowswap adapter implementation use as will be in prod, just mint needed token to cloned contract
     function _completeSwapAdapterTrades(ExternalTrade[] memory trades) internal {
-        uint32 validTo = uint32(block.timestamp + 15 minutes);
+        uint32 validTo = uint32(vm.getBlockTimestamp() + 15 minutes);
         for (uint256 i = 0; i < trades.length; ++i) {
             ExternalTrade memory trade = trades[i];
             bytes32 salt =
@@ -994,7 +996,7 @@ contract IntegrationTest is BaseTest, Constants {
     // Updates the timestamp of a Pyth oracle response
     function _updatePythOracleTimeStamp(bytes32 pythPriceFeed) internal {
         PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
-        res.publishTime = block.timestamp;
+        res.publishTime = vm.getBlockTimestamp();
         vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (pythPriceFeed)), abi.encode(res));
     }
 
@@ -1002,7 +1004,7 @@ contract IntegrationTest is BaseTest, Constants {
     function _updateChainLinkOracleTimeStamp(address chainLinkOracle) internal {
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
             IChainlinkAggregatorV3Interface(chainLinkOracle).latestRoundData();
-        updatedAt = block.timestamp;
+        updatedAt = vm.getBlockTimestamp();
         vm.mockCall(
             chainLinkOracle,
             abi.encodeWithSelector(IChainlinkAggregatorV3Interface.latestRoundData.selector),

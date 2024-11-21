@@ -608,8 +608,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         bm.grantRole(PAUSER_ROLE, pauser);
         bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
         bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
-        bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
+        bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
 
         if (isProduction) {
             vm.stopBroadcast();
