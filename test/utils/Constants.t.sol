@@ -33,16 +33,16 @@ contract Constants {
     address public constant GAUNTLET_STRATEGIST = 0x00000000000000000000000000000000DeaDBeef;
 
     // ASSET ADDRESSES
-    address public constant ETH_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant ETH_CBBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
     address public constant ETH_EZETH = 0xbf5495Efe5DB9ce00f80364C8B423567e58d2110;
     address public constant ETH_GHO = 0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f;
     address public constant ETH_RETH = 0xae78736Cd615f374D3085123A210448E74Fc6393;
     address public constant ETH_RSETH = 0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7;
     address public constant ETH_SUSDE = 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497;
-    address public constant ETH_WEETH = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
-    address public constant ETH_WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
     address public constant ETH_TBTC = 0x18084fbA666a33d37592fA2633fD49a74DD93a88;
+    address public constant ETH_WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+    address public constant ETH_WEETH = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
+    address public constant ETH_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     // PRICE FEEDS
     // ETH/USD

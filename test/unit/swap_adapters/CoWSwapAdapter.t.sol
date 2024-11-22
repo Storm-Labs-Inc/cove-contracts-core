@@ -5,11 +5,12 @@ import { Test } from "forge-std/Test.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import { BaseTest } from "test/utils/BaseTest.t.sol";
+
 import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapAdapter } from "src/swap_adapters/CoWSwapAdapter.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
 import { BasketTradeOwnership, ExternalTrade } from "src/types/Trades.sol";
-import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 contract CoWSwapAdapterTest is BaseTest {
     CoWSwapAdapter private adapter;

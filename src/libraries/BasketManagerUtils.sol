@@ -664,11 +664,11 @@ library BasketManagerUtils {
                 address basket = ownership.basket;
                 // Account for bought tokens
                 self.basketBalanceOf[basket][trade.buyToken] +=
-                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Account for sold tokens
                 self.basketBalanceOf[basket][trade.sellToken] = self.basketBalanceOf[basket][trade.sellToken]
-                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18)
-                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, _WEIGHT_PRECISION)
+                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 unchecked {
                     // Overflow not possible: i is less than tradeOwnerShipLength.length
                     ++j;
@@ -772,25 +772,12 @@ library BasketManagerUtils {
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
-                console.log("info.netBuyAmount:", info.netBuyAmount);
-                console.log("trade.minAmount:", trade.minAmount);
-                console.log("trade.maxAmount:", trade.maxAmount);
                 revert InternalTradeMinMaxAmountNotReached();
             }
             if (trade.sellAmount > basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]) {
-                console.log("trade.sellAmount:", trade.sellAmount);
-                console.log(
-                    "basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]:",
-                    basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]
-                );
                 revert IncorrectTradeTokenAmount();
             }
             if (info.netBuyAmount > basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]) {
-                console.log("info.netBuyAmount:", info.netBuyAmount);
-                console.log(
-                    "basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]:",
-                    basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]
-                );
                 revert IncorrectTradeTokenAmount();
             }
 
@@ -862,9 +849,9 @@ library BasketManagerUtils {
                 ownershipInfo.sellTokenAssetIndex =
                     basketTokenToRebalanceAssetToIndex(self, ownership.basket, trade.sellToken);
                 uint256 ownershipSellAmount =
-                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 uint256 ownershipBuyAmount =
-                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Record changes in basket asset holdings due to the external trade
                 if (
                     ownershipSellAmount
@@ -896,7 +883,7 @@ library BasketManagerUtils {
 
             // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
             if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
+                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
                     revert ExternalTradeSlippage();
                 }
             }
@@ -1069,7 +1056,6 @@ library BasketManagerUtils {
             balances[j] = self.basketBalanceOf[basket][assets[j]];
             // Rounding direction: down
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            // TODO double check / test below
             if (balances[j] > 0) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
