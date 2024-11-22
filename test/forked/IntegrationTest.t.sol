@@ -7,10 +7,10 @@ import { console } from "forge-std/console.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -36,7 +36,7 @@ struct SurplusDeficit {
 
 // slither-disable-start cyclomatic-complexity
 contract IntegrationTest is BaseTest, Constants {
-    using FixedPointMathLib for uint256;
+    using Math for uint256;
 
     InternalTrade[] private tempInternalTrades;
     uint256 private internalTradeCount;
@@ -728,7 +728,7 @@ contract IntegrationTest is BaseTest, Constants {
     )
         internal
     {
-        uint256 tradeUSD = _min(_min(surplusFrom, deficitTo), _min(reciprocalSurplus, reciprocalDeficit));
+        uint256 tradeUSD = (surplusFrom.min(deficitTo)).min(reciprocalSurplus.min(reciprocalDeficit));
 
         if (tradeUSD == 0) return;
 
@@ -810,7 +810,7 @@ contract IntegrationTest is BaseTest, Constants {
             uint256 deficitUSD = surplusDeficitMap[buyAsset][basket].deficitUSD;
             if (deficitUSD == 0) continue;
 
-            uint256 tradeUSD = _min(surplusUSD, deficitUSD);
+            uint256 tradeUSD = surplusUSD.min(deficitUSD);
 
             tradeCount = _processExternalTrade(sellAsset, buyAsset, tradeUSD, basket, externalTradesTemp, tradeCount);
 
@@ -1048,11 +1048,6 @@ contract IntegrationTest is BaseTest, Constants {
             abi.encodeWithSelector(IChainlinkAggregatorV3Interface.latestRoundData.selector),
             abi.encode(roundId, answer, startedAt, updatedAt, answeredInRound)
         );
-    }
-
-    // Finds the minimum of two numbers
-    function _min(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a < b ? a : b;
     }
 }
 // slither-disable-end cyclomatic-complexity
