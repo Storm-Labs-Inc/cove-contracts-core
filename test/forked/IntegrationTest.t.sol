@@ -18,7 +18,6 @@ import { Constants } from "test/utils/Constants.t.sol";
 
 import { Deployments } from "script/Deployments.s.sol";
 
-import { AnchoredOracle } from "src/AnchoredOracle.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -42,12 +41,12 @@ contract IntegrationTest is BaseTest, Constants {
     uint256 private internalTradeCount;
 
     mapping(address => mapping(address => SurplusDeficit)) public surplusDeficitMap;
-    mapping(address => string) public assetNames;
     // Mapping to track expected changes in balances for each basket and asset
     mapping(address => mapping(address => int256)) public expectedBalanceChanges;
 
     BasketManager public bm;
     Deployments public deployments;
+    EulerRouter eulerRouter;
     uint256 public bitFlag;
     bytes32[] public pythPriceFeeds;
     address[] public chainlinkOracles;
@@ -61,16 +60,7 @@ contract IntegrationTest is BaseTest, Constants {
         deployments.deploy(false);
 
         bm = BasketManager(deployments.getAddress("BasketManager"));
-
-        assetNames[ETH_WETH] = "WETH";
-        vm.label(ETH_WETH, "WETH");
-        assetNames[ETH_SUSDE] = "SUSDE";
-        vm.label(ETH_SUSDE, "SUSDE");
-        assetNames[ETH_WEETH] = "weETH";
-        vm.label(ETH_WEETH, "weETH");
-        assetNames[ETH_EZETH] = "ezETH";
-        assetNames[ETH_RSETH] = "rsETH";
-        assetNames[ETH_RETH] = "rETH";
+        eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
 
         pythPriceFeeds = new bytes32[](6);
         pythPriceFeeds[0] = PYTH_ETH_USD_FEED;
@@ -588,7 +578,6 @@ contract IntegrationTest is BaseTest, Constants {
             if (surplusUSD[i] > 0 || deficitUSD[i] > 0) {
                 console.log("Surplus/Deficit found");
                 console.log("Asset:", basketAssets[i]);
-                console.log("Asset name: ", assetNames[basketAssets[i]]);
                 console.log("Basket:", basketToken);
                 console.log("Surplus USD:", surplusUSD[i]);
                 console.log("basketBalanceOf :", bm.basketBalanceOf(basketToken, basketAssets[i]));
@@ -617,10 +606,7 @@ contract IntegrationTest is BaseTest, Constants {
             if (balance == 0) {
                 continue;
             }
-            string memory assetName = assetNames[basketAssets[i]];
-            AnchoredOracle assetOracle =
-                AnchoredOracle(deployments.getAddress(string(abi.encodePacked(assetName, "_AnchoredOracle"))));
-            currentValuesUSD[i] = assetOracle.getQuote(balance, basketAssets[i], USD);
+            currentValuesUSD[i] = eulerRouter.getQuote(balance, basketAssets[i], USD);
             console.log("basket balanceOf: ", balance);
             console.log("usdValue :", currentValuesUSD[i]);
             totalValueUSD += currentValuesUSD[i];
@@ -939,18 +925,16 @@ contract IntegrationTest is BaseTest, Constants {
     }
 
     // Converts a USD value to an amount of an asset
-    function _valueToAmount(address asset, uint256 valueUSD) internal view returns (uint256 amount) {
+    function _valueToAmount(address asset, uint256 valueUSD) internal returns (uint256 amount) {
         uint256 assetPriceUSD = _getAssetPrice(asset);
         uint256 assetDecimals = 10 ** ERC20(asset).decimals();
         amount = (valueUSD * assetDecimals) / assetPriceUSD;
     }
 
     // Gets the price of an asset in USD
-    function _getAssetPrice(address asset) internal view returns (uint256 price) {
-        string memory assetName = assetNames[asset];
-        AnchoredOracle assetOracle =
-            AnchoredOracle(deployments.getAddress(string(abi.encodePacked(assetName, "_AnchoredOracle"))));
-        price = assetOracle.getQuote(10 ** ERC20(asset).decimals(), asset, USD);
+    function _getAssetPrice(address asset) internal returns (uint256 price) {
+        eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
+        price = eulerRouter.getQuote(10 ** ERC20(asset).decimals(), asset, USD);
     }
 
     /// GENERIC HELPER FUNCTIONS
