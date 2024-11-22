@@ -2559,7 +2559,7 @@ contract BasketManagerTest is BaseTest, Constants {
         for (uint256 i = 0; i < assetsPerBasket.length; i++) {
             bitFlags[i] = i + 1;
         }
-        _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts, bitFlags, strategies);
+        return _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts, bitFlags, strategies);
     }
 
     function _setupBasketsAndMocks(
