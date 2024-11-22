@@ -116,7 +116,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             ETH_SUSDE,
             "SUSDE",
             OracleOptions({
-                pythPriceFeed: PYTH_SUSE_USD_FEED,
+                pythPriceFeed: PYTH_SUSDE_USD_FEED,
                 pythMaxStaleness: 15 minutes,
                 pythMaxConfWidth: 100,
                 chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,

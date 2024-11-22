@@ -50,7 +50,7 @@ contract Constants {
     address public constant ETH_CHAINLINK_ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
 
     // SUSDE/USD
-    bytes32 public constant PYTH_SUSE_USD_FEED = 0xca3ba9a619a4b3755c10ac7d5e760275aa95e9823d38a84fedd416856cdba37c;
+    bytes32 public constant PYTH_SUSDE_USD_FEED = 0xca3ba9a619a4b3755c10ac7d5e760275aa95e9823d38a84fedd416856cdba37c;
     address public constant ETH_CHAINLINK_SUSDE_USD_FEED = 0xFF3BC18cCBd5999CE63E788A1c250a88626aD099;
 
     // weETH/ETH
