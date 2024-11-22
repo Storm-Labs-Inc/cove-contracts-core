@@ -79,7 +79,7 @@ contract IntegrationTest is BaseTest, Constants {
         pythPriceFeeds[3] = PYTH_RETH_USD_FEED;
         pythPriceFeeds[4] = PYTH_RSETH_USD_FEED;
         pythPriceFeeds[5] = PYTH_RETH_USD_FEED;
-        // TODO add rest of asset universe
+        // TODO: add rest of asset universe
 
         vm.label(PYTH, "PYTH_ORACLE_CONTRACT");
 
@@ -96,7 +96,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.label(ETH_CHAINLINK_RSETH_ETH_FEED, "ETH_CHAINLINK_RSETH_ETH_FEED");
         chainlinkOracles[5] = ETH_CHAINLINK_RETH_ETH_FEED;
         vm.label(ETH_CHAINLINK_RETH_ETH_FEED, "ETH_CHAINLINK_RETH_ETH_FEED");
-        // TODO add rest of asset universe
+        // TODO: add rest of asset universe
 
         address[] memory basketAssets = bm.basketAssets(bm.basketTokens()[0]);
         bitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(basketAssets);
