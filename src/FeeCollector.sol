@@ -45,7 +45,7 @@ contract FeeCollector is AccessControlEnumerable {
     event TreasurySet(address indexed treasury);
 
     /// ERRORS ///
-    /// @notice Thrown when attempting to set a sponsor fee split higher than 100%.
+    /// @notice Thrown when attempting to set a sponsor fee split higher than _MAX_FEE.
     error SponsorSplitTooHigh();
     /// @notice Thrown when attempting to set a sponsor fee split for a basket token with no sponsor.
     error NoSponsor();
