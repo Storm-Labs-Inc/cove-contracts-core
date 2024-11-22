@@ -66,14 +66,30 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     );
 
     /// ERRORS ///
+    /// @notice Thrown when attempting to execute a token swap without first proposing it.
     error TokenSwapNotProposed();
+    /// @notice Thrown when the call to `TokenSwapAdapter.executeTokenSwap` fails.
     error ExecuteTokenSwapFailed();
+    /// @notice Thrown when the provided hash does not match the expected hash.
+    /// @dev This error is used to validate the integrity of data passed between functions.
     error InvalidHash();
+    /// @notice Thrown when the provided external trades do not match the hash stored during the token swap proposal.
+    /// @dev This error prevents executing a token swap with different parameters than originally proposed.
     error ExternalTradesHashMismatch();
+    /// @notice Thrown when attempting to perform an action that requires no active rebalance.
+    /// @dev Certain actions, like setting the token swap adapter, are disallowed during an active rebalance.
     error MustWaitForRebalanceToComplete();
+    /// @notice Thrown when a caller attempts to access a function without proper authorization.
+    /// @dev This error is thrown when a caller lacks the required role to perform an action.
     error Unauthorized();
+    /// @notice Thrown when attempting to set an invalid management fee.
+    /// @dev The management fee must not exceed `_MAX_MANAGEMENT_FEE`.
     error InvalidManagementFee();
+    /// @notice Thrown when attempting to set an invalid swap fee.
+    /// @dev The swap fee must not exceed `_MAX_SWAP_FEE`.
     error InvalidSwapFee();
+    /// @notice Thrown when attempting to perform an action on a non-existent basket token.
+    /// @dev This error is thrown when the provided basket token is not in the `basketTokenToIndexPlusOne` mapping.
     error BasketTokenNotFound();
     error BitFlagMustBeDifferent();
     error BitFlagMustIncludeCurrent();
