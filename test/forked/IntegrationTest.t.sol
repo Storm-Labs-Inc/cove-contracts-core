@@ -11,6 +11,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -35,7 +37,7 @@ struct SurplusDeficit {
 
 // slither-disable-start cyclomatic-complexity
 contract IntegrationTest is BaseTest, Constants {
-    using Math for uint256;
+    using FixedPointMathLib for uint256;
 
     InternalTrade[] private tempInternalTrades;
     uint256 private internalTradeCount;
@@ -43,13 +45,16 @@ contract IntegrationTest is BaseTest, Constants {
     mapping(address => mapping(address => SurplusDeficit)) public surplusDeficitMap;
     // Mapping to track expected changes in balances for each basket and asset
     mapping(address => mapping(address => int256)) public expectedBalanceChanges;
+    mapping(address => mapping(address => int256)) public expectedFeeBalanceChanges;
 
     BasketManager public bm;
     Deployments public deployments;
     EulerRouter eulerRouter;
-    uint256 public bitFlag;
+    uint256 public baseBasketBitFlag;
     bytes32[] public pythPriceFeeds;
     address[] public chainlinkOracles;
+    // @dev First basket deployed should include all assets
+    address[] public baseBasketAssets;
 
     function setUp() public override {
         forkNetworkAt("mainnet", 21_238_272);
@@ -88,8 +93,8 @@ contract IntegrationTest is BaseTest, Constants {
         vm.label(ETH_CHAINLINK_RETH_ETH_FEED, "ETH_CHAINLINK_RETH_ETH_FEED");
         // TODO: add rest of asset universe
 
-        address[] memory basketAssets = bm.basketAssets(bm.basketTokens()[0]);
-        bitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(basketAssets);
+        baseBasketAssets = bm.basketAssets(bm.basketTokens()[0]);
+        baseBasketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(baseBasketAssets);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
     }
@@ -103,6 +108,11 @@ contract IntegrationTest is BaseTest, Constants {
         assertEq(bm.numOfBasketTokens(), 1);
     }
 
+    // Creates a new basket with only two assets. Deposits are randomly given to both baskets. The baset basket is
+    // rebalanced to have balances of all assets. New target weights are set to give an opportunity for the two
+    // baskets to trade internally. The solver is run to find these trades. An assertion is made to ensure an internal
+    // trade is present in the results. The final rebalance with the interal trade is executed and the final balances
+    // validated.
     function test_completeRebalance_internalTrades() public {
         // Create a new basket to trade into
         address[] memory newBasketAssets0 = new address[](2);
@@ -122,18 +132,18 @@ contract IntegrationTest is BaseTest, Constants {
             bm.createNewBasket("Test Basket0", "TEST0", address(ETH_SUSDE), basket0Bitflag, strategyAddress),
             "2AssetBasket0"
         );
-        // Deposits into both baskets as well as externally trade to get all assets in the base basket
+        // Completes two rebalances, one to process deposits and one to get balances of all assets in the base basket
         _baseBasket_completeRebalance_externalTrade();
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
         uint64[] memory newTargetWeights0 = new uint64[](2);
-        newTargetWeights0[0] = 0;
-        newTargetWeights0[1] = 1e18; // ETH_WEETH
+        newTargetWeights0[0] = 0; // 0% ETH_SUSDE
+        newTargetWeights0[1] = 1e18; // 100% ETH_WEETH
 
         uint64[] memory newTargetWeights = new uint64[](6);
-        newTargetWeights[0] = 0; // 50%
+        newTargetWeights[0] = 0; // 0%
         newTargetWeights[1] = 1e18; // 100 % add need for ETH_SUSDE
-        newTargetWeights[2] = 0; // 0% remove this baskets need for ETH_WEETH
+        newTargetWeights[2] = 0; // 0%
         newTargetWeights[3] = 0; // 0%
         newTargetWeights[4] = 0; // 0%
         newTargetWeights[5] = 0; // 0%
@@ -148,11 +158,10 @@ contract IntegrationTest is BaseTest, Constants {
 
         vm.startPrank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(basket0Bitflag, newTargetWeights0);
-        strategy.setTargetWeights(bitFlag, newTargetWeights);
+        strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
         vm.stopPrank();
 
         vm.prank(deployments.rebalanceProposer());
-        console.log("Proposing rebalance");
         bm.proposeRebalance(basketTokens);
 
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
@@ -177,75 +186,49 @@ contract IntegrationTest is BaseTest, Constants {
         bm.completeRebalance(externalTrades, basketTokens);
         // Rebalance has completed
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
-        // Capture current balances
-        uint256[][] memory currentBalances = new uint256[][](basketTokens.length);
-        for (uint256 i = 0; i < basketTokens.length; i++) {
-            address[] memory assets = bm.basketAssets(basketTokens[i]);
-            currentBalances[i] = new uint256[](assets.length);
-            for (uint256 j = 0; j < assets.length; j++) {
-                currentBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
-            }
-        }
         // Compare expected and actual balances
-        assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances, currentBalances));
+        assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
     }
 
+    // Completes an inital rebalance to process deposits, assets are 100% allocated to the baskets base asset. New
+    // target weights are proposed that require an enternal trade to reach. The call to the CoWSwap adapter is not made
+    // to simulate a failed trade. The rebalance is retried the max amount of times and then the same trades are
+    // proposed again. The rebalance is confirmed to complete regardless.
     function test_completeRebalance_retriesOnFailedTrade() public {
-        // Create a new basket to trade into
-        address[] memory newBasketAssets0 = new address[](2);
-        newBasketAssets0[0] = ETH_SUSDE;
-        newBasketAssets0[1] = ETH_WEETH;
         address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
-        uint256 basket0Bitflag = deployments.assetsToBitFlag(newBasketAssets0);
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory intitialTargetWeights0 = new uint64[](2);
         intitialTargetWeights0[0] = 1e18;
         intitialTargetWeights0[1] = 0;
 
-        vm.startPrank(GAUNTLET_STRATEGIST);
-        strategy.setTargetWeights(basket0Bitflag, intitialTargetWeights0);
-        vm.stopPrank();
-        vm.startPrank(deployments.admin());
-        vm.label(
-            bm.createNewBasket("Test Basket0", "TEST0", address(ETH_SUSDE), basket0Bitflag, strategyAddress),
-            "2AssetBasket0"
-        );
-        vm.stopPrank();
-        // Deposits into both baskets as well as externally trade to get all assets in the base basket
-        _baseBasket_completeRebalance_externalTrade();
+        // Completes a rebalance to process deposits, assets are 100% allocated to the baskets base asset
+        _completeRebalance_processDeposits(100, 100);
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
-        uint64[] memory newTargetWeights0 = new uint64[](2);
-        newTargetWeights0[0] = 0;
-        newTargetWeights0[1] = 1e18; // ETH_WEETH
-
         uint64[] memory newTargetWeights = new uint64[](6);
-        newTargetWeights[0] = 0; // 50%
+        newTargetWeights[0] = 0; // 0%
         newTargetWeights[1] = 1e18; // 100 % add need for ETH_SUSDE
-        newTargetWeights[2] = 0; // 0% remove this baskets need for ETH_WEETH
+        newTargetWeights[2] = 0; // 0%
         newTargetWeights[3] = 0; // 0%
         newTargetWeights[4] = 0; // 0%
         newTargetWeights[5] = 0; // 0%
 
-        uint64[][] memory newTargetWeightsTotal = new uint64[][](2);
+        uint64[][] memory newTargetWeightsTotal = new uint64[][](1);
         newTargetWeightsTotal[0] = newTargetWeights;
-        newTargetWeightsTotal[1] = newTargetWeights0;
 
         address[] memory basketTokens = bm.basketTokens();
 
         _updatePythOracleTimeStamps();
+        _updateChainLinkOraclesTimeStamp();
 
         vm.startPrank(GAUNTLET_STRATEGIST);
-        strategy.setTargetWeights(bitFlag, newTargetWeights);
-        strategy.setTargetWeights(basket0Bitflag, newTargetWeights0);
+        strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
         vm.stopPrank();
 
         vm.prank(deployments.rebalanceProposer());
-        console.log("Proposing rebalance");
         bm.proposeRebalance(basketTokens);
         // Retry the max amount of times
         for (uint256 retryNum = 0; retryNum < MAX_RETRIES; retryNum++) {
-            console.log("on retry number: ", retryNum);
             // Capture initial balances
             uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
             for (uint256 i = 0; i < basketTokens.length; i++) {
@@ -274,19 +257,8 @@ contract IntegrationTest is BaseTest, Constants {
             // Rebalance enters retry state
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
             assertEq(uint8(bm.retryCount()), retryNum + 1);
-            // Capture current balances
-            uint256[][] memory currentBalances = new uint256[][](basketTokens.length);
-            for (uint256 i = 0; i < basketTokens.length; i++) {
-                address[] memory assets = bm.basketAssets(basketTokens[i]);
-                currentBalances[i] = new uint256[](assets.length);
-                for (uint256 j = 0; j < assets.length; j++) {
-                    currentBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
-                }
-            }
             // Compare expected and actual balances
-            assert(
-                !_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances, currentBalances)
-            );
+            assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
         }
         // MAX_RETRIES has been reached propose the same swaps and confirm that rebalance finalizes successfully
         // Capture initial balances
@@ -308,26 +280,19 @@ contract IntegrationTest is BaseTest, Constants {
         bm.executeTokenSwap(externalTrades, "");
         // ensure trades still fail
         // _completeSwapAdapterTrades(externalTrades);
-
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         bm.completeRebalance(externalTrades, basketTokens);
         // Rebalance completes even thought target weights are not met
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
-        // Capture current balances
-        uint256[][] memory currentBalances = new uint256[][](basketTokens.length);
-        for (uint256 i = 0; i < basketTokens.length; i++) {
-            address[] memory assets = bm.basketAssets(basketTokens[i]);
-            currentBalances[i] = new uint256[](assets.length);
-            for (uint256 j = 0; j < assets.length; j++) {
-                currentBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
-            }
-        }
         // Compare expected and actual balances
-        assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals, currentBalances));
+        assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals));
     }
 
+    // Completes two rebalances, one to process deposits and one to get balances of all assets in the base basket. Then
+    // the price of one of the basket's assets is altered significantly. A rebalance is then propose with the same
+    // target weights as the previous epoch. The rebalance is confirmed to account for this change in price.
     function test_completeRebalance_rebalancesOnPriceChange() public {
         address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
@@ -337,11 +302,11 @@ contract IntegrationTest is BaseTest, Constants {
         // Propose same target weights as the previous epoch
         uint64[] memory newTargetWeights = new uint64[](6);
         newTargetWeights[0] = 5e17; // 50% ETH_WETH
-        newTargetWeights[1] = 1e17; // 50% ETH_SUSDE
-        newTargetWeights[2] = 1e17; // 0% ETH_WEETH
-        newTargetWeights[3] = 1e17; // 0% ETH_EZETH
-        newTargetWeights[4] = 1e17; // 0% ETH_RSETH
-        newTargetWeights[5] = 1e17; // 0% ETH_RETH
+        newTargetWeights[1] = 1e17; // 10% ETH_SUSDE
+        newTargetWeights[2] = 1e17; // 10% ETH_WEETH
+        newTargetWeights[3] = 1e17; // 10% ETH_EZETH
+        newTargetWeights[4] = 1e17; // 10% ETH_RSETH
+        newTargetWeights[5] = 1e17; // 10% ETH_RETH
 
         uint64[][] memory newTargetWeightsTotal = new uint64[][](1);
         newTargetWeightsTotal[0] = newTargetWeights;
@@ -351,10 +316,10 @@ contract IntegrationTest is BaseTest, Constants {
         _updatePythOracleTimeStamps();
 
         vm.startPrank(GAUNTLET_STRATEGIST);
-        strategy.setTargetWeights(bitFlag, newTargetWeights);
+        strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
         vm.stopPrank();
 
-        _alterOraclePrice(PYTH_SUSE_USD_FEED, ETH_CHAINLINK_SUSDE_USD_FEED, 600); // reduce SUSDE price by 50%
+        _alterOraclePrice(PYTH_SUSE_USD_FEED, ETH_CHAINLINK_SUSDE_USD_FEED, 600); // reduce SUSDE price by 40%
 
         // Confirm that only price change is enough to trigger a rebalance
         vm.prank(deployments.rebalanceProposer());
@@ -398,45 +363,59 @@ contract IntegrationTest is BaseTest, Constants {
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
-    // Validates that basketBalanceOf is correctly updated with results of trading, returns true balances are correctly
-    // updated
+    // Validates that basketBalanceOf is correctly updated with results of trading, returns true if balances are
+    // correctly updated
     function _validateTradeResults(
         InternalTrade[] memory internalTrades,
         ExternalTrade[] memory externalTrades,
         address[] memory basketTokens,
-        uint256[][] memory initialBalances,
-        uint256[][] memory currentBalances
+        uint256[][] memory initialBalances
     )
+        // TODO: include validating collected fee amounts
+        // uint256[] memory initialFeeBalances,
+        // uint256[] memory currentFeeBalances
         internal
         returns (bool)
     {
-        // Reset the expected balance changes mapping
+        uint256[][] memory currentBalances = new uint256[][](basketTokens.length);
+        // Reset the expected balance changes mapping and capture current balances
         for (uint256 i = 0; i < basketTokens.length; i++) {
             address[] memory assets = bm.basketAssets(basketTokens[i]);
+            currentBalances[i] = new uint256[](assets.length);
             for (uint256 j = 0; j < assets.length; j++) {
                 expectedBalanceChanges[basketTokens[i]][assets[j]] = 0;
+                expectedFeeBalanceChanges[basketTokens[i]][assets[j]] = 0;
+                currentBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
 
+        uint256 swapFee = bm.swapFee();
         // Process internal trades
         for (uint256 i = 0; i < internalTrades.length; i++) {
             InternalTrade memory trade = internalTrades[i];
+            uint256 swapFeeAmount = trade.sellAmount.fullMulDiv(swapFee, 2e4);
+            uint256 netSellAmount = trade.sellAmount - swapFeeAmount;
+            uint256 usdBuyAmount = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, USD);
+            uint256 buyAmount = eulerRouter.getQuote(usdBuyAmount, USD, trade.buyToken);
+            uint256 netBuyAmount = buyAmount - buyAmount.fullMulDiv(swapFee, 2e4);
             // Decrease the balance of the sell token in the fromBasket
             expectedBalanceChanges[trade.fromBasket][trade.sellToken] -= int256(trade.sellAmount);
-            expectedBalanceChanges[trade.fromBasket][trade.buyToken] += int256(trade.minAmount);
+            expectedBalanceChanges[trade.fromBasket][trade.buyToken] += int256(netBuyAmount);
             // Increase the balance of the buy token in the toBasket
-            expectedBalanceChanges[trade.toBasket][trade.buyToken] -= int256(trade.minAmount);
-            expectedBalanceChanges[trade.toBasket][trade.sellToken] += int256(trade.sellAmount);
+            expectedBalanceChanges[trade.toBasket][trade.buyToken] -= int256(buyAmount);
+            expectedBalanceChanges[trade.toBasket][trade.sellToken] += int256(netSellAmount);
         }
 
         // Process external trades
         for (uint256 i = 0; i < externalTrades.length; i++) {
             ExternalTrade memory trade = externalTrades[i];
+            uint256 usdBuyAmount = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, USD);
+            uint256 buyAmount = eulerRouter.getQuote(usdBuyAmount, USD, trade.buyToken);
             for (uint256 j = 0; j < trade.basketTradeOwnership.length; j++) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 // Calculate the portion of the trade for this basket
                 uint256 basketSellAmount = (trade.sellAmount * ownership.tradeOwnership) / 1e18;
-                uint256 basketBuyAmount = (trade.minAmount * ownership.tradeOwnership) / 1e18;
+                uint256 basketBuyAmount = (buyAmount * ownership.tradeOwnership) / 1e18;
                 // Decrease the balance of the sell token in the basket
                 expectedBalanceChanges[ownership.basket][trade.sellToken] -= int256(basketSellAmount);
                 // Increase the balance of the buy token in the basket
@@ -450,19 +429,13 @@ contract IntegrationTest is BaseTest, Constants {
             for (uint256 j = 0; j < assets.length; j++) {
                 int256 expectedChange = expectedBalanceChanges[basketTokens[i]][assets[j]];
                 int256 actualChange = int256(currentBalances[i][j]) - int256(initialBalances[i][j]);
-
-                // Calculate the allowed tolerance (6% of the expected change)
-                int256 tolerance = (expectedChange * 6e16) / 1e18;
-
-                // Check if the actual change is within the tolerance
-                if (expectedChange > 0) {
-                    if (actualChange < expectedChange - tolerance || actualChange > expectedChange + tolerance) {
-                        return false; // Mismatch found
-                    }
-                } else {
-                    if (actualChange < expectedChange + tolerance || actualChange > expectedChange - tolerance) {
-                        return false; // Mismatch found
-                    }
+                if (actualChange != expectedChange) {
+                    console.log("expectedChange does not match actual change");
+                    console.log("basket: ", basketTokens[i]);
+                    console.log("asset: ", assets[j]);
+                    console.log("actualChange: ", actualChange);
+                    console.log("expectedChange: ", expectedChange);
+                    return false;
                 }
             }
         }
@@ -493,7 +466,7 @@ contract IntegrationTest is BaseTest, Constants {
         ManagedWeightStrategy strategy =
             ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
         vm.prank(GAUNTLET_STRATEGIST);
-        strategy.setTargetWeights(bitFlag, newTargetWeights);
+        strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
 
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
@@ -576,12 +549,6 @@ contract IntegrationTest is BaseTest, Constants {
         // Update the surplusDeficitMap for each asset to keep track of the surplus and deficits across baskets
         for (uint256 i = 0; i < assetCount; ++i) {
             if (surplusUSD[i] > 0 || deficitUSD[i] > 0) {
-                console.log("Surplus/Deficit found");
-                console.log("Asset:", basketAssets[i]);
-                console.log("Basket:", basketToken);
-                console.log("Surplus USD:", surplusUSD[i]);
-                console.log("basketBalanceOf :", bm.basketBalanceOf(basketToken, basketAssets[i]));
-                console.log("Deficit USD:", deficitUSD[i]);
                 surplusDeficitMap[basketAssets[i]][basketToken] =
                     SurplusDeficit({ surplusUSD: surplusUSD[i], deficitUSD: deficitUSD[i] });
             }
@@ -607,8 +574,6 @@ contract IntegrationTest is BaseTest, Constants {
                 continue;
             }
             currentValuesUSD[i] = eulerRouter.getQuote(balance, basketAssets[i], USD);
-            console.log("basket balanceOf: ", balance);
-            console.log("usdValue :", currentValuesUSD[i]);
             totalValueUSD += currentValuesUSD[i];
         }
     }
@@ -730,13 +695,6 @@ contract IntegrationTest is BaseTest, Constants {
             minAmount: (minAmount * 95) / 100,
             maxAmount: (minAmount * 105) / 100
         });
-
-        console.log("Two-sided Internal Trade Found:");
-        console.log("From Basket:", trade.fromBasket);
-        console.log("To Basket:", trade.toBasket);
-        console.log("Sell Token:", trade.sellToken);
-        console.log("Buy Token:", trade.buyToken);
-        console.log("Amount:", trade.sellAmount);
 
         tempInternalTrades.push(trade);
         internalTradeCount++;
@@ -960,7 +918,6 @@ contract IntegrationTest is BaseTest, Constants {
 
     // Airdrops the tokens involved in an external trade to the mockTradeAdapter to simulate cowswap completing a trade
     // order.
-    // Remove forcowswap adapter implementation use as will be in prod, just mint needed token to cloned contract
     function _completeSwapAdapterTrades(ExternalTrade[] memory trades) internal {
         uint32 validTo = uint32(vm.getBlockTimestamp() + 15 minutes);
         for (uint256 i = 0; i < trades.length; ++i) {
@@ -969,12 +926,13 @@ contract IntegrationTest is BaseTest, Constants {
                 keccak256(abi.encodePacked(trade.sellToken, trade.buyToken, trade.sellAmount, trade.minAmount, validTo));
             address swapContract = _predictDeterministicAddress(salt, address(bm));
             takeAway(IERC20(trade.sellToken), swapContract, trade.sellAmount);
-            // Find price from euler oracle
+            uint256 usdBuyAmount = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, USD);
+            uint256 buyAmount = eulerRouter.getQuote(usdBuyAmount, USD, trade.buyToken);
 
             if (trade.buyToken == ETH_WETH) {
-                airdrop(IERC20(trade.buyToken), swapContract, trade.minAmount, false);
+                airdrop(IERC20(trade.buyToken), swapContract, buyAmount, false);
             } else {
-                airdrop(IERC20(trade.buyToken), swapContract, trade.minAmount);
+                airdrop(IERC20(trade.buyToken), swapContract, buyAmount);
             }
         }
     }
