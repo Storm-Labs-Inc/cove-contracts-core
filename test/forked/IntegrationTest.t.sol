@@ -111,7 +111,7 @@ contract IntegrationTest is BaseTest, Constants {
     // Creates a new basket with only two assets. Deposits are randomly given to both baskets. The baset basket is
     // rebalanced to have balances of all assets. New target weights are set to give an opportunity for the two
     // baskets to trade internally. The solver is run to find these trades. An assertion is made to ensure an internal
-    // trade is present in the results. The final rebalance with the interal trade is executed and the final balances
+    // trade is present in the results. The final rebalance with the internal trade is executed and the final balances
     // validated.
     function test_completeRebalance_internalTrades() public {
         // 1. A new basket is created with assets ETH_SUSDE and ETH_WEETH
@@ -165,7 +165,7 @@ contract IntegrationTest is BaseTest, Constants {
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
 
-        // 4. Tokenswaps are proposed with at least 1 guarenteed internal trade.
+        // 4. Tokenswaps are proposed with at least 1 guaranteed internal trade.
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
             _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
         assert(internalTrades.length > 0);
@@ -194,7 +194,7 @@ contract IntegrationTest is BaseTest, Constants {
         assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
     }
 
-    // Completes an inital rebalance to process deposits, assets are 100% allocated to the baskets base asset. New
+    // Completes an initial rebalance to process deposits, assets are 100% allocated to the baskets base asset. New
     // target weights are proposed that require an external trade to reach. The call to the CoWSwap adapter is not made
     // to simulate a failed trade. The rebalance is retried the max amount of times and then the same trades are
     // proposed again. The rebalance is confirmed to complete regardless.
