@@ -5,17 +5,16 @@ import { Test } from "forge-std/Test.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import { BaseTest } from "test/utils/BaseTest.t.sol";
+
 import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapAdapter } from "src/swap_adapters/CoWSwapAdapter.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
 import { BasketTradeOwnership, ExternalTrade } from "src/types/Trades.sol";
 
-contract CoWSwapAdapterTest is Test {
+contract CoWSwapAdapterTest is BaseTest {
     CoWSwapAdapter private adapter;
     address internal constant _VAULT_RELAYER = 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110;
-    /// @dev Hash of the `_PROXY_INITCODE`.
-    /// Equivalent to `keccak256(abi.encodePacked(hex"67363d3d37363d34f03d5260086018f3"))`.
-    bytes32 internal constant _PROXY_INITCODE_HASH = 0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f;
     address internal clone;
 
     struct ExternalTradeWithoutBasketOwnership {
@@ -25,7 +24,7 @@ contract CoWSwapAdapterTest is Test {
         uint256 minAmount;
     }
 
-    function setUp() public {
+    function setUp() public override {
         // Deploy the CoWSwapAdapter contract
         clone = address(new CoWSwapClone());
         adapter = new CoWSwapAdapter(clone);
@@ -116,27 +115,6 @@ contract CoWSwapAdapterTest is Test {
         for (uint256 i = 0; i < externalTrades.length; i++) {
             assertEq(claimedAmounts[i][0], externalTrades[i].sellAmount, "Incorrect claimed sell amount");
             assertEq(claimedAmounts[i][1], externalTrades[i].minAmount, "Incorrect claimed buy amount");
-        }
-    }
-
-    /// @dev Returns the deterministic address for `salt` with `deployer`.
-    function _predictDeterministicAddress(bytes32 salt, address deployer) internal pure returns (address deployed) {
-        /// @solidity memory-safe-assembly
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            let m := mload(0x40) // Cache the free memory pointer.
-            mstore(0x00, deployer) // Store `deployer`.
-            mstore8(0x0b, 0xff) // Store the prefix.
-            mstore(0x20, salt) // Store the salt.
-            mstore(0x40, _PROXY_INITCODE_HASH) // Store the bytecode hash.
-
-            mstore(0x14, keccak256(0x0b, 0x55)) // Store the proxy's address.
-            mstore(0x40, m) // Restore the free memory pointer.
-            // 0xd6 = 0xc0 (short RLP prefix) + 0x16 (length of: 0x94 ++ proxy ++ 0x01).
-            // 0x94 = 0x80 + 0x14 (0x14 = the length of an address, 20 bytes, in hex).
-            mstore(0x00, 0xd694)
-            mstore8(0x34, 0x01) // Nonce of the proxy contract (1).
-            deployed := and(keccak256(0x1e, 0x17), 0xffffffffffffffffffffffffffffffffffffffff)
         }
     }
 }
