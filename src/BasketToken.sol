@@ -42,16 +42,25 @@ contract BasketToken is
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
 
+    /// @notice Struct representing a deposit request.
     struct DepositRequestStruct {
+        // Mapping of controller addresses to their deposited asset amounts.
         mapping(address controller => uint256 assets) depositAssets;
+        // Total amount of assets deposited in this request.
         uint256 totalDepositAssets;
+        // Number of shares fulfilled for this deposit request.
         uint256 fulfilledShares;
     }
 
+    /// @notice Struct representing a redeem request.
     struct RedeemRequestStruct {
+        // Mapping of controller addresses to their shares to be redeemed.
         mapping(address controller => uint256 shares) redeemShares;
+        // Total number of shares to be redeemed in this request.
         uint256 totalRedeemShares;
+        // Amount of assets fulfilled for this redeem request.
         uint256 fulfilledAssets;
+        // Flag indicating if the fallback redemption process has been triggered.
         bool fallbackTriggered;
     }
 
@@ -95,24 +104,53 @@ contract BasketToken is
     /// @param shares The number of shares redeemed.
     /// @param assets The amount of assets returned to the user.
     event RedeemFulfilled(uint256 indexed requestId, uint256 shares, uint256 assets);
+    /// @notice Emitted when the bitflag is updated to a new value.
+    /// @param oldBitFlag The previous bitflag value.
+    /// @param newBitFlag The new bitflag value.
+    event BitFlagUpdated(uint256 oldBitFlag, uint256 newBitFlag);
 
     /// ERRORS ///
+    /// @notice Thrown when there are no pending deposits to fulfill.
     error ZeroPendingDeposits();
+    /// @notice Thrown when there are no pending redeems to fulfill.
     error ZeroPendingRedeems();
+    /// @notice Thrown when attempting to request a deposit or redeem while one or more of the basket's assets are
+    /// paused in the AssetRegistry.
     error AssetPaused();
+    /// @notice Thrown when attempting to request a new deposit while the user has an outstanding claimable deposit from
+    /// a previous request. The user must first claim the outstanding deposit.
     error MustClaimOutstandingDeposit();
+    /// @notice Thrown when attempting to request a new redeem while the user has an outstanding claimable redeem from a
+    /// previous request. The user must first claim the outstanding redeem.
     error MustClaimOutstandingRedeem();
+    /// @notice Thrown when attempting to claim a partial amount of an outstanding deposit or redeem. The user must
+    /// claim the full claimable amount.
     error MustClaimFullAmount();
+    /// @notice Thrown when the basket manager attempts to fulfill a deposit request with zero shares.
     error CannotFulfillWithZeroShares();
+    /// @notice Thrown when the basket manager attempts to fulfill a redeem request with zero assets.
     error CannotFulfillWithZeroAssets();
+    /// @notice Thrown when attempting to claim fallback shares when none are available.
     error ZeroClaimableFallbackShares();
+    /// @notice Thrown when a non-authorized address attempts to request a deposit or redeem on behalf of another user
+    /// who has not approved them as an operator.
     error NotAuthorizedOperator();
+    /// @notice Thrown when an address other than the basket manager attempts to call a basket manager only function.
     error NotBasketManager();
+    /// @notice Thrown when attempting to set an invalid management fee percentage greater than the maximum allowed.
     error InvalidManagementFee();
+    /// @notice Thrown when the basket manager attempts to fulfill a deposit request that has already been fulfilled.
     error DepositRequestAlreadyFulfilled();
+    /// @notice Thrown when the basket manager attempts to fulfill a redeem request that has already been fulfilled.
     error RedeemRequestAlreadyFulfilled();
+    /// @notice Thrown when the basket manager attempts to trigger the fallback for a redeem request that has already
+    /// been put in fallback state.
     error RedeemRequestAlreadyFallbacked();
+    /// @notice Thrown when attempting to prepare for a new rebalance before the previous epoch's deposit request has
+    /// been fulfilled.
     error PreviousDepositRequestNotFulfilled();
+    /// @notice Thrown when attempting to prepare for a new rebalance before the previous epoch's redeem request has
+    /// been fulfilled or put in fallback state.
     error PreviousRedeemRequestNotFulfilled();
 
     /// @notice Disables initializer functions.
@@ -364,6 +402,16 @@ contract BasketToken is
         // Interactions
         // transfer the assets to the basket manager
         IERC20(asset()).safeTransfer(msg.sender, assets);
+    }
+
+    /// @notice Sets the new bitflag for the basket.
+    /// @dev This can only be called by the Basket Manager therefore we assume that the new bitflag is valid.
+    /// @param bitFlag_ The new bitflag.
+    function setBitFlag(uint256 bitFlag_) public {
+        _onlyBasketManager();
+        uint256 oldBitFlag = bitFlag;
+        bitFlag = bitFlag_;
+        emit BitFlagUpdated(oldBitFlag, bitFlag_);
     }
 
     /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the

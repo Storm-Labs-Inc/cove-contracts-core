@@ -8,10 +8,13 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
+import { AssetRegistry } from "src/AssetRegistry.sol";
+import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
@@ -57,17 +60,41 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     event ManagementFeeSet(address indexed basket, uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
+    /// @notice Emitted when the bitFlag of a basket is updated.
+    event BasketBitFlagUpdated(
+        address indexed basket, uint256 oldBitFlag, uint256 newBitFlag, bytes32 oldId, bytes32 newId
+    );
 
     /// ERRORS ///
+    /// @notice Thrown when attempting to execute a token swap without first proposing it.
     error TokenSwapNotProposed();
+    /// @notice Thrown when the call to `TokenSwapAdapter.executeTokenSwap` fails.
     error ExecuteTokenSwapFailed();
+    /// @notice Thrown when the provided hash does not match the expected hash.
+    /// @dev This error is used to validate the integrity of data passed between functions.
     error InvalidHash();
+    /// @notice Thrown when the provided external trades do not match the hash stored during the token swap proposal.
+    /// @dev This error prevents executing a token swap with different parameters than originally proposed.
     error ExternalTradesHashMismatch();
+    /// @notice Thrown when attempting to perform an action that requires no active rebalance.
+    /// @dev Certain actions, like setting the token swap adapter, are disallowed during an active rebalance.
     error MustWaitForRebalanceToComplete();
+    /// @notice Thrown when a caller attempts to access a function without proper authorization.
+    /// @dev This error is thrown when a caller lacks the required role to perform an action.
     error Unauthorized();
+    /// @notice Thrown when attempting to set an invalid management fee.
+    /// @dev The management fee must not exceed `_MAX_MANAGEMENT_FEE`.
     error InvalidManagementFee();
+    /// @notice Thrown when attempting to set an invalid swap fee.
+    /// @dev The swap fee must not exceed `_MAX_SWAP_FEE`.
     error InvalidSwapFee();
+    /// @notice Thrown when attempting to perform an action on a non-existent basket token.
+    /// @dev This error is thrown when the provided basket token is not in the `basketTokenToIndexPlusOne` mapping.
     error BasketTokenNotFound();
+    error BitFlagMustBeDifferent();
+    error BitFlagMustIncludeCurrent();
+    error BitFlagUnsupportedByStrategy();
+    error BasketIdAlreadyExists();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -143,6 +170,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     }
 
     /// @notice Returns the basket token address with the given basketId.
+    /// @dev The basketId is the keccak256 hash of the bitFlag and strategy address.
     /// @param basketId Basket ID.
     function basketIdToAddress(bytes32 basketId) external view returns (address) {
         return _bmStorage.basketIdToAddress[basketId];
@@ -408,6 +436,42 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             _bmStorage.collectedSwapFees[asset] = 0;
             IERC20(asset).safeTransfer(FeeCollector(_bmStorage.feeCollector).protocolTreasury(), collectedFees);
         }
+    }
+
+    /// @notice Updates the bitFlag for the given basket.
+    /// @param basket Address of the basket.
+    /// @param bitFlag New bitFlag. It must be inclusive of the current bitFlag.
+    function updateBitFlag(address basket, uint256 bitFlag) external onlyRole(_TIMELOCK_ROLE) {
+        // Checks
+        // Check if basket exists
+        uint256 indexPlusOne = _bmStorage.basketTokenToIndexPlusOne[basket];
+        if (indexPlusOne == 0) {
+            revert BasketTokenNotFound();
+        }
+        uint256 currentBitFlag = BasketToken(basket).bitFlag();
+        if (currentBitFlag == bitFlag) {
+            revert BitFlagMustBeDifferent();
+        }
+        // Check if the new bitFlag is inclusive of the current bitFlag
+        if ((currentBitFlag & bitFlag) != currentBitFlag) {
+            revert BitFlagMustIncludeCurrent();
+        }
+        address strategy = BasketToken(basket).strategy();
+        if (!WeightStrategy(strategy).supportsBitFlag(bitFlag)) {
+            revert BitFlagUnsupportedByStrategy();
+        }
+        bytes32 newId = keccak256(abi.encodePacked(bitFlag, strategy));
+        if (_bmStorage.basketIdToAddress[newId] != address(0)) {
+            revert BasketIdAlreadyExists();
+        }
+        // Remove the old bitFlag mapping and add the new bitFlag mapping
+        bytes32 oldId = keccak256(abi.encodePacked(currentBitFlag, strategy));
+        _bmStorage.basketIdToAddress[oldId] = address(0);
+        _bmStorage.basketIdToAddress[newId] = basket;
+        _bmStorage.basketAssets[basket] = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        emit BasketBitFlagUpdated(basket, currentBitFlag, bitFlag, oldId, newId);
+        // Update the bitFlag in the BasketToken contract
+        BasketToken(basket).setBitFlag(bitFlag);
     }
 
     /// PAUSING FUNCTIONS ///

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { console } from "forge-std/console.sol";
-
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -665,13 +663,12 @@ library BasketManagerUtils {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 address basket = ownership.basket;
                 // Account for bought tokens
-                // TODO: confirm if this is the correct index
                 self.basketBalanceOf[basket][trade.buyToken] +=
-                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Account for sold tokens
                 self.basketBalanceOf[basket][trade.sellToken] = self.basketBalanceOf[basket][trade.sellToken]
-                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, 1e18)
-                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, _WEIGHT_PRECISION)
+                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 unchecked {
                     // Overflow not possible: i is less than tradeOwnerShipLength.length
                     ++j;
@@ -852,9 +849,9 @@ library BasketManagerUtils {
                 ownershipInfo.sellTokenAssetIndex =
                     basketTokenToRebalanceAssetToIndex(self, ownership.basket, trade.sellToken);
                 uint256 ownershipSellAmount =
-                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 uint256 ownershipBuyAmount =
-                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Record changes in basket asset holdings due to the external trade
                 if (
                     ownershipSellAmount
@@ -886,7 +883,7 @@ library BasketManagerUtils {
 
             // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
             if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
+                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
                     revert ExternalTradeSlippage();
                 }
             }
@@ -931,14 +928,10 @@ library BasketManagerUtils {
                 uint256 assetValueInUSD =
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                  self.eulerRouter.getQuote(afterTradeAmounts_[i][j], asset, _USD_ISO_4217_CODE);
-                console.log("asset, assetValueInUSD: ", asset, assetValueInUSD);
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValue_[i]);
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
-                    console.log("basket, asset: ", basket, asset);
-                    console.log("proposedTargetWeights[%s]: %s", j, proposedTargetWeights[j]);
-                    console.log("afterTradeWeight: %s, usdValue: %s", afterTradeWeight, assetValueInUSD);
                     return false;
                 }
                 unchecked {
@@ -984,7 +977,6 @@ library BasketManagerUtils {
                 self.eulerRouter.getQuote(pendingDeposit, self.basketAssets[basket][baseAssetIndex], _USD_ISO_4217_CODE);
             // Rounding direction: down
             // Division-by-zero is not possible: basketValue is greater than 0
-            console.log("basket value: ", basketValue);
             uint256 requiredDepositShares = basketValue > 0
                 ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
                 : pendingDeposit;
@@ -1064,7 +1056,10 @@ library BasketManagerUtils {
             balances[j] = self.basketBalanceOf[basket][assets[j]];
             // Rounding direction: down
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+            if (balances[j] > 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+            }
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;
@@ -1088,8 +1083,6 @@ library BasketManagerUtils {
     {
         uint256 assetsLength = assets.length;
         for (uint256 j = 0; j < assetsLength;) {
-            console.log("balances[%s]: %s", j, balances[j]);
-            console.log("targetBalances[%s]: %s", j, targetBalances[j]);
             // slither-disable-start calls-loop
             if (
                 MathUtils.diff(balances[j], targetBalances[j]) > 0 // nosemgrep

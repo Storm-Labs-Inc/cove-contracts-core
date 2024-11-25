@@ -50,7 +50,7 @@ contract Constants {
     address public constant ETH_CHAINLINK_ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
 
     // SUSDE/USD
-    bytes32 public constant PYTH_SUSE_USD_FEED = 0xca3ba9a619a4b3755c10ac7d5e760275aa95e9823d38a84fedd416856cdba37c;
+    bytes32 public constant PYTH_SUSDE_USD_FEED = 0xca3ba9a619a4b3755c10ac7d5e760275aa95e9823d38a84fedd416856cdba37c;
     address public constant ETH_CHAINLINK_SUSDE_USD_FEED = 0xFF3BC18cCBd5999CE63E788A1c250a88626aD099;
 
     // weETH/ETH
@@ -58,10 +58,12 @@ contract Constants {
     address public constant ETH_CHAINLINK_WEETH_ETH_FEED = 0x5c9C449BbC9a6075A2c061dF312a35fd1E05fF22;
 
     // ezETH/ETH
+    // TODO: pyth price feed not found
     bytes32 public constant PYTH_EZETH_USD_FEED = 0x06c217a791f5c4f988b36629af4cb88fad827b2485400a358f3b02886b54de92;
     address public constant ETH_CHAINLINK_EZETH_ETH_FEED = 0x636A000262F6aA9e1F094ABF0aD8f645C44f641C;
 
     // rsETH/ETH
+    // TODO: pyth price feed not found
     bytes32 public constant PYTH_RSETH_USD_FEED = 0x0caec284d34d836ca325cf7b3256c078c597bc052fbd3c0283d52b581d68d71f;
     address public constant ETH_CHAINLINK_RSETH_ETH_FEED = 0x03c68933f7a3F76875C0bc670a58e69294cDFD01;
 
@@ -69,11 +71,21 @@ contract Constants {
     bytes32 public constant PYTH_RETH_USD_FEED = 0xa0255134973f4fdf2f8f7808354274a3b1ebc6ee438be898d045e8b56ba1fe13;
     address public constant ETH_CHAINLINK_RETH_ETH_FEED = 0x536218f9E9Eb48863970252233c8F271f554C2d0;
 
-    // GHO/USD : TODO pyth oracle returns no data
+    // wBTC/BTC
+    bytes32 public constant PYTH_WBTC_USD_FEED = 0xc9d8b075a5c69303365ae23633d4e085199bf5c520a3b90fed1322a0342ffc33;
+    address public constant ETH_CHAINLINK_WBTC_BTC_FEED = 0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23;
+
+    // tBTC/BTC
+    bytes32 public constant PYTH_TBTC_USD_FEED = 0x56a3121958b01f99fdc4e1fd01e81050602c7ace3a571918bb55c6a96657cca9;
+    address public constant ETH_CHAINLINK_TBTC_BTC_FEED = 0x8350b7De6a6a2C1368E7D4Bd968190e13E354297;
+
+    // GHO/USD
+    // TODO: pyth price feed not found
     bytes32 public constant PYTH_GHO_USD_FEED = 0x2a0e948f637a8c251d9f06055e72eb4b3880dd57848bbdb02993c8165d7df4ee;
     address public constant ETH_CHAINLINK_GHO_USD_FEED = 0x3f12643D3f6f874d39C2a4c9f2Cd6f2DbAC877FC;
 
-    // cbBTC/USD : TODO pyth oracle returns no data
+    // cbBTC/USD
+    // TODO: pyth price feed not found
     bytes32 public constant PYTH_CBBTC_USD_FEED = 0x2817d7bfe5c64b8ea956e9a26f573ef64e72e4d7891f2d6af9bcc93f7aff9a97;
     address public constant ETH_CHAINLINK_CBBTC_USD_FEED = 0x2665701293fCbEB223D11A08D826563EDcCE423A;
 
@@ -86,6 +98,7 @@ contract Constants {
     uint16 public constant MAX_MANAGEMENT_FEE = 1e4;
     uint16 public constant MAX_SWAP_FEE = 30;
     uint8 public constant MAX_RETRIES = 3;
+    uint256 public constant REBALANCE_COOLDOWN_SEC = 1 hours;
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
