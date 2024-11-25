@@ -81,10 +81,9 @@ contract AnchoredOracleTest is BaseTest {
     }
 
     function testFuzz_getQuote_withinThreshold(uint256 inAmount, address base, address quote, uint256 price) public {
-        // bound to prevent overflow in MockPriceOracle
-        // TODO: what is the lowest value we can use as a bounds?
+        // bound to prevent overflow in MockPriceOracle and meaningful calculation of lower bound at high prices
         inAmount = bound(inAmount, 1e18, type(uint128).max);
-        price = bound(price, 1e18, type(uint128).max);
+        price = bound(price, 0, type(uint128).max);
         primary.setPrice(base, quote, price);
         uint256 primaryOut = primary.getQuote(inAmount, base, quote);
 
@@ -108,10 +107,10 @@ contract AnchoredOracleTest is BaseTest {
     }
 
     function testFuzz_getQuote_exceedsThreshold(uint256 inAmount, address base, address quote, uint256 price) public {
-        // bound to prevent overflow in MockPriceOracle
-        // TODO: what is the lowest value we can use as a bounds?
+        // bound to prevent overflow in MockPriceOracle, and meaningful calculation of lower bound at high prices
         inAmount = bound(inAmount, 1e18, type(uint128).max);
-        price = bound(price, 1e18, type(uint128).max);
+        // bound to ensure test case does not underflow when calculating new anchorPrice
+        price = bound(price, 3, type(uint128).max);
 
         // set the primary price normally
         primary.setPrice(base, quote, price);
