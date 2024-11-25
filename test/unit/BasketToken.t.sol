@@ -480,7 +480,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Check state
         uint256 lostShares = basket.balanceOf(address(basket));
-        // TODO: establish max loss of shares in edge cases
+        // @audit Guidance on how to establish the max loss of shares in edge cases
         assertLe(
             lostShares.fullMulDiv(1e18, issuedShares), 1e18, "Lost shares should be less than 100% of the issued shares"
         );
@@ -521,7 +521,7 @@ contract BasketTokenTest is BaseTest, Constants {
 
         // Check state
         uint256 lostShares = basket.balanceOf(address(basket));
-        // TODO: establish max loss of shares in edge cases
+        // @audit Guidance on how to establish the max loss of shares in edge cases
         assertLe(
             lostShares.fullMulDiv(1e18, issuedShares), 1e18, "Lost shares should be less than 100% of the issued shares"
         );
