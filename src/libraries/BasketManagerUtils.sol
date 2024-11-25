@@ -558,7 +558,8 @@ library BasketManagerUtils {
         // slither-disable-start calls-loop
         uint256 len = baskets.length;
         for (uint256 i = 0; i < len;) {
-            // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
+            // NOTE: Can be optimized by using calldata for the `baskets` parameter or by moving the
+            // redemption processing logic to a ZK coprocessor like Axiom for improved efficiency and scalability.
             address basket = baskets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = self.basketAssets[basket];

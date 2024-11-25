@@ -28,9 +28,8 @@ contract Constants {
     address public constant USD = address(840); // USD ISO 4217 currency code
     address public constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
 
-    // EXTERNAL WEGHT STRATEGISTS
-    // TODO: Update this address
-    address public constant GAUNTLET_STRATEGIST = 0x00000000000000000000000000000000DeaDBeef;
+    // EXTERNAL WEIGHT STRATEGISTS
+    address public constant GAUNTLET_STRATEGIST = 0x581678F6D676dbD0ba57251324613aB48E9E28Db;
 
     // ASSET ADDRESSES
     address public constant ETH_CBBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
