@@ -423,8 +423,8 @@ contract IntegrationTest is BaseTest, Constants {
             for (uint256 j = 0; j < trade.basketTradeOwnership.length; j++) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 // Calculate the portion of the trade for this basket
-                uint256 basketSellAmount = (trade.sellAmount * ownership.tradeOwnership) / 1e18;
-                uint256 basketBuyAmount = (buyAmount * ownership.tradeOwnership) / 1e18;
+                uint256 basketSellAmount = trade.sellAmount.fullMulDiv(ownership.tradeOwnership, 1e18);
+                uint256 basketBuyAmount = buyAmount.fullMulDiv(ownership.tradeOwnership, 1e18);
                 // Decrease the balance of the sell token in the basket
                 expectedBalanceChanges[ownership.basket][trade.sellToken] -= int256(basketSellAmount);
                 // Increase the balance of the buy token in the basket
@@ -599,7 +599,7 @@ contract IntegrationTest is BaseTest, Constants {
         uint256 assetCount = newTargetWeights.length;
         desiredValuesUSD = new uint256[](assetCount);
         for (uint256 i = 0; i < assetCount; ++i) {
-            desiredValuesUSD[i] = (totalValueUSD * uint256(newTargetWeights[i])) / 1e18;
+            desiredValuesUSD[i] = totalValueUSD.fullMulDiv(uint256(newTargetWeights[i]), 1e18);
         }
     }
 
@@ -693,7 +693,8 @@ contract IntegrationTest is BaseTest, Constants {
         if (tradeUSD == 0) return;
 
         uint256 sellAmount = _valueToAmount(asset, tradeUSD);
-        uint256 minAmount = tradeUSD / _getAssetPrice(reciprocalAsset) * 10 ** ERC20(reciprocalAsset).decimals();
+        uint256 minAmount =
+            tradeUSD.fullMulDiv(10 ** ERC20(reciprocalAsset).decimals(), _getAssetPrice(reciprocalAsset));
 
         InternalTrade memory trade = InternalTrade({
             fromBasket: basketFrom,
@@ -701,8 +702,8 @@ contract IntegrationTest is BaseTest, Constants {
             buyToken: reciprocalAsset,
             toBasket: basketTo,
             sellAmount: sellAmount,
-            minAmount: (minAmount * 95) / 100,
-            maxAmount: (minAmount * 105) / 100
+            minAmount: minAmount.fullMulDiv(95, 100),
+            maxAmount: minAmount.fullMulDiv(105, 100)
         });
 
         tempInternalTrades.push(trade);
@@ -805,7 +806,7 @@ contract IntegrationTest is BaseTest, Constants {
                 sellToken: sellAsset,
                 buyToken: buyAsset,
                 sellAmount: sellAmount,
-                minAmount: (minBuyAmount * 95) / 100,
+                minAmount: minBuyAmount.fullMulDiv(95, 100),
                 basketTradeOwnership: ownership
             });
             console.log("External trade selltoken: ", externalTrade.sellToken);
@@ -838,8 +839,8 @@ contract IntegrationTest is BaseTest, Constants {
         uint256 totalProcessed = 0;
         for (uint256 i = 0; i < trade.basketTradeOwnership.length; i++) {
             BasketTradeOwnership memory ownership = trade.basketTradeOwnership[i];
-            uint256 oldOwnerShipAmount = trade.sellAmount * ownership.tradeOwnership / 1e18;
-            uint256 newOwnership = oldOwnerShipAmount * 1e18 / newSellAmount;
+            uint256 oldOwnerShipAmount = trade.sellAmount.fullMulDiv(ownership.tradeOwnership, 1e18);
+            uint256 newOwnership = oldOwnerShipAmount.fullMulDiv(1e18, newSellAmount);
             newOwnerships[i].basket = ownership.basket;
             newOwnerships[i].tradeOwnership = uint96(newOwnership);
             totalProcessed += newOwnership;
@@ -853,7 +854,7 @@ contract IntegrationTest is BaseTest, Constants {
         // Update trade
         trade.basketTradeOwnership = newOwnerships;
         trade.sellAmount = newSellAmount;
-        trade.minAmount = (newSellAmount * 95) / 100;
+        trade.minAmount = newSellAmount.fullMulDiv(95, 100);
         externalTradesTemp[tradeIndex] = trade;
     }
 
@@ -895,7 +896,7 @@ contract IntegrationTest is BaseTest, Constants {
     function _valueToAmount(address asset, uint256 valueUSD) internal returns (uint256 amount) {
         uint256 assetPriceUSD = _getAssetPrice(asset);
         uint256 assetDecimals = 10 ** ERC20(asset).decimals();
-        amount = (valueUSD * assetDecimals) / assetPriceUSD;
+        amount = valueUSD.fullMulDiv(assetDecimals, assetPriceUSD);
     }
 
     // Gets the price of an asset in USD
@@ -988,12 +989,12 @@ contract IntegrationTest is BaseTest, Constants {
             _updateChainLinkOraclesTimeStamp();
         }
         PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
-        res.price = (res.price * int64(uint64(alterPercent))) / 1000;
+        res.price = int64(uint64(FixedPointMathLib.fullMulDiv(uint256(int256(res.price)), alterPercent, 1000)));
         vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (pythPriceFeed)), abi.encode(res));
 
         (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
             IChainlinkAggregatorV3Interface(chainlinkPriceFeed).latestRoundData();
-        answer = (answer * int64(uint64(alterPercent))) / 1000;
+        answer = int256(FixedPointMathLib.fullMulDiv(uint256(answer), alterPercent, 1000));
         vm.mockCall(
             chainlinkPriceFeed,
             abi.encodeWithSelector(IChainlinkAggregatorV3Interface.latestRoundData.selector),
