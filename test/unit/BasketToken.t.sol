@@ -2032,4 +2032,25 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.prank(alice);
         basket.addPlugin(address(farmingPlugin));
     }
+
+    function testFuzz_setBitFlag(uint256 bitFlag) public {
+        // Set the bitFlag as the basketManager
+        uint256 currentBitFlag = basket.bitFlag();
+        vm.expectEmit();
+        emit BasketToken.BitFlagUpdated(currentBitFlag, bitFlag);
+        vm.prank(address(basketManager));
+        basket.setBitFlag(bitFlag);
+        // Check if the bitFlag was updated correctly
+        assertEq(basket.bitFlag(), bitFlag, "BitFlag was not set correctly");
+    }
+
+    function testFuzz_setBitFlag_revertWhen_CalledByNonBasketManager(uint256 bitFlag) public {
+        // Assume bitFlag is a valid value
+        vm.assume(bitFlag > 0);
+
+        // Try to set the bitFlag as a non-basketManager and expect revert
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.NotBasketManager.selector));
+        basket.setBitFlag(bitFlag);
+    }
 }
