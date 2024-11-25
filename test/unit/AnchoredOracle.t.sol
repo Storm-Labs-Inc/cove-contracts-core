@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { console } from "forge-std/console.sol";
-
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
 
