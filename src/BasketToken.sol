@@ -9,6 +9,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { SelfPermit } from "src/deps/uniswap-v3-periphery/base/SelfPermit.sol";
 import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC20PluginsUpgradeable.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -28,7 +29,8 @@ contract BasketToken is
     IERC7540Operator,
     IERC7540Deposit,
     IERC7540Redeem,
-    MulticallUpgradeable
+    MulticallUpgradeable,
+    SelfPermit
 {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
