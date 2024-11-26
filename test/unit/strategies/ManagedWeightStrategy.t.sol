@@ -81,7 +81,7 @@ contract ManagedWeightStrategyTest is BaseTest {
 
         for (uint256 i = 0; i < weights.length; i++) {
             assertEq(
-                customStrategy.getTargetWeights(epoch, bitFlag)[i],
+                customStrategy.getTargetWeights(bitFlag)[i],
                 newTargetWeights[i],
                 string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
             );
@@ -130,7 +130,7 @@ contract ManagedWeightStrategyTest is BaseTest {
 
         for (uint256 i = 0; i < weights.length; i++) {
             assertEq(
-                customStrategy.getTargetWeights(epoch + 1, bitFlag)[i],
+                customStrategy.getTargetWeights(bitFlag)[i],
                 newTargetWeights[i],
                 string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
             );
@@ -175,7 +175,7 @@ contract ManagedWeightStrategyTest is BaseTest {
     function testFuzz_getTargetWeights(uint40 epoch, uint256 bitFlag) public {
         vm.assume(BitFlag.popCount(bitFlag) >= 2);
         uint64[] memory newTargetWeights = testFuzz_setTargetWeights(epoch, bitFlag);
-        uint64[] memory retrievedWeights = customStrategy.getTargetWeights(epoch, bitFlag);
+        uint64[] memory retrievedWeights = customStrategy.getTargetWeights(bitFlag);
 
         // assertEq(retrievedWeights, newTargetWeights, "Retrieved weights should match set weights");
         assertEq(
@@ -192,11 +192,10 @@ contract ManagedWeightStrategyTest is BaseTest {
         }
     }
 
-    function test_getTargetWeights_UnsupportedBitFlag(uint40 epoch, uint256 bitFlag) public {
-        // testFuzz_setTargetWeights(epoch, bitFlag);
+    function test_getTargetWeights_UnsupportedBitFlag(uint256 bitFlag) public {
         vm.assume(BitFlag.popCount(bitFlag) < 2);
         vm.expectRevert(ManagedWeightStrategy.UnsupportedBitFlag.selector);
-        customStrategy.getTargetWeights(epoch, bitFlag);
+        customStrategy.getTargetWeights(bitFlag);
     }
 
     function testFuzz_supportsBitFlag_returnsFalse(uint256 bitFlag) public {
@@ -211,9 +210,9 @@ contract ManagedWeightStrategyTest is BaseTest {
         assertTrue(customStrategy.supportsBitFlag(bitFlag), "supportsBitFlag should return true if the weights are set");
     }
 
-    function testFuzz_getTargetWeights_NoTargetWeights(uint40 epoch, uint256 bitFlag) public {
+    function testFuzz_getTargetWeights_NoTargetWeights(uint256 bitFlag) public {
         vm.assume(BitFlag.popCount(bitFlag) >= 2);
         vm.expectRevert(ManagedWeightStrategy.NoTargetWeights.selector);
-        customStrategy.getTargetWeights(epoch, bitFlag);
+        customStrategy.getTargetWeights(bitFlag);
     }
 }

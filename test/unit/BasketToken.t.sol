@@ -23,7 +23,6 @@ import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
-import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
 contract BasketTokenTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;
@@ -1839,29 +1838,15 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.isOperator(controller, operator), false);
     }
 
-    function testFuzz_getTargetWeights(uint40 epoch, uint64[] memory expectedRet) public {
-        vm.expectCall(basket.basketManager(), abi.encodeCall(BasketManager.rebalanceStatus, ()));
-        vm.mockCall(
-            basket.basketManager(),
-            abi.encodeCall(BasketManager.rebalanceStatus, ()),
-            abi.encode(
-                RebalanceStatus({
-                    basketHash: bytes32(0),
-                    basketMask: uint256(0),
-                    epoch: epoch,
-                    timestamp: uint40(0),
-                    status: Status.NOT_STARTED
-                })
-            )
-        );
-        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (epoch, basket.bitFlag())));
+    function testFuzz_getTargetWeights(uint64[] memory expectedRet) public {
+        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())));
         vm.mockCall(
             address(basket.strategy()),
-            abi.encodeCall(WeightStrategy.getTargetWeights, (epoch, basket.bitFlag())),
+            abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())),
             abi.encode(expectedRet)
         );
 
-        uint64[] memory ret = basket.getCurrentTargetWeights();
+        uint64[] memory ret = basket.getTargetWeights();
         assertEq(expectedRet, ret);
     }
 
