@@ -4,8 +4,8 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
-
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
+
 import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
@@ -17,6 +17,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     using GPv2Order for GPv2Order.Data;
     using SafeERC20 for IERC20;
 
+    /// CONSTANTS ///
     /// @dev Storage slot for CoWSwapAdapter specific data.
     bytes32 internal constant _COWSWAP_ADAPTER_STORAGE =
         bytes32(uint256(keccak256("cove.basketmanager.cowswapadapter.storage")) - 1);
@@ -24,10 +25,42 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     /// @notice Address of the clone implementation used for creating CoWSwapClone contracts.
     address public immutable cloneImplementation;
 
+    /// STRUCTS ///
     /// @dev Structure to store adapter-specific data.
     struct CoWSwapAdapterStorage {
         uint32 orderValidTo;
     }
+
+    /// EVENTS ///
+    /// @notice Emitted when a new order is created.
+    /// @param sellToken The address of the token to be sold.
+    /// @param buyToken The address of the token to be bought.
+    /// @param sellAmount The amount of the sell token.
+    /// @param buyAmount The amount of the buy token.
+    /// @param validTo The timestamp until which the order is valid.
+    /// @param swapContract The address of the swap contract.
+    event OrderCreated(
+        address indexed sellToken,
+        address indexed buyToken,
+        uint256 sellAmount,
+        uint256 buyAmount,
+        uint32 validTo,
+        address swapContract
+    );
+
+    /// @notice Emitted when a token swap is completed.
+    /// @param sellToken The address of the token sold.
+    /// @param buyToken The address of the token bought.
+    /// @param claimedSellAmount The amount of sell tokens claimed.
+    /// @param claimedBuyAmount The amount of buy tokens claimed.
+    /// @param swapContract The address of the swap contract.
+    event TokenSwapCompleted(
+        address indexed sellToken,
+        address indexed buyToken,
+        uint256 claimedSellAmount,
+        uint256 claimedBuyAmount,
+        address swapContract
+    );
 
     /// @notice Constructor to initialize the CoWSwapAdapter with the clone implementation address.
     /// @param cloneImplementation_ The address of the clone implementation contract.
@@ -86,6 +119,13 @@ contract CoWSwapAdapter is TokenSwapAdapter {
             // slither-disable-next-line calls-loop
             (uint256 claimedSellAmount, uint256 claimedBuyAmount) = CoWSwapClone(swapContract).claim();
             claimedAmounts[i] = [claimedSellAmount, claimedBuyAmount];
+            emit TokenSwapCompleted(
+                externalTrades[i].sellToken,
+                externalTrades[i].buyToken,
+                claimedSellAmount,
+                claimedBuyAmount,
+                swapContract
+            );
             unchecked {
                 // Overflow not possible: i is bounded by externalTrades.length
                 ++i;
@@ -119,6 +159,8 @@ contract CoWSwapAdapter is TokenSwapAdapter {
         IERC20(sellToken).safeTransfer(swapContract, sellAmount);
         CoWSwapClone(swapContract).initialize();
         // slither-disable-end calls-loop
+
+        emit OrderCreated(sellToken, buyToken, sellAmount, buyAmount, validTo, swapContract);
     }
 
     /// @dev Internal function to retrieve the storage for the CoWSwapAdapter.
