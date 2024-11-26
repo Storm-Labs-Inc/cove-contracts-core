@@ -2071,7 +2071,7 @@ contract BasketTokenTest is BaseTest, Constants {
         basket.setBitFlag(bitFlag);
     }
 
-    function test_farmingPlugin(
+    function testFuzz_farmingPlugin(
         uint256 depositAmount,
         uint256 issuedShares,
         uint256 rewardAmount,
