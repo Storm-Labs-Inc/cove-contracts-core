@@ -1783,6 +1783,7 @@ contract BasketTokenTest is BaseTest, Constants {
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             vm.assume(from != to);
+            vm.assume(caller != from);
             uint256 userShares = basket.balanceOf(from);
             // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
