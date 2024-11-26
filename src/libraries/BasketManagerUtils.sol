@@ -758,7 +758,6 @@ library BasketManagerUtils {
             });
 
             // Calculate fee on sellAmount
-            info.feeOnSell = 0;
             if (swapFee > 0) {
                 info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
                 self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
@@ -774,7 +773,6 @@ library BasketManagerUtils {
             );
 
             // Calculate fee on buyAmount
-            info.feeOnBuy = 0;
             if (swapFee > 0) {
                 info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
                 self.collectedSwapFees[trade.buyToken] += info.feeOnBuy;
@@ -1016,10 +1014,10 @@ library BasketManagerUtils {
             if (proposedTargetWeights[j] > 0) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 targetBalances[j] = self.eulerRouter.getQuote(
-                    (proposedTargetWeights[j] * basketValue) / _WEIGHT_PRECISION, _USD_ISO_4217_CODE, assets[j]
+                    FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, _WEIGHT_PRECISION),
+                    _USD_ISO_4217_CODE,
+                    assets[j]
                 );
-            } else {
-                targetBalances[j] = 0;
             }
             unchecked {
                 // Overflow not possible: j is less than assetsLength

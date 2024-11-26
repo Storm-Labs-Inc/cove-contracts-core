@@ -633,9 +633,8 @@ contract BasketToken is
     function proRataRedeem(uint256 shares, address to, address from) public {
         // Effects
         uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
-        if (feeBps > 0) {
-            _harvestManagementFee(feeBps, BasketManager(basketManager).feeCollector());
-        }
+        address feeCollector = BasketManager(basketManager).feeCollector();
+        _harvestManagementFee(feeBps, feeCollector);
         if (msg.sender != from) {
             _spendAllowance(from, msg.sender, shares);
         }
@@ -655,19 +654,21 @@ contract BasketToken is
 
         // Effects
         lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
-        if (timeSinceLastHarvest != 0) {
-            if (timeSinceLastHarvest != block.timestamp) {
-                // remove shares held by the treasury or currently pending redemption from calculation
-                uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
-                    - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
-                uint256 fee = FixedPointMathLib.fullMulDiv(
-                    currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
-                );
-                if (fee != 0) {
-                    emit ManagementFeeHarvested(fee);
-                    _mint(feeCollector, fee);
-                    // Interactions
-                    FeeCollector(feeCollector).notifyHarvestFee(fee);
+        if (feeBps != 0) {
+            if (timeSinceLastHarvest != 0) {
+                if (timeSinceLastHarvest != block.timestamp) {
+                    // remove shares held by the treasury or currently pending redemption from calculation
+                    uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
+                        - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
+                    uint256 fee = FixedPointMathLib.fullMulDiv(
+                        currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
+                    );
+                    if (fee != 0) {
+                        emit ManagementFeeHarvested(fee);
+                        _mint(feeCollector, fee);
+                        // Interactions
+                        FeeCollector(feeCollector).notifyHarvestFee(fee);
+                    }
                 }
             }
         }
