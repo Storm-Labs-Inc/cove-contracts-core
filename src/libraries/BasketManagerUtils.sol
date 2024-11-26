@@ -100,10 +100,11 @@ library BasketManagerUtils {
     /// @param amount Amount of the asset that was charged.
     event SwapFeeCharged(address indexed asset, uint256 amount);
     /// @notice Emitted when a rebalance is proposed for a set of baskets
+    /// @param baskets Array of basket addresses to rebalance
+    /// @param proposedTargetWeights Array of target weights for each basket
     /// @param basketHash Hash of the basket addresses and target weights for the rebalance
-    /// @param basketMask Bitmask indicating which baskets are being rebalanced
     /// @param timestamp Timestamp when the rebalance was proposed
-    event RebalanceProposed(bytes32 basketHash, uint256 basketMask, uint40 timestamp);
+    event RebalanceProposed(address[] baskets, uint64[][] proposedTargetWeights, bytes32 basketHash, uint40 timestamp);
 
     /// ERRORS ///
     /// @dev Reverts when the total supply of a basket token is zero.
@@ -321,7 +322,7 @@ library BasketManagerUtils {
         // Effects
         self.rebalanceStatus.basketHash = keccak256(abi.encode(baskets, basketTargetWeights));
         emit RebalanceProposed(
-            self.rebalanceStatus.basketHash, self.rebalanceStatus.basketMask, self.rebalanceStatus.timestamp
+            baskets, basketTargetWeights, self.rebalanceStatus.basketHash, self.rebalanceStatus.timestamp
         );
     }
     // solhint-enable code-complexity
