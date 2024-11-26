@@ -641,6 +641,7 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_fulfillDeposit(amount, issuedShares);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(from != operator);
             uint256 maxMint = basket.maxMint(from);
 
             // Set Operator
@@ -1782,6 +1783,7 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_deposit(totalDepositAmount, issuedShares);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(from != to);
             uint256 userShares = basket.balanceOf(from);
             // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
