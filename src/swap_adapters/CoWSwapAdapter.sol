@@ -119,6 +119,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
             // slither-disable-next-line calls-loop
             (uint256 claimedSellAmount, uint256 claimedBuyAmount) = CoWSwapClone(swapContract).claim();
             claimedAmounts[i] = [claimedSellAmount, claimedBuyAmount];
+            // slither-disable-next-line reentrancy-events
             emit TokenSwapCompleted(
                 externalTrades[i].sellToken,
                 externalTrades[i].buyToken,
@@ -155,12 +156,11 @@ contract CoWSwapAdapter is TokenSwapAdapter {
             abi.encodePacked(sellToken, buyToken, sellAmount, buyAmount, uint64(validTo), address(this), address(this)),
             salt
         );
+        emit OrderCreated(sellToken, buyToken, sellAmount, buyAmount, validTo, swapContract);
         // slither-disable-start calls-loop
         IERC20(sellToken).safeTransfer(swapContract, sellAmount);
         CoWSwapClone(swapContract).initialize();
         // slither-disable-end calls-loop
-
-        emit OrderCreated(sellToken, buyToken, sellAmount, buyAmount, validTo, swapContract);
     }
 
     /// @dev Internal function to retrieve the storage for the CoWSwapAdapter.
