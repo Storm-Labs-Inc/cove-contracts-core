@@ -801,7 +801,6 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketBalanceOf[trade.toBasket][trade.sellToken] =
                     basketBalances[info.toBasketIndex][info.toBasketSellTokenIndex] += info.netSellAmount; // nosemgrep
-
                 // Collect fees
                 if (info.feeOnSell > 0) {
                     self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
@@ -983,7 +982,7 @@ library BasketManagerUtils {
                 : pendingDeposit;
             totalSupply += requiredDepositShares;
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            self.basketBalanceOf[basket][self.basketAssets[basket][baseAssetIndex]] += baseAssetBalance + pendingDeposit;
+            self.basketBalanceOf[basket][self.basketAssets[basket][baseAssetIndex]] = baseAssetBalance + pendingDeposit;
             // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
             BasketToken(basket).fulfillDeposit(requiredDepositShares);
         }

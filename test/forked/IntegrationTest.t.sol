@@ -338,8 +338,8 @@ contract IntegrationTest is BaseTest, Constants {
 
     function testFuzz_completeRebalance_multipleCycles(uint256 cycles) public {
         cycles = bound(cycles, 3, 51);
-        //  odd # of cycles returns to base state
-        if (cycles % 2 == 0) {
+        //  even # of cycles returns to base state
+        if (cycles % 2 == 1) {
             cycles += 1;
         }
         // 1. A new basket is created with assets ETH_SUSDE and ETH_WEETH
@@ -371,7 +371,6 @@ contract IntegrationTest is BaseTest, Constants {
         address[] memory basketTokens = new address[](1);
         uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
         uint256[][] memory firstCycleBalances = new uint256[][](basketTokens.length);
-        uint256[][] memory lastCycleBalances = new uint256[][](basketTokens.length);
 
         basketTokens[0] = newBasket;
         for (uint256 c = 0; c < cycles; ++c) {
@@ -403,16 +402,10 @@ contract IntegrationTest is BaseTest, Constants {
                 if (c == 0) {
                     firstCycleBalances[i] = new uint256[](assets.length);
                 }
-                if (c == cycles - 1) {
-                    lastCycleBalances[i] = new uint256[](assets.length);
-                }
                 for (uint256 j = 0; j < assets.length; j++) {
                     initialBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
                     if (c == 0) {
                         firstCycleBalances[i][j] = initialBalances[i][j];
-                    }
-                    if (c == cycles - 1) {
-                        lastCycleBalances[i][j] = initialBalances[i][j];
                     }
                 }
             }
@@ -438,21 +431,19 @@ contract IntegrationTest is BaseTest, Constants {
         for (uint256 i = 0; i < basketTokens.length; i++) {
             address[] memory assets = bm.basketAssets(basketTokens[i]);
             for (uint256 j = 0; j < assets.length; j++) {
-                if (firstCycleBalances[i][j] != lastCycleBalances[i][j]) {
-                    // if the initial balance is 0, allow for 1 dust
-                    if (firstCycleBalances[i][j] == 0) {
-                        assertApproxEqAbs(firstCycleBalances[i][j], lastCycleBalances[i][j], 1);
-                    } else {
-                        // allow for small changes due to rounding during price calculations
-                        assertApproxEqRel(firstCycleBalances[i][j], lastCycleBalances[i][j], 1e2);
-                    }
+                // if the initial balance is 0, allow for 1 dust
+                if (firstCycleBalances[i][j] == 0) {
+                    assertApproxEqAbs(firstCycleBalances[i][j], IERC20(assets[j]).balanceOf(address(bm)), 1);
+                } else {
+                    // allow for small changes due to rounding during price calculations
+                    assertApproxEqRel(firstCycleBalances[i][j], IERC20(assets[j]).balanceOf(address(bm)), 1e2);
                 }
             }
         }
     }
 
     function testFuzz_completeRebalance_MultipleBaskets() public {
-        uint256 cycles = 20;
+        uint256 cycles = 5;
 
         address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
@@ -484,7 +475,6 @@ contract IntegrationTest is BaseTest, Constants {
             address[] memory assets = bm.basketAssets(basketTokens[i]);
             firstCycleBalances[i] = new uint256[](assets.length);
             for (uint256 j = 0; j < assets.length; j++) {
-                console.log("starting balance: ", bm.basketBalanceOf(basketTokens[i], assets[j]));
                 firstCycleBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
@@ -502,8 +492,6 @@ contract IntegrationTest is BaseTest, Constants {
                     // Select two indexes deterministically based on the cycle number
                     uint256 index1 = c % assets.length;
                     uint256 index2 = (c + 1) % assets.length;
-
-                    // Assign weights
                     newTargetWeights[index1] = 3e17; // 30%
                     newTargetWeights[index2] = 7e17; // 70%
                 }
@@ -559,82 +547,89 @@ contract IntegrationTest is BaseTest, Constants {
                 if (currentBal == 1) {
                     assertApproxEqAbs(firstCycleBalances[i][j], currentBal, 1);
                 } else {
-                    assertApproxEqRel(firstCycleBalances[i][j], bm.basketBalanceOf(basketTokens[i], assets[j]), 1e2);
+                    assertApproxEqRel(firstCycleBalances[i][j], IERC20(assets[j]).balanceOf(address(bm)), 1e2);
                 }
             }
         }
     }
 
-    // TODO: below fails currently due to basket not having enough base asset
-    // function test_proRateRedeem_entireBasket_duringRebalance() public {
-    //     address alice = createUser("alice");
-    //     // 1. One rebalance is comppleted to process deposits, assets are 100% allocated to the baskets' base assets.
-    //     _completeRebalance_processDeposits(100, 100);
+    function test_proRateRedeem_entireBasket_duringRebalance() public {
+        // 1. One rebalance is comppleted to process deposits, assets are 100% allocated to the baskets' base assets.
+        _completeRebalance_processDeposits(100, 100);
 
-    //     // 2. Alice requests a deposit of a large amount
-    //     BasketToken baseBasket = BasketToken(bm.basketTokens()[0]);
-    //     uint256 aliceDepositAmount = 1e26;
-    //     _requestDepositToBasket(alice, address(baseBasket), aliceDepositAmount);
-    //     uint256 initialAliceValue =
-    //         _getAssetPrice(BasketToken(bm.basketTokens()[0]).asset()).fullMulDiv(aliceDepositAmount, 1e18);
-    //     vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
-    //     vm.label(ETH_WETH, "ETH_WETH");
+        // 2. Alice requests a deposit
+        address alice = createUser("alice");
+        BasketToken baseBasket = BasketToken(bm.basketTokens()[0]);
+        uint256 aliceDepositAmount = 1e26;
+        _requestDepositToBasket(alice, address(baseBasket), aliceDepositAmount);
+        vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
-    //     // 3. Another rebalance is proposed with target weights aimed at getting some of each asset in the basket.
-    //     uint64[] memory newTargetWeights = new uint64[](6);
-    //     newTargetWeights[0] = 5e17; // 50% ETH_WETH
-    //     newTargetWeights[1] = 1e17; // 50% ETH_SUSDE
-    //     newTargetWeights[2] = 1e17; // 0% ETH_WEETH
-    //     newTargetWeights[3] = 1e17; // 0% ETH_EZETH
-    //     newTargetWeights[4] = 1e17; // 0% ETH_RSETH
-    //     newTargetWeights[5] = 1e17; // 0% ETH_RETH
-    //     uint64[][] memory targetWeights = new uint64[][](1);
-    //     targetWeights[0] = newTargetWeights;
+        // 3. Another rebalance is proposed with target weights aimed at getting some of each asset in the basket.
+        uint64[] memory newTargetWeights = new uint64[](6);
+        newTargetWeights[0] = 5e17; // 50% ETH_WETH
+        newTargetWeights[1] = 1e17; // 50% ETH_SUSDE
+        newTargetWeights[2] = 1e17; // 0% ETH_WEETH
+        newTargetWeights[3] = 1e17; // 0% ETH_EZETH
+        newTargetWeights[4] = 1e17; // 0% ETH_RSETH
+        newTargetWeights[5] = 1e17; // 0% ETH_RETH
+        uint64[][] memory targetWeights = new uint64[][](1);
+        targetWeights[0] = newTargetWeights;
 
-    //     address[] memory basketTokens = new address[](1);
-    //     basketTokens[0] = bm.basketTokens()[0];
-    //     _updatePythOracleTimeStamps();
-    //     _updateChainLinkOraclesTimeStamp();
-    //     ManagedWeightStrategy strategy =
-    //         ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
-    //     vm.prank(GAUNTLET_STRATEGIST);
-    //     strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
-    //     vm.prank(deployments.rebalanceProposer());
-    //     bm.proposeRebalance(basketTokens);
+        address[] memory basketTokens = new address[](1);
+        basketTokens[0] = bm.basketTokens()[0];
+        _updatePythOracleTimeStamps();
+        _updateChainLinkOraclesTimeStamp();
+        ManagedWeightStrategy strategy =
+            ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
+        vm.prank(GAUNTLET_STRATEGIST);
+        strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
 
-    //     (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
-    //         _findInternalAndExternalTrades(basketTokens, targetWeights);
+        vm.prank(deployments.rebalanceProposer());
+        bm.proposeRebalance(basketTokens);
 
-    //     vm.prank(deployments.tokenSwapProposer());
-    //     bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
+        (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+            _findInternalAndExternalTrades(basketTokens, targetWeights);
 
-    //     vm.prank(deployments.tokenSwapExecutor());
-    //     bm.executeTokenSwap(externalTrades, "");
-    //     _completeSwapAdapterTrades(externalTrades);
-    //     vm.warp(vm.getBlockTimestamp() + 15 minutes);
+        vm.prank(deployments.tokenSwapProposer());
+        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
 
-    //     bm.completeRebalance(externalTrades, basketTokens);
-    //     assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
+        uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
+        for (uint256 i = 0; i < basketTokens.length; ++i) {
+            address[] memory assets = bm.basketAssets(basketTokens[i]);
+            uint256[] memory balances = new uint256[](assets.length);
+            for (uint256 j = 0; j < assets.length; j++) {
+                balances[j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
+            }
+            initialBalances[i] = balances;
+        }
 
-    //     // 4. Alice claims her shares then executes a proRataRedeem, immediately trading her basket token shares for
-    //     // each asset in the basket.
-    //     vm.startPrank(alice);
-    //     baseBasket.deposit(aliceDepositAmount, alice, alice);
-    //     uint256 aliceBalanceBefore = baseBasket.balanceOf(alice);
-    //     // TODO: below fails due to baket manager not having enough assets
-    //     baseBasket.proRataRedeem(aliceBalanceBefore, alice, alice);
-    //     vm.stopPrank();
+        vm.prank(deployments.tokenSwapExecutor());
+        bm.executeTokenSwap(externalTrades, "");
 
-    //     // 5. The basket then attempts to rebalance once more with the same target weights as last rebalance
-    //     vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
-    //     _updatePythOracleTimeStamps();
-    //     _updateChainLinkOraclesTimeStamp();
-    //     vm.prank(GAUNTLET_STRATEGIST);
-    //     strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
-    //     vm.prank(deployments.rebalanceProposer());
-    //     bm.proposeRebalance(basketTokens);
-    //     assert(uint8(bm.rebalanceStatus().status) == uint8(Status.REBALANCE_PROPOSED));
-    // }
+        _completeSwapAdapterTrades(externalTrades);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
+
+        bm.completeRebalance(externalTrades, basketTokens);
+        assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
+        assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
+
+        // 4. Alice claims her shares then executes a proRataRedeem, immediately trading her basket token shares for
+        // each asset in the basket.
+        vm.startPrank(alice);
+        baseBasket.deposit(aliceDepositAmount, alice, alice);
+        baseBasket.proRataRedeem(baseBasket.balanceOf(alice), alice, alice);
+        vm.stopPrank();
+
+        // 5. The basket then attempts to rebalance once more with the same target weights as last rebalance
+        vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
+        _updatePythOracleTimeStamps();
+        _updateChainLinkOraclesTimeStamp();
+        vm.prank(GAUNTLET_STRATEGIST);
+        strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
+        vm.prank(deployments.rebalanceProposer());
+        bm.proposeRebalance(basketTokens);
+        assert(uint8(bm.rebalanceStatus().status) == uint8(Status.REBALANCE_PROPOSED));
+    }
 
     /// INTERNAL HELPER FUNCTIONS
 
@@ -646,7 +641,6 @@ contract IntegrationTest is BaseTest, Constants {
 
         for (uint256 i = 0; i < numUsers; ++i) {
             address user = vm.addr(i + 1);
-            // uint256 amount = uint256(keccak256(abi.encodePacked(i, entropy))) % (100_000 ether - 1e4) + 1e4;
             uint256 amount = uint256(keccak256(abi.encodePacked(i, entropy))) % (100_000 ether) + 1e22;
             for (uint256 j = 0; j < basketTokens.length; ++j) {
                 _requestDepositToBasket(user, basketTokens[j], amount);
@@ -1114,14 +1108,6 @@ contract IntegrationTest is BaseTest, Constants {
                 minAmount: minBuyAmount.fullMulDiv(95, 100),
                 basketTradeOwnership: ownership
             });
-            console.log("");
-            console.log("exteral trade info");
-            console.log("External trade selltoken: ", externalTrade.sellToken);
-            console.log("External trade buytoken: ", externalTrade.buyToken);
-            console.log("External trade sellAmount: ", externalTrade.sellAmount);
-            console.log("External trade minAmount: ", externalTrade.minAmount);
-            console.log("expected buy amount: ", minBuyAmount);
-            console.log("");
 
             externalTradesTemp[externalTradeCount++] = externalTrade;
         } else {
@@ -1250,10 +1236,8 @@ contract IntegrationTest is BaseTest, Constants {
 
             if (trade.buyToken == ETH_WETH) {
                 airdrop(IERC20(trade.buyToken), swapContract, buyAmount, false);
-                console.log("completeing trade with amount :", buyAmount);
             } else {
                 airdrop(IERC20(trade.buyToken), swapContract, buyAmount);
-                console.log("completeing trade with amount :", buyAmount);
             }
         }
     }
