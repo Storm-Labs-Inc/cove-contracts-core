@@ -96,11 +96,15 @@ library BasketManagerUtils {
     /// @param amount Amount of the asset that was charged.
     event SwapFeeCharged(address indexed asset, uint256 amount);
     /// @notice Emitted when a rebalance is proposed for a set of baskets
+    /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is proposed
     /// @param baskets Array of basket addresses to rebalance
     /// @param proposedTargetWeights Array of target weights for each basket
     /// @param basketHash Hash of the basket addresses and target weights for the rebalance
-    /// @param timestamp Timestamp when the rebalance was proposed
-    event RebalanceProposed(address[] baskets, uint64[][] proposedTargetWeights, bytes32 basketHash, uint40 timestamp);
+    event RebalanceProposed(
+        uint40 indexed epoch, address[] baskets, uint64[][] proposedTargetWeights, bytes32 basketHash
+    );
+    /// @notice Emitted when a rebalance is completed.
+    event RebalanceCompleted(uint40 indexed epoch);
 
     /// ERRORS ///
     /// @dev Reverts when the total supply of a basket token is zero.
@@ -316,11 +320,10 @@ library BasketManagerUtils {
             revert RebalanceNotRequired();
         }
         // Effects after Interactions. Target weights require external view calls to respective strategies.
-        self.rebalanceStatus.basketHash = keccak256(abi.encode(baskets, basketTargetWeights));
+        bytes32 basketHash = keccak256(abi.encode(baskets, basketTargetWeights));
+        self.rebalanceStatus.basketHash = basketHash;
         // slither-disable-next-line reentrancy-events
-        emit RebalanceProposed(
-            baskets, basketTargetWeights, self.rebalanceStatus.basketHash, self.rebalanceStatus.timestamp
-        );
+        emit RebalanceProposed(self.rebalanceStatus.epoch, baskets, basketTargetWeights, basketHash);
     }
     // solhint-enable code-complexity
 
@@ -557,6 +560,7 @@ library BasketManagerUtils {
     /// @param baskets Array of basket addresses currently being rebalanced.
     function _finalizeRebalance(BasketManagerStorage storage self, address[] calldata baskets) private {
         // Advance the rebalance epoch and reset the status
+        uint40 epoch = self.rebalanceStatus.epoch;
         self.rebalanceStatus.basketHash = bytes32(0);
         self.rebalanceStatus.basketMask = 0;
         self.rebalanceStatus.epoch += 1;
@@ -564,6 +568,8 @@ library BasketManagerUtils {
         self.rebalanceStatus.status = Status.NOT_STARTED;
         self.externalTradesHash = bytes32(0);
         self.retryCount = 0;
+        // slither-disable-next-line reentrancy-events
+        emit RebalanceCompleted(epoch);
 
         // Process the redeems for the given baskets
         // slither-disable-start calls-loop
