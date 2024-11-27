@@ -563,7 +563,7 @@ library BasketManagerUtils {
         uint40 epoch = self.rebalanceStatus.epoch;
         self.rebalanceStatus.basketHash = bytes32(0);
         self.rebalanceStatus.basketMask = 0;
-        self.rebalanceStatus.epoch = epoch + 1;
+        self.rebalanceStatus.epoch += 1;
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
         self.externalTradesHash = bytes32(0);
