@@ -300,17 +300,19 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @param internalTrades Array of internal trades to execute.
     /// @param externalTrades Array of external trades to execute.
     /// @param basketsToRebalance Array of basket addresses currently being rebalanced.
+    /// @param targetWeights Array of target weights for the baskets.
     function proposeTokenSwap(
         InternalTrade[] calldata internalTrades,
         ExternalTrade[] calldata externalTrades,
-        address[] calldata basketsToRebalance
+        address[] calldata basketsToRebalance,
+        uint64[][] calldata targetWeights
     )
         external
         onlyRole(_TOKENSWAP_PROPOSER_ROLE)
         nonReentrant
         whenNotPaused
     {
-        _bmStorage.proposeTokenSwap(internalTrades, externalTrades, basketsToRebalance);
+        _bmStorage.proposeTokenSwap(internalTrades, externalTrades, basketsToRebalance, targetWeights);
         emit TokenSwapProposed(internalTrades, externalTrades, basketsToRebalance);
     }
 
@@ -371,15 +373,17 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
     /// 15 minutes since the last action.
     /// @param basketsToRebalance Array of basket addresses proposed for rebalance.
+    /// @param targetWeights Array of target weights for the baskets.
     function completeRebalance(
         ExternalTrade[] calldata externalTrades,
-        address[] calldata basketsToRebalance
+        address[] calldata basketsToRebalance,
+        uint64[][] calldata targetWeights
     )
         external
         nonReentrant
         whenNotPaused
     {
-        _bmStorage.completeRebalance(externalTrades, basketsToRebalance);
+        _bmStorage.completeRebalance(externalTrades, basketsToRebalance, targetWeights);
     }
 
     /// FALLBACK REDEEM LOGIC ///
