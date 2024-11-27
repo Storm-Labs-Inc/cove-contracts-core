@@ -39,6 +39,7 @@ contract Constants {
     address public constant ETH_RSETH = 0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7;
     address public constant ETH_SUSDE = 0x9D39A5DE30e57443BfF2A8307A4256c8797A3497;
     address public constant ETH_TBTC = 0x18084fbA666a33d37592fA2633fD49a74DD93a88;
+    address public constant ETH_USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
     address public constant ETH_WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
     address public constant ETH_WEETH = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
     address public constant ETH_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -101,4 +102,7 @@ contract Constants {
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
+
+    uint16 public constant _MANAGEMENT_FEE_DECIMALS = 1e4;
+    uint16 public constant _MAX_MANAGEMENT_FEE = 1e4;
 }

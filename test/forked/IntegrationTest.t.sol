@@ -13,7 +13,6 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 
 import { Deployments } from "script/Deployments.s.sol";
 
@@ -29,8 +28,7 @@ struct SurplusDeficit {
     uint256 deficitUSD; // USD value of deficit
 }
 
-// slither-disable-start cyclomatic-complexity
-contract IntegrationTest is BaseTest, Constants {
+contract IntegrationTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     InternalTrade[] private tempInternalTrades;
