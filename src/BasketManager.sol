@@ -69,9 +69,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         address indexed basket, uint256 oldBitFlag, uint256 newBitFlag, bytes32 oldId, bytes32 newId
     );
     /// @notice Emitted when a token swap is proposed during a rebalance.
-    event TokenSwapProposed(
-        InternalTrade[] internalTrades, ExternalTrade[] externalTrades, uint256 epoch
-    );
+    event TokenSwapProposed(InternalTrade[] internalTrades, ExternalTrade[] externalTrades, uint256 epoch);
     /// @notice Emitted when a token swap is executed during a rebalance.
     event TokenSwapExecuted(uint256 epoch);
 
