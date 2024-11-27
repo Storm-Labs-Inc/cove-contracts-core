@@ -12,7 +12,6 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { IERC20Plugins } from "token-plugins-upgradeable/contracts/interfaces/IERC20Plugins.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20DecimalsMock } from "test/utils/mocks/ERC20DecimalsMock.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
@@ -24,7 +23,7 @@ import { BasketToken } from "src/BasketToken.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
-contract BasketTokenTest is BaseTest, Constants {
+contract BasketTokenTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     uint256 private constant MAX_USERS = 20;

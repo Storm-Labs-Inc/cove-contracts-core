@@ -11,8 +11,6 @@ contract StrategyRegistryTest is BaseTest {
     address public admin;
     address public assetRegistry;
 
-    bytes32 private constant _WEIGHT_STRATEGY_ROLE = keccak256("WEIGHT_STRATEGY_ROLE");
-
     function setUp() public override {
         super.setUp();
         admin = createUser("admin");

@@ -7,7 +7,6 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 
@@ -22,7 +21,7 @@ import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
-contract BasketManagerTest is BaseTest, Constants {
+contract BasketManagerTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     BasketManager public basketManager;
