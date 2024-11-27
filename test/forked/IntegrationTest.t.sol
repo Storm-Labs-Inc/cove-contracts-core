@@ -404,7 +404,7 @@ contract IntegrationTest is BaseTest, Constants {
                 }
             }
             vm.prank(deployments.tokenSwapProposer());
-            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
+            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
 
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
@@ -416,7 +416,7 @@ contract IntegrationTest is BaseTest, Constants {
             // are
             // verified to correctly reflect the results of each trade.
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
-            bm.completeRebalance(externalTrades, basketTokens);
+            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
             assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
         }
@@ -516,7 +516,7 @@ contract IntegrationTest is BaseTest, Constants {
             }
 
             vm.prank(deployments.tokenSwapProposer());
-            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
+            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
 
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
@@ -527,7 +527,7 @@ contract IntegrationTest is BaseTest, Constants {
             // 6. completeRebalance() is called. The rebalance is confirmed to be completed and the internal balances
             // are verified to correctly reflect the results of each trade.
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
-            bm.completeRebalance(externalTrades, basketTokens);
+            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
             assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
         }
@@ -566,8 +566,8 @@ contract IntegrationTest is BaseTest, Constants {
         newTargetWeights[3] = 1e17; // 0% ETH_EZETH
         newTargetWeights[4] = 1e17; // 0% ETH_RSETH
         newTargetWeights[5] = 1e17; // 0% ETH_RETH
-        uint64[][] memory targetWeights = new uint64[][](1);
-        targetWeights[0] = newTargetWeights;
+        uint64[][] memory newTargetWeightsTotal = new uint64[][](1);
+        newTargetWeightsTotal[0] = newTargetWeights;
 
         address[] memory basketTokens = new address[](1);
         basketTokens[0] = bm.basketTokens()[0];
@@ -582,10 +582,10 @@ contract IntegrationTest is BaseTest, Constants {
         bm.proposeRebalance(basketTokens);
 
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
-            _findInternalAndExternalTrades(basketTokens, targetWeights);
+            _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
 
         vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens);
+        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
 
         uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; ++i) {
@@ -603,7 +603,7 @@ contract IntegrationTest is BaseTest, Constants {
         _completeSwapAdapterTrades(externalTrades);
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
 
-        bm.completeRebalance(externalTrades, basketTokens);
+        bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
 
