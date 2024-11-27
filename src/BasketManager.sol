@@ -60,6 +60,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     event ManagementFeeSet(address indexed basket, uint16 oldFee, uint16 newFee);
     /// @notice Emitted when the TokenSwapAdapter contract is set.
     event TokenSwapAdapterSet(address oldAdapter, address newAdapter);
+    /// @notice Emitted when a new basket is created.
+    event BasketCreated(
+        address indexed basket, string basketName, string symbol, address baseAsset, uint256 bitFlag, address strategy
+    );
     /// @notice Emitted when the bitFlag of a basket is updated.
     event BasketBitFlagUpdated(
         address indexed basket, uint256 oldBitFlag, uint256 newBitFlag, bytes32 oldId, bytes32 newId
@@ -269,6 +273,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     {
         basket = _bmStorage.createNewBasket(basketName, symbol, baseAsset, bitFlag, strategy);
         _grantRole(_BASKET_TOKEN_ROLE, basket);
+        emit BasketCreated(basket, basketName, symbol, baseAsset, bitFlag, strategy);
     }
 
     /// @notice Proposes a rebalance for the given baskets. The rebalance is proposed if the difference between the

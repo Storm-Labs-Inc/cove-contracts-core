@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -206,6 +205,12 @@ contract BasketManagerTest is BaseTest, Constants {
         basketManager.setManagementFee(address(0), 1e4);
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
+
+        // Predict the address of the clone using vm.computeAddress
+        address predictedBasket = vm.computeCreateAddress(address(basketManager), vm.getNonce(address(basketManager)));
+        vm.expectEmit();
+        emit BasketManager.BasketCreated(predictedBasket, name, symbol, rootAsset, bitFlag, strategy);
+
         vm.prank(manager);
         address basket = basketManager.createNewBasket(name, symbol, address(rootAsset), bitFlag, strategy);
         assertEq(basketManager.numOfBasketTokens(), 1);
