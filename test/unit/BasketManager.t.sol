@@ -204,7 +204,7 @@ contract BasketManagerTest is BaseTest {
         assets[0] = rootAsset;
         // Set the default management fee
         vm.prank(timelock);
-        basketManager.setManagementFee(address(0), 1e4);
+        basketManager.setManagementFee(address(0), 3000);
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
         vm.prank(manager);
@@ -378,7 +378,7 @@ contract BasketManagerTest is BaseTest {
         assets[0] = pairAsset;
         // Set the default management fee
         vm.prank(timelock);
-        basketManager.setManagementFee(address(0), 1e4);
+        basketManager.setManagementFee(address(0), 3000);
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         // Mock the call to getAssets to not include base asset
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));

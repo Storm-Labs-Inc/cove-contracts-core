@@ -42,10 +42,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     /// @notice Role given to a timelock contract that can set critical parameters.
     bytes32 private constant _TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
-    /// @notice Maximum management fee in BPS denominated in 1e4.
-    uint16 private constant _MAX_MANAGEMENT_FEE = 10_000;
-    /// @notice Maximum swap fee in BPS denominated in 1e4.
-    uint16 private constant _MAX_SWAP_FEE = 30;
+    /// @notice Maximum management fee (30%) in BPS denominated in 1e4.
+    uint16 private constant _MAX_MANAGEMENT_FEE = 3_000;
+    /// @notice Maximum swap fee (5%) in BPS denominated in 1e4.
+    uint16 private constant _MAX_SWAP_FEE = 500;
 
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
