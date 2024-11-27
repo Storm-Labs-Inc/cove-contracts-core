@@ -539,8 +539,8 @@ contract BasketToken is
         return true;
     }
 
-    /// @dev Reverts if the sender is not authorized to act on behalf of the controller.
-    function _onlyAuthorizedSenders(address controller) internal view {
+    /// @dev Reverts if the controller is not the caller or the operator of the caller.
+    function _onlySelfOrOperator(address controller) internal view {
         if (msg.sender != controller) {
             if (!isOperator[controller][msg.sender]) {
                 revert NotAuthorizedOperator();
@@ -590,7 +590,7 @@ contract BasketToken is
     /// @return shares The amount of shares claimed.
     function claimFallbackShares(address receiver, address controller) public returns (uint256 shares) {
         // Checks
-        _onlyAuthorizedSenders(controller);
+        _onlySelfOrOperator(controller);
         shares = claimableFallbackShares(controller);
         if (shares == 0) {
             revert ZeroClaimableFallbackShares();
@@ -679,7 +679,7 @@ contract BasketToken is
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
-        _onlyAuthorizedSenders(controller);
+        _onlySelfOrOperator(controller);
         DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
         uint256 fulfilledShares = depositRequest.fulfilledShares;
         uint256 depositAssets = depositRequest.depositAssets[controller];
@@ -707,7 +707,7 @@ contract BasketToken is
     /// @return assets The amount of assets previously requested for deposit.
     function mint(uint256 shares, address receiver, address controller) public returns (uint256 assets) {
         // Checks
-        _onlyAuthorizedSenders(controller);
+        _onlySelfOrOperator(controller);
         DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
         uint256 fulfilledShares = depositRequest.fulfilledShares;
         uint256 depositAssets = depositRequest.depositAssets[controller];
@@ -756,7 +756,7 @@ contract BasketToken is
     /// @return shares The amount of shares previously requested for redemption.
     function withdraw(uint256 assets, address receiver, address controller) public override returns (uint256 shares) {
         // Checks
-        _onlyAuthorizedSenders(controller);
+        _onlySelfOrOperator(controller);
         RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
         uint256 fulfilledAssets = redeemRequest.fulfilledAssets;
         uint256 redeemShares = redeemRequest.redeemShares[controller];
@@ -778,7 +778,7 @@ contract BasketToken is
         if (shares == 0) {
             revert Errors.ZeroAmount();
         }
-        _onlyAuthorizedSenders(controller);
+        _onlySelfOrOperator(controller);
         RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
         uint256 fulfilledAssets = redeemRequest.fulfilledAssets;
         uint256 redeemShares = redeemRequest.redeemShares[controller];

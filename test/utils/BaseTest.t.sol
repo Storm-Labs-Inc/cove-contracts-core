@@ -7,7 +7,9 @@ import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.so
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-abstract contract BaseTest is Test {
+import { Constants } from "test/utils/Constants.t.sol";
+
+abstract contract BaseTest is Test, Constants {
     /// VARIABLES ///
     struct Fork {
         uint256 forkId;
