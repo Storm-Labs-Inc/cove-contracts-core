@@ -69,9 +69,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         address indexed basket, uint256 oldBitFlag, uint256 newBitFlag, bytes32 oldId, bytes32 newId
     );
     /// @notice Emitted when a token swap is proposed during a rebalance.
-    event TokenSwapProposed(InternalTrade[] internalTrades, ExternalTrade[] externalTrades, uint256 epoch);
+    event TokenSwapProposed(uint40 indexed epoch, InternalTrade[] internalTrades, ExternalTrade[] externalTrades);
     /// @notice Emitted when a token swap is executed during a rebalance.
-    event TokenSwapExecuted(uint256 epoch);
+    event TokenSwapExecuted(uint40 indexed epoch);
 
     /// ERRORS ///
     /// @notice Thrown when attempting to execute a token swap without first proposing it.
@@ -311,7 +311,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         whenNotPaused
     {
         _bmStorage.proposeTokenSwap(internalTrades, externalTrades, basketsToRebalance, targetWeights);
-        emit TokenSwapProposed(internalTrades, externalTrades, _bmStorage.rebalanceStatus.epoch);
+        emit TokenSwapProposed(_bmStorage.rebalanceStatus.epoch, internalTrades, externalTrades);
     }
 
     /// @notice Executes the token swaps proposed in proposeTokenSwap and updates the basket balances.
