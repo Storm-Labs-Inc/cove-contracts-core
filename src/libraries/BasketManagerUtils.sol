@@ -366,8 +366,8 @@ library BasketManagerUtils {
         _initializeBasketData(self, baskets, basketBalances, totalValues);
         // NOTE: for rebalance retries the internal trades must be updated as well
         _settleInternalTrades(self, internalTrades, baskets, basketBalances);
-        _validateExternalTrades(self, externalTrades, baskets, totalValue_, basketBalances);
-        if (!_isTargetWeightMet(self, baskets, basketBalances, totalValue_, basketTargetWeights)) {
+        _validateExternalTrades(self, externalTrades, baskets, totalValues, basketBalances);
+        if (!_isTargetWeightMet(self, baskets, basketBalances, totalValues, basketTargetWeights)) {
             revert TargetWeightsNotMet();
         }
     }
