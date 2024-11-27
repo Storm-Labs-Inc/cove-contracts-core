@@ -99,6 +99,8 @@ library BasketManagerUtils {
     /// @param asset Asset that the swap fee was charged in.
     /// @param amount Amount of the asset that was charged.
     event SwapFeeCharged(address indexed asset, uint256 amount);
+    /// @notice Emitted when a rebalance is completed.
+    event RebalanceCompleted(uint256 epoch);
 
     /// ERRORS ///
     /// @dev Reverts when the total supply of a basket token is zero.
@@ -408,6 +410,8 @@ library BasketManagerUtils {
                 return;
             }
         }
+        // slither-disable-next-line reentrancy-events
+        emit RebalanceCompleted(self.rebalanceStatus.epoch);
         _finalizeRebalance(self, baskets);
     }
 
