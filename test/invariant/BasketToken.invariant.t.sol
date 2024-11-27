@@ -176,16 +176,55 @@ contract BasketTokenHandler is InvariantHandler {
 
     // Function to test deposit reversion when using less than the max deposit amount.
     // This ensures that the deposit function behaves correctly under boundary conditions.
-    function deposit_revertWhen_UsingLessThanMaxDeposit(uint256 userIdx) public useActor(userIdx) {
+    function deposit_revertWhen_UsingDifferentThanMaxDeposit(
+        uint256 userIdx,
+        uint256 amount
+    )
+        public
+        useActor(userIdx)
+    {
         console.log("   deposit_revertWhen_UsingLessThanMaxDeposit: userAddr=%s", currentActor);
         vm.assume(initialized);
         uint256 maxDeposit = basketToken.maxDeposit(currentActor);
-        vm.assume(maxDeposit > 0); // Ensure there is a deposit amount to claim.
-        uint256 depositAmount = bound(maxDeposit, 0, maxDeposit - 1);
+        vm.assume(amount != maxDeposit);
 
-        // Deposit less than the max deposit amount.
-        try basketToken.deposit(depositAmount, currentActor) returns (uint256 shares) {
+        // Deposit different amounts and check for reversion.
+        try basketToken.deposit(amount, currentActor) returns (uint256 shares) {
             assertTrue(false, "deposit should revert when using less than maxDeposit");
+        } catch { }
+    }
+
+    // Check the max functions for deposit, mint, redeem, and withdraw never reverts.
+    function maxFunctions(uint256 userIdx) public useActor(userIdx) {
+        console.log("   maxFunctions: userAddr=%s", currentActor);
+        vm.assume(initialized);
+
+        basketToken.maxDeposit(currentActor);
+        basketToken.maxMint(currentActor);
+        basketToken.maxRedeem(currentActor);
+        basketToken.maxWithdraw(currentActor);
+    }
+
+    // Function to test preview functions for deposit, mint, redeem, and withdraw always reverting.
+    function previewFunctions_revertWhen_Always(uint256 amount) public {
+        console.log("   previewFunctions_revertWhen_Always: amount=%d", amount);
+        vm.assume(initialized);
+
+        // Call preview functions and check for reversion.
+        try basketToken.previewDeposit(amount) returns (uint256) {
+            assertTrue(false, "previewDeposit should revert");
+        } catch { }
+
+        try basketToken.previewMint(amount) returns (uint256) {
+            assertTrue(false, "previewRedeemShares should revert");
+        } catch { }
+
+        try basketToken.previewRedeem(amount) returns (uint256) {
+            assertTrue(false, "previewRedeem should revert");
+        } catch { }
+
+        try basketToken.previewWithdraw(amount) returns (uint256) {
+            assertTrue(false, "previewRedeemShares should revert");
         } catch { }
     }
 
@@ -225,6 +264,40 @@ contract BasketTokenHandler is InvariantHandler {
         );
 
         depositsPendingRebalance += depositAmount;
+    }
+
+    // Function to request a redeem for a specific user.
+    // It assumes the contract is initialized and the user has no pending redeem requests.
+    // This function tracks the state of pending redeems accurately.
+    function requestRedeem(uint256 userIdx, uint256 redeemAmount) public useActor(userIdx) {
+        console.log("   requestRedeem: userAddr=%s, redeemAmount=%d", currentActor, redeemAmount);
+        vm.assume(initialized);
+        uint256 nextRequestId = basketToken.nextRedeemRequestId();
+        vm.assume(basketToken.pendingRedeemRequest(nextRequestId - 2, currentActor) == 0);
+        vm.assume(basketToken.maxRedeem(currentActor) == 0);
+        uint256 userBalance = basketToken.balanceOf(currentActor);
+        vm.assume(userBalance > 0);
+        redeemAmount = bound(redeemAmount, 1, userBalance);
+
+        uint256 before = basketToken.totalPendingRedemptions();
+        uint256 userRequestBefore = basketToken.pendingRedeemRequest(nextRequestId, currentActor);
+
+        uint256 requestId = basketToken.requestRedeem(redeemAmount, currentActor, currentActor);
+        assertEq(requestId, nextRequestId, "requestId should match nextRequestId");
+
+        assertEq(
+            basketToken.totalPendingRedemptions(),
+            before + redeemAmount,
+            "totalPendingRedemptions should increase by redeemAmount"
+        );
+        assertEq(basketToken.lastRedeemRequestId(currentActor), requestId, "lastRedeemRequestId should match requestId");
+        assertEq(
+            basketToken.pendingRedeemRequest(requestId, currentActor),
+            userRequestBefore + redeemAmount,
+            "pendingRedeemRequest should increase by redeemAmount"
+        );
+
+        redeemsPendingRebalance += redeemAmount;
     }
 
     // Function to prepare the BasketToken for a rebalance.
