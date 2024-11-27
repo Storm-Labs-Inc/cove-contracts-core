@@ -1014,7 +1014,7 @@ library BasketManagerUtils {
                 : pendingDeposit;
             totalSupply += requiredDepositShares;
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            self.basketBalanceOf[basket][self.basketAssets[basket][baseAssetIndex]] += baseAssetBalance + pendingDeposit;
+            self.basketBalanceOf[basket][self.basketAssets[basket][baseAssetIndex]] = baseAssetBalance + pendingDeposit;
             // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
             BasketToken(basket).fulfillDeposit(requiredDepositShares);
         }
