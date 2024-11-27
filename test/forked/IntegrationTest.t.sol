@@ -28,7 +28,7 @@ struct SurplusDeficit {
     uint256 deficitUSD; // USD value of deficit
 }
 
-contract IntegrationTest is BaseTest, Constants {
+contract IntegrationTest is BaseTest {
     using FixedPointMathLib for uint256;
 
     InternalTrade[] private tempInternalTrades;
