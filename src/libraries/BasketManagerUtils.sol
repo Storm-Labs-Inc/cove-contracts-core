@@ -758,7 +758,11 @@ library BasketManagerUtils {
             });
 
             // Calculate fee on sellAmount
-            info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
+            if (swapFee > 0) {
+                info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
+                self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
+                emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
+            }
             info.netSellAmount = trade.sellAmount - info.feeOnSell;
 
             // Calculate initial buyAmount based on netSellAmount
@@ -769,7 +773,11 @@ library BasketManagerUtils {
             );
 
             // Calculate fee on buyAmount
-            info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
+            if (swapFee > 0) {
+                info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
+                self.collectedSwapFees[trade.buyToken] += info.feeOnBuy;
+                emit SwapFeeCharged(trade.buyToken, info.feeOnBuy);
+            }
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
@@ -801,17 +809,6 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketBalanceOf[trade.toBasket][trade.sellToken] =
                     basketBalances[info.toBasketIndex][info.toBasketSellTokenIndex] += info.netSellAmount; // nosemgrep
-
-                // Collect fees
-                if (info.feeOnSell > 0) {
-                    self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
-                    emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
-                }
-                if (info.feeOnBuy > 0) {
-                    self.collectedSwapFees[trade.buyToken] += info.feeOnBuy;
-                    emit SwapFeeCharged(trade.buyToken, info.feeOnBuy);
-                }
-
                 ++i;
             }
             emit InternalTradeSettled(trade, info.netBuyAmount);
@@ -1014,14 +1011,14 @@ library BasketManagerUtils {
         // Rounding direction: down
         // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
         for (uint256 j = 0; j < assetsLength;) {
-            targetBalances[j] =
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            self.eulerRouter.getQuote(
-                FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, _WEIGHT_PRECISION),
-                _USD_ISO_4217_CODE,
-                assets[j]
-            );
-
+            if (proposedTargetWeights[j] > 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                targetBalances[j] = self.eulerRouter.getQuote(
+                    FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, _WEIGHT_PRECISION),
+                    _USD_ISO_4217_CODE,
+                    assets[j]
+                );
+            }
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;
@@ -1029,9 +1026,11 @@ library BasketManagerUtils {
         }
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
         uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
-        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        targetBalances[baseAssetIndex] +=
-            self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
+        if (requiredWithdrawValue > 0) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            targetBalances[baseAssetIndex] +=
+                self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
+        }
     }
 
     /// @notice Internal function to calculate the current value of all assets in a given basket.
