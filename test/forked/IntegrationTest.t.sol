@@ -328,6 +328,7 @@ contract IntegrationTest is BaseTest {
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
     }
 
+    // solhint-disable-next-line code-complexity
     function testFuzz_completeRebalance_multipleCycles(uint256 cycles) public {
         cycles = bound(cycles, 3, 51);
         //  even # of cycles returns to base state
@@ -434,6 +435,7 @@ contract IntegrationTest is BaseTest {
         }
     }
 
+    // solhint-disable-next-line code-complexity
     function testFuzz_completeRebalance_MultipleBaskets() public {
         uint256 cycles = 5;
 
