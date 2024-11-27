@@ -332,6 +332,7 @@ library BasketManagerUtils {
     )
         external
     {
+        // Checks
         RebalanceStatus memory status = self.rebalanceStatus;
         if (status.status != Status.REBALANCE_PROPOSED) {
             revert MustWaitForRebalanceToComplete();
@@ -341,21 +342,23 @@ library BasketManagerUtils {
             revert BasketsMismatch();
         }
 
-        uint256 numBaskets = baskets.length;
-        uint256[] memory totalValue_ = new uint256[](numBaskets);
-        // 2d array of asset balances for each basket
-        uint256[][] memory basketBalances = new uint256[][](numBaskets);
-        _initializeBasketData(self, baskets, basketBalances, totalValue_);
-        // NOTE: for rebalance retries the internal trades must be updated as well
-        _settleInternalTrades(self, internalTrades, baskets, basketBalances);
-        _validateExternalTrades(self, externalTrades, baskets, totalValue_, basketBalances);
-        if (!_validateTargetWeights(self, baskets, basketBalances, totalValue_)) {
-            revert TargetWeightsNotMet();
-        }
+        // Effects
         status.timestamp = uint40(block.timestamp);
         status.status = Status.TOKEN_SWAP_PROPOSED;
         self.rebalanceStatus = status;
         self.externalTradesHash = keccak256(abi.encode(externalTrades));
+
+        uint256 numBaskets = baskets.length;
+        uint256[] memory totalValues = new uint256[](numBaskets);
+        // 2d array of asset balances for each basket
+        uint256[][] memory basketBalances = new uint256[][](numBaskets);
+        _initializeBasketData(self, baskets, basketBalances, totalValues);
+        // NOTE: for rebalance retries the internal trades must be updated as well
+        _settleInternalTrades(self, internalTrades, baskets, basketBalances);
+        _validateExternalTrades(self, externalTrades, baskets, totalValues, basketBalances);
+        if (!_validateTargetWeights(self, baskets, basketBalances, totalValues)) {
+            revert TargetWeightsNotMet();
+        }
     }
 
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
@@ -448,10 +451,10 @@ library BasketManagerUtils {
             revert MustWaitForRebalanceToComplete();
         }
 
-        // Effects
         address basket = msg.sender;
         address[] storage assets = self.basketAssets[basket];
         uint256 assetsLength = assets.length;
+
         // Interactions
         for (uint256 i = 0; i < assetsLength;) {
             address asset = assets[i];
