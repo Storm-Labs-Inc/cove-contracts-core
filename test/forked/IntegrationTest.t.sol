@@ -1026,13 +1026,11 @@ contract IntegrationTest is BaseTest {
             // Process each potential sell asset
             for (uint256 j = 0; j < assets.length; j++) {
                 address sellAsset = assets[j];
-                // uint256 surplusUSD = surplusDeficitMap[sellAsset][basket].surplusUSD;
 
                 if (surplusDeficitMap[sellAsset][basket].surplusUSD == 0) continue;
 
                 externalTradeCount =
-                // _processSellAsset(basket, sellAsset, surplusUSD, assets, externalTradesTemp, externalTradeCount);
-                 _processSellAsset(basket, sellAsset, assets, externalTradesTemp, externalTradeCount);
+                    _processSellAsset(basket, sellAsset, assets, externalTradesTemp, externalTradeCount);
             }
         }
     }
@@ -1042,7 +1040,6 @@ contract IntegrationTest is BaseTest {
     function _processSellAsset(
         address basket,
         address sellAsset,
-        // uint256 surplusUSD,
         address[] memory assets,
         ExternalTrade[] memory externalTradesTemp,
         uint256 tradeCount
@@ -1095,7 +1092,6 @@ contract IntegrationTest is BaseTest {
         uint256 minBuyAmount = _valueToAmount(buyAsset, usdAmount);
 
         // Check if thers is already an instance of the propose external trade and prepare basket trade ownerships
-        // BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](baskets.length);
         uint256 externalTradeIndexPlusOne = _checkForExistingExternalTrade(sellAsset, buyAsset, externalTradesTemp);
 
         if (externalTradeIndexPlusOne == 0) {
