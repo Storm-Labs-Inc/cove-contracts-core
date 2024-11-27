@@ -104,7 +104,10 @@ library BasketManagerUtils {
     /// @param proposedTargetWeights Array of target weights for each basket
     /// @param basketHash Hash of the basket addresses and target weights for the rebalance
     /// @param timestamp Timestamp when the rebalance was proposed
-    event RebalanceProposed(address[] baskets, uint64[][] proposedTargetWeights, bytes32 basketHash, uint40 timestamp);
+    /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is proposed
+    event RebalanceProposed(
+        address[] baskets, uint64[][] proposedTargetWeights, bytes32 basketHash, uint40 timestamp, uint256 epoch
+    );
     /// @notice Emitted when a rebalance is completed.
     event RebalanceCompleted(uint256 epoch);
 
@@ -325,7 +328,11 @@ library BasketManagerUtils {
         self.rebalanceStatus.basketHash = keccak256(abi.encode(baskets, basketTargetWeights));
         // slither-disable-next-line reentrancy-events
         emit RebalanceProposed(
-            baskets, basketTargetWeights, self.rebalanceStatus.basketHash, self.rebalanceStatus.timestamp
+            baskets,
+            basketTargetWeights,
+            self.rebalanceStatus.basketHash,
+            self.rebalanceStatus.timestamp,
+            self.rebalanceStatus.epoch
         );
     }
     // solhint-enable code-complexity
