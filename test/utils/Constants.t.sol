@@ -95,14 +95,11 @@ contract Constants {
     address public constant COVE_COMMUNITY_MULTISIG = 0x7Bd578354b0B2f02E656f1bDC0e41a80f860534b;
 
     // Constants hardcoded in the contracts, replicated here for testing.
-    uint16 public constant MAX_MANAGEMENT_FEE = 1e4;
-    uint16 public constant MAX_SWAP_FEE = 30;
+    uint16 public constant MAX_MANAGEMENT_FEE = 3000;
+    uint16 public constant MAX_SWAP_FEE = 500;
     uint8 public constant MAX_RETRIES = 3;
     uint256 public constant REBALANCE_COOLDOWN_SEC = 1 hours;
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
-
-    uint16 public constant _MANAGEMENT_FEE_DECIMALS = 1e4;
-    uint16 public constant _MAX_MANAGEMENT_FEE = 1e4;
 }

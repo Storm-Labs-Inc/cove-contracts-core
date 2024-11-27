@@ -1909,7 +1909,7 @@ contract BasketTokenTest is BaseTest {
         public
     {
         // Assume shares are available to be harvested
-        vm.assume(feeBps > 0 && feeBps <= 1e4);
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
         vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
         testFuzz_deposit(totalDepositAmount, issuedShares);
         assertEq(basket.balanceOf(feeCollector), 0);
@@ -1936,7 +1936,7 @@ contract BasketTokenTest is BaseTest {
         public
     {
         // Assume shares are available to be harvested
-        vm.assume(feeBps > 0 && feeBps <= 1e4);
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
         vm.assume(timesHarvested > 0 && timesHarvested <= 365);
         vm.assume(issuedShares > 1e4 && issuedShares < (type(uint256).max / (feeBps * timesHarvested)) / 1e18);
         vm.assume((feeBps * issuedShares / 1e4) / timesHarvested > 1);
@@ -1975,7 +1975,7 @@ contract BasketTokenTest is BaseTest {
         public
     {
         // Assume shares are available to be harvested
-        vm.assume(feeBps > 0 && feeBps <= 1e4);
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
         vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
         // vm.assume(withdrawAmount > 0 && withdrawAmount < issuedShares);
         testFuzz_deposit(totalDepositAmount, issuedShares);
