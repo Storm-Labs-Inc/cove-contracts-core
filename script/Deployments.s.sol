@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
+import { StdAssertions } from "forge-std/StdAssertions.sol";
+
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
-import { StdAssertions } from "forge-std/StdAssertions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+
+import { Constants } from "test/utils/Constants.t.sol";
+
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 
 struct BasketTokenDeployment {
     // BasketToken initialize arguments
@@ -56,6 +58,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     address public basketTokenImplementation;
 
     bool public isProduction;
+    // TODO: see if this is needed
+    BasketTokenDeployment[] public basketTokenDeploymentList;
 
     bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
 
@@ -112,7 +116,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             ETH_SUSDE,
             "SUSDE",
             OracleOptions({
-                pythPriceFeed: PYTH_SUSE_USD_FEED,
+                pythPriceFeed: PYTH_SUSDE_USD_FEED,
                 pythMaxStaleness: 15 minutes,
                 pythMaxConfWidth: 100,
                 chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
@@ -145,7 +149,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             ETH_EZETH,
             "ezETH",
             OracleOptions({
-                pythPriceFeed: PYTH_EZETH_USD_FEED,
+                pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to ezETH feed once found
                 pythMaxStaleness: 15 minutes,
                 pythMaxConfWidth: 100,
                 chainlinkPriceFeed: ETH_CHAINLINK_EZETH_ETH_FEED,
@@ -163,7 +167,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             ETH_RSETH,
             "rsETH",
             OracleOptions({
-                pythPriceFeed: PYTH_RSETH_USD_FEED,
+                pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to rsETH feed once found
                 pythMaxStaleness: 15 minutes,
                 pythMaxConfWidth: 100,
                 chainlinkPriceFeed: ETH_CHAINLINK_RSETH_ETH_FEED,
@@ -207,19 +211,19 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         basketAssets[5] = ETH_RETH;
 
         uint64[] memory initialWeights = new uint64[](6); // TODO: confirm initial weights with Guantlet
-        initialWeights[0] = 2e17;
-        initialWeights[1] = 1.6e17;
-        initialWeights[2] = 1.6e17;
-        initialWeights[3] = 1.6e17;
-        initialWeights[4] = 1.6e17;
-        initialWeights[5] = 1.6e17;
+        initialWeights[0] = 1e18;
+        initialWeights[1] = 0;
+        initialWeights[2] = 0;
+        initialWeights[3] = 0;
+        initialWeights[4] = 0;
+        initialWeights[5] = 0;
 
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
                 name: "Gauntlet All Asset Basket", // TODO: confirm basket name
                 symbol: "GVT1", // TODO: confirm symbol
                 rootAsset: ETH_WETH, // TODO: confirm root asset
-                bitFlag: _assetsToBitFlag(basketAssets),
+                bitFlag: assetsToBitFlag(basketAssets),
                 strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"), // TODO: confirm strategy
                 initialWeights: initialWeights
             })
@@ -252,6 +256,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         _deployEulerRouter();
         _deployBasketManager(_FEE_COLLECTOR_SALT);
         _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        _deployAndSetCowSwapAdapter();
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment) private {
@@ -298,6 +303,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             AssetRegistry(getAddress("AssetRegistry")).getAssets(deployment.bitFlag),
             "Failed to set basket assets in BasketManager"
         );
+        // Save the deployment to the array
+        basketTokenDeploymentList.push(deployment);
     }
 
     // Deploys basket manager given a fee collector salt which must be used to deploy the fee collector using CREATE3.
@@ -319,6 +326,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             vm.broadcast();
         }
         bm.grantRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+        bm.grantRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
     }
 
     // Uses CREATE3 to deploy a fee collector contract. Salt must be the same given to the basket manager deploy.
@@ -344,6 +352,15 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         address eulerRouter = address(new EulerRouter(EVC, COVE_DEPLOYER_ADDRESS));
         deployer.save("EulerRouter", eulerRouter, "EulerRouter.sol:EulerRouter", constructorArgs, creationBytecode);
         require(getAddress("EulerRouter") == eulerRouter, "Failed to save EulerRouter deployment");
+    }
+
+    // Deploys cow swap adapter, sets it as the token swap adapter in BasketManager
+    function _deployAndSetCowSwapAdapter() private deployIfMissing("CowSwapAdapter") {
+        address cowSwapCloneImplementation = address(deployer.deploy_CoWSwapClone("CoWSwapClone"));
+        address cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter("CowSwapAdapter", cowSwapCloneImplementation));
+        require(getAddress("CowSwapAdapter") == cowSwapAdapter, "Failed to save CowSwapAdapter deployment");
+        address basketManager = getAddress("BasketManager");
+        BasketManager(basketManager).setTokenSwapAdapter(cowSwapAdapter);
     }
 
     // Deploys a managed weight strategy for an external manager
@@ -458,6 +475,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         private
         deployIfMissing(string.concat(assetName, "_AnchoredOracle"))
     {
+        // Save the deployment to the array
         address primary = _deployPythOracle(
             assetName,
             asset,
@@ -590,6 +608,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         bm.grantRole(PAUSER_ROLE, pauser);
         bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
         bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+        bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
 
         if (isProduction) {
@@ -597,7 +616,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         }
     }
 
-    function _assetsToBitFlag(address[] memory assets) private view returns (uint256 bitFlag) {
+    function assetsToBitFlag(address[] memory assets) public view returns (uint256 bitFlag) {
         return AssetRegistry(getAddress("AssetRegistry")).getAssetsBitFlag(assets);
     }
 }

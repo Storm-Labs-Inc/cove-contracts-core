@@ -10,6 +10,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { IERC20Plugins } from "token-plugins-upgradeable/contracts/interfaces/IERC20Plugins.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20DecimalsMock } from "test/utils/mocks/ERC20DecimalsMock.sol";
@@ -60,6 +61,12 @@ contract BasketTokenTest is BaseTest {
         vm.mockCall(
             address(assetRegistry), abi.encodeCall(AssetRegistry.hasPausedAssets, basket.bitFlag()), abi.encode(false)
         );
+
+        // create users for testing
+        fuzzedUsers = new address[](MAX_USERS);
+        for (uint256 i = 0; i < MAX_USERS; ++i) {
+            fuzzedUsers[i] = createUser(string.concat("user", vm.toString(i)));
+        }
     }
 
     function testFuzz_initialize_revertWhen_InvalidInitialization(
@@ -348,13 +355,11 @@ contract BasketTokenTest is BaseTest {
     function testFuzz_fulfillDeposit(uint256 totalAmount, uint256 issuedShares) public returns (uint256 requestId) {
         totalAmount = bound(totalAmount, 1, type(uint256).max);
         issuedShares = bound(issuedShares, 1, type(uint256).max);
-        fuzzedUsers = new address[](MAX_USERS);
         depositAmounts = new uint256[](MAX_USERS);
         uint256 remainingAmount = totalAmount;
 
         // Call requestDeposit from users with random amounts
         for (uint256 i = 0; i < MAX_USERS; ++i) {
-            fuzzedUsers[i] = createUser(string.concat("user", vm.toString(i)));
             // Ignore the cases where a user ends up with zero deposit amount
             vm.assume(remainingAmount > 1);
             if (i == MAX_USERS - 1) {
@@ -480,7 +485,7 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         uint256 lostShares = basket.balanceOf(address(basket));
-        // TODO: establish max loss of shares in edge cases
+        // @audit Guidance on how to establish the max loss of shares in edge cases
         assertLe(
             lostShares.fullMulDiv(1e18, issuedShares), 1e18, "Lost shares should be less than 100% of the issued shares"
         );
@@ -521,7 +526,7 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         uint256 lostShares = basket.balanceOf(address(basket));
-        // TODO: establish max loss of shares in edge cases
+        // @audit Guidance on how to establish the max loss of shares in edge cases
         assertLe(
             lostShares.fullMulDiv(1e18, issuedShares), 1e18, "Lost shares should be less than 100% of the issued shares"
         );
@@ -636,6 +641,7 @@ contract BasketTokenTest is BaseTest {
         testFuzz_fulfillDeposit(amount, issuedShares);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(from != operator);
             uint256 maxMint = basket.maxMint(from);
 
             // Set Operator
@@ -1777,6 +1783,7 @@ contract BasketTokenTest is BaseTest {
         testFuzz_deposit(totalDepositAmount, issuedShares);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(from != to);
             uint256 userShares = basket.balanceOf(from);
             // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
@@ -2025,11 +2032,102 @@ contract BasketTokenTest is BaseTest {
         basket.prepareForRebalance(feeBps, receiver);
     }
 
-    function test_addPlugin() public {
+    function test_multicall() public {
         ERC20Mock rewardToken = new ERC20Mock();
         FarmingPlugin farmingPlugin = new FarmingPlugin(basket, rewardToken, owner);
 
+        dummyAsset.mint(alice, 1e18);
+
         vm.prank(alice);
-        basket.addPlugin(address(farmingPlugin));
+        dummyAsset.approve(address(basket), 1e18);
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(IERC20Plugins.addPlugin.selector, address(farmingPlugin));
+        data[1] = abi.encodeWithSelector(BasketToken.requestDeposit.selector, 1e18, alice, alice);
+
+        vm.prank(alice);
+        basket.multicall(data);
+
+        assertTrue(basket.hasPlugin(alice, address(farmingPlugin)));
+        assertEq(dummyAsset.balanceOf(address(basket)), 1e18);
+    }
+
+    function testFuzz_setBitFlag(uint256 bitFlag) public {
+        // Set the bitFlag as the basketManager
+        uint256 currentBitFlag = basket.bitFlag();
+        vm.expectEmit();
+        emit BasketToken.BitFlagUpdated(currentBitFlag, bitFlag);
+        vm.prank(address(basketManager));
+        basket.setBitFlag(bitFlag);
+        // Check if the bitFlag was updated correctly
+        assertEq(basket.bitFlag(), bitFlag, "BitFlag was not set correctly");
+    }
+
+    function testFuzz_setBitFlag_revertWhen_CalledByNonBasketManager(uint256 bitFlag) public {
+        // Assume bitFlag is a valid value
+        vm.assume(bitFlag > 0);
+
+        // Try to set the bitFlag as a non-basketManager and expect revert
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.NotBasketManager.selector));
+        basket.setBitFlag(bitFlag);
+    }
+
+    function testFuzz_farmingPlugin(
+        uint256 depositAmount,
+        uint256 issuedShares,
+        uint256 rewardAmount,
+        uint256 rewardPeriod
+    )
+        public
+    {
+        // Use realistic range of values
+        depositAmount = bound(depositAmount, 1, 100_000_000e18);
+        issuedShares = bound(issuedShares, 1, 100_000_000e18);
+        rewardAmount = bound(rewardAmount, 1e18, 100_000_000e18);
+        rewardPeriod = bound(rewardPeriod, 1 weeks, 52 weeks);
+        ERC20Mock rewardToken = new ERC20Mock();
+        FarmingPlugin farmingPlugin = new FarmingPlugin(basket, rewardToken, owner);
+
+        // Start rewards
+        rewardToken.mint(owner, rewardAmount);
+        vm.startPrank(owner);
+        rewardToken.approve(address(farmingPlugin), rewardAmount);
+        farmingPlugin.setDistributor(owner);
+        farmingPlugin.startFarming(rewardAmount, rewardPeriod);
+        vm.stopPrank();
+
+        // Each user adds the farming plugin
+        for (uint256 i = 0; i < MAX_USERS; i++) {
+            address user = fuzzedUsers[i];
+            vm.prank(user);
+            basket.addPlugin(address(farmingPlugin));
+        }
+
+        // Each user deposits some tokens
+        testFuzz_deposit(depositAmount, issuedShares);
+
+        // Verify plugin balance is updated
+        uint256 farmingTotalSupply = farmingPlugin.totalSupply();
+        vm.assume(farmingTotalSupply > 0);
+
+        for (uint256 i = 0; i < MAX_USERS; i++) {
+            address user = fuzzedUsers[i];
+            assertEq(basket.pluginBalanceOf(address(farmingPlugin), user), basket.balanceOf(user));
+        }
+
+        // Verify the rewards at half way
+        vm.warp(vm.getBlockTimestamp() + rewardPeriod / 2);
+
+        for (uint256 i = 0; i < MAX_USERS; i++) {
+            address user = fuzzedUsers[i];
+            uint256 userBalance = basket.balanceOf(user);
+            uint256 expectedReward = userBalance == 0 ? 0 : userBalance.fullMulDiv(rewardAmount, farmingTotalSupply) / 2;
+            uint256 farmed = farmingPlugin.farmed(user);
+            assertApproxEqRel(farmed, expectedReward, 0.01e18);
+            vm.prank(user);
+            farmingPlugin.claim();
+            assertApproxEqRel(rewardToken.balanceOf(user), expectedReward, 0.01e18);
+        }
     }
 }

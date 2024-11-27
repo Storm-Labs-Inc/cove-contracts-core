@@ -9,6 +9,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { SelfPermit } from "src/deps/uniswap-v3-periphery/base/SelfPermit.sol";
 import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC20PluginsUpgradeable.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -28,7 +29,8 @@ contract BasketToken is
     IERC7540Operator,
     IERC7540Deposit,
     IERC7540Redeem,
-    MulticallUpgradeable
+    MulticallUpgradeable,
+    SelfPermit
 {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
@@ -101,6 +103,10 @@ contract BasketToken is
     /// @param shares The number of shares redeemed.
     /// @param assets The amount of assets returned to the user.
     event RedeemFulfilled(uint256 indexed requestId, uint256 shares, uint256 assets);
+    /// @notice Emitted when the bitflag is updated to a new value.
+    /// @param oldBitFlag The previous bitflag value.
+    /// @param newBitFlag The new bitflag value.
+    event BitFlagUpdated(uint256 oldBitFlag, uint256 newBitFlag);
 
     /// ERRORS ///
     /// @notice Thrown when there are no pending deposits to fulfill.
@@ -395,6 +401,16 @@ contract BasketToken is
         // Interactions
         // transfer the assets to the basket manager
         IERC20(asset()).safeTransfer(msg.sender, assets);
+    }
+
+    /// @notice Sets the new bitflag for the basket.
+    /// @dev This can only be called by the Basket Manager therefore we assume that the new bitflag is valid.
+    /// @param bitFlag_ The new bitflag.
+    function setBitFlag(uint256 bitFlag_) public {
+        _onlyBasketManager();
+        uint256 oldBitFlag = bitFlag;
+        bitFlag = bitFlag_;
+        emit BitFlagUpdated(oldBitFlag, bitFlag_);
     }
 
     /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the

@@ -558,7 +558,8 @@ library BasketManagerUtils {
         // slither-disable-start calls-loop
         uint256 len = baskets.length;
         for (uint256 i = 0; i < len;) {
-            // TODO: Make this more efficient by using calldata or by moving the logic to zk proof chain
+            // NOTE: Can be optimized by using calldata for the `baskets` parameter or by moving the
+            // redemption processing logic to a ZK coprocessor like Axiom for improved efficiency and scalability.
             address basket = baskets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] memory assets = self.basketAssets[basket];
@@ -663,13 +664,12 @@ library BasketManagerUtils {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 address basket = ownership.basket;
                 // Account for bought tokens
-                // TODO: confirm if this is the correct index
                 self.basketBalanceOf[basket][trade.buyToken] +=
-                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Account for sold tokens
                 self.basketBalanceOf[basket][trade.sellToken] = self.basketBalanceOf[basket][trade.sellToken]
-                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, 1e18)
-                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, _WEIGHT_PRECISION)
+                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 unchecked {
                     // Overflow not possible: i is less than tradeOwnerShipLength.length
                     ++j;
@@ -850,9 +850,9 @@ library BasketManagerUtils {
                 ownershipInfo.sellTokenAssetIndex =
                     basketTokenToRebalanceAssetToIndex(self, ownership.basket, trade.sellToken);
                 uint256 ownershipSellAmount =
-                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 uint256 ownershipBuyAmount =
-                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, 1e18);
+                    FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Record changes in basket asset holdings due to the external trade
                 if (
                     ownershipSellAmount
@@ -884,7 +884,7 @@ library BasketManagerUtils {
 
             // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
             if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * 1e18 / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
+                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
                     revert ExternalTradeSlippage();
                 }
             }
@@ -1057,7 +1057,10 @@ library BasketManagerUtils {
             balances[j] = self.basketBalanceOf[basket][assets[j]];
             // Rounding direction: down
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+            if (balances[j] > 0) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+            }
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;
