@@ -319,8 +319,9 @@ library BasketManagerUtils {
         if (!shouldRebalance) {
             revert RebalanceNotRequired();
         }
-        // Effects
+        // Effects after Interactions. Target weights require external view calls to respective strategies.
         self.rebalanceStatus.basketHash = keccak256(abi.encode(baskets, basketTargetWeights));
+        // slither-disable-next-line reentrancy-events
         emit RebalanceProposed(
             baskets, basketTargetWeights, self.rebalanceStatus.basketHash, self.rebalanceStatus.timestamp
         );
