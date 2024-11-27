@@ -39,7 +39,8 @@ contract BasketToken is
     /// @notice ISO 4217 numeric code for USD, used as a constant address representation
     address private constant _USD_ISO_4217_CODE = address(840);
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
-    uint16 private constant _MAX_MANAGEMENT_FEE = 1e4;
+    /// @notice Maximum management fee (30%) in BPS denominated in 1e4.
+    uint16 private constant _MAX_MANAGEMENT_FEE = 3000;
 
     /// @notice Struct representing a deposit request.
     struct DepositRequestStruct {

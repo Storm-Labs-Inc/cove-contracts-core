@@ -75,11 +75,11 @@ library BasketManagerUtils {
     address private constant _USD_ISO_4217_CODE = address(840);
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 private constant _MAX_NUM_OF_BASKET_TOKENS = 256;
-    /// @notice Maximum slippage allowed for token swaps.
-    uint256 private constant _MAX_SLIPPAGE_BPS = 0.05e18; // .05%
-    /// @notice Maximum deviation from target weights allowed for token swaps.
-    uint256 private constant _MAX_WEIGHT_DEVIATION_BPS = 0.05e18; // .05%
-    /// @notice Precision used for weight calculations.
+    /// @notice Maximum slippage multiplier for token swaps, expressed in 1e18.
+    uint256 private constant _MAX_SLIPPAGE = 0.05e18; // 5%
+    /// @notice Maximum deviation multiplier to determine if a set of balances has reached the desired target weights.
+    uint256 private constant _MAX_WEIGHT_DEVIATION = 0.05e18; // 5%
+    /// @notice Precision used for weight calculations and slippage calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Maximum number of retries for a rebalance.
     uint8 private constant _MAX_RETRIES = 3;
@@ -838,7 +838,7 @@ library BasketManagerUtils {
     /// @param baskets Array of basket addresses currently being rebalanced.
     /// @param totalValue_ Array of total basket values in USD.
     /// @param afterTradeAmounts_ An initialized array of asset amounts for each basket being rebalanced.
-    /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
+    /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE threshold of the minAmount, this
     /// function will revert.
     function _validateExternalTrades(
         BasketManagerStorage storage self,
@@ -898,9 +898,9 @@ library BasketManagerUtils {
             info.internalMinAmount = self.eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
 
-            // Check if the given minAmount is within the _MAX_SLIPPAGE_BPS threshold of internalMinAmount
+            // Check if the given minAmount is within the _MAX_SLIPPAGE threshold of internalMinAmount
             if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE_BPS) {
+                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE) {
                     revert ExternalTradeSlippage();
                 }
             }
@@ -927,7 +927,7 @@ library BasketManagerUtils {
         }
     }
 
-    /// @notice Checks if weight deviations after trades are within the acceptable _MAX_WEIGHT_DEVIATION_BPS threshold.
+    /// @notice Checks if weight deviations after trades are within the acceptable _MAX_WEIGHT_DEVIATION threshold.
     /// Returns true if all deviations are within bounds for each asset in every basket.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param baskets Array of basket addresses currently being rebalanced.
@@ -945,7 +945,7 @@ library BasketManagerUtils {
         view
         returns (bool)
     {
-        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION_BPS threshold
+        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION threshold
         uint256 len = baskets.length;
         for (uint256 i = 0; i < len;) {
             address basket = baskets[i];
@@ -963,7 +963,7 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION_BPS) {
+                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
                     return false;
                 }
                 unchecked {

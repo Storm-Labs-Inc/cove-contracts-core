@@ -203,7 +203,7 @@ contract BasketManagerTest is BaseTest {
         assets[0] = rootAsset;
         // Set the default management fee
         vm.prank(timelock);
-        basketManager.setManagementFee(address(0), 1e4);
+        basketManager.setManagementFee(address(0), 3000);
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
 
@@ -221,7 +221,7 @@ contract BasketManagerTest is BaseTest {
         assertEq(basketManager.basketTokenToRebalanceAssetToIndex(basket, address(rootAsset)), 0);
         assertEq(basketManager.basketTokenToIndex(basket), 0);
         assertEq(basketManager.basketAssets(basket), assets);
-        assertEq(basketManager.managementFee(basket), 1e4);
+        assertEq(basketManager.managementFee(basket), 3000);
     }
 
     function testFuzz_createNewBasket_revertWhen_BasketTokenMaxExceeded(uint256 bitFlag, address strategy) public {
@@ -383,7 +383,7 @@ contract BasketManagerTest is BaseTest {
         assets[0] = pairAsset;
         // Set the default management fee
         vm.prank(timelock);
-        basketManager.setManagementFee(address(0), 1e4);
+        basketManager.setManagementFee(address(0), 3000);
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
         // Mock the call to getAssets to not include base asset
         vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
@@ -1395,8 +1395,8 @@ contract BasketManagerTest is BaseTest {
             buyToken: params.pairAsset,
             toBasket: baskets[1],
             sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
-            minAmount: (params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18) * 0.995e18 / 1e18,
-            maxAmount: (params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18) * 1.005e18 / 1e18
+            minAmount: (params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18) * 0.95e18 / 1e18,
+            maxAmount: (params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18) * 1.05e18 / 1e18
         });
         uint256 basket0RootAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[0], rootAsset);
         uint256 basket0PairAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[0], params.pairAsset);

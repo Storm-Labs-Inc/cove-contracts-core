@@ -14,8 +14,8 @@ import { Errors } from "src/libraries/Errors.sol";
 contract FeeCollector is AccessControlEnumerable {
     /// CONSTANTS ///
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
+    /// @dev Fee split is denominated in 1e4. Also used as maximum fee split for the sponsor.
     uint16 private constant _FEE_SPLIT_DECIMALS = 1e4;
-    uint16 private constant _MAX_FEE = 1e4;
 
     /// STATE VARIABLES ///
     /// @notice The address of the protocol treasury
@@ -99,7 +99,7 @@ contract FeeCollector is AccessControlEnumerable {
     /// @param sponsorSplit The percentage of fees to give to the sponsor denominated in _FEE_SPLIT_DECIMALS
     function setSponsorSplit(address basketToken, uint16 sponsorSplit) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _checkIfBasketToken(basketToken);
-        if (sponsorSplit > _MAX_FEE) {
+        if (sponsorSplit > _FEE_SPLIT_DECIMALS) {
             revert SponsorSplitTooHigh();
         }
         if (basketTokenSponsors[basketToken] == address(0)) {
