@@ -19,7 +19,7 @@ enum Status {
 
 /// @notice Struct representing the rebalance status.
 struct RebalanceStatus {
-    // Hash of the baskets proposed for rebalance.
+    // Hash of the baskets and the target weights of them proposed for rebalance.
     bytes32 basketHash;
     // Bitmask representing baskets currently being rebalanced.
     uint256 basketMask;
