@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { Test } from "forge-std/Test.sol";
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -70,6 +68,16 @@ contract CoWSwapAdapterTest is BaseTest {
                 abi.encodeWithSelector(IERC20.approve.selector, _VAULT_RELAYER, type(uint256).max),
                 abi.encode(true)
             );
+
+            vm.expectEmit();
+            emit CoWSwapAdapter.OrderCreated(
+                externalTrades[i].sellToken,
+                externalTrades[i].buyToken,
+                externalTrades[i].sellAmount,
+                externalTrades[i].minAmount,
+                uint32(vm.getBlockTimestamp() + 15 minutes),
+                deployed
+            );
         }
         ExternalTrade[] memory trades = new ExternalTrade[](externalTrades.length);
         for (uint256 i = 0; i < externalTrades.length; i++) {
@@ -109,6 +117,15 @@ contract CoWSwapAdapterTest is BaseTest {
                 deployed,
                 abi.encodeWithSelector(CoWSwapClone(deployed).claim.selector),
                 abi.encodePacked(externalTrades[i].sellAmount, externalTrades[i].minAmount)
+            );
+
+            vm.expectEmit();
+            emit CoWSwapAdapter.TokenSwapCompleted(
+                externalTrades[i].sellToken,
+                externalTrades[i].buyToken,
+                externalTrades[i].sellAmount,
+                externalTrades[i].minAmount,
+                deployed
             );
         }
         uint256[2][] memory claimedAmounts = adapter.completeTokenSwap(trades);

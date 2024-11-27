@@ -19,8 +19,8 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
         uint40 timestamp;
     }
 
-    /// @notice Maps each rebalance epoch and bit flag to the corresponding target weights.
-    mapping(uint256 rebalanceEpoch => mapping(uint256 bitFlag => uint64[] weights)) public targetWeights;
+    /// @notice Maps each rebalance bit flag to the corresponding target weights.
+    mapping(uint256 bitFlag => uint64[] weights) public targetWeights;
     /// @notice Maps each bit flag to the last updated epoch and timestamp.
     mapping(uint256 bitFlag => LastUpdated) public lastUpdated;
 
@@ -41,10 +41,11 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
     error NoTargetWeights();
 
     /// @notice Emitted when target weights are updated.
-    /// @param epoch The epoch for which the weights are updated.
     /// @param bitFlag The bit flag representing the assets.
+    /// @param epoch The epoch for which the weights are updated for.
+    /// @param timestamp The timestamp of the update.
     /// @param newWeights The new target weights.
-    event TargetWeightsUpdated(uint256 indexed epoch, uint256 indexed bitFlag, uint64[] newWeights);
+    event TargetWeightsUpdated(uint256 indexed bitFlag, uint256 indexed epoch, uint256 timestamp, uint64[] newWeights);
 
     /// @notice Constructor for the ManagedWeightStrategy contract.
     /// @param admin The address of the admin who will have DEFAULT_ADMIN_ROLE and MANAGER_ROLE.
@@ -90,29 +91,30 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
             revert WeightsSumMismatch();
         }
 
-        // Determine the epoch to apply the weights to.
+        // Read the current epoch from the BasketManager contract.
+        // Determine the epoch that the weights will apply to.
         RebalanceStatus memory status = BasketManager(_basketManager).rebalanceStatus();
         uint40 epoch = status.epoch;
         if (status.status != Status.NOT_STARTED) {
             epoch += 1;
         }
+        LastUpdated memory lastUpdated_ = LastUpdated(epoch, uint40(block.timestamp));
 
         // Update the target weights and emit the event.
-        emit TargetWeightsUpdated(epoch, bitFlag, newTargetWeights);
-        targetWeights[epoch][bitFlag] = newTargetWeights;
-        lastUpdated[bitFlag] = LastUpdated(epoch, uint40(block.timestamp));
+        targetWeights[bitFlag] = newTargetWeights;
+        lastUpdated[bitFlag] = lastUpdated_;
+        emit TargetWeightsUpdated(bitFlag, lastUpdated_.epoch, lastUpdated_.timestamp, newTargetWeights);
     }
 
     /// @notice Retrieves the target weights for the assets in the basket for a given epoch and bit flag.
-    /// @param epoch The epoch to retrieve the target weights for.
     /// @param bitFlag The bit flag representing the assets.
     /// @return weights The target weights for the assets.
-    function getTargetWeights(uint40 epoch, uint256 bitFlag) public view override returns (uint64[] memory weights) {
+    function getTargetWeights(uint256 bitFlag) public view override returns (uint64[] memory weights) {
         uint256 assetCount = BitFlag.popCount(bitFlag);
         if (assetCount < 2) {
             revert UnsupportedBitFlag();
         }
-        weights = targetWeights[epoch][bitFlag];
+        weights = targetWeights[bitFlag];
         if (weights.length != assetCount) {
             revert NoTargetWeights();
         }

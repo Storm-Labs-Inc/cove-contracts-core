@@ -23,7 +23,6 @@ import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
-import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
 contract BasketTokenTest is BaseTest, Constants {
     using FixedPointMathLib for uint256;
@@ -61,6 +60,12 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.mockCall(
             address(assetRegistry), abi.encodeCall(AssetRegistry.hasPausedAssets, basket.bitFlag()), abi.encode(false)
         );
+
+        // create users for testing
+        fuzzedUsers = new address[](MAX_USERS);
+        for (uint256 i = 0; i < MAX_USERS; ++i) {
+            fuzzedUsers[i] = createUser(string.concat("user", vm.toString(i)));
+        }
     }
 
     function testFuzz_initialize_revertWhen_InvalidInitialization(
@@ -349,13 +354,11 @@ contract BasketTokenTest is BaseTest, Constants {
     function testFuzz_fulfillDeposit(uint256 totalAmount, uint256 issuedShares) public returns (uint256 requestId) {
         totalAmount = bound(totalAmount, 1, type(uint256).max);
         issuedShares = bound(issuedShares, 1, type(uint256).max);
-        fuzzedUsers = new address[](MAX_USERS);
         depositAmounts = new uint256[](MAX_USERS);
         uint256 remainingAmount = totalAmount;
 
         // Call requestDeposit from users with random amounts
         for (uint256 i = 0; i < MAX_USERS; ++i) {
-            fuzzedUsers[i] = createUser(string.concat("user", vm.toString(i)));
             // Ignore the cases where a user ends up with zero deposit amount
             vm.assume(remainingAmount > 1);
             if (i == MAX_USERS - 1) {
@@ -637,6 +640,7 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_fulfillDeposit(amount, issuedShares);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(from != operator);
             uint256 maxMint = basket.maxMint(from);
 
             // Set Operator
@@ -1778,6 +1782,8 @@ contract BasketTokenTest is BaseTest, Constants {
         testFuzz_deposit(totalDepositAmount, issuedShares);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(from != to);
+            vm.assume(caller != from);
             uint256 userShares = basket.balanceOf(from);
             // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
@@ -1833,29 +1839,15 @@ contract BasketTokenTest is BaseTest, Constants {
         assertEq(basket.isOperator(controller, operator), false);
     }
 
-    function testFuzz_getTargetWeights(uint40 epoch, uint64[] memory expectedRet) public {
-        vm.expectCall(basket.basketManager(), abi.encodeCall(BasketManager.rebalanceStatus, ()));
-        vm.mockCall(
-            basket.basketManager(),
-            abi.encodeCall(BasketManager.rebalanceStatus, ()),
-            abi.encode(
-                RebalanceStatus({
-                    basketHash: bytes32(0),
-                    basketMask: uint256(0),
-                    epoch: epoch,
-                    timestamp: uint40(0),
-                    status: Status.NOT_STARTED
-                })
-            )
-        );
-        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (epoch, basket.bitFlag())));
+    function testFuzz_getTargetWeights(uint64[] memory expectedRet) public {
+        vm.expectCall(basket.strategy(), abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())));
         vm.mockCall(
             address(basket.strategy()),
-            abi.encodeCall(WeightStrategy.getTargetWeights, (epoch, basket.bitFlag())),
+            abi.encodeCall(WeightStrategy.getTargetWeights, (basket.bitFlag())),
             abi.encode(expectedRet)
         );
 
-        uint64[] memory ret = basket.getCurrentTargetWeights();
+        uint64[] memory ret = basket.getTargetWeights();
         assertEq(expectedRet, ret);
     }
 
@@ -2065,5 +2057,63 @@ contract BasketTokenTest is BaseTest, Constants {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(BasketToken.NotBasketManager.selector));
         basket.setBitFlag(bitFlag);
+    }
+
+    function testFuzz_farmingPlugin(
+        uint256 depositAmount,
+        uint256 issuedShares,
+        uint256 rewardAmount,
+        uint256 rewardPeriod
+    )
+        public
+    {
+        // Use realistic range of values
+        depositAmount = bound(depositAmount, 1, 100_000_000e18);
+        issuedShares = bound(issuedShares, 1, 100_000_000e18);
+        rewardAmount = bound(rewardAmount, 1e18, 100_000_000e18);
+        rewardPeriod = bound(rewardPeriod, 1 weeks, 52 weeks);
+        ERC20Mock rewardToken = new ERC20Mock();
+        FarmingPlugin farmingPlugin = new FarmingPlugin(basket, rewardToken, owner);
+
+        // Start rewards
+        rewardToken.mint(owner, rewardAmount);
+        vm.startPrank(owner);
+        rewardToken.approve(address(farmingPlugin), rewardAmount);
+        farmingPlugin.setDistributor(owner);
+        farmingPlugin.startFarming(rewardAmount, rewardPeriod);
+        vm.stopPrank();
+
+        // Each user adds the farming plugin
+        for (uint256 i = 0; i < MAX_USERS; i++) {
+            address user = fuzzedUsers[i];
+            vm.prank(user);
+            basket.addPlugin(address(farmingPlugin));
+        }
+
+        // Each user deposits some tokens
+        testFuzz_deposit(depositAmount, issuedShares);
+
+        // Verify plugin balance is updated
+        uint256 farmingTotalSupply = farmingPlugin.totalSupply();
+        vm.assume(farmingTotalSupply > 0);
+
+        for (uint256 i = 0; i < MAX_USERS; i++) {
+            address user = fuzzedUsers[i];
+            assertEq(basket.pluginBalanceOf(address(farmingPlugin), user), basket.balanceOf(user));
+        }
+
+        // Verify the rewards at half way
+        vm.warp(vm.getBlockTimestamp() + rewardPeriod / 2);
+
+        for (uint256 i = 0; i < MAX_USERS; i++) {
+            address user = fuzzedUsers[i];
+            uint256 userBalance = basket.balanceOf(user);
+            uint256 expectedReward = userBalance == 0 ? 0 : userBalance.fullMulDiv(rewardAmount, farmingTotalSupply) / 2;
+            uint256 farmed = farmingPlugin.farmed(user);
+            assertApproxEqRel(farmed, expectedReward, 0.01e18);
+            vm.prank(user);
+            farmingPlugin.claim();
+            assertApproxEqRel(rewardToken.balanceOf(user), expectedReward, 0.01e18);
+        }
     }
 }

@@ -9,18 +9,10 @@ pragma solidity 0.8.28;
 /// - `ManagedWeightStrategy.sol`: Allows manual setting of target weights by an authorized manager.
 /// The sum of the weights returned by `getTargetWeights` should be 1e18.
 abstract contract WeightStrategy {
-    /// @notice Returns the target weights of the assets in the basket for the given epoch and bit flag.
-    /// @param epoch The epoch number for which to get target weights.
+    /// @notice Returns the target weights for the assets in the basket that the rebalancing process aims to achieve.
     /// @param bitFlag The bit flag representing a list of assets.
     /// @return targetWeights The target weights of the assets in the basket. The weights should sum to 1e18.
-    function getTargetWeights(
-        uint40 epoch,
-        uint256 bitFlag
-    )
-        public
-        view
-        virtual
-        returns (uint64[] memory targetWeights);
+    function getTargetWeights(uint256 bitFlag) public view virtual returns (uint64[] memory targetWeights);
 
     /// @notice Checks whether the strategy supports the given bit flag, representing a list of assets.
     /// @param bitFlag The bit flag representing a list of assets.
