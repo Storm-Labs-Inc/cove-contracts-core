@@ -1261,7 +1261,7 @@ contract BasketManagerTest is BaseTest, Constants {
             basketTradeOwnership: tradeOwnerships
         });
         vm.expectEmit();
-        emit BasketManager.TokenSwapProposed(internalTrades, externalTrades, basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapProposed(basketManager.rebalanceStatus().epoch, internalTrades, externalTrades);
         vm.prank(tokenswapProposer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights);
 
@@ -1404,7 +1404,7 @@ contract BasketManagerTest is BaseTest, Constants {
         uint256 basket1RootAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[1], rootAsset);
         uint256 basket1PairAssetBalanceOfBefore = basketManager.basketBalanceOf(baskets[1], params.pairAsset);
         vm.expectEmit();
-        emit BasketManager.TokenSwapProposed(internalTrades, externalTrades, basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapProposed(basketManager.rebalanceStatus().epoch, internalTrades, externalTrades);
         vm.prank(tokenswapProposer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights);
         // Confirm end state

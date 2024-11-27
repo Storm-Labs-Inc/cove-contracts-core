@@ -568,6 +568,7 @@ library BasketManagerUtils {
         self.rebalanceStatus.status = Status.NOT_STARTED;
         self.externalTradesHash = bytes32(0);
         self.retryCount = 0;
+        // slither-disable-next-line reentrancy-events
         emit RebalanceCompleted(epoch);
 
         // Process the redeems for the given baskets
