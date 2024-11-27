@@ -91,10 +91,6 @@ library BasketManagerUtils {
     /// @param internalTrade Internal trade that was settled.
     /// @param buyAmount Amount of the the from token that is traded.
     event InternalTradeSettled(InternalTrade internalTrade, uint256 buyAmount);
-    /// @notice Emitted when an external trade is settled.
-    /// @param externalTrade External trade that was settled.
-    /// @param minAmount Minimum amount of the buy token that the trade results in.
-    event ExternalTradeValidated(ExternalTrade externalTrade, uint256 minAmount);
     /// @notice Emitted when swap fees are charged on an internal trade.
     /// @param asset Asset that the swap fee was charged in.
     /// @param amount Amount of the asset that was charged.
@@ -312,7 +308,7 @@ library BasketManagerUtils {
             uint256[] memory targetBalances = _calculateTargetBalances(
                 self, basket, basketValue, requiredWithdrawValue, assets, basketTargetWeights[i]
             );
-            if (_checkForRebalance(assets, balances, targetBalances)) {
+            if (_isRebalanceRequired(assets, balances, targetBalances)) {
                 shouldRebalance = true;
             }
             // slither-disable-end calls-loop
@@ -374,7 +370,7 @@ library BasketManagerUtils {
         uint256[][] memory basketBalances = new uint256[][](numBaskets);
         _initializeBasketData(self, baskets, basketBalances, totalValues);
         // NOTE: for rebalance retries the internal trades must be updated as well
-        _settleInternalTrades(self, internalTrades, baskets, basketBalances);
+        _processInternalTrades(self, internalTrades, baskets, basketBalances);
         _validateExternalTrades(self, externalTrades, baskets, totalValues, basketBalances);
         if (!_isTargetWeightMet(self, baskets, basketBalances, totalValues, basketTargetWeights)) {
             revert TargetWeightsNotMet();
@@ -412,7 +408,7 @@ library BasketManagerUtils {
             if (keccak256(abi.encode(externalTrades)) != self.externalTradesHash) {
                 revert ExternalTradeMismatch();
             }
-            _getResultsOfExternalTrades(self, externalTrades);
+            _processExternalTrades(self, externalTrades);
         }
 
         uint256 len = baskets.length;
@@ -673,7 +669,7 @@ library BasketManagerUtils {
     /// @notice Internal function to update internal accounting with result of completed token swaps.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param externalTrades Array of external trades to be completed.
-    function _getResultsOfExternalTrades(
+    function _processExternalTrades(
         BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades
     )
@@ -758,7 +754,7 @@ library BasketManagerUtils {
     /// settled internal trades at the end of the function.
     /// @dev If the result of an internal trade is not within the provided minAmount or maxAmount, this function will
     /// revert.
-    function _settleInternalTrades(
+    function _processInternalTrades(
         BasketManagerStorage storage self,
         InternalTrade[] calldata internalTrades,
         address[] calldata baskets,
@@ -848,6 +844,7 @@ library BasketManagerUtils {
     /// @param totalValue_ Array of total basket values in USD.
     /// @param afterTradeAmounts_ An initialized array of asset amounts for each basket being rebalanced.
     /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE_BPS threshold of the minAmount, this
+    /// function will revert.
     function _validateExternalTrades(
         BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades,
@@ -856,6 +853,7 @@ library BasketManagerUtils {
         uint256[][] memory afterTradeAmounts_
     )
         private
+        view
     {
         for (uint256 i = 0; i < externalTrades.length;) {
             ExternalTrade memory trade = externalTrades[i];
@@ -915,7 +913,6 @@ library BasketManagerUtils {
                 // Overflow not possible: i is bounded by baskets.length
                 ++i;
             }
-            emit ExternalTradeValidated(trade, info.internalMinAmount);
         }
     }
 
@@ -1110,11 +1107,14 @@ library BasketManagerUtils {
     }
 
     /// @notice Internal function to check if a rebalance is required for the given basket.
+    /// @dev A rebalance is required if the difference between the current asset balances and the target balances is
+    /// greater than 0. We assume the permissioned caller has already validated the condition to call this function
+    /// optimally.
     /// @param assets Array of asset addresses in the basket.
     /// @param balances Array of balances of each asset in the basket.
     /// @param targetBalances Array of target balances for each asset in the basket.
     /// @return shouldRebalance Boolean indicating if a rebalance is required.
-    function _checkForRebalance(
+    function _isRebalanceRequired(
         address[] memory assets,
         uint256[] memory balances,
         uint256[] memory targetBalances
