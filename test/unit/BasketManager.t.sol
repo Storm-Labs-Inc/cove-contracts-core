@@ -8,7 +8,6 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { Constants } from "test/utils/Constants.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 
