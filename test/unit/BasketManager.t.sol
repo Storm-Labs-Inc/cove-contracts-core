@@ -188,6 +188,20 @@ contract BasketManagerTest is BaseTest {
         basketManager.unpause();
     }
 
+    function test_rescue() public {
+        deal(address(basketManager), 1e18);
+        vm.prank(timelock);
+        basketManager.rescue(IERC20(address(0)), alice, 1e18);
+        // createUser deals new addresses 100 ETH
+        assertEq(address(alice).balance, 100 ether + 1e18, "rescue failed");
+    }
+
+    function test_rescue_revertsOnNonTimelock() public {
+        vm.prank(alice);
+        vm.expectRevert(_formatAccessControlError(address(alice), TIMELOCK_ROLE));
+        basketManager.rescue(IERC20(address(0)), admin, 1e18);
+    }
+
     function testFuzz_createNewBasket(uint256 bitFlag, address strategy) public {
         string memory name = "basket";
         string memory symbol = "b";

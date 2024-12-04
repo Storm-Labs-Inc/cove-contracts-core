@@ -18,11 +18,12 @@ import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
+import { Rescuable } from "src/Rescuable.sol";
 
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// in the BasketManagerUtils contract.
-contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pausable {
+contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pausable, Rescuable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerStorage;
     using SafeERC20 for IERC20;
@@ -503,5 +504,15 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    /// @notice Allows the timelock to rescue tokens mistakenly sent to the contract.
+    /// @dev Can only be called by the timelock. This function is intended for use in case of accidental token
+    /// transfers into the contract.
+    /// @param token The ERC20 token to rescue, or 0x0 for ETH.
+    /// @param to The recipient address of the rescued tokens.
+    /// @param balance The amount of tokens to rescue.
+    function rescue(IERC20 token, address to, uint256 balance) external onlyRole(_TIMELOCK_ROLE) {
+        _rescue(token, to, balance);
     }
 }
