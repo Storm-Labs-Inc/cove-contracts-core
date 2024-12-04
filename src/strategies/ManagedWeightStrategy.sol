@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BitFlag } from "src/libraries/BitFlag.sol";
@@ -12,7 +13,7 @@ import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 /// @title ManagedWeightStrategy
 /// @notice A custom weight strategy that allows manual setting of target weights for a basket.
 /// @dev Inherits from WeightStrategy and AccessControlEnumerable for role-based access control.
-contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable {
+contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable, Multicall {
     /// @notice Struct to store the last updated epoch and timestamp for a bit flag.
     struct LastUpdated {
         uint40 epoch;
