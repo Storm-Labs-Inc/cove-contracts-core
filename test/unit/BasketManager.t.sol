@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -177,7 +178,7 @@ contract BasketManagerTest is BaseTest {
         assertFalse(basketManager.paused(), "contract not unpaused");
     }
 
-    function test_pause_revertWhen_notPauser() public {
+    function test_pause_revertWhen_notPaused() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(BasketManager.Unauthorized.selector));
         basketManager.pause();
@@ -189,16 +190,34 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_rescue() public {
-        deal(address(basketManager), 1e18);
-        vm.prank(timelock);
-        basketManager.rescue(IERC20(address(0)), alice, 1e18);
-        // createUser deals new addresses 100 ETH
-        assertEq(address(alice).balance, 100 ether + 1e18, "rescue failed");
+        ERC20 shitcoin = new ERC20Mock();
+        deal(address(shitcoin), address(basketManager), 1e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, address(shitcoin)),
+            abi.encode(AssetRegistry.AssetStatus.DISABLED)
+        );
+        vm.prank(admin);
+        basketManager.rescue(IERC20(address(shitcoin)), alice, 1e18);
+        assertEq(shitcoin.balanceOf(alice), 1e18, "rescue failed");
     }
 
-    function test_rescue_revertsOnNonTimelock() public {
+    function test_rescue_ETH() public {
+        deal(address(basketManager), 1e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, address(0)),
+            abi.encode(AssetRegistry.AssetStatus.DISABLED)
+        );
+        vm.prank(admin);
+        basketManager.rescue(IERC20(address(0)), alice, 1e18);
+        // createUser deals new addresses 100 ETH
+        assertEq(alice.balance, 100 ether + 1e18, "rescue failed");
+    }
+
+    function test_rescue_revertsOnNonAdmin() public {
         vm.prank(alice);
-        vm.expectRevert(_formatAccessControlError(address(alice), TIMELOCK_ROLE));
+        vm.expectRevert(_formatAccessControlError(address(alice), DEFAULT_ADMIN_ROLE));
         basketManager.rescue(IERC20(address(0)), admin, 1e18);
     }
 
