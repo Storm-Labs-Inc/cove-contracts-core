@@ -190,4 +190,39 @@ abstract contract BaseTest is Test, Constants {
             )
         );
     }
+
+    function _generatePermitSignatureAndLog(
+        address token,
+        address owner,
+        uint256 ownerPrivateKey,
+        address spender,
+        uint256 value,
+        uint256 nonce,
+        uint256 deadline
+    )
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        string memory typeHashInput =
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)";
+        console.log("");
+        console.log("Generating permit signature for token: ", token);
+        console.log("EIP 712 input:");
+        console.log("  TYPEHASH input: ", typeHashInput);
+        console.log("  TYPEHASH: ", vm.toString(keccak256(bytes(typeHashInput))));
+        console.log("Signature parameters:");
+        console.log("  Private Key: ", vm.toString(bytes32(ownerPrivateKey)));
+        console.log("  Owner: ", owner);
+        console.log("  Spender: ", address(0xbeef));
+        console.log("  Value: ", uint256(1000 ether));
+        console.log("  Nonce: ", nonce);
+        console.log("  Deadline: ", _MAX_UINT256);
+        (v, r, s) = _generatePermitSignature(token, owner, ownerPrivateKey, spender, value, nonce, deadline);
+        console.log("");
+        console.log("Generated signature: ");
+        console.log("  v: ", v);
+        console.log("  r: ", vm.toString(r));
+        console.log("  s: ", vm.toString(s));
+    }
 }

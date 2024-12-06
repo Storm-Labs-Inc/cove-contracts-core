@@ -6,6 +6,8 @@ import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -2114,5 +2116,43 @@ contract BasketTokenTest is BaseTest {
             farmingPlugin.claim();
             assertApproxEqRel(rewardToken.balanceOf(user), expectedReward, 0.01e18);
         }
+    }
+
+    function test_permitSignature() public {
+        // First permit
+        address spender = address(0xbeef);
+        (address testAccount, uint256 testAccountPK) = makeAddrAndKey("testUser");
+        uint256 value = 1000 ether;
+        address basketToken = address(basket);
+
+        (uint8 v, bytes32 r, bytes32 s) = _generatePermitSignatureAndLog(
+            basketToken,
+            testAccount,
+            testAccountPK,
+            spender,
+            value,
+            IERC20Permit(basketToken).nonces(testAccount),
+            _MAX_UINT256
+        );
+
+        IERC20Permit(basketToken).permit(testAccount, spender, value, _MAX_UINT256, v, r, s);
+        assertEq(IERC20(basketToken).allowance(testAccount, spender), value);
+
+        // Second permit
+        spender = address(0xbeef);
+        value = 2000 ether;
+
+        (v, r, s) = _generatePermitSignatureAndLog(
+            basketToken,
+            testAccount,
+            testAccountPK,
+            spender,
+            value,
+            IERC20Permit(basket).nonces(testAccount),
+            _MAX_UINT256
+        );
+
+        IERC20Permit(basketToken).permit(testAccount, spender, value, _MAX_UINT256, v, r, s);
+        assertEq(IERC20(basketToken).allowance(testAccount, spender), value);
     }
 }
