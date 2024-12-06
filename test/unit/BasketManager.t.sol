@@ -232,6 +232,13 @@ contract BasketManagerTest is BaseTest {
         basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
     }
 
+    function test_execute_revertWhen_zeroAddress() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.prank(timelock);
+        basketManager.execute{ value: 1 ether }(address(0), data, 1 ether);
+    }
+
     function testFuzz_createNewBasket(uint256 bitFlag, address strategy) public {
         string memory name = "basket";
         string memory symbol = "b";

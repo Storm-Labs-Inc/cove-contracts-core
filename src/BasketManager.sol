@@ -524,10 +524,11 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         onlyRole(_TIMELOCK_ROLE)
         returns (bytes memory)
     {
+        // Checks
+        if (target == address(0)) revert Errors.ZeroAddress();
         // Interactions
         // slither-disable-start arbitrary-send-eth
         // slither-disable-start low-level-calls
-        // solhint-disable-next-line avoid-low-level-calls
         // nosemgrep: solidity.security.arbitrary-low-level-call.arbitrary-low-level-call
         (bool success, bytes memory result) = target.call{ value: value }(data);
         // slither-disable-end arbitrary-send-eth
