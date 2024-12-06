@@ -18,6 +18,12 @@ contract Constants {
     bytes4 public constant ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
     bytes4 public constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
+    // PERMIT 2
+    /// @dev The address of the Permit2 contract the library will use.
+    address internal constant ETH_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+
     // ERC1271 Magic Value
     bytes4 public constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
 

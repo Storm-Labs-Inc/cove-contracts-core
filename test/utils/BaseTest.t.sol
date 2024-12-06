@@ -6,6 +6,7 @@ import { Test, console } from "forge-std/Test.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 import { Constants } from "test/utils/Constants.t.sol";
 
@@ -158,5 +159,31 @@ abstract contract BaseTest is Test, Constants {
             mstore8(0x34, 0x01) // Nonce of the proxy contract (1).
             deployed := and(keccak256(0x1e, 0x17), 0xffffffffffffffffffffffffffffffffffffffff)
         }
+    }
+
+    function _generatePermit2Params(
+        uint256 privateKey,
+        address token,
+        uint256 amount,
+        address from,
+        address to,
+        uint256 nonce,
+        uint256 deadline
+    )
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01", // EIP-712 encoding
+                IERC20Permit(token).DOMAIN_SEPARATOR(),
+                // keccak256(abi.encode(PERMIT_TYPEHASH, user, address(basket), depositAmount,
+                // sourceToken.nonces(user), deadline));
+                keccak256(abi.encode(PERMIT_TYPEHASH, from, to, amount, nonce, deadline))
+            )
+        );
+        // Sign the msgHash with user's private key
+        (v, r, s) = vm.sign(privateKey, msgHash);
     }
 }
