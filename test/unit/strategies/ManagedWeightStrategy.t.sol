@@ -279,10 +279,4 @@ contract ManagedWeightStrategyTest is BaseTest {
         }
     }
 
-    // bytes[] memory data = new bytes[](2);
-    //     data[0] = abi.encodeWithSelector(IERC20Plugins.addPlugin.selector, address(farmingPlugin));
-    //     data[1] = abi.encodeWithSelector(BasketToken.requestDeposit.selector, 1e18, alice, alice);
-
-    //     vm.prank(alice);
-    //     basket.multicall(data);
 }
