@@ -9,6 +9,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
+import { MockTarget } from "test/utils/mocks/MockTarget.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
@@ -43,6 +44,7 @@ contract BasketManagerTest is BaseTest {
     address public strategyRegistry;
     address public tokenSwapAdapter;
     address public assetRegistry;
+    address public mockTarget;
 
     uint64[][] private _targetWeights;
 
@@ -60,6 +62,7 @@ contract BasketManagerTest is BaseTest {
         vm.warp(1 weeks);
         alice = createUser("alice");
         admin = createUser("admin");
+        timelock = createUser("timelock");
         feeCollector = createUser("feeCollector");
         protocolTreasury = createUser("protocolTreasury");
         vm.mockCall(
@@ -79,6 +82,7 @@ contract BasketManagerTest is BaseTest {
         vm.label(pairAsset, "pairAsset");
         basketTokenImplementation = createUser("basketTokenImplementation");
         mockPriceOracle = new MockPriceOracle();
+        mockTarget = address(new MockTarget());
         eulerRouter = new EulerRouter(EVC, admin);
         strategyRegistry = createUser("strategyRegistry");
         basketManager = new BasketManager(
@@ -186,6 +190,46 @@ contract BasketManagerTest is BaseTest {
     function test_unpause_revertWhen_notAdmin() public {
         vm.expectRevert(_formatAccessControlError(address(this), DEFAULT_ADMIN_ROLE));
         basketManager.unpause();
+    }
+
+    function test_execute() public {
+        vm.prank(timelock);
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
+        assertEq(MockTarget(payable(mockTarget)).value(), 1 ether, "execute failed");
+        assertEq(MockTarget(payable(mockTarget)).data(), data, "execute failed");
+    }
+
+    function test_execute_passWhen_zeroValue() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.prank(timelock);
+        basketManager.execute{ value: 0 }(mockTarget, data, 0);
+        assertEq(MockTarget(payable(mockTarget)).value(), 0, "execute failed");
+        assertEq(MockTarget(payable(mockTarget)).data(), data, "execute failed");
+    }
+
+    function testFuzz_execute(bytes4 selector, bytes32 data, address data2, uint256 value) public {
+        vm.assume(selector != MockTarget.fail.selector);
+        bytes memory fullData = abi.encodeWithSelector(selector, data, data2);
+        assertEq(fullData.length, 68, "data packing failed");
+        hoax(timelock, value);
+        basketManager.execute{ value: value }(mockTarget, fullData, value);
+        assertEq(MockTarget(payable(mockTarget)).value(), value, "execute failed");
+        assertEq(MockTarget(payable(mockTarget)).data(), fullData, "execute failed");
+    }
+
+    function test_execute_revertWhen_executionFailed() public {
+        bytes memory data = abi.encodeWithSelector(MockTarget.fail.selector);
+        vm.expectRevert(abi.encodeWithSelector(BasketManager.ExecutionFailed.selector));
+        vm.prank(timelock);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
+    }
+
+    function test_execute_revertWhen_callerIsNotTimelock() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.expectRevert(_formatAccessControlError(admin, TIMELOCK_ROLE));
+        vm.prank(admin);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
     }
 
     function testFuzz_createNewBasket(uint256 bitFlag, address strategy) public {
