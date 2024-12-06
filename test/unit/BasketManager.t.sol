@@ -215,13 +215,13 @@ contract BasketManagerTest is BaseTest {
         assertEq(alice.balance, 100 ether + 1e18, "rescue failed");
     }
 
-    function test_rescue_revertsOnNonAdmin() public {
+    function test_rescue_revertWhen_notAdmin() public {
         vm.prank(alice);
         vm.expectRevert(_formatAccessControlError(address(alice), DEFAULT_ADMIN_ROLE));
         basketManager.rescue(IERC20(address(0)), admin, 1e18);
     }
 
-    function test_rescue_revertWhen_AssetNotDisabled() public {
+    function test_rescue_revertWhen_assetNotDisabled() public {
         ERC20 shitcoin = new ERC20Mock();
         deal(address(shitcoin), address(basketManager), 1e18);
         vm.mockCall(
