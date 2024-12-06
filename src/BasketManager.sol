@@ -519,7 +519,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @param to The recipient address of the rescued tokens.
     /// @param balance The amount of tokens to rescue. If set to 0, the entire balance will be rescued.
     function rescue(IERC20 token, address to, uint256 balance) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if(address(token) != address(0)) {
+        if (address(token) != address(0)) {
             AssetRegistry.AssetStatus status = AssetRegistry(_bmStorage.assetRegistry).getAssetStatus(address(token));
             if (status != AssetRegistry.AssetStatus.DISABLED) {
                 revert AssetExistsInUniverse();
