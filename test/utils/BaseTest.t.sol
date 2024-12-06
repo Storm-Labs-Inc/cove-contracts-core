@@ -161,12 +161,13 @@ abstract contract BaseTest is Test, Constants {
         }
     }
 
-    function _generatePermit2Params(
-        uint256 privateKey,
+    /// PERMIT & PERMIT2 HELPER FUNCTIONS ///
+    function _generatePermitSignature(
         address token,
+        address approvalFrom,
+        uint256 approvalFromPrivKey,
+        address approvalTo,
         uint256 amount,
-        address from,
-        address to,
         uint256 nonce,
         uint256 deadline
     )
@@ -174,16 +175,19 @@ abstract contract BaseTest is Test, Constants {
         view
         returns (uint8 v, bytes32 r, bytes32 s)
     {
-        bytes32 msgHash = keccak256(
-            abi.encodePacked(
-                "\x19\x01", // EIP-712 encoding
-                IERC20Permit(token).DOMAIN_SEPARATOR(),
-                // keccak256(abi.encode(PERMIT_TYPEHASH, user, address(basket), depositAmount,
-                // sourceToken.nonces(user), deadline));
-                keccak256(abi.encode(PERMIT_TYPEHASH, from, to, amount, nonce, deadline))
+        (v, r, s) = vm.sign(
+            approvalFromPrivKey, // user's private key
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01", // EIP-712 encoding
+                    IERC20Permit(token).DOMAIN_SEPARATOR(),
+                    // Frontend should use deadline with enough buffer and with the correct nonce
+                    // keccak256(abi.encode(PERMIT_TYPEHASH, user, address(router), depositAmount,
+                    // sourceToken.nonces(user),
+                    // block.timestamp + 100_000))
+                    keccak256(abi.encode(PERMIT_TYPEHASH, approvalFrom, approvalTo, amount, nonce, deadline))
+                )
             )
         );
-        // Sign the msgHash with user's private key
-        (v, r, s) = vm.sign(privateKey, msgHash);
     }
 }

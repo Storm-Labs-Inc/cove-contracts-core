@@ -30,7 +30,7 @@ contract IntegrationTest is BaseTest {
         );
     }
 
-    function testFuzz_permit_requestDeposit(uint256 amount) public {
+    function testFuzz_multicallPermit_requestDeposit(uint256 amount) public {
         amount = bound(amount, 1, type(uint256).max);
         (address from, uint256 key) = makeAddrAndKey("bob");
 
@@ -43,25 +43,19 @@ contract IntegrationTest is BaseTest {
 
         (,, uint48 currentNonce) = IPermit2(ETH_PERMIT2).allowance(from, asset, address(basket));
         uint256 deadline = vm.getBlockTimestamp() + 1000;
-        (uint8 v, bytes32 r, bytes32 s) = _generatePermit2Params({
-            privateKey: key,
-            token: asset,
-            amount: amount,
-            from: from,
-            to: address(basket),
-            nonce: currentNonce,
-            deadline: deadline
-        });
+        (uint8 v, bytes32 r, bytes32 s) =
+            _generatePermitSignature(asset, from, key, address(basket), amount, currentNonce, deadline);
 
-        // User permits basket to spend their tokens
-        vm.startPrank(from);
-        Permit2Lib.permit2(ERC20(address(asset)), from, address(basket), amount, deadline, v, r, s);
-
-        // Request Deposit
-        uint256 requestId = basket.requestDeposit(amount, from, from);
-        vm.stopPrank();
+        // Use multicall to call permit and requestDeposit
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(
+            BasketToken.permit2.selector, ERC20(address(asset)), from, address(basket), amount, deadline, v, r, s
+        );
+        data[1] = abi.encodeWithSelector(BasketToken.requestDeposit.selector, amount, from, from);
+        vm.prank(from);
+        basket.multicall(data);
 
         // Check state
-        assertEq(basket.pendingDepositRequest(requestId, from), amount);
+        assertEq(basket.pendingDepositRequest(2, from), amount);
     }
 }

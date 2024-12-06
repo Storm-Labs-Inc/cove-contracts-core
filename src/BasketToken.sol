@@ -944,4 +944,21 @@ contract BasketToken is
     function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
         return ERC4626Upgradeable.decimals();
     }
+
+    /// @dev Expose internal permit function used by PermitLib
+    // See {PermitLib.permit2}
+    function permit2(
+        ERC20 token,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
+        public
+    {
+        Permit2Lib.permit2(token, owner, spender, value, deadline, v, r, s);
+    }
 }
