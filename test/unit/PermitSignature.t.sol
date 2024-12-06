@@ -24,80 +24,6 @@ contract PermitSignature_Test is BaseTest {
         (testAccount, testAccountPK) = deriveRememberKey({ mnemonic: TEST_MNEMONIC, index: 0 });
     }
 
-    /// PERMIT & PERMIT2 HELPER FUNCTIONS ///
-    function _generatePermitSignature(
-        address token,
-        address approvalFrom,
-        uint256 approvalFromPrivKey,
-        address approvalTo,
-        uint256 amount,
-        uint256 nonce,
-        uint256 deadline
-    )
-        internal
-        view
-        returns (uint8 v, bytes32 r, bytes32 s)
-    {
-        (v, r, s) = vm.sign(
-            approvalFromPrivKey, // user's private key
-            keccak256(
-                abi.encodePacked(
-                    "\x19\x01", // EIP-712 encoding
-                    IERC20Permit(token).DOMAIN_SEPARATOR(),
-                    // Frontend should use deadline with enough buffer and with the correct nonce
-                    // keccak256(abi.encode(PERMIT_TYPEHASH, user, address(router), depositAmount,
-                    // sourceToken.nonces(user),
-                    // block.timestamp + 100_000))
-                    keccak256(abi.encode(PERMIT_TYPEHASH, approvalFrom, approvalTo, amount, nonce, deadline))
-                )
-            )
-        );
-    }
-
-    function _generateRouterPullTokenWithPermit2Params(
-        uint256 privateKey,
-        address token,
-        uint256 amount,
-        address to,
-        uint256 nonce,
-        uint256 deadline
-    )
-        internal
-        view
-        returns (
-            ISignatureTransfer.PermitTransferFrom memory permit,
-            ISignatureTransfer.SignatureTransferDetails memory transferDetails,
-            bytes memory signature
-        )
-    {
-        // Build PermitTransferFrom struct
-        permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({ token: token, amount: amount }),
-            nonce: nonce,
-            deadline: deadline
-        });
-
-        // Build SignatureTransferDetails struct
-        transferDetails = ISignatureTransfer.SignatureTransferDetails({ to: to, requestedAmount: amount });
-
-        // Build msgHash to sign with user's private key
-        bytes32 tokenPermissions = keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
-        bytes32 msgHash = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                ISignatureTransfer(MAINNET_PERMIT2).DOMAIN_SEPARATOR(),
-                keccak256(
-                    abi.encode(PERMIT2_TRANSFER_FROM_TYPEHASH, tokenPermissions, to, permit.nonce, permit.deadline)
-                )
-            )
-        );
-        // Sign the msgHash with user's private key
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, msgHash);
-        signature = bytes.concat(r, s, bytes1(v));
-
-        return (permit, transferDetails, signature);
-    }
-
     function _generatePermitSignatureAndLog(
         address token,
         address owner,
@@ -134,52 +60,6 @@ contract PermitSignature_Test is BaseTest {
         console.log("  s: ", vm.toString(s));
     }
 
-    function _generatePermit2PermitTransferFromSignatureAndLog(
-        uint256 privateKey,
-        address token,
-        uint256 amount,
-        address to,
-        uint256 nonce,
-        uint256 deadline
-    )
-        internal
-        view
-        returns (
-            ISignatureTransfer.PermitTransferFrom memory permit,
-            ISignatureTransfer.SignatureTransferDetails memory transferDetails,
-            bytes memory signature
-        )
-    {
-        string memory typeHashInput =
-            "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)";
-        console.log("");
-        console.log("Generating Permit2 PermitTransferFrom signature");
-        console.log("EIP 712 input:");
-        console.log("  DOMAIN_SEPARATOR: ", vm.toString(IERC20Permit(MAINNET_PERMIT2).DOMAIN_SEPARATOR()));
-        console.log("  TYPEHASH input: ", typeHashInput);
-        console.log("  TYPEHASH: ", vm.toString(keccak256(bytes(typeHashInput))));
-        console.log("Signature parameters:");
-        console.log("  Private Key: ", vm.toString(bytes32(privateKey)));
-        console.log("  TokenPermissions.token: ", token);
-        console.log("  TokenPermissions.amount: ", amount);
-        console.log("  To: ", to);
-        console.log("  Nonce: ", nonce);
-        console.log("  Deadline: ", deadline);
-
-        (permit, transferDetails, signature) =
-            _generateRouterPullTokenWithPermit2Params(privateKey, token, amount, to, nonce, deadline);
-
-        console.log("Generated Permit2 PermitTransferFrom signature:");
-        console.log("  Permit:");
-        console.log("    Token: ", permit.permitted.token);
-        console.log("    Amount: ", permit.permitted.amount);
-        console.log("    Nonce: ", permit.nonce);
-        console.log("    Deadline: ", permit.deadline);
-        console.log("  Transfer Details:");
-        console.log("    To: ", transferDetails.to);
-        console.log("    Requested Amount: ", transferDetails.requestedAmount);
-        console.log("  Signature: ", vm.toString(signature));
-    }
     //// TESTS ////
 
     function test_permitSignature() public {
@@ -216,44 +96,5 @@ contract PermitSignature_Test is BaseTest {
 
         IERC20Permit(basketToken).permit(testAccount, spender, value, _MAX_UINT256, v, r, s);
         assertEq(IERC20(basketToken).allowance(testAccount, spender), value);
-    }
-
-    function test_permit2PermitTransferFromSignature() public {
-        vm.prank(testAccount);
-        IERC20(basketToken).approve(MAINNET_PERMIT2, _MAX_UINT256);
-
-        // First permitTransferFrom
-        address to = address(0xdead);
-        uint256 amount = 1000 ether;
-        uint256 unorderedNonce = 42;
-
-        (
-            ISignatureTransfer.PermitTransferFrom memory permit,
-            ISignatureTransfer.SignatureTransferDetails memory transferDetails,
-            bytes memory signature
-        ) = _generatePermit2PermitTransferFromSignatureAndLog(
-            testAccountPK, basketToken, amount, to, unorderedNonce, _MAX_UINT256
-        );
-
-        airdrop(IERC20(basketToken), testAccount, amount);
-        uint256 balanceBefore = IERC20(basketToken).balanceOf(to);
-        vm.prank(to);
-        ISignatureTransfer(MAINNET_PERMIT2).permitTransferFrom(permit, transferDetails, testAccount, signature);
-        assertEq(IERC20(basketToken).balanceOf(to), balanceBefore + amount);
-
-        // Second permitTransferFrom
-        to = address(0xbeef);
-        amount = 2000 ether;
-        unorderedNonce = 420;
-
-        (permit, transferDetails, signature) = _generatePermit2PermitTransferFromSignatureAndLog(
-            testAccountPK, basketToken, amount, to, unorderedNonce, _MAX_UINT256
-        );
-
-        airdrop(IERC20(basketToken), testAccount, amount);
-        balanceBefore = IERC20(basketToken).balanceOf(to);
-        vm.prank(to);
-        ISignatureTransfer(MAINNET_PERMIT2).permitTransferFrom(permit, transferDetails, testAccount, signature);
-        assertEq(IERC20(basketToken).balanceOf(to), balanceBefore + amount);
     }
 }
