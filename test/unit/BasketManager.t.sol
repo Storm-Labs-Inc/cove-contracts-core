@@ -221,6 +221,19 @@ contract BasketManagerTest is BaseTest {
         basketManager.rescue(IERC20(address(0)), admin, 1e18);
     }
 
+    function test_rescue_revertWhen_AssetNotDisabled() public {
+        ERC20 shitcoin = new ERC20Mock();
+        deal(address(shitcoin), address(basketManager), 1e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, address(shitcoin)),
+            abi.encode(AssetRegistry.AssetStatus.ENABLED)
+        );
+        vm.expectRevert(BasketManager.AssetExistsInUniverse.selector);
+        vm.prank(admin);
+        basketManager.rescue(IERC20(address(shitcoin)), alice, 1e18);
+    }
+
     function testFuzz_createNewBasket(uint256 bitFlag, address strategy) public {
         string memory name = "basket";
         string memory symbol = "b";
