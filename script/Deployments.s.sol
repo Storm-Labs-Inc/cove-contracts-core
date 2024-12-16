@@ -323,10 +323,13 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             feeCollectorAddress
         );
         if (isProduction) {
-            vm.broadcast();
+            vm.startBroadcast();
         }
         bm.grantRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.grantRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
+        if (isProduction) {
+            vm.stopBroadcast();
+        }
     }
 
     // Uses CREATE3 to deploy a fee collector contract. Salt must be the same given to the basket manager deploy.
@@ -360,6 +363,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         address cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter("CowSwapAdapter", cowSwapCloneImplementation));
         require(getAddress("CowSwapAdapter") == cowSwapAdapter, "Failed to save CowSwapAdapter deployment");
         address basketManager = getAddress("BasketManager");
+        if (isProduction) {
+            vm.broadcast();
+        }
         BasketManager(basketManager).setTokenSwapAdapter(cowSwapAdapter);
     }
 
