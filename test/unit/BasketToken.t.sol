@@ -118,8 +118,8 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(token.asset(), address(mockERC20));
-        assertEq(token.name(), string.concat("CoveBasket-", name));
-        assertEq(token.symbol(), string.concat("covb", symbol));
+        assertEq(token.name(), string.concat("CoveBasket ", name));
+        assertEq(token.symbol(), string.concat("cvt", symbol));
         assertEq(token.decimals(), assetDecimals);
         assertEq(token.bitFlag(), bitFlag);
         assertEq(token.strategy(), strategy);
