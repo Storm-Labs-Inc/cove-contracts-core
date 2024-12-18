@@ -484,7 +484,15 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         bytes32 oldId = keccak256(abi.encodePacked(currentBitFlag, strategy));
         _bmStorage.basketIdToAddress[oldId] = address(0);
         _bmStorage.basketIdToAddress[newId] = basket;
-        _bmStorage.basketAssets[basket] = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        // Update the basketAssets and the basketAssetToIndexPlusOne mapping
+        address[] memory assets = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        _bmStorage.basketAssets[basket] = assets;
+        for (uint256 i = 0; i < assets.length;) {
+            _bmStorage.basketAssetToIndexPlusOne[basket][assets[i]] = i + 1;
+            unchecked {
+                ++i;
+            }
+        }
         emit BasketBitFlagUpdated(basket, currentBitFlag, bitFlag, oldId, newId);
         // Update the bitFlag in the BasketToken contract
         BasketToken(basket).setBitFlag(bitFlag);
