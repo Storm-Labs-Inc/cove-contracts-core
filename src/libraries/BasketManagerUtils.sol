@@ -800,10 +800,12 @@ library BasketManagerUtils {
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
                 revert InternalTradeMinMaxAmountNotReached();
             }
-            if (trade.sellAmount > basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]) {
+            uint256 sellBasketBalance = basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex];
+            if (trade.sellAmount > sellBasketBalance) {
                 revert IncorrectTradeTokenAmount();
             }
-            if (info.netBuyAmount > basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]) {
+            uint256 buyBasketBalance = basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex];
+            if (initialBuyAmount > buyBasketBalance) {
                 revert IncorrectTradeTokenAmount();
             }
 
@@ -813,19 +815,20 @@ library BasketManagerUtils {
             //   subtracted are less than or equal to the corresponding values in basketBalances.
             // - The addition operations can't overflow since the total supply of each token is limited and the
             //   amounts being added are always less than the total supply.
+
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            self.basketBalanceOf[trade.fromBasket][trade.buyToken] =
+                basketBalances[info.fromBasketIndex][info.buyTokenAssetIndex] += info.netBuyAmount; // nosemgrep
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            self.basketBalanceOf[trade.toBasket][trade.sellToken] =
+                basketBalances[info.toBasketIndex][info.toBasketSellTokenIndex] += info.netSellAmount; // nosemgrep
             unchecked {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                self.basketBalanceOf[trade.fromBasket][trade.sellToken] =
-                    basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex] -= trade.sellAmount; // nosemgrep
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                self.basketBalanceOf[trade.fromBasket][trade.buyToken] =
-                    basketBalances[info.fromBasketIndex][info.buyTokenAssetIndex] += info.netBuyAmount; // nosemgrep
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                self.basketBalanceOf[trade.fromBasket][trade.sellToken] = basketBalances[info.fromBasketIndex][info
+                    .sellTokenAssetIndex] = sellBasketBalance - trade.sellAmount; // nosemgrep
+                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketBalanceOf[trade.toBasket][trade.buyToken] =
-                    basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex] -= initialBuyAmount; // nosemgrep
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                self.basketBalanceOf[trade.toBasket][trade.sellToken] =
-                    basketBalances[info.toBasketIndex][info.toBasketSellTokenIndex] += info.netSellAmount; // nosemgrep
+                    basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex] = buyBasketBalance - initialBuyAmount; // nosemgrep
                 ++i;
             }
             emit InternalTradeSettled(trade, info.netBuyAmount);
