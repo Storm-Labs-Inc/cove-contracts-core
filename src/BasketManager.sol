@@ -492,6 +492,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             _bmStorage.basketAssetToIndexPlusOne[basket][assets[i]] = i + 1;
             unchecked {
+                // Overflow not possible: i is less than length
                 ++i;
             }
         }
