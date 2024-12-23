@@ -460,7 +460,7 @@ library BasketManagerUtils {
         }
 
         address basket = msg.sender;
-        address[] storage assets = self.basketAssets[basket];
+        address[] memory assets = self.basketAssets[basket];
         uint256 assetsLength = assets.length;
         uint256[] memory amountToWithdraws = new uint256[](assetsLength);
 
