@@ -432,6 +432,7 @@ library BasketManagerUtils {
     /// @param totalSupplyBefore Total supply of the basket token before the shares were burned.
     /// @param burnedShares Amount of shares burned.
     /// @param to Address to send the redeemed assets to.
+    // solhint-disable-next-line code-complexity
     function proRataRedeem(
         BasketManagerStorage storage self,
         uint256 totalSupplyBefore,
