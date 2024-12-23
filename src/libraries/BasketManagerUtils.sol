@@ -773,7 +773,12 @@ library BasketManagerUtils {
                 feeOnBuy: 0,
                 feeOnSell: 0
             });
-
+            // Calculate initial buyAmount based on trade.sellAmount
+            uint256 initialBuyAmount = self.eulerRouter.getQuote(
+                self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE),
+                _USD_ISO_4217_CODE,
+                trade.buyToken
+            );
             // Calculate fee on sellAmount
             if (swapFee > 0) {
                 info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
@@ -781,14 +786,6 @@ library BasketManagerUtils {
                 emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
             }
             info.netSellAmount = trade.sellAmount - info.feeOnSell;
-
-            // Calculate initial buyAmount based on netSellAmount
-            uint256 initialBuyAmount = self.eulerRouter.getQuote(
-                self.eulerRouter.getQuote(info.netSellAmount, trade.sellToken, _USD_ISO_4217_CODE),
-                _USD_ISO_4217_CODE,
-                trade.buyToken
-            );
-
             // Calculate fee on buyAmount
             if (swapFee > 0) {
                 info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);

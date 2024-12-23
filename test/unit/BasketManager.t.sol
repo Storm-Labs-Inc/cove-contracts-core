@@ -1413,7 +1413,7 @@ contract BasketManagerTest is BaseTest {
 
         uint256 swapFeeAmount = internalTrades[0].sellAmount.fullMulDiv(swapFee, 2e4);
         uint256 netSellAmount = internalTrades[0].sellAmount - swapFeeAmount;
-        uint256 buyAmount = netSellAmount; // Assume 1:1 price
+        uint256 buyAmount = internalTrades[0].sellAmount; // Assume 1:1 price
         uint256 netBuyAmount = buyAmount - buyAmount.fullMulDiv(swapFee, 2e4);
 
         assertEq(
