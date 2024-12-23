@@ -632,10 +632,9 @@ contract BasketToken is
         if (msg.sender != from) {
             _spendAllowance(from, msg.sender, shares);
         }
-        uint256 totalSupplyBefore = totalSupply();
 
         // Interactions
-        BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
+        BasketManager(basketManager).proRataRedeem(totalSupply(), shares, to);
 
         // We intentionally defer the `_burn()` operation until after the external call to
         // `BasketManager.proRataRedeem()` to prevent potential price manipulation via read-only reentrancy attacks. By
