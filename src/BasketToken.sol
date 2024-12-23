@@ -137,6 +137,8 @@ contract BasketToken is
     error NotAuthorizedOperator();
     /// @notice Thrown when an address other than the basket manager attempts to call a basket manager only function.
     error NotBasketManager();
+    /// @notice Thrown when the caller (`msg.sender`) is not the `owner` specified in the function parameters.
+    error NotOwner();
     /// @notice Thrown when attempting to set an invalid management fee percentage greater than the maximum allowed.
     error InvalidManagementFee();
     /// @notice Thrown when the basket manager attempts to fulfill a deposit request that has already been fulfilled.
@@ -228,8 +230,12 @@ contract BasketToken is
     /// @param assets The amount of assets to deposit.
     /// @param controller The address of the controller of the position being created.
     /// @param owner The address of the owner of the assets being deposited.
+    /// @dev Reverts on 0 assets or if the caller is not the owner of the assets being deposited.
     function requestDeposit(uint256 assets, address controller, address owner) public returns (uint256 requestId) {
         // Checks
+        if (msg.sender != owner) {
+            revert NotOwner();
+        }
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }

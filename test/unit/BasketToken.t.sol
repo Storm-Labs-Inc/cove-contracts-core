@@ -235,9 +235,8 @@ contract BasketTokenTest is BaseTest {
         vm.startPrank(from);
         basket.setOperator(controller, true);
         dummyAsset.approve(address(basket), amount);
-        vm.stopPrank();
-        vm.prank(controller);
         uint256 requestId = basket.requestDeposit(amount, controller, from);
+        vm.stopPrank();
 
         // Check state
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
@@ -247,6 +246,18 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.maxMint(controller), maxMintBefore);
         assertEq(basket.pendingDepositRequest(requestId, controller), amount);
         assertEq(basket.totalPendingDeposits(), totalPendingDepositBefore + amount);
+    }
+
+    function testFuzz_requestDeposit_revertWhen_notOwner(address from, uint256 amount) public {
+        vm.assume(from != alice && from != address(basket) && from != address(basketManager) && from != address(0));
+        amount = bound(amount, 1, type(uint256).max);
+        dummyAsset.mint(from, amount);
+
+        vm.startPrank(from);
+        dummyAsset.approve(address(basket), amount);
+
+        vm.expectRevert(BasketToken.NotOwner.selector);
+        basket.requestDeposit(amount, alice, alice);
     }
 
     function test_requestDeposit_passWhen_existingDepositRequest() public {
