@@ -487,7 +487,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         // Update the basketAssets and the basketAssetToIndexPlusOne mapping
         address[] memory assets = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
         _bmStorage.basketAssets[basket] = assets;
-        for (uint256 i = 0; i < assets.length;) {
+        uint256 length = assets.length;
+        for (uint256 i = 0; i < length;) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             _bmStorage.basketAssetToIndexPlusOne[basket][assets[i]] = i + 1;
             unchecked {
                 ++i;
