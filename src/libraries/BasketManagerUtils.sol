@@ -488,10 +488,9 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < assetsLength;) {
             uint256 amountToWithdraw = amountToWithdraws[i];
             if (amountToWithdraw > 0) {
-                address asset = assets[i];
                 // Asset is an allowlisted ERC20 with no reentrancy problem in transfer
                 // slither-disable-next-line reentrancy-no-eth
-                IERC20(asset).safeTransfer(to, amountToWithdraw);
+                IERC20(assets[i]).safeTransfer(to, amountToWithdraw);
             }
             unchecked {
                 // Overflow not possible: i is less than assetsLength
