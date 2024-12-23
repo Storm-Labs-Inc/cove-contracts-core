@@ -248,15 +248,17 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.totalPendingDeposits(), totalPendingDepositBefore + amount);
     }
 
-    function testFuzz_requestDeposit_revertWhen_notOwner(address from, uint256 amount) public {
+    function testFuzz_requestDeposit_revertWhen_notAuthorized(address from, uint256 amount) public {
         vm.assume(from != alice && from != address(basket) && from != address(basketManager) && from != address(0));
+        vm.assume(!basket.isOperator(alice, from));
+
         amount = bound(amount, 1, type(uint256).max);
         dummyAsset.mint(from, amount);
 
         vm.startPrank(from);
         dummyAsset.approve(address(basket), amount);
 
-        vm.expectRevert(BasketToken.NotOwner.selector);
+        vm.expectRevert(BasketToken.NotAuthorizedOperator.selector);
         basket.requestDeposit(amount, alice, alice);
     }
 
