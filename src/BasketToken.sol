@@ -265,7 +265,7 @@ contract BasketToken is
         lastDepositRequestId[controller] = requestId;
         emit DepositRequest(controller, owner, requestId, msg.sender, assets);
         // Interactions
-        // Assets are immediately transferrred to here to await the basketManager to pull them
+        // Assets are immediately transferred to here to await the basketManager to pull them
         // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset()).safeTransferFrom(owner, address(this), assets);
     }
