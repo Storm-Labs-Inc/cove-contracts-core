@@ -16,7 +16,7 @@ This repository contains the core smart contracts for the Cove Protocol.
 The testing suite includes unit, integration, fork, and invariant tests.
 
 For more detailed information, visit the [documentation](https://docs.cove.finance/) or the
-[technical RFC](https://docs.cove.finance/technical/cove-rfc).
+[technical RFC](https://docs.cove.finance/technical/cove/rfc).
 
 > [!IMPORTANT]
 > You acknowledge that there are potential uses of the [Licensed Work] that
