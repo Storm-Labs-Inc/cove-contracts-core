@@ -5,7 +5,6 @@ pragma solidity 0.8.28;
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IPermit2 } from "permit2/src/interfaces/IPermit2.sol";
-import { Permit2Lib } from "permit2/src/libraries/Permit2Lib.sol";
 import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
