@@ -1058,7 +1058,6 @@ contract BasketTokenTest is BaseTest {
         // Call prepareForRebalance
         vm.prank(address(basketManager));
         (, uint256 preFulfilledShares) = basket.prepareForRebalance(0, feeCollector);
-
         // Check state
         assertEq(
             preFulfilledShares,
@@ -1934,7 +1933,7 @@ contract BasketTokenTest is BaseTest {
         vm.prank(address(basketManager));
         basket.prepareForRebalance(feeBps, feeCollector);
         uint256 balance = basket.balanceOf(feeCollector);
-        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
         if (expected > 0) {
             assertEq(balance, expected);
         }
@@ -1974,7 +1973,7 @@ contract BasketTokenTest is BaseTest {
         basket.prepareForRebalance(feeBps, feeCollector);
 
         uint256 balance = basket.balanceOf(feeCollector);
-        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
         // expected dust from rounding
         assertApproxEqAbs(balance, expected, 366);
     }
@@ -2015,7 +2014,7 @@ contract BasketTokenTest is BaseTest {
 
         // Sum the balance of the feeCollector and the pending request
         uint256 balance = basket.balanceOf(feeCollector) + feeCollectorPendingRequest;
-        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4);
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
         assertEq(
             balance,
             expected,

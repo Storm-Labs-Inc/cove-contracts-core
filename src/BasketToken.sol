@@ -661,7 +661,9 @@ contract BasketToken is
                     uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
                         - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
                     uint256 fee = FixedPointMathLib.fullMulDiv(
-                        currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
+                        currentTotalSupply,
+                        feeBps * timeSinceLastHarvest,
+                        ((_MANAGEMENT_FEE_DECIMALS - feeBps) * uint256(365 days))
                     );
                     if (fee != 0) {
                         emit ManagementFeeHarvested(fee);
