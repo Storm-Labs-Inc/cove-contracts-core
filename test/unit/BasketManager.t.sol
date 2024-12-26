@@ -2407,6 +2407,11 @@ contract BasketManagerTest is BaseTest {
         address[] memory updatedAssets = basketManager.basketAssets(basket);
         for (uint256 i = 0; i < updatedAssets.length; i++) {
             assertEq(updatedAssets[i], address(uint160(uint160(rootAsset) + i)), "basketAssets() not updated correctly");
+            assertEq(
+                basketManager.basketTokenToRebalanceAssetToIndex(basket, updatedAssets[i]),
+                i,
+                "rebalanceAssetToIndex not updated correctly"
+            );
         }
     }
 
