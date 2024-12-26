@@ -432,6 +432,7 @@ library BasketManagerUtils {
     /// @param totalSupplyBefore Total supply of the basket token before the shares were burned.
     /// @param burnedShares Amount of shares burned.
     /// @param to Address to send the redeemed assets to.
+    // solhint-disable-next-line code-complexity
     function proRataRedeem(
         BasketManagerStorage storage self,
         uint256 totalSupplyBefore,
@@ -459,10 +460,12 @@ library BasketManagerUtils {
         }
 
         address basket = msg.sender;
-        address[] storage assets = self.basketAssets[basket];
+        address[] memory assets = self.basketAssets[basket];
         uint256 assetsLength = assets.length;
+        uint256[] memory amountToWithdraws = new uint256[](assetsLength);
 
         // Interactions
+        // First loop: compute amountToWithdraw for each asset and update balances
         for (uint256 i = 0; i < assetsLength;) {
             address asset = assets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -470,12 +473,24 @@ library BasketManagerUtils {
             // Rounding direction: down
             // Division-by-zero is not possible: totalSupplyBefore is greater than 0
             uint256 amountToWithdraw = FixedPointMathLib.fullMulDiv(burnedShares, balance, totalSupplyBefore);
+            amountToWithdraws[i] = amountToWithdraw;
             if (amountToWithdraw > 0) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.basketBalanceOf[basket][asset] = balance - amountToWithdraw;
+            }
+            unchecked {
+                // Overflow not possible: i is less than assetsLength
+                ++i;
+            }
+        }
+
+        // Second loop: perform safeTransfer for each asset
+        for (uint256 i = 0; i < assetsLength;) {
+            uint256 amountToWithdraw = amountToWithdraws[i];
+            if (amountToWithdraw > 0) {
                 // Asset is an allowlisted ERC20 with no reentrancy problem in transfer
                 // slither-disable-next-line reentrancy-no-eth
-                IERC20(asset).safeTransfer(to, amountToWithdraw);
+                IERC20(assets[i]).safeTransfer(to, amountToWithdraw);
             }
             unchecked {
                 // Overflow not possible: i is less than assetsLength
