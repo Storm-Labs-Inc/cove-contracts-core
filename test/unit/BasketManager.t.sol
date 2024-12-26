@@ -2508,6 +2508,21 @@ contract BasketManagerTest is BaseTest {
         basketManager.updateBitFlag(basket, newBitFlag);
     }
 
+    function test_updateBitFlag_revertWhen_BasketIsRebalancing() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory baskets = new address[](1);
+        baskets[0] = basket;
+
+        // Set the basket to rebalancing state using proposeRebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Expect revert due to MustWaitForRebalanceToComplete
+        vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.updateBitFlag(baskets[0], 2);
+    }
+
     // Internal functions
     function _setTokenSwapAdapter() internal {
         vm.prank(timelock);
