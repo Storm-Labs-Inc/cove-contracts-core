@@ -1413,7 +1413,7 @@ contract BasketManagerTest is BaseTest {
 
         uint256 swapFeeAmount = internalTrades[0].sellAmount.fullMulDiv(swapFee, 2e4);
         uint256 netSellAmount = internalTrades[0].sellAmount - swapFeeAmount;
-        uint256 buyAmount = netSellAmount; // Assume 1:1 price
+        uint256 buyAmount = internalTrades[0].sellAmount; // Assume 1:1 price
         uint256 netBuyAmount = buyAmount - buyAmount.fullMulDiv(swapFee, 2e4);
 
         assertEq(
@@ -2506,6 +2506,21 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
         basketManager.updateBitFlag(basket, newBitFlag);
+    }
+
+    function test_updateBitFlag_revertWhen_BasketIsRebalancing() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory baskets = new address[](1);
+        baskets[0] = basket;
+
+        // Set the basket to rebalancing state using proposeRebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Expect revert due to MustWaitForRebalanceToComplete
+        vm.expectRevert(BasketManager.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.updateBitFlag(baskets[0], 2);
     }
 
     // Internal functions
