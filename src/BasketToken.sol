@@ -41,6 +41,8 @@ contract BasketToken is
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     /// @notice Maximum management fee (30%) in BPS denominated in 1e4.
     uint16 private constant _MAX_MANAGEMENT_FEE = 3000;
+    string private constant _NAME_PREFIX = "CoveBasket ";
+    string private constant _SYMBOL_PREFIX = "cvt";
 
     /// @notice Struct representing a deposit request.
     struct DepositRequestStruct {
@@ -185,7 +187,7 @@ contract BasketToken is
         nextDepositRequestId = 2;
         nextRedeemRequestId = 3;
         __ERC4626_init(asset_);
-        __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
+        __ERC20_init(string.concat(_NAME_PREFIX, name_), string.concat(_SYMBOL_PREFIX, symbol_));
         __ERC20Plugins_init(8, 2_000_000);
     }
 
