@@ -638,10 +638,16 @@ contract BasketToken is
         if (msg.sender != from) {
             _spendAllowance(from, msg.sender, shares);
         }
-        uint256 totalSupplyBefore = totalSupply();
-        _burn(from, shares);
+
         // Interactions
-        BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
+        BasketManager(basketManager).proRataRedeem(totalSupply(), shares, to);
+
+        // We intentionally defer the `_burn()` operation until after the external call to
+        // `BasketManager.proRataRedeem()` to prevent potential price manipulation via read-only reentrancy attacks. By
+        // performing the external interaction before updating balances, we ensure that total supply and user balances
+        // cannot be manipulated if a malicious contract attempts to reenter during the ERC20 transfer (e.g., through
+        // ERC777 tokens or plugins with callbacks).
+        _burn(from, shares);
     }
 
     // slither-disable-next-line timestamp
