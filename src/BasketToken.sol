@@ -228,8 +228,14 @@ contract BasketToken is
     /// @param assets The amount of assets to deposit.
     /// @param controller The address of the controller of the position being created.
     /// @param owner The address of the owner of the assets being deposited.
+    /// @dev Reverts on 0 assets or if the caller is not the owner or operator of the assets being deposited.
     function requestDeposit(uint256 assets, address controller, address owner) public returns (uint256 requestId) {
         // Checks
+        if (msg.sender != owner) {
+            if (!isOperator[owner][msg.sender]) {
+                revert NotAuthorizedOperator();
+            }
+        }
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
@@ -259,7 +265,7 @@ contract BasketToken is
         lastDepositRequestId[controller] = requestId;
         emit DepositRequest(controller, owner, requestId, msg.sender, assets);
         // Interactions
-        // Assets are immediately transferrred to here to await the basketManager to pull them
+        // Assets are immediately transferred to here to await the basketManager to pull them
         // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset()).safeTransferFrom(owner, address(this), assets);
     }
@@ -655,7 +661,9 @@ contract BasketToken is
                     uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
                         - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
                     uint256 fee = FixedPointMathLib.fullMulDiv(
-                        currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
+                        currentTotalSupply,
+                        feeBps * timeSinceLastHarvest,
+                        ((_MANAGEMENT_FEE_DECIMALS - feeBps) * uint256(365 days))
                     );
                     if (fee != 0) {
                         emit ManagementFeeHarvested(fee);

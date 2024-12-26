@@ -468,6 +468,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (currentBitFlag == bitFlag) {
             revert BitFlagMustBeDifferent();
         }
+        // Check if basket is currently rebalancing
+        if ((_bmStorage.rebalanceStatus.basketMask & (1 << indexPlusOne - 1)) != 0) {
+            revert MustWaitForRebalanceToComplete();
+        }
         // Check if the new bitFlag is inclusive of the current bitFlag
         if ((currentBitFlag & bitFlag) != currentBitFlag) {
             revert BitFlagMustIncludeCurrent();
