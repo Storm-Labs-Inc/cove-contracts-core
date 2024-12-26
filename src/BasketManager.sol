@@ -110,6 +110,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error BasketIdAlreadyExists();
     /// @notice Thrown when attempting to rescue an asset to a basket that already exists in the asset universe.
     error AssetExistsInUniverse();
+    /// @notice Thrown when the low-level call in the `execute` function fails.
+    /// @dev This error indicates that the target contract rejected the call or execution failed unexpectedly.
+    error ExecutionFailed();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -525,6 +528,37 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    /// @notice Allows the timelock to execute an arbitrary function call on a target contract.
+    /// @dev Can only be called by addresses with the timelock role. Reverts if the execution fails.
+    /// @param target The address of the target contract.
+    /// @param data The calldata to send to the target contract.
+    /// @param value The amount of Ether (in wei) to send with the call.
+    /// @return result The data returned from the function call.
+    function execute(
+        address target,
+        bytes calldata data,
+        uint256 value
+    )
+        external
+        payable
+        onlyRole(_TIMELOCK_ROLE)
+        returns (bytes memory)
+    {
+        // Checks
+        if (target == address(0)) revert Errors.ZeroAddress();
+        // Interactions
+        // slither-disable-start arbitrary-send-eth
+        // slither-disable-start low-level-calls
+        // nosemgrep: solidity.security.arbitrary-low-level-call.arbitrary-low-level-call
+        (bool success, bytes memory result) = target.call{ value: value }(data);
+        // slither-disable-end arbitrary-send-eth
+        // slither-disable-end low-level-calls
+        if (!success) {
+            revert ExecutionFailed();
+        }
+        return result;
     }
 
     /// @notice Allows the admin to rescue tokens mistakenly sent to the contract.
