@@ -18,20 +18,16 @@ contract Constants {
     bytes4 public constant ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
     bytes4 public constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
+    // PERMIT (ERC-2612)
+    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+
     // PERMIT 2
     /// @dev The address of the Permit2 contract the library will use.
     address internal constant ETH_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-    bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
-    // keccak256("PermitSingle(PermitDetails details,address spender,uint256 sigDeadline)PermitDetails(address
-    // token,uint160 amount,uint48 expiration,uint48 nonce)");
-    bytes32 public constant _PERMIT_SINGLE_TYPEHASH = 0xf3841cd1ff0085026a6327b620b67997ce40f282c88a8e905a7a5626e310f3d0;
 
     // ERC1271 Magic Value
     bytes4 public constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
-
-    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-    bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
     address public constant CREATE3_FACTORY = 0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1;
     // Ref: https://github.com/euler-xyz/euler-price-oracle/blob/experiments/test/adapter/pyth/PythFeeds.sol
