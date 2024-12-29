@@ -11,6 +11,7 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { Rescuable } from "src/Rescuable.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
@@ -22,7 +23,7 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// in the BasketManagerUtils contract.
-contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pausable {
+contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pausable, Rescuable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerStorage;
     using SafeERC20 for IERC20;
@@ -99,10 +100,19 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Thrown when attempting to perform an action on a non-existent basket token.
     /// @dev This error is thrown when the provided basket token is not in the `basketTokenToIndexPlusOne` mapping.
     error BasketTokenNotFound();
+    /// @notice Thrown when attempting to update the bitFlag to the same value.
     error BitFlagMustBeDifferent();
+    /// @notice Thrown when attempting to update the bitFlag without including the current bitFlag.
     error BitFlagMustIncludeCurrent();
+    /// @notice Thrown when attempting to update the bitFlag to a value not supported by the strategy.
     error BitFlagUnsupportedByStrategy();
+    /// @notice Thrown when attempting to create a basket with an ID that already exists.
     error BasketIdAlreadyExists();
+    /// @notice Thrown when attempting to rescue an asset to a basket that already exists in the asset universe.
+    error AssetExistsInUniverse();
+    /// @notice Thrown when the low-level call in the `execute` function fails.
+    /// @dev This error indicates that the target contract rejected the call or execution failed unexpectedly.
+    error ExecutionFailed();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -518,5 +528,53 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    /// @notice Allows the timelock to execute an arbitrary function call on a target contract.
+    /// @dev Can only be called by addresses with the timelock role. Reverts if the execution fails.
+    /// @param target The address of the target contract.
+    /// @param data The calldata to send to the target contract.
+    /// @param value The amount of Ether (in wei) to send with the call.
+    /// @return result The data returned from the function call.
+    function execute(
+        address target,
+        bytes calldata data,
+        uint256 value
+    )
+        external
+        payable
+        onlyRole(_TIMELOCK_ROLE)
+        returns (bytes memory)
+    {
+        // Checks
+        if (target == address(0)) revert Errors.ZeroAddress();
+        // Interactions
+        // slither-disable-start arbitrary-send-eth
+        // slither-disable-start low-level-calls
+        // nosemgrep: solidity.security.arbitrary-low-level-call.arbitrary-low-level-call
+        (bool success, bytes memory result) = target.call{ value: value }(data);
+        // slither-disable-end arbitrary-send-eth
+        // slither-disable-end low-level-calls
+        if (!success) {
+            revert ExecutionFailed();
+        }
+        return result;
+    }
+
+    /// @notice Allows the admin to rescue tokens mistakenly sent to the contract.
+    /// @dev Can only be called by the admin. This function is intended for use in case of accidental token
+    /// transfers into the contract. It will revert if the token is part of the enabled asset universe.
+    /// @param token The ERC20 token to rescue, or address(0) for ETH.
+    /// @param to The recipient address of the rescued tokens.
+    /// @param balance The amount of tokens to rescue. If set to 0, the entire balance will be rescued.
+    function rescue(IERC20 token, address to, uint256 balance) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (address(token) != address(0)) {
+            AssetRegistry.AssetStatus status = AssetRegistry(_bmStorage.assetRegistry).getAssetStatus(address(token));
+            if (status != AssetRegistry.AssetStatus.DISABLED) {
+                revert AssetExistsInUniverse();
+            }
+        }
+
+        _rescue(token, to, balance);
     }
 }

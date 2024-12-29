@@ -30,6 +30,9 @@ contract Constants {
     // ERC1271 Magic Value
     bytes4 public constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
 
+    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+
     address public constant CREATE3_FACTORY = 0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1;
     // Ref: https://github.com/euler-xyz/euler-price-oracle/blob/experiments/test/adapter/pyth/PythFeeds.sol
     address public constant PYTH = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;

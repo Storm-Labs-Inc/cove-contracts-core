@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -9,6 +10,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
+import { MockTarget } from "test/utils/mocks/MockTarget.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
@@ -43,6 +45,7 @@ contract BasketManagerTest is BaseTest {
     address public strategyRegistry;
     address public tokenSwapAdapter;
     address public assetRegistry;
+    address public mockTarget;
 
     uint64[][] private _targetWeights;
 
@@ -60,6 +63,7 @@ contract BasketManagerTest is BaseTest {
         vm.warp(1 weeks);
         alice = createUser("alice");
         admin = createUser("admin");
+        timelock = createUser("timelock");
         feeCollector = createUser("feeCollector");
         protocolTreasury = createUser("protocolTreasury");
         vm.mockCall(
@@ -79,6 +83,7 @@ contract BasketManagerTest is BaseTest {
         vm.label(pairAsset, "pairAsset");
         basketTokenImplementation = createUser("basketTokenImplementation");
         mockPriceOracle = new MockPriceOracle();
+        mockTarget = address(new MockTarget());
         eulerRouter = new EulerRouter(EVC, admin);
         strategyRegistry = createUser("strategyRegistry");
         basketManager = new BasketManager(
@@ -177,7 +182,7 @@ contract BasketManagerTest is BaseTest {
         assertFalse(basketManager.paused(), "contract not unpaused");
     }
 
-    function test_pause_revertWhen_notPauser() public {
+    function test_pause_revertWhen_notPaused() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(BasketManager.Unauthorized.selector));
         basketManager.pause();
@@ -186,6 +191,98 @@ contract BasketManagerTest is BaseTest {
     function test_unpause_revertWhen_notAdmin() public {
         vm.expectRevert(_formatAccessControlError(address(this), DEFAULT_ADMIN_ROLE));
         basketManager.unpause();
+    }
+
+    function test_execute() public {
+        vm.prank(timelock);
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
+        assertEq(MockTarget(payable(mockTarget)).value(), 1 ether, "execute failed");
+        assertEq(MockTarget(payable(mockTarget)).data(), data, "execute failed");
+    }
+
+    function test_execute_passWhen_zeroValue() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.prank(timelock);
+        basketManager.execute{ value: 0 }(mockTarget, data, 0);
+        assertEq(MockTarget(payable(mockTarget)).value(), 0, "execute failed");
+        assertEq(MockTarget(payable(mockTarget)).data(), data, "execute failed");
+    }
+
+    function testFuzz_execute(bytes4 selector, bytes32 data, address data2, uint256 value) public {
+        vm.assume(selector != MockTarget.fail.selector);
+        bytes memory fullData = abi.encodeWithSelector(selector, data, data2);
+        assertEq(fullData.length, 68, "data packing failed");
+        hoax(timelock, value);
+        basketManager.execute{ value: value }(mockTarget, fullData, value);
+        assertEq(MockTarget(payable(mockTarget)).value(), value, "execute failed");
+        assertEq(MockTarget(payable(mockTarget)).data(), fullData, "execute failed");
+    }
+
+    function test_execute_revertWhen_executionFailed() public {
+        bytes memory data = abi.encodeWithSelector(MockTarget.fail.selector);
+        vm.expectRevert(abi.encodeWithSelector(BasketManager.ExecutionFailed.selector));
+        vm.prank(timelock);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
+    }
+
+    function test_execute_revertWhen_callerIsNotTimelock() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.expectRevert(_formatAccessControlError(admin, TIMELOCK_ROLE));
+        vm.prank(admin);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
+    }
+
+    function test_execute_revertWhen_zeroAddress() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.prank(timelock);
+        basketManager.execute{ value: 1 ether }(address(0), data, 1 ether);
+    }
+
+    function test_rescue() public {
+        ERC20 shitcoin = new ERC20Mock();
+        deal(address(shitcoin), address(basketManager), 1e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, address(shitcoin)),
+            abi.encode(AssetRegistry.AssetStatus.DISABLED)
+        );
+        vm.prank(admin);
+        basketManager.rescue(IERC20(address(shitcoin)), alice, 1e18);
+        assertEq(shitcoin.balanceOf(alice), 1e18, "rescue failed");
+    }
+
+    function test_rescue_ETH() public {
+        deal(address(basketManager), 1e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, address(0)),
+            abi.encode(AssetRegistry.AssetStatus.DISABLED)
+        );
+        vm.prank(admin);
+        basketManager.rescue(IERC20(address(0)), alice, 1e18);
+        // createUser deals new addresses 100 ETH
+        assertEq(alice.balance, 100 ether + 1e18, "rescue failed");
+    }
+
+    function test_rescue_revertWhen_notAdmin() public {
+        vm.prank(alice);
+        vm.expectRevert(_formatAccessControlError(address(alice), DEFAULT_ADMIN_ROLE));
+        basketManager.rescue(IERC20(address(0)), admin, 1e18);
+    }
+
+    function test_rescue_revertWhen_assetNotDisabled() public {
+        ERC20 shitcoin = new ERC20Mock();
+        deal(address(shitcoin), address(basketManager), 1e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, address(shitcoin)),
+            abi.encode(AssetRegistry.AssetStatus.ENABLED)
+        );
+        vm.expectRevert(BasketManager.AssetExistsInUniverse.selector);
+        vm.prank(admin);
+        basketManager.rescue(IERC20(address(shitcoin)), alice, 1e18);
     }
 
     function testFuzz_createNewBasket(uint256 bitFlag, address strategy) public {
