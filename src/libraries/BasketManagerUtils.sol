@@ -394,7 +394,7 @@ library BasketManagerUtils {
         _validateBasketHash(self, baskets, basketTargetWeights);
         // Check if the rebalance was proposed more than 15 minutes ago
         // slither-disable-next-line timestamp
-        if (block.timestamp - self.rebalanceStatus.timestamp < 15 minutes) {
+        if (block.timestamp - self.rebalanceStatus.timestamp < self.stepDelay) {
             revert TooEarlyToCompleteRebalance();
         }
         // if external trades are proposed and executed, finalize them and claim results from the trades
@@ -411,11 +411,12 @@ library BasketManagerUtils {
         uint256[][] memory afterTradeAmounts_ = new uint256[][](len);
         _initializeBasketData(self, baskets, afterTradeAmounts_, totalValue_);
         // Confirm that target weights have been met, if max retries is reached continue regardless
-        if (self.retryCount < _MAX_RETRIES) {
+        uint8 currentRetryCount = self.rebalanceStatus.retryCount;
+        if (currentRetryCount < self.retryLimit) {
             if (!_isTargetWeightMet(self, baskets, afterTradeAmounts_, totalValue_, basketTargetWeights)) {
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
-                self.retryCount += 1;
+                self.rebalanceStatus.retryCount = currentRetryCount + 1;
                 self.rebalanceStatus.timestamp = uint40(block.timestamp);
                 self.externalTradesHash = bytes32(0);
                 self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
@@ -582,7 +583,7 @@ library BasketManagerUtils {
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
         self.externalTradesHash = bytes32(0);
-        self.retryCount = 0;
+        self.rebalanceStatus.retryCount = 0;
         // slither-disable-next-line reentrancy-events
         emit RebalanceCompleted(epoch);
 
