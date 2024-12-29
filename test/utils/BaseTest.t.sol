@@ -7,7 +7,6 @@ import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.so
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import { console } from "forge-std/console.sol";
 
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
 import { PermitHash } from "permit2/src/libraries/PermitHash.sol";

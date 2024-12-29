@@ -5,7 +5,6 @@ pragma solidity 0.8.28;
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { console } from "forge-std/console.sol";
 import { IPermit2 } from "permit2/src/interfaces/IPermit2.sol";
 import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -81,7 +80,6 @@ contract Permit2Test is BaseTest {
         uint256 deadline = vm.getBlockTimestamp() + 1000;
         (uint8 v, bytes32 r, bytes32 s) =
             _generatePermit2Signature(asset, key, address(basket2), amount, currentNonce, deadline);
-        console.logBytes32(_PERMIT_SINGLE_TYPEHASH);
         // Use multicall to call permit and requestDeposit
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeWithSelector(
