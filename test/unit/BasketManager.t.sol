@@ -51,6 +51,10 @@ contract BasketManagerTest is BaseTest {
 
     address public constant USD_ISO_4217_CODE = address(840);
 
+    uint40 public constant MIN_STEP_DELAY = 1 minutes;
+    uint40 public constant MAX_STEP_DELAY = 60 minutes;
+    uint8 public constant MAX_RETRY_COUNT = 10;
+
     struct TradeTestParams {
         uint256 sellWeight;
         uint256 depositAmount;
@@ -2449,6 +2453,65 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(_formatAccessControlError(caller, MANAGER_ROLE));
         vm.prank(caller);
         basketManager.collectSwapFee(asset);
+    }
+
+    function testFuzz_setStepDelay(uint40 stepDelay) public {
+        vm.assume(stepDelay >= MIN_STEP_DELAY && stepDelay <= MAX_STEP_DELAY);
+        vm.prank(timelock);
+        basketManager.setStepDelay(stepDelay);
+        assertEq(basketManager.stepDelay(), stepDelay);
+    }
+
+    function testFuzz_setStepDelay_revertWhen_InvalidStepDelay(uint40 stepDelay) public {
+        vm.assume(stepDelay < MIN_STEP_DELAY || stepDelay > MAX_STEP_DELAY);
+        vm.prank(timelock);
+        vm.expectRevert(BasketManager.InvalidStepDelay.selector);
+        basketManager.setStepDelay(stepDelay);
+    }
+
+    function testFuzz_setStepDelay_revertWhen_MustWaitForRebalanceToComplete(uint40 stepDelay) public {
+        vm.assume(stepDelay >= MIN_STEP_DELAY && stepDelay <= MAX_STEP_DELAY);
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.setStepDelay(stepDelay);
+    }
+
+    function testFuzz_setStepDelay_revertWhen_CallerIsNotTimelock(address caller, uint40 stepDelay) public {
+        vm.assume(caller != timelock);
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.setStepDelay(stepDelay);
+    }
+
+    function testFuzz_setRetryLimit(uint8 retryLimit) public {
+        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.prank(timelock);
+        basketManager.setRetryLimit(retryLimit);
+        assertEq(basketManager.retryLimit(), retryLimit);
+    }
+
+    function testFuzz_setRetryLimit_revertWhen_InvalidRetryCount(uint8 retryLimit) public {
+        vm.assume(retryLimit > MAX_RETRY_COUNT);
+        vm.prank(timelock);
+        vm.expectRevert(BasketManager.InvalidRetryCount.selector);
+        basketManager.setRetryLimit(retryLimit);
+    }
+
+    function testFuzz_setRetryLimit_revertWhen_MustWaitForRebalanceToComplete(uint8 retryLimit) public {
+        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.setRetryLimit(retryLimit);
+    }
+
+    function testFuzz_setRetryLimit_revertWhen_CallerIsNotTimelock(address caller, uint8 retryLimit) public {
+        vm.assume(caller != timelock);
+        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.setRetryLimit(retryLimit);
     }
 
     function testFuzz_collectSwapFee_returnsZeroWhen_hasNotCollectedFee(address asset) public {

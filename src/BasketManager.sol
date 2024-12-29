@@ -47,6 +47,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     uint16 private constant _MAX_MANAGEMENT_FEE = 3000;
     /// @notice Maximum swap fee (5%) in BPS denominated in 1e4.
     uint16 private constant _MAX_SWAP_FEE = 500;
+    /// @notice Minimum time between steps in a rebalance in seconds.
+    uint40 private constant _MIN_STEP_DELAY = 1 minutes;
+    /// @notice Maximum time between steps in a rebalance in seconds.
+    uint40 private constant _MAX_STEP_DELAY = 60 minutes;
+    /// @notice Maximum bound of retry count.
+    uint8 private constant _MAX_RETRY_COUNT = 10;
 
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
@@ -73,6 +79,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     event TokenSwapProposed(uint40 indexed epoch, InternalTrade[] internalTrades, ExternalTrade[] externalTrades);
     /// @notice Emitted when a token swap is executed during a rebalance.
     event TokenSwapExecuted(uint40 indexed epoch);
+    /// @notice Emitted when the step delay is set.
+    event StepDelaySet(uint40 oldDelay, uint40 newDelay);
+    /// @notice Emitted when the retry limit is set.
+    event RetryLimitSet(uint8 oldLimit, uint8 newLimit);
 
     /// ERRORS ///
     /// @notice Thrown when attempting to execute a token swap without first proposing it.
@@ -113,6 +123,11 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Thrown when the low-level call in the `execute` function fails.
     /// @dev This error indicates that the target contract rejected the call or execution failed unexpectedly.
     error ExecutionFailed();
+    /// @notice Thrown when attempting to set an invalid step delay outside the bounds of `_MIN_STEP_DELAY` and
+    /// `_MAX_STEP_DELAY`.
+    error InvalidStepDelay();
+    /// @notice Thrown when attempting to set an invalid retry limit outside the bounds of 0 and `_MAX_RETRY_COUNT`.
+    error InvalidRetryCount();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -147,6 +162,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.assetRegistry = assetRegistry_;
         _bmStorage.basketTokenImplementation = basketTokenImplementation;
         _bmStorage.feeCollector = feeCollector_;
+        _bmStorage.retryLimit = 3;
+        _bmStorage.stepDelay = 15 minutes;
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -257,7 +274,21 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Returns the retry count for the current rebalance epoch.
     /// @return Retry count.
     function retryCount() external view returns (uint8) {
-        return _bmStorage.retryCount;
+        return _bmStorage.rebalanceStatus.retryCount;
+    }
+
+    /// @notice Returns the maximum retry limit for the rebalance process.
+    /// @return Retry limit.
+    function retryLimit() external view returns (uint8) {
+        return _bmStorage.retryLimit;
+    }
+
+    /// @notice Returns the step delay for the rebalance process.
+    /// @dev The step delay defines the minimum time interval, in seconds, required between consecutive steps in a
+    /// rebalance. This ensures sufficient time for external trades or other operations to settle before proceeding.
+    /// @return Step delay duration in seconds.
+    function stepDelay() external view returns (uint40) {
+        return _bmStorage.stepDelay;
     }
 
     /// @notice Returns the addresses of all assets in the given basket.
@@ -452,6 +483,34 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         }
         emit SwapFeeSet(_bmStorage.swapFee, swapFee_);
         _bmStorage.swapFee = swapFee_;
+    }
+
+    /// @notice Updates the step delay for the rebalance process.
+    /// @dev The step delay defines the minimum time interval, in seconds, required between consecutive steps in a
+    /// rebalance. This ensures sufficient time for external trades or other operations to settle before proceeding.
+    /// @param stepDelay_ The new step delay duration in seconds.
+    function setStepDelay(uint40 stepDelay_) external onlyRole(_TIMELOCK_ROLE) {
+        if (stepDelay_ < _MIN_STEP_DELAY || stepDelay_ > _MAX_STEP_DELAY) {
+            revert InvalidStepDelay();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit StepDelaySet(_bmStorage.stepDelay, stepDelay_);
+        _bmStorage.stepDelay = stepDelay_;
+    }
+
+    /// @notice Sets the retry limit for future rebalances.
+    /// @param retryLimit_ New retry limit.
+    function setRetryLimit(uint8 retryLimit_) external onlyRole(_TIMELOCK_ROLE) {
+        if (retryLimit_ > _MAX_RETRY_COUNT) {
+            revert InvalidRetryCount();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit RetryLimitSet(_bmStorage.retryLimit, retryLimit_);
+        _bmStorage.retryLimit = retryLimit_;
     }
 
     /// @notice Claims the swap fee for the given asset and sends it to protocol treasury defined in the FeeCollector.

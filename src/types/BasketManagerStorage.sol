@@ -27,6 +27,8 @@ struct RebalanceStatus {
     uint40 epoch;
     // Timestamp of the last action.
     uint40 timestamp;
+    // The number of retries for the current rebalance epoch.
+    uint8 retryCount;
     // Status of the rebalance.
     Status status;
 }
@@ -71,8 +73,10 @@ struct BasketManagerStorage {
     RebalanceStatus rebalanceStatus;
     /// @notice A hash of the latest external trades stored during proposeTokenSwap
     bytes32 externalTradesHash;
-    /// @notice Current count of retries for the current rebalance epoch. May not exceed MAX_RETRIES.
-    uint8 retryCount;
     /// @notice Address of the token swap adapter.
     address tokenSwapAdapter;
+    /// @notice The maximum number of retries for a rebalance epoch.
+    uint8 retryLimit;
+    /// @notice The minimum time between rebalances.
+    uint40 stepDelay;
 }
