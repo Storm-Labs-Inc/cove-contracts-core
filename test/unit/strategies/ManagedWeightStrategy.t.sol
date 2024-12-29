@@ -253,6 +253,7 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketMask: uint256(0),
                     epoch: epoch,
                     timestamp: uint40(0),
+                    retryCount: uint8(0),
                     status: Status.NOT_STARTED
                 })
             )
