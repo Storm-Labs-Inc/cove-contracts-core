@@ -468,6 +468,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (currentBitFlag == bitFlag) {
             revert BitFlagMustBeDifferent();
         }
+        // Check if basket is currently rebalancing
+        if ((_bmStorage.rebalanceStatus.basketMask & (1 << indexPlusOne - 1)) != 0) {
+            revert MustWaitForRebalanceToComplete();
+        }
         // Check if the new bitFlag is inclusive of the current bitFlag
         if ((currentBitFlag & bitFlag) != currentBitFlag) {
             revert BitFlagMustIncludeCurrent();
@@ -484,7 +488,18 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         bytes32 oldId = keccak256(abi.encodePacked(currentBitFlag, strategy));
         _bmStorage.basketIdToAddress[oldId] = address(0);
         _bmStorage.basketIdToAddress[newId] = basket;
-        _bmStorage.basketAssets[basket] = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        // Update the basketAssets and the basketAssetToIndexPlusOne mapping
+        address[] memory assets = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        _bmStorage.basketAssets[basket] = assets;
+        uint256 length = assets.length;
+        for (uint256 i = 0; i < length;) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            _bmStorage.basketAssetToIndexPlusOne[basket][assets[i]] = i + 1;
+            unchecked {
+                // Overflow not possible: i is less than length
+                ++i;
+            }
+        }
         emit BasketBitFlagUpdated(basket, currentBitFlag, bitFlag, oldId, newId);
         // Update the bitFlag in the BasketToken contract
         BasketToken(basket).setBitFlag(bitFlag);
