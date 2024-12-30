@@ -8,6 +8,8 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { PermitHash } from "permit2/src/libraries/PermitHash.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
 abstract contract BaseTest is Test, Constants {
@@ -224,5 +226,45 @@ abstract contract BaseTest is Test, Constants {
         console.log("  v: ", v);
         console.log("  r: ", vm.toString(r));
         console.log("  s: ", vm.toString(s));
+    }
+
+    function _generatePermit2Signature(
+        address token,
+        uint256 approvalFromPrivKey,
+        address approvalTo,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline
+    )
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        // Use PermitHash to generate the permit2 hash. Alternatively, you can use the following code:
+        // bytes32 permitHash = keccak256(abi.encode(_PERMIT_DETAILS_TYPEHASH, IAllowanceTransfer.PermitDetails memory
+        // details))
+        // bytes32 msgHash = keccak256(abi.encode(_PERMIT_SINGLE_TYPEHASH, permitHash, approvalTo, deadline));
+        bytes32 msgHash = PermitHash.hash(
+            IAllowanceTransfer.PermitSingle({
+                details: IAllowanceTransfer.PermitDetails({
+                    token: token,
+                    amount: uint160(amount),
+                    expiration: type(uint48).max,
+                    nonce: uint48(nonce)
+                }),
+                spender: approvalTo,
+                sigDeadline: deadline
+            })
+        );
+        (v, r, s) = vm.sign(
+            approvalFromPrivKey, // user's private key
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01", // EIP-712 encoding
+                    IAllowanceTransfer(ETH_PERMIT2).DOMAIN_SEPARATOR(),
+                    msgHash
+                )
+            )
+        );
     }
 }

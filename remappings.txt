@@ -3,6 +3,8 @@
 @openzeppelin/contracts-upgradeable/=dependencies/@openzeppelin-contracts-upgradeable-5.1.0/
 clones-with-immutable-args/=dependencies/clones-with-immutable-args-1.1.1/src/
 create3-factory/=dependencies/lifinance-create3-factory-0/
+solmate/utils=dependencies/lifinance-create3-factory-0/lib/solmate/src/utils/
+solmate/src=dependencies/lifinance-create3-factory-0/lib/solmate/src/
 solmate/=dependencies/lifinance-create3-factory-0/lib/solmate/src/
 euler-price-oracle/=dependencies/euler-price-oracle-1/
 forge-std/=dependencies/forge-std-1.9.3/src/
