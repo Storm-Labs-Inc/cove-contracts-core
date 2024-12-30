@@ -319,7 +319,7 @@ contract BasketManagerTest is BaseTest {
         address[] memory tokens = basketManager.basketTokens();
         assertEq(tokens[0], basket);
         assertEq(basketManager.basketIdToAddress(keccak256(abi.encodePacked(bitFlag, strategy))), basket);
-        assertEq(basketManager.basketTokenToRebalanceAssetToIndex(basket, address(rootAsset)), 0);
+        assertEq(basketManager.getAssetIndexInBasket(basket, address(rootAsset)), 0);
         assertEq(basketManager.basketTokenToIndex(basket), 0);
         assertEq(basketManager.basketAssets(basket), assets);
         assertEq(basketManager.managementFee(basket), 3000);
@@ -2568,7 +2568,7 @@ contract BasketManagerTest is BaseTest {
         for (uint256 i = 0; i < updatedAssets.length; i++) {
             assertEq(updatedAssets[i], address(uint160(uint160(rootAsset) + i)), "basketAssets() not updated correctly");
             assertEq(
-                basketManager.basketTokenToRebalanceAssetToIndex(basket, updatedAssets[i]),
+                basketManager.getAssetIndexInBasket(basket, updatedAssets[i]),
                 i,
                 "rebalanceAssetToIndex not updated correctly"
             );

@@ -171,25 +171,18 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Returns the index of the basket token in the basketTokens array.
     /// @dev Reverts if the basket token does not exist.
     /// @param basketToken Address of the basket token.
-    /// @return index Index of the basket token.
-    function basketTokenToIndex(address basketToken) public view returns (uint256 index) {
-        index = _bmStorage.basketTokenToIndex(basketToken);
+    /// @return Index of the basket token.
+    function basketTokenToIndex(address basketToken) public view returns (uint256) {
+        return _bmStorage.basketTokenToIndex(basketToken);
     }
 
-    /// @notice Returns the index of the basket asset in the basketAssets array.
+    /// @notice Returns the index of the given asset in the basket.
     /// @dev Reverts if the basket asset does not exist.
     /// @param basketToken Address of the basket token.
     /// @param asset Address of the asset.
-    /// @return index Index of the basket asset.
-    function basketTokenToRebalanceAssetToIndex(
-        address basketToken,
-        address asset
-    )
-        public
-        view
-        returns (uint256 index)
-    {
-        index = _bmStorage.basketTokenToRebalanceAssetToIndex(basketToken, asset);
+    /// @return Index of the asset in the basket.
+    function getAssetIndexInBasket(address basketToken, address asset) public view returns (uint256) {
+        return _bmStorage.getAssetIndexInBasket(basketToken, asset);
     }
 
     /// @notice Returns the number of basket tokens.
