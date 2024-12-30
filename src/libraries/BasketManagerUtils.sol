@@ -1121,7 +1121,7 @@ library BasketManagerUtils {
         uint256[] memory targetBalances
     )
         private
-        view
+        pure
         returns (bool shouldRebalance)
     {
         uint256 assetsLength = assets.length;
