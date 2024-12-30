@@ -327,6 +327,7 @@ library BasketManagerUtils {
         }
         // Effects after Interactions. Target weights require external view calls to respective strategies.
         bytes32 basketHash = keccak256(abi.encode(baskets, basketTargetWeights, basketAssets));
+        // slither-disable-next-line reentrancy-events
         emit RebalanceProposed(self.rebalanceStatus.epoch, baskets, basketTargetWeights, basketAssets, basketHash);
         self.rebalanceStatus.basketHash = basketHash;
     }
