@@ -951,7 +951,7 @@ library BasketManagerUtils {
         if (self.rebalanceStatus.basketHash != basketHash) {
             revert BasketsMismatch();
         }
-        // Check the length matches
+        // Check that the length matches
         if (baskets.length != basketsTargetWeights.length || baskets.length != basketAssets.length) {
             revert BasketsMismatch();
         }
