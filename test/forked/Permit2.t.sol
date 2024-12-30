@@ -36,7 +36,7 @@ contract Permit2Test is BaseTest {
     }
 
     function testFuzz_multicallPermit_requestDeposit(uint256 amount) public {
-        amount = bound(amount, 1, type(uint256).max);
+        amount = bound(amount, 1, type(uint160).max);
         (address from, uint256 key) = makeAddrAndKey("bob");
 
         address asset = BasketToken(basket).asset();
