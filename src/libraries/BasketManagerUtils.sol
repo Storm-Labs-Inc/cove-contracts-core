@@ -191,29 +191,27 @@ library BasketManagerUtils {
             revert StrategyRegistryDoesNotSupportStrategy();
         }
         AssetRegistry assetRegistry = AssetRegistry(self.assetRegistry);
-        {
-            if (assetRegistry.hasPausedAssets(bitFlag)) {
-                revert AssetNotEnabled();
-            }
-            address[] memory assets = assetRegistry.getAssets(bitFlag);
-            if (assets.length == 0) {
-                revert AssetListEmpty();
-            }
-            basket = Clones.clone(self.basketTokenImplementation);
-            _setBaseAssetIndex(self, basket, assets, baseAsset);
-            self.basketTokens.push(basket);
-            self.basketAssets[basket] = assets;
-            self.basketIdToAddress[basketId] = basket;
-            // The set default management fee will given to the zero address
-            self.managementFees[basket] = self.managementFees[address(0)];
-            uint256 assetsLength = assets.length;
-            for (uint256 j = 0; j < assetsLength;) {
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                self.basketAssetToIndexPlusOne[basket][assets[j]] = j + 1;
-                unchecked {
-                    // Overflow not possible: j is bounded by assets.length
-                    ++j;
-                }
+        if (assetRegistry.hasPausedAssets(bitFlag)) {
+            revert AssetNotEnabled();
+        }
+        address[] memory assets = assetRegistry.getAssets(bitFlag);
+        if (assets.length == 0) {
+            revert AssetListEmpty();
+        }
+        basket = Clones.clone(self.basketTokenImplementation);
+        _setBaseAssetIndex(self, basket, assets, baseAsset);
+        self.basketTokens.push(basket);
+        self.basketAssets[basket] = assets;
+        self.basketIdToAddress[basketId] = basket;
+        // The set default management fee will given to the zero address
+        self.managementFees[basket] = self.managementFees[address(0)];
+        uint256 assetsLength = assets.length;
+        for (uint256 j = 0; j < assetsLength;) {
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            self.basketAssetToIndexPlusOne[basket][assets[j]] = j + 1;
+            unchecked {
+                // Overflow not possible: j is bounded by assets.length
+                ++j;
             }
         }
         unchecked {
@@ -278,7 +276,7 @@ library BasketManagerUtils {
                 uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
                 (totalSupply, pendingDepositValue) = _processPendingDeposits(
-                    self, basket, basketValue, balances[baseAssetIndex], pendingDeposits, baseAssetIndex
+                    self, basket, basketValue, balances[baseAssetIndex], pendingDeposits, assets[baseAssetIndex]
                 );
                 balances[baseAssetIndex] += pendingDeposits;
                 basketValue += pendingDepositValue;
@@ -505,7 +503,7 @@ library BasketManagerUtils {
     /// @param basketToken Basket token address.
     /// @param asset Asset address.
     /// @return index Index of the asset in the basket.
-    function basketTokenToRebalanceAssetToIndex(
+    function getAssetIndexInBasket(
         BasketManagerStorage storage self,
         address basketToken,
         address asset
@@ -628,17 +626,18 @@ library BasketManagerUtils {
                 uint256 rawAmount =
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply());
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
+                address baseAsset = assets[baseAssetIndex];
+                uint256 baseAssetBalance = balances[baseAssetIndex];
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 withdrawAmount =
-                    self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
-                if (withdrawAmount <= balances[baseAssetIndex]) {
+                uint256 withdrawAmount = self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, baseAsset);
+                if (withdrawAmount <= baseAssetBalance) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[baseAssetIndex]
                         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                        self.basketBalanceOf[basket][assets[baseAssetIndex]] = balances[baseAssetIndex] - withdrawAmount;
+                        self.basketBalanceOf[basket][baseAsset] = baseAssetBalance - withdrawAmount;
                     }
                     // slither-disable-next-line reentrancy-no-eth
-                    IERC20(assets[baseAssetIndex]).forceApprove(basket, withdrawAmount);
+                    IERC20(baseAsset).forceApprove(basket, withdrawAmount);
                     // ERC20.transferFrom is called in BasketToken.fulfillRedeem
                     // slither-disable-next-line reentrancy-no-eth
                     BasketToken(basket).fulfillRedeem(withdrawAmount);
@@ -780,10 +779,10 @@ library BasketManagerUtils {
             InternalTradeInfo memory info = InternalTradeInfo({
                 fromBasketIndex: _indexOf(baskets, trade.fromBasket),
                 toBasketIndex: _indexOf(baskets, trade.toBasket),
-                sellTokenAssetIndex: basketTokenToRebalanceAssetToIndex(self, trade.fromBasket, trade.sellToken),
-                buyTokenAssetIndex: basketTokenToRebalanceAssetToIndex(self, trade.fromBasket, trade.buyToken),
-                toBasketBuyTokenIndex: basketTokenToRebalanceAssetToIndex(self, trade.toBasket, trade.buyToken),
-                toBasketSellTokenIndex: basketTokenToRebalanceAssetToIndex(self, trade.toBasket, trade.sellToken),
+                sellTokenAssetIndex: getAssetIndexInBasket(self, trade.fromBasket, trade.sellToken),
+                buyTokenAssetIndex: getAssetIndexInBasket(self, trade.fromBasket, trade.buyToken),
+                toBasketBuyTokenIndex: getAssetIndexInBasket(self, trade.toBasket, trade.buyToken),
+                toBasketSellTokenIndex: getAssetIndexInBasket(self, trade.toBasket, trade.sellToken),
                 netBuyAmount: 0,
                 netSellAmount: 0,
                 feeOnBuy: 0,
@@ -871,10 +870,8 @@ library BasketManagerUtils {
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
                 BasketTradeOwnership memory ownership = trade.basketTradeOwnership[j];
                 ownershipInfo.basketIndex = _indexOf(baskets, ownership.basket);
-                ownershipInfo.buyTokenAssetIndex =
-                    basketTokenToRebalanceAssetToIndex(self, ownership.basket, trade.buyToken);
-                ownershipInfo.sellTokenAssetIndex =
-                    basketTokenToRebalanceAssetToIndex(self, ownership.basket, trade.sellToken);
+                ownershipInfo.buyTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.buyToken);
+                ownershipInfo.sellTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.sellToken);
                 uint256 ownershipSellAmount =
                     FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 uint256 ownershipBuyAmount =
@@ -1004,7 +1001,7 @@ library BasketManagerUtils {
         uint256 basketValue,
         uint256 baseAssetBalance,
         uint256 pendingDeposit,
-        uint256 baseAssetIndex
+        address baseAssetAddress
     )
         private
         returns (uint256 totalSupply, uint256 pendingDepositValue)
@@ -1015,8 +1012,7 @@ library BasketManagerUtils {
             // Assume the first asset listed in the basket is the base asset
             // Round direction: down
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            pendingDepositValue =
-                self.eulerRouter.getQuote(pendingDeposit, self.basketAssets[basket][baseAssetIndex], _USD_ISO_4217_CODE);
+            pendingDepositValue = self.eulerRouter.getQuote(pendingDeposit, baseAssetAddress, _USD_ISO_4217_CODE);
             // Rounding direction: down
             // Division-by-zero is not possible: basketValue is greater than 0
             uint256 requiredDepositShares = basketValue > 0
@@ -1024,7 +1020,7 @@ library BasketManagerUtils {
                 : pendingDeposit;
             totalSupply += requiredDepositShares;
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            self.basketBalanceOf[basket][self.basketAssets[basket][baseAssetIndex]] = baseAssetBalance + pendingDeposit;
+            self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
             // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
             BasketToken(basket).fulfillDeposit(requiredDepositShares);
         }
@@ -1125,7 +1121,7 @@ library BasketManagerUtils {
         uint256[] memory targetBalances
     )
         private
-        view
+        pure
         returns (bool shouldRebalance)
     {
         uint256 assetsLength = assets.length;
