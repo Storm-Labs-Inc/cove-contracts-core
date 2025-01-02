@@ -169,6 +169,12 @@ contract AssetRegistry_Test is BaseTest {
         assetRegistry.addAsset(address(0));
     }
 
+    function test_addAsset_revertWhen_notManager() public {
+        vm.expectRevert(_formatAccessControlError(users["alice"], managerRole));
+        vm.prank(users["alice"]);
+        assetRegistry.addAsset(address(uint160(1)));
+    }
+
     function test_addAsset_revertWhen_maxAssetsReached() public {
         for (uint256 i = 0; i < MAX_ASSETS; i++) {
             testFuzz_addAsset(address(uint160(i + 1)));
@@ -204,6 +210,12 @@ contract AssetRegistry_Test is BaseTest {
         vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(users["admin"]);
         assetRegistry.setAssetStatus(address(0), AssetRegistry.AssetStatus(status));
+    }
+
+    function test_setAssetStatus_revertWhen_notManager() public {
+        vm.expectRevert(_formatAccessControlError(users["alice"], managerRole));
+        vm.prank(users["alice"]);
+        assetRegistry.setAssetStatus(address(uint160(1)), AssetRegistry.AssetStatus.ENABLED);
     }
 
     function testFuzz_setAssetStatus_revertWhen_notEnabled(address asset) public {

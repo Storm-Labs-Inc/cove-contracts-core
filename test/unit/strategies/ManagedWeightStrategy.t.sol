@@ -146,6 +146,14 @@ contract ManagedWeightStrategyTest is BaseTest {
         customStrategy.setTargetWeights(bitFlag, weights);
     }
 
+    function testFuzz_setTargetWeights_revertWhen_notManager(uint256 bitFlag) public {
+        vm.assume(BitFlag.popCount(bitFlag) >= 2);
+        uint64[] memory weights = new uint64[](BitFlag.popCount(bitFlag));
+
+        vm.expectRevert(_formatAccessControlError(address(this), keccak256("MANAGER_ROLE")));
+        customStrategy.setTargetWeights(bitFlag, weights);
+    }
+
     function testFuzz_setTargetWeights_InvalidSum(uint256 bitFlag, uint256 sum) public {
         vm.assume(sum != _WEIGHT_PRECISION);
         vm.assume(BitFlag.popCount(bitFlag) >= 2);

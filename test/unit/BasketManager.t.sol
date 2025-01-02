@@ -989,6 +989,17 @@ contract BasketManagerTest is BaseTest {
         basketManager.completeRebalance(new ExternalTrade[](0), new address[](0), targetWeights);
     }
 
+    function test_completeRebalance_revertWhen_TargetWeightsMismatch() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(targetBaskets);
+
+        vm.expectRevert(BasketManagerUtils.BasketsMismatch.selector);
+        basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, new uint64[][](0));
+    }
+
     function test_completeRebalance_revertWhen_TooEarlyToCompleteRebalance() public {
         address basket = _setupSingleBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
