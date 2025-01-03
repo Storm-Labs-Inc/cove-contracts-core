@@ -990,7 +990,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.completeRebalance(new ExternalTrade[](0), new address[](0), targetWeights);
     }
 
-    function test_completeRebalance_passWhen_TimeoutAfterProposeRebalance() public {
+    function test_completeRebalance_retriesWhen_TimeoutAfterProposeRebalance() public {
         address basket = _setupSingleBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
         targetBaskets[0] = basket;
