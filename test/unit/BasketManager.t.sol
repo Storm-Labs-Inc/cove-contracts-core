@@ -973,6 +973,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_completeRebalance_revertWhen_NoRebalanceInProgress() public {
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         vm.expectRevert(BasketManagerUtils.NoRebalanceInProgress.selector);
         basketManager.completeRebalance(new ExternalTrade[](0), new address[](0), new uint64[][](0));
     }
@@ -987,6 +988,24 @@ contract BasketManagerTest is BaseTest {
 
         vm.expectRevert(BasketManagerUtils.BasketsMismatch.selector);
         basketManager.completeRebalance(new ExternalTrade[](0), new address[](0), targetWeights);
+    }
+
+    function test_completeRebalance_passWhen_TimeoutAfterProposeRebalance() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(targetBaskets);
+
+        // Simulate the passage of time
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
+        uint256 retryCount = basketManager.retryCount();
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, _targetWeights);
+
+        // Confirm the rebalance status has been reset with a retry count increased
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        assertEq(basketManager.retryCount(), retryCount + 1);
     }
 
     function test_completeRebalance_revertWhen_TargetWeightsMismatch() public {
