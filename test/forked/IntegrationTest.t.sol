@@ -89,6 +89,8 @@ contract IntegrationTest is BaseTest {
         baseBasketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(baseBasketAssets);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
+
+        vm.dumpState("dumpStates/IntegrationTest_setup.json");
     }
 
     function test_setUp() public view {
