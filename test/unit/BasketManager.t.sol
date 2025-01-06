@@ -1897,6 +1897,25 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets, targetWeights);
     }
 
+    function test_proposeTokenSwap_revertWhen_CannotProposeEmptyTrades() public {
+        // Setup basket and target weights
+        address[] memory baskets = new address[](1);
+        baskets[0] = _setupSingleBasketAndMocks();
+
+        // Propose the rebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Setup empty trades
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+
+        // Attempt to propose token swap with empty trades
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.CannotProposeEmptyTrades.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights);
+    }
+
     function testFuzz_executeTokenSwap_revertWhen_CallerIsNotTokenswapExecutor(
         address caller,
         ExternalTrade[] calldata trades,

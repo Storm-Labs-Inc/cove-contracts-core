@@ -155,6 +155,8 @@ library BasketManagerUtils {
     error CompleteTokenSwapFailed();
     /// @dev Reverts when an asset included in a bit flag is not enabled in the asset registry.
     error AssetNotEnabled();
+    /// @dev Reverts when no internal or external trades are provided for a rebalance.
+    error CannotProposeEmptyTrades();
 
     /// @notice Creates a new basket token with the given parameters.
     /// @param self BasketManagerStorage struct containing strategy data.
@@ -352,6 +354,9 @@ library BasketManagerUtils {
             revert MustWaitForRebalanceToComplete();
         }
         _validateBasketHash(self, baskets, basketTargetWeights);
+        if (internalTrades.length == 0 && externalTrades.length == 0) {
+            revert CannotProposeEmptyTrades();
+        }
 
         // Effects
         status.timestamp = uint40(block.timestamp);
