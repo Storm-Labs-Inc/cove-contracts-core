@@ -354,8 +354,10 @@ library BasketManagerUtils {
             revert MustWaitForRebalanceToComplete();
         }
         _validateBasketHash(self, baskets, basketTargetWeights);
-        if (internalTrades.length == 0 && externalTrades.length == 0) {
-            revert CannotProposeEmptyTrades();
+        if (internalTrades.length == 0) {
+            if (externalTrades.length == 0) {
+                revert CannotProposeEmptyTrades();
+            }
         }
 
         // Effects
