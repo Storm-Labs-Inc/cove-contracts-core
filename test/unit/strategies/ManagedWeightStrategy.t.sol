@@ -147,7 +147,7 @@ contract ManagedWeightStrategyTest is BaseTest {
     }
 
     function testFuzz_setTargetWeights_revertWhen_notManager(address sender, uint256 bitFlag) public {
-        vm.assume(customStrategy.hasRole(_MANAGER_ROLE, sender));
+        vm.assume(!customStrategy.hasRole(_MANAGER_ROLE, sender));
         vm.assume(BitFlag.popCount(bitFlag) >= 2);
         uint64[] memory weights = new uint64[](BitFlag.popCount(bitFlag));
 
