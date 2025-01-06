@@ -169,12 +169,6 @@ contract AssetRegistry_Test is BaseTest {
         assetRegistry.addAsset(address(0));
     }
 
-    function test_addAsset_revertWhen_notManager() public {
-        vm.expectRevert(_formatAccessControlError(users["alice"], managerRole));
-        vm.prank(users["alice"]);
-        assetRegistry.addAsset(address(uint160(1)));
-    }
-
     function test_addAsset_revertWhen_maxAssetsReached() public {
         for (uint256 i = 0; i < MAX_ASSETS; i++) {
             testFuzz_addAsset(address(uint160(i + 1)));
@@ -191,6 +185,15 @@ contract AssetRegistry_Test is BaseTest {
 
         vm.expectRevert(AssetRegistry.AssetAlreadyEnabled.selector);
         vm.prank(users["admin"]);
+        assetRegistry.addAsset(asset);
+    }
+
+    function testFuzz_addAsset_revertWhen_notManager(address sender, address asset) public {
+        vm.assume(!assetRegistry.hasRole(managerRole, sender));
+        vm.assume(asset != address(0));
+
+        vm.expectRevert(_formatAccessControlError(sender, managerRole));
+        vm.prank(sender);
         assetRegistry.addAsset(asset);
     }
 
@@ -212,10 +215,13 @@ contract AssetRegistry_Test is BaseTest {
         assetRegistry.setAssetStatus(address(0), AssetRegistry.AssetStatus(status));
     }
 
-    function test_setAssetStatus_revertWhen_notManager() public {
-        vm.expectRevert(_formatAccessControlError(users["alice"], managerRole));
-        vm.prank(users["alice"]);
-        assetRegistry.setAssetStatus(address(uint160(1)), AssetRegistry.AssetStatus.ENABLED);
+    function testFuzz_setAssetStatus_revertWhen_notManager(address sender, address asset, uint8 status) public {
+        vm.assume(!assetRegistry.hasRole(managerRole, sender));
+        vm.assume(asset != address(0));
+        vm.assume(status <= uint8(type(AssetRegistry.AssetStatus).max));
+        vm.expectRevert(_formatAccessControlError(sender, managerRole));
+        vm.prank(sender);
+        assetRegistry.setAssetStatus(asset, AssetRegistry.AssetStatus(status));
     }
 
     function testFuzz_setAssetStatus_revertWhen_notEnabled(address asset) public {
