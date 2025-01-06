@@ -249,8 +249,8 @@ library BasketManagerUtils {
         uint64[][] memory basketTargetWeights = new uint64[][](baskets.length);
 
         // Interactions
-        bool shouldRebalance = false;
         for (uint256 i = 0; i < baskets.length;) {
+            bool shouldRebalance = false;
             // slither-disable-start calls-loop
             address basket = baskets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -315,10 +315,11 @@ library BasketManagerUtils {
                 // Overflow not possible: i is less than baskets.length
                 ++i;
             }
+            if (!shouldRebalance) {
+                revert RebalanceNotRequired();
+            }
         }
-        if (!shouldRebalance) {
-            revert RebalanceNotRequired();
-        }
+
         // Effects after Interactions. Target weights require external view calls to respective strategies.
         bytes32 basketHash = keccak256(abi.encode(baskets, basketTargetWeights));
         self.rebalanceStatus.basketHash = basketHash;
