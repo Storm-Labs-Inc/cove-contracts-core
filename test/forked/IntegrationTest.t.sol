@@ -89,11 +89,10 @@ contract IntegrationTest is BaseTest {
         baseBasketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(baseBasketAssets);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
-
-        vm.dumpState("dumpStates/IntegrationTest_setup.json");
     }
 
-    function test_setUp() public view {
+    function test_setUp() public {
+        vm.dumpState("dumpStates/IntegrationTest_setup.json");
         assertNotEq(address(bm), address(0));
         assertNotEq(deployments.getAddress("AssetRegistry"), address(0));
         assertNotEq(deployments.getAddress("StrategyRegistry"), address(0));
@@ -288,6 +287,7 @@ contract IntegrationTest is BaseTest {
 
         // 7. completeRebalance() is called as the rebalance should complete regardless of reaching its target weights.
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+        vm.dumpState("dumpStates/completeRebalance_retriesOnFailedTrade_completedRebalance.json");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals));
     }
@@ -474,6 +474,13 @@ contract IntegrationTest is BaseTest {
                 firstCycleBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
+        address user = vm.addr(1);
+        BasketToken baseBasket = BasketToken(basketTokens[0]);
+        uint256 redeemRequestId = 0;
+        uint256 lastDepositRequestId = baseBasket.lastDepositRequestId(user);
+        uint256 pendingDeposit = baseBasket.claimableDepositRequest(lastDepositRequestId, user);
+        vm.prank(user);
+        uint256 shares = baseBasket.deposit(pendingDeposit, user, user);
         for (uint256 c = 0; c < cycles; ++c) {
             vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
@@ -484,6 +491,14 @@ contract IntegrationTest is BaseTest {
                 if (c == cycles - 1) {
                     // Final cycle: return all assets to the base asset
                     newTargetWeights[0] = 1e18; // 100% to the base asset
+
+                    // One user requests redeem
+                    if (i == 0) {
+                        vm.startPrank(user);
+                        baseBasket.approve(address(baseBasket), shares);
+                        redeemRequestId = baseBasket.requestRedeem(shares, user, user);
+                        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_userAfterRequestRedeem.json");
+                    }
                 } else {
                     // Select two indexes deterministically based on the cycle number
                     uint256 index1 = c % assets.length;
@@ -530,23 +545,39 @@ contract IntegrationTest is BaseTest {
             // are verified to correctly reflect the results of each trade.
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
             bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+            if (c == cycles - 1) {
+                vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_userRedeemClaimable.json");
+            }
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
-            assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
+            if (c != cycles - 1) {
+                assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
+            }
         }
 
         // 7. Confirm that end state of the basket is the same as the start state
         for (uint256 i = 0; i < basketTokens.length; ++i) {
             address[] memory assets = bm.basketAssets(basketTokens[i]);
             for (uint256 j = 0; j < assets.length; j++) {
-                // allow for dust due to rounding
                 uint256 currentBal = bm.basketBalanceOf(basketTokens[i], assets[j]);
-                if (currentBal == 1) {
+                // account for missing assets due to user withdraw
+                if (i == 0 && j == 0) {
+                    assertApproxEqRel(
+                        firstCycleBalances[i][j], IERC20(assets[j]).balanceOf(address(bm)) + pendingDeposit, 1e2
+                    );
+                }
+                // allow for dust due to rounding
+                else if (currentBal == 1) {
                     assertApproxEqAbs(firstCycleBalances[i][j], currentBal, 1);
                 } else {
                     assertApproxEqRel(firstCycleBalances[i][j], IERC20(assets[j]).balanceOf(address(bm)), 1e2);
                 }
             }
         }
+
+        // 8. User claims their redeem request
+        vm.prank(user);
+        baseBasket.redeem(shares, user, user);
+        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_userAfterRedeem.json");
     }
 
     function test_proRateRedeem_entireBasket_duringRebalance() public {
@@ -563,11 +594,11 @@ contract IntegrationTest is BaseTest {
         // 3. Another rebalance is proposed with target weights aimed at getting some of each asset in the basket.
         uint64[] memory newTargetWeights = new uint64[](6);
         newTargetWeights[0] = 5e17; // 50% ETH_WETH
-        newTargetWeights[1] = 1e17; // 50% ETH_SUSDE
-        newTargetWeights[2] = 1e17; // 0% ETH_WEETH
-        newTargetWeights[3] = 1e17; // 0% ETH_EZETH
-        newTargetWeights[4] = 1e17; // 0% ETH_RSETH
-        newTargetWeights[5] = 1e17; // 0% ETH_RETH
+        newTargetWeights[1] = 1e17; // 10% ETH_SUSDE
+        newTargetWeights[2] = 1e17; // 10% ETH_WEETH
+        newTargetWeights[3] = 1e17; // 10% ETH_EZETH
+        newTargetWeights[4] = 1e17; // 10% ETH_RSETH
+        newTargetWeights[5] = 1e17; // 10% ETH_RETH
         uint64[][] memory newTargetWeightsTotal = new uint64[][](1);
         newTargetWeightsTotal[0] = newTargetWeights;
 
@@ -606,6 +637,7 @@ contract IntegrationTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
 
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+        vm.dumpState("dumpStates/proRataRedeem_alice_afterCompleteRebalance.json");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
 
@@ -613,8 +645,10 @@ contract IntegrationTest is BaseTest {
         // each asset in the basket.
         vm.startPrank(alice);
         baseBasket.deposit(aliceDepositAmount, alice, alice);
+        vm.dumpState("dumpStates/proRataRedeem_alice_afterClaimDeposit.json");
         baseBasket.proRataRedeem(baseBasket.balanceOf(alice), alice, alice);
         vm.stopPrank();
+        vm.dumpState("dumpStates/proRataRedeem_alice_afterProRataRedeem.json");
 
         // 5. The basket then attempts to rebalance once more with the same target weights as last rebalance
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
@@ -642,6 +676,7 @@ contract IntegrationTest is BaseTest {
                 _requestDepositToBasket(user, basketTokens[j], amount);
             }
         }
+        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_afterRequestDeposit.json");
 
         uint64[][] memory targetWeights = new uint64[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; i++) {
@@ -665,6 +700,7 @@ contract IntegrationTest is BaseTest {
 
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         bm.completeRebalance(externalTradesLocal, basketTokens, targetWeights);
+        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_processDeposits_depositsClaimable.json");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
@@ -1211,6 +1247,7 @@ contract IntegrationTest is BaseTest {
     {
         address asset = BasketToken(basket).asset();
         deal(asset, user, amount);
+        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_beforeRequestDeposit.json");
         vm.startPrank(user);
         IERC20(asset).approve(basket, amount);
         uint256 balanceBefore = IERC20(asset).balanceOf(basket);
