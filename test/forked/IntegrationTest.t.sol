@@ -160,7 +160,7 @@ contract IntegrationTest is BaseTest {
         // 4. Tokenswaps are proposed with at least 1 guaranteed internal trade.
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
             _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
-        assert(internalTrades.length > 0);
+        assertGt(internalTrades.length, 0);
         uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
         address[][] memory basketAssets = new address[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; i++) {
@@ -663,16 +663,8 @@ contract IntegrationTest is BaseTest {
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encode(basketTokens, targetWeights, basketAssets)));
 
-        ExternalTrade[] memory externalTradesLocal = new ExternalTrade[](0);
-        InternalTrade[] memory internalTradesLocal = new InternalTrade[](0);
-
-        vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTradesLocal, externalTradesLocal, basketTokens, targetWeights, basketAssets);
-        assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
-        assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
-
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
-        bm.completeRebalance(externalTradesLocal, basketTokens, targetWeights, basketAssets);
+        bm.completeRebalance(new ExternalTrade[](0), basketTokens, targetWeights, basketAssets);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 

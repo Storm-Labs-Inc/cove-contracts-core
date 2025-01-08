@@ -160,6 +160,8 @@ library BasketManagerUtils {
     error CompleteTokenSwapFailed();
     /// @dev Reverts when an asset included in a bit flag is not enabled in the asset registry.
     error AssetNotEnabled();
+    /// @dev Reverts when no internal or external trades are provided for a rebalance.
+    error CannotProposeEmptyTrades();
 
     /// @notice Creates a new basket token with the given parameters.
     /// @param self BasketManagerStorage struct containing strategy data.
@@ -253,8 +255,8 @@ library BasketManagerUtils {
         address[][] memory basketAssets = new address[][](baskets.length);
 
         // Interactions
-        bool shouldRebalance = false;
         for (uint256 i = 0; i < baskets.length;) {
+            bool shouldRebalance = false;
             // slither-disable-start calls-loop
             address basket = baskets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -272,19 +274,25 @@ library BasketManagerUtils {
             // Notify Basket Token of rebalance:
             (uint256 pendingDeposits, uint256 pendingRedeems) =
                 BasketToken(basket).prepareForRebalance(self.managementFees[basket], self.feeCollector);
+            // Cache total supply for later use
+            uint256 totalSupply = BasketToken(basket).totalSupply();
+            // Process pending deposits
             if (pendingDeposits > 0) {
                 shouldRebalance = true;
-            }
-            uint256 totalSupply;
-            {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
-                uint256 pendingDepositValue;
                 // Process pending deposits and fulfill them
-                (totalSupply, pendingDepositValue) = _processPendingDeposits(
-                    self, basket, basketValue, balances[baseAssetIndex], pendingDeposits, assets[baseAssetIndex]
+                (uint256 newShares, uint256 pendingDepositValue) = _processPendingDeposits(
+                    self,
+                    basket,
+                    totalSupply,
+                    basketValue,
+                    balances[baseAssetIndex],
+                    pendingDeposits,
+                    assets[baseAssetIndex]
                 );
                 balances[baseAssetIndex] += pendingDeposits;
+                totalSupply += newShares;
                 basketValue += pendingDepositValue;
             }
             uint256 requiredWithdrawValue = 0;
@@ -319,10 +327,11 @@ library BasketManagerUtils {
                 // Overflow not possible: i is less than baskets.length
                 ++i;
             }
+            if (!shouldRebalance) {
+                revert RebalanceNotRequired();
+            }
         }
-        if (!shouldRebalance) {
-            revert RebalanceNotRequired();
-        }
+
         // Effects after Interactions. Target weights require external view calls to respective strategies.
         bytes32 basketHash = keccak256(abi.encode(baskets, basketTargetWeights, basketAssets));
         // slither-disable-next-line reentrancy-events
@@ -357,7 +366,11 @@ library BasketManagerUtils {
             revert MustWaitForRebalanceToComplete();
         }
         _validateBasketHash(self, baskets, basketTargetWeights, basketAssets);
-
+        if (internalTrades.length == 0) {
+            if (externalTrades.length == 0) {
+                revert CannotProposeEmptyTrades();
+            }
+        }
         // Effects
         status.timestamp = uint40(block.timestamp);
         status.status = Status.TOKEN_SWAP_PROPOSED;
@@ -1013,38 +1026,34 @@ library BasketManagerUtils {
     /// @param basketValue Current value of the basket in USD.
     /// @param baseAssetBalance Current balance of the base asset in the basket.
     /// @param pendingDeposit Current assets pending deposit in the given basket.
-    /// @return totalSupply Total supply of the basket token after processing pending deposits.
+    /// @return newShares Amount of new shares minted.
     /// @return pendingDepositValue Value of the pending deposits in USD.
     // slither-disable-next-line calls-loop
     function _processPendingDeposits(
         BasketManagerStorage storage self,
         address basket,
+        uint256 totalSupply,
         uint256 basketValue,
         uint256 baseAssetBalance,
         uint256 pendingDeposit,
         address baseAssetAddress
     )
         private
-        returns (uint256 totalSupply, uint256 pendingDepositValue)
+        returns (uint256 newShares, uint256 pendingDepositValue)
     {
-        totalSupply = BasketToken(basket).totalSupply();
-
-        if (pendingDeposit > 0) {
-            // Assume the first asset listed in the basket is the base asset
-            // Round direction: down
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            pendingDepositValue = self.eulerRouter.getQuote(pendingDeposit, baseAssetAddress, _USD_ISO_4217_CODE);
-            // Rounding direction: down
-            // Division-by-zero is not possible: basketValue is greater than 0
-            uint256 requiredDepositShares = basketValue > 0
-                ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
-                : pendingDeposit;
-            totalSupply += requiredDepositShares;
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
-            // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
-            BasketToken(basket).fulfillDeposit(requiredDepositShares);
-        }
+        // Assume the first asset listed in the basket is the base asset
+        // Round direction: down
+        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+        pendingDepositValue = self.eulerRouter.getQuote(pendingDeposit, baseAssetAddress, _USD_ISO_4217_CODE);
+        // Rounding direction: down
+        // Division-by-zero is not possible: basketValue is greater than 0
+        newShares = basketValue > 0
+            ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
+            : pendingDeposit;
+        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+        self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
+        // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
+        BasketToken(basket).fulfillDeposit(newShares);
     }
 
     /// @notice Internal function to calculate the target balances for each asset in a given basket.
