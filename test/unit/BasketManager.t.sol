@@ -515,6 +515,31 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
     }
 
+    function test_proposeRebalance_revertWhen_NotAllBaskets_RebalanceNotRequired() public {
+        address[][] memory assetsPerBasket = new address[][](2);
+        assetsPerBasket[0] = new address[](2);
+        assetsPerBasket[0][0] = rootAsset;
+        assetsPerBasket[0][1] = pairAsset;
+        assetsPerBasket[1] = new address[](2);
+        assetsPerBasket[1][0] = rootAsset;
+        assetsPerBasket[1][1] = pairAsset;
+        uint64[][] memory weightsPerBasket = new uint64[][](2);
+        weightsPerBasket[0] = new uint64[](2);
+        weightsPerBasket[0][0] = 1e18;
+        weightsPerBasket[0][1] = 0;
+        weightsPerBasket[1] = new uint64[](2);
+        weightsPerBasket[1][0] = 1e18;
+        weightsPerBasket[1][1] = 0;
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = 1e18;
+        initialDepositAmounts[1] = 0; // No deposits in the second basket
+        address[] memory baskets = _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts);
+
+        vm.prank(rebalanceProposer);
+        vm.expectRevert(BasketManagerUtils.RebalanceNotRequired.selector);
+        basketManager.proposeRebalance(baskets);
+    }
+
     function test_proposeRebalance_revertWhen_HasPausedAssets() public {
         address basket = _setupSingleBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
@@ -973,6 +998,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_completeRebalance_revertWhen_NoRebalanceInProgress() public {
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         vm.expectRevert(BasketManagerUtils.NoRebalanceInProgress.selector);
         basketManager.completeRebalance(new ExternalTrade[](0), new address[](0), new uint64[][](0));
     }
@@ -987,6 +1013,35 @@ contract BasketManagerTest is BaseTest {
 
         vm.expectRevert(BasketManagerUtils.BasketsMismatch.selector);
         basketManager.completeRebalance(new ExternalTrade[](0), new address[](0), targetWeights);
+    }
+
+    function test_completeRebalance_retriesWhen_TimeoutAfterProposeRebalance() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(targetBaskets);
+
+        // Simulate the passage of time
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
+        uint256 retryCount = basketManager.retryCount();
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, _targetWeights);
+
+        // Confirm the rebalance status has been reset with a retry count increased
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
+        assertEq(basketManager.retryCount(), retryCount + 1);
+    }
+
+    function test_completeRebalance_revertWhen_TargetWeightsMismatch() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(targetBaskets);
+
+        vm.expectRevert(BasketManagerUtils.BasketsMismatch.selector);
+        basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, new uint64[][](0));
     }
 
     function test_completeRebalance_revertWhen_TooEarlyToCompleteRebalance() public {
@@ -1840,6 +1895,25 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(Pausable.EnforcedPause.selector);
         vm.prank(tokenswapProposer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, targetBaskets, targetWeights);
+    }
+
+    function test_proposeTokenSwap_revertWhen_CannotProposeEmptyTrades() public {
+        // Setup basket and target weights
+        address[] memory baskets = new address[](1);
+        baskets[0] = _setupSingleBasketAndMocks();
+
+        // Propose the rebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Setup empty trades
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+
+        // Attempt to propose token swap with empty trades
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.CannotProposeEmptyTrades.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights);
     }
 
     function testFuzz_executeTokenSwap_revertWhen_CallerIsNotTokenswapExecutor(
