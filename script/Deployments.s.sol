@@ -22,8 +22,8 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 struct BasketTokenDeployment {
     // BasketToken initialize arguments
-    string name;
-    string symbol;
+    string name; // BasketToken name. At initialization this will be prefixed with "CoveBasket "
+    string symbol; // BasketToken symbol. At initialization this will be prefixed with "cvt"
     address rootAsset;
     uint256 bitFlag;
     address strategy;
@@ -220,8 +220,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
-                name: "Gauntlet All Asset Basket", // TODO: confirm basket name
-                symbol: "GVT1", // TODO: confirm symbol
+                name: "Gauntlet All Asset", // TODO: confirm basket name. Will be prefixed with "CoveBasket "
+                symbol: "gWETH", // TODO: confirm basket symbol. Will be prefixed with "cvt"
                 rootAsset: ETH_WETH, // TODO: confirm root asset
                 bitFlag: assetsToBitFlag(basketAssets),
                 strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"), // TODO: confirm strategy
@@ -268,11 +268,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         strategy.setTargetWeights(deployment.bitFlag, deployment.initialWeights);
 
         bytes memory basketTokenConstructorArgs = abi.encode(
-            string.concat(deployment.name, "_basketToken"),
-            deployment.name,
-            deployment.rootAsset,
-            deployment.bitFlag,
-            deployment.strategy
+            deployment.name, deployment.symbol, deployment.rootAsset, deployment.bitFlag, deployment.strategy
         );
         address basketManager = getAddress("BasketManager");
         if (isProduction) {
@@ -323,10 +319,13 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             feeCollectorAddress
         );
         if (isProduction) {
-            vm.broadcast();
+            vm.startBroadcast();
         }
         bm.grantRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.grantRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
+        if (isProduction) {
+            vm.stopBroadcast();
+        }
     }
 
     // Uses CREATE3 to deploy a fee collector contract. Salt must be the same given to the basket manager deploy.
@@ -360,6 +359,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         address cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter("CowSwapAdapter", cowSwapCloneImplementation));
         require(getAddress("CowSwapAdapter") == cowSwapAdapter, "Failed to save CowSwapAdapter deployment");
         address basketManager = getAddress("BasketManager");
+        if (isProduction) {
+            vm.broadcast();
+        }
         BasketManager(basketManager).setTokenSwapAdapter(cowSwapAdapter);
     }
 

@@ -44,6 +44,8 @@ contract BasketToken is
     uint16 private constant _MANAGEMENT_FEE_DECIMALS = 1e4;
     /// @notice Maximum management fee (30%) in BPS denominated in 1e4.
     uint16 private constant _MAX_MANAGEMENT_FEE = 3000;
+    string private constant _NAME_PREFIX = "CoveBasket ";
+    string private constant _SYMBOL_PREFIX = "cvt";
 
     /// @notice Struct representing a deposit request.
     struct DepositRequestStruct {
@@ -188,7 +190,7 @@ contract BasketToken is
         nextDepositRequestId = 2;
         nextRedeemRequestId = 3;
         __ERC4626_init(asset_);
-        __ERC20_init(string.concat("CoveBasket-", name_), string.concat("covb", symbol_));
+        __ERC20_init(string.concat(_NAME_PREFIX, name_), string.concat(_SYMBOL_PREFIX, symbol_));
         __ERC20Plugins_init(8, 2_000_000);
     }
 
@@ -231,8 +233,14 @@ contract BasketToken is
     /// @param assets The amount of assets to deposit.
     /// @param controller The address of the controller of the position being created.
     /// @param owner The address of the owner of the assets being deposited.
+    /// @dev Reverts on 0 assets or if the caller is not the owner or operator of the assets being deposited.
     function requestDeposit(uint256 assets, address controller, address owner) public returns (uint256 requestId) {
         // Checks
+        if (msg.sender != owner) {
+            if (!isOperator[owner][msg.sender]) {
+                revert NotAuthorizedOperator();
+            }
+        }
         if (assets == 0) {
             revert Errors.ZeroAmount();
         }
@@ -262,7 +270,7 @@ contract BasketToken is
         lastDepositRequestId[controller] = requestId;
         emit DepositRequest(controller, owner, requestId, msg.sender, assets);
         // Interactions
-        // Assets are immediately transferrred to here to await the basketManager to pull them
+        // Assets are immediately transferred to here to await the basketManager to pull them
         // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset()).safeTransferFrom(owner, address(this), assets);
     }
@@ -635,10 +643,16 @@ contract BasketToken is
         if (msg.sender != from) {
             _spendAllowance(from, msg.sender, shares);
         }
-        uint256 totalSupplyBefore = totalSupply();
-        _burn(from, shares);
+
         // Interactions
-        BasketManager(basketManager).proRataRedeem(totalSupplyBefore, shares, to);
+        BasketManager(basketManager).proRataRedeem(totalSupply(), shares, to);
+
+        // We intentionally defer the `_burn()` operation until after the external call to
+        // `BasketManager.proRataRedeem()` to prevent potential price manipulation via read-only reentrancy attacks. By
+        // performing the external interaction before updating balances, we ensure that total supply and user balances
+        // cannot be manipulated if a malicious contract attempts to reenter during the ERC20 transfer (e.g., through
+        // ERC777 tokens or plugins with callbacks).
+        _burn(from, shares);
     }
 
     // slither-disable-next-line timestamp
@@ -658,7 +672,9 @@ contract BasketToken is
                     uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
                         - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
                     uint256 fee = FixedPointMathLib.fullMulDiv(
-                        currentTotalSupply, feeBps * timeSinceLastHarvest, _MANAGEMENT_FEE_DECIMALS * uint256(365 days)
+                        currentTotalSupply,
+                        feeBps * timeSinceLastHarvest,
+                        ((_MANAGEMENT_FEE_DECIMALS - feeBps) * uint256(365 days))
                     );
                     if (fee != 0) {
                         emit ManagementFeeHarvested(fee);

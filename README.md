@@ -16,7 +16,7 @@ This repository contains the core smart contracts for the Cove Protocol.
 The testing suite includes unit, integration, fork, and invariant tests.
 
 For more detailed information, visit the [documentation](https://docs.cove.finance/) or the
-[technical RFC](https://docs.cove.finance/technical/cove-rfc).
+[technical RFC](https://docs.cove.finance/technical/cove/rfc).
 
 > [!IMPORTANT]
 > You acknowledge that there are potential uses of the [Licensed Work] that
@@ -98,7 +98,7 @@ pnpm semgrep
 
 ```sh
 # Run a fork network using anvil
-anvil --rpc-url <fork_network_rpc_url>
+anvil --fork-url <rpc_url> --fork-block-number <block_num> --auto-impersonate
 ```
 
 Keep this terminal session going to keep the fork network alive.
@@ -107,8 +107,10 @@ Then in another terminal session:
 
 ```sh
 # Deploy contracts to local fork network
-pnpm localDeploy
+pnpm deployLocal
 ```
+
+This command uses the `deployLocal` script defined in `package.json`. It sets the `DEPLOYMENT_CONTEXT` to `1-fork` and runs the `forge` script `script/Deployments.s.sol` with the specified RPC URL, broadcasting the transactions, and syncing the deployment using `forge-deploy`. The sender address set to COVE_DEPLOYER and is unlocked for local deployment.
 
 - Deployments will be in `deployments/<chainId>-fork`.
 - Make sure not to commit `broadcast/`.
