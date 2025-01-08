@@ -546,7 +546,7 @@ contract IntegrationTest is BaseTest {
             bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
             if (c != cycles - 1) {
-                assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
+                assertTrue(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
             }
         }
         vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_userRedeemClaimable.json");
@@ -675,6 +675,7 @@ contract IntegrationTest is BaseTest {
         vm.startPrank(user);
         uint256 shares = basket.deposit(depositRequest, user, user);
         basket.approve(address(basket), shares);
+        console.log("basket: ", address(basket));
         uint256 redeemRequestId = basket.requestRedeem(shares, user, user);
         vm.stopPrank();
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
