@@ -732,7 +732,7 @@ contract IntegrationTest is BaseTest {
         strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
         vm.stopPrank();
 
-        vm.warp(vm.getBlockTimestamp() + 60 minutes);
+        vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         vm.prank(deployments.rebalanceProposer());
