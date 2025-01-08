@@ -680,7 +680,7 @@ contract IntegrationTest is BaseTest {
         vm.stopPrank();
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
-        // 3. New target weights are set to allocate 100% of the basket's assets to the ETH_SUSDE.
+        // 4. New target weights are set to allocate 100% of the basket's assets to the ETH_SUSDE.
         uint64[] memory newTargetWeights = new uint64[](6);
         newTargetWeights[0] = 0; // 0%
         newTargetWeights[1] = 1e18; // 100 % add need for ETH_SUSDE
@@ -746,7 +746,7 @@ contract IntegrationTest is BaseTest {
         bm.executeTokenSwap(externalTrades, "");
 
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
-        // do not complete trades, rebalance triggeres fallback
+        // do not complete trades, failed rebalance triggeres fallback
         // _completeSwapAdapterTrades(externalTrades);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
