@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 
 import { console } from "forge-std/console.sol";
 
+import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
@@ -11,6 +12,7 @@ import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStruct
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
@@ -47,6 +49,7 @@ contract IntegrationTest is BaseTest {
     address[] public chainlinkOracles;
     // @dev First basket deployed should include all assets
     address[] public baseBasketAssets;
+    ERC20Mock public rewardToken;
 
     function setUp() public override {
         forkNetworkAt("mainnet", 21_238_272);
@@ -757,6 +760,40 @@ contract IntegrationTest is BaseTest {
         vm.prank(user);
         basket.claimFallbackShares(user, user);
         assert(basket.balanceOf(user) == sharesBefore + shares);
+    }
+
+    function test_farmingPlugin_ExternalRewards() public {
+        // setup farming plugin
+        rewardToken = new ERC20Mock();
+        uint256 rewardAmount = 100e18;
+        uint256 rewardPeriod = 1 weeks;
+        BasketToken basketToken = BasketToken(bm.basketTokens()[0]);
+        FarmingPlugin farmingPlugin = new FarmingPlugin(basketToken, rewardToken, COVE_OPS_MULTISIG);
+        rewardToken.mint(COVE_OPS_MULTISIG, rewardAmount);
+
+        // Start rewards
+        vm.startPrank(COVE_OPS_MULTISIG);
+        rewardToken.approve(address(farmingPlugin), rewardAmount);
+        farmingPlugin.setDistributor(COVE_OPS_MULTISIG);
+        farmingPlugin.startFarming(rewardAmount, rewardPeriod);
+        vm.stopPrank();
+
+        // Add farming plugin for first use
+        address user = vm.addr(1);
+        vm.prank(user);
+        basketToken.addPlugin(address(farmingPlugin));
+        //  A rebalance is completed to process deposits, assets are 100% allocated to the baskets base asset.
+        _completeRebalance_processDeposits(100, 100);
+
+        uint256 depositRequest = basketToken.claimableDepositRequest(basketToken.lastDepositRequestId(user), user);
+        vm.prank(user);
+        basketToken.deposit(depositRequest, user, user);
+
+        vm.warp(vm.getBlockTimestamp() + rewardPeriod / 2);
+        // state has claimable and currently accruing rewards
+        vm.dumpState("dumpStates/completeRebalance_rewardsHalfClaimable.json");
+        vm.warp(vm.getBlockTimestamp() + farmingPlugin.farmInfo().finished);
+        vm.dumpState("dumpStates/completeRebalance_rewardsFullClaimable.json");
     }
 
     /// INTERNAL HELPER FUNCTIONS
