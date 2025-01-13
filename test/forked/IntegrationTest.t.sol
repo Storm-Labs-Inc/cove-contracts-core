@@ -10,6 +10,7 @@ import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -92,11 +93,39 @@ contract IntegrationTest is BaseTest {
     }
 
     function test_setUp() public view {
-        assertNotEq(address(bm), address(0));
-        assertNotEq(deployments.getAddress("AssetRegistry"), address(0));
-        assertNotEq(deployments.getAddress("StrategyRegistry"), address(0));
-        assertNotEq(deployments.getAddress("EulerRouter"), address(0));
-        assertNotEq(deployments.getAddress("FeeCollector"), address(0));
+        IMasterRegistry masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
+        address basketManagerAddress = address(bm);
+        assertNotEq(basketManagerAddress, address(0));
+        assertEq(
+            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("BasketManager"))),
+            basketManagerAddress
+        );
+
+        address assetRegistryAddress = deployments.getAddress("AssetRegistry");
+        assertNotEq(assetRegistryAddress, address(0));
+        assertEq(
+            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("AssetRegistry"))),
+            assetRegistryAddress
+        );
+
+        address strategyRegistryAddress = deployments.getAddress("StrategyRegistry");
+        assertNotEq(strategyRegistryAddress, address(0));
+        assertEq(
+            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("StrategyRegistry"))),
+            strategyRegistryAddress
+        );
+
+        address eulerRouterAddress = deployments.getAddress("EulerRouter");
+        assertNotEq(eulerRouterAddress, address(0));
+        assertEq(
+            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("EulerRouter"))), eulerRouterAddress
+        );
+
+        address feeCollectorAddress = deployments.getAddress("FeeCollector");
+        assertNotEq(feeCollectorAddress, address(0));
+        assertEq(
+            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("FeeCollector"))), feeCollectorAddress
+        );
         assertEq(bm.numOfBasketTokens(), 1);
     }
 
