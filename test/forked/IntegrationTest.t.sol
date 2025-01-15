@@ -164,17 +164,18 @@ contract IntegrationTest is BaseTest {
         // 4. Tokenswaps are proposed with at least 1 guaranteed internal trade.
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
             _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
-        assert(internalTrades.length > 0);
+        assertGt(internalTrades.length, 0);
         uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
+        address[][] memory basketAssets = new address[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; i++) {
-            address[] memory assets = bm.basketAssets(basketTokens[i]);
+            address[] memory assets = basketAssets[i] = bm.basketAssets(basketTokens[i]);
             initialBalances[i] = new uint256[](assets.length);
             for (uint256 j = 0; j < assets.length; j++) {
                 initialBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
         vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
+        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
 
         // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
         // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
@@ -185,7 +186,7 @@ contract IntegrationTest is BaseTest {
 
         // 6. completeRebalance() is called. The rebalance is confirmed to be completed and the internal balances are
         // verified to correctly reflect the results of each trade.
-        bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+        bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
     }
@@ -234,8 +235,9 @@ contract IntegrationTest is BaseTest {
         // completed MAX_RETRIES amount of times.
         for (uint256 retryNum = 0; retryNum < MAX_RETRIES; retryNum++) {
             uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
+            address[][] memory basketAssets_ = new address[][](basketTokens.length);
             for (uint256 i = 0; i < basketTokens.length; i++) {
-                address[] memory assets = bm.basketAssets(basketTokens[i]);
+                address[] memory assets = basketAssets_[i] = bm.basketAssets(basketTokens[i]);
                 initialBalances[i] = new uint256[](assets.length);
                 for (uint256 j = 0; j < assets.length; j++) {
                     initialBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
@@ -246,7 +248,7 @@ contract IntegrationTest is BaseTest {
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
             vm.prank(deployments.tokenSwapProposer());
-            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
+            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
 
             vm.prank(deployments.tokenSwapExecutor());
             bm.executeTokenSwap(externalTrades, "");
@@ -256,7 +258,7 @@ contract IntegrationTest is BaseTest {
             // _completeSwapAdapterTrades(externalTrades);
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
-            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
             // Rebalance enters retry state
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
             assertEq(uint8(bm.retryCount()), retryNum + 1);
@@ -267,8 +269,9 @@ contract IntegrationTest is BaseTest {
         // 6. The basket has attempted to complete its token swaps the MAX_RETRIES amount of times. The same swaps are
         // proposed again and are not fulfilled.
         uint256[][] memory initialBals = new uint256[][](basketTokens.length);
+        address[][] memory basketAssets_ = new address[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; i++) {
-            address[] memory assets = bm.basketAssets(basketTokens[i]);
+            address[] memory assets = basketAssets_[i] = bm.basketAssets(basketTokens[i]);
             initialBals[i] = new uint256[](assets.length);
             for (uint256 j = 0; j < assets.length; j++) {
                 initialBals[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
@@ -279,7 +282,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
+        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
         // ensure trades still fail
@@ -289,7 +292,7 @@ contract IntegrationTest is BaseTest {
         _updateChainLinkOraclesTimeStamp();
 
         // 7. completeRebalance() is called as the rebalance should complete regardless of reaching its target weights.
-        bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+        bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals));
     }
@@ -393,8 +396,10 @@ contract IntegrationTest is BaseTest {
             // 4. Tokenswaps are proposed with at least 1 guaranteed internal trade.
             (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
                 _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
+
+            address[][] memory basketAssets = new address[][](basketTokens.length);
             for (uint256 i = 0; i < basketTokens.length; i++) {
-                address[] memory assets = bm.basketAssets(basketTokens[i]);
+                address[] memory assets = basketAssets[i] = bm.basketAssets(basketTokens[i]);
                 initialBalances[i] = new uint256[](assets.length);
                 if (c == 0) {
                     firstCycleBalances[i] = new uint256[](assets.length);
@@ -407,7 +412,7 @@ contract IntegrationTest is BaseTest {
                 }
             }
             vm.prank(deployments.tokenSwapProposer());
-            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
+            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
 
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
@@ -419,7 +424,7 @@ contract IntegrationTest is BaseTest {
             // are
             // verified to correctly reflect the results of each trade.
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
-            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
             assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
         }
@@ -525,8 +530,9 @@ contract IntegrationTest is BaseTest {
             // 4. Tokenswaps are proposed
             (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
                 _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
+            address[][] memory basketAssets = new address[][](basketTokens.length);
             for (uint256 i = 0; i < basketTokens.length; ++i) {
-                address[] memory assets = bm.basketAssets(basketTokens[i]);
+                address[] memory assets = basketAssets[i] = bm.basketAssets(basketTokens[i]);
                 uint256[] memory balances = new uint256[](assets.length);
                 for (uint256 j = 0; j < assets.length; j++) {
                     balances[j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
@@ -546,7 +552,7 @@ contract IntegrationTest is BaseTest {
             // 6. completeRebalance() is called. The rebalance is confirmed to be completed and the internal balances
             // are verified to correctly reflect the results of each trade.
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
-            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
             if (c != cycles - 1) {
                 assertTrue(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
@@ -606,6 +612,8 @@ contract IntegrationTest is BaseTest {
 
         address[] memory basketTokens = new address[](1);
         basketTokens[0] = bm.basketTokens()[0];
+        address[][] memory basketAssets = new address[][](1);
+        basketAssets[0] = bm.basketAssets(basketTokens[0]);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         ManagedWeightStrategy strategy =
@@ -620,7 +628,7 @@ contract IntegrationTest is BaseTest {
             _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
 
         vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal);
+        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
 
         uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; ++i) {
@@ -638,7 +646,7 @@ contract IntegrationTest is BaseTest {
         _completeSwapAdapterTrades(externalTrades);
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
 
-        bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal);
+        bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
 
@@ -814,8 +822,10 @@ contract IntegrationTest is BaseTest {
         vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_afterRequestDeposit.json");
 
         uint64[][] memory targetWeights = new uint64[][](basketTokens.length);
+        address[][] memory basketAssets = new address[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; i++) {
             targetWeights[i] = BasketToken(basketTokens[i]).getTargetWeights();
+            basketAssets[i] = bm.basketAssets(basketTokens[i]);
         }
 
         _updatePythOracleTimeStamps();
@@ -945,18 +955,21 @@ contract IntegrationTest is BaseTest {
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
 
+        address[][] memory basketAssets = new address[][](1);
+        basketAssets[0] = bm.basketAssets(basketTokens[0]);
+
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
             _findInternalAndExternalTrades(basketTokens, targetWeights);
 
         vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, targetWeights);
+        bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, targetWeights, basketAssets);
 
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
         _completeSwapAdapterTrades(externalTrades);
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
 
-        bm.completeRebalance(externalTrades, basketTokens, targetWeights);
+        bm.completeRebalance(externalTrades, basketTokens, targetWeights, basketAssets);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
