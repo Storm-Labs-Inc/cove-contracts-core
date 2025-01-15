@@ -11,6 +11,7 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { Rescuable } from "src/Rescuable.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
@@ -22,7 +23,7 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 /// @title BasketManager
 /// @notice Contract responsible for managing baskets and their tokens. The accounting for assets per basket is done
 /// in the BasketManagerUtils contract.
-contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pausable {
+contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pausable, Rescuable {
     /// LIBRARIES ///
     using BasketManagerUtils for BasketManagerStorage;
     using SafeERC20 for IERC20;
@@ -46,6 +47,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     uint16 private constant _MAX_MANAGEMENT_FEE = 3000;
     /// @notice Maximum swap fee (5%) in BPS denominated in 1e4.
     uint16 private constant _MAX_SWAP_FEE = 500;
+    /// @notice Minimum time between steps in a rebalance in seconds.
+    uint40 private constant _MIN_STEP_DELAY = 1 minutes;
+    /// @notice Maximum time between steps in a rebalance in seconds.
+    uint40 private constant _MAX_STEP_DELAY = 60 minutes;
+    /// @notice Maximum bound of retry count.
+    uint8 private constant _MAX_RETRY_COUNT = 10;
 
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
@@ -72,6 +79,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     event TokenSwapProposed(uint40 indexed epoch, InternalTrade[] internalTrades, ExternalTrade[] externalTrades);
     /// @notice Emitted when a token swap is executed during a rebalance.
     event TokenSwapExecuted(uint40 indexed epoch);
+    /// @notice Emitted when the step delay is set.
+    event StepDelaySet(uint40 oldDelay, uint40 newDelay);
+    /// @notice Emitted when the retry limit is set.
+    event RetryLimitSet(uint8 oldLimit, uint8 newLimit);
 
     /// ERRORS ///
     /// @notice Thrown when attempting to execute a token swap without first proposing it.
@@ -99,10 +110,24 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Thrown when attempting to perform an action on a non-existent basket token.
     /// @dev This error is thrown when the provided basket token is not in the `basketTokenToIndexPlusOne` mapping.
     error BasketTokenNotFound();
+    /// @notice Thrown when attempting to update the bitFlag to the same value.
     error BitFlagMustBeDifferent();
+    /// @notice Thrown when attempting to update the bitFlag without including the current bitFlag.
     error BitFlagMustIncludeCurrent();
+    /// @notice Thrown when attempting to update the bitFlag to a value not supported by the strategy.
     error BitFlagUnsupportedByStrategy();
+    /// @notice Thrown when attempting to create a basket with an ID that already exists.
     error BasketIdAlreadyExists();
+    /// @notice Thrown when attempting to rescue an asset to a basket that already exists in the asset universe.
+    error AssetExistsInUniverse();
+    /// @notice Thrown when the low-level call in the `execute` function fails.
+    /// @dev This error indicates that the target contract rejected the call or execution failed unexpectedly.
+    error ExecutionFailed();
+    /// @notice Thrown when attempting to set an invalid step delay outside the bounds of `_MIN_STEP_DELAY` and
+    /// `_MAX_STEP_DELAY`.
+    error InvalidStepDelay();
+    /// @notice Thrown when attempting to set an invalid retry limit outside the bounds of 0 and `_MAX_RETRY_COUNT`.
+    error InvalidRetryCount();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -137,6 +162,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.assetRegistry = assetRegistry_;
         _bmStorage.basketTokenImplementation = basketTokenImplementation;
         _bmStorage.feeCollector = feeCollector_;
+        _bmStorage.retryLimit = 3;
+        _bmStorage.stepDelay = 15 minutes;
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -144,25 +171,18 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Returns the index of the basket token in the basketTokens array.
     /// @dev Reverts if the basket token does not exist.
     /// @param basketToken Address of the basket token.
-    /// @return index Index of the basket token.
-    function basketTokenToIndex(address basketToken) public view returns (uint256 index) {
-        index = _bmStorage.basketTokenToIndex(basketToken);
+    /// @return Index of the basket token.
+    function basketTokenToIndex(address basketToken) public view returns (uint256) {
+        return _bmStorage.basketTokenToIndex(basketToken);
     }
 
-    /// @notice Returns the index of the basket asset in the basketAssets array.
+    /// @notice Returns the index of the given asset in the basket.
     /// @dev Reverts if the basket asset does not exist.
     /// @param basketToken Address of the basket token.
     /// @param asset Address of the asset.
-    /// @return index Index of the basket asset.
-    function basketTokenToRebalanceAssetToIndex(
-        address basketToken,
-        address asset
-    )
-        public
-        view
-        returns (uint256 index)
-    {
-        index = _bmStorage.basketTokenToRebalanceAssetToIndex(basketToken, asset);
+    /// @return Index of the asset in the basket.
+    function getAssetIndexInBasket(address basketToken, address asset) public view returns (uint256) {
+        return _bmStorage.getAssetIndexInBasket(basketToken, asset);
     }
 
     /// @notice Returns the number of basket tokens.
@@ -247,7 +267,21 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Returns the retry count for the current rebalance epoch.
     /// @return Retry count.
     function retryCount() external view returns (uint8) {
-        return _bmStorage.retryCount;
+        return _bmStorage.rebalanceStatus.retryCount;
+    }
+
+    /// @notice Returns the maximum retry limit for the rebalance process.
+    /// @return Retry limit.
+    function retryLimit() external view returns (uint8) {
+        return _bmStorage.retryLimit;
+    }
+
+    /// @notice Returns the step delay for the rebalance process.
+    /// @dev The step delay defines the minimum time interval, in seconds, required between consecutive steps in a
+    /// rebalance. This ensures sufficient time for external trades or other operations to settle before proceeding.
+    /// @return Step delay duration in seconds.
+    function stepDelay() external view returns (uint40) {
+        return _bmStorage.stepDelay;
     }
 
     /// @notice Returns the addresses of all assets in the given basket.
@@ -303,14 +337,15 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         InternalTrade[] calldata internalTrades,
         ExternalTrade[] calldata externalTrades,
         address[] calldata basketsToRebalance,
-        uint64[][] calldata targetWeights
+        uint64[][] calldata targetWeights,
+        address[][] calldata basketAssets_
     )
         external
         onlyRole(_TOKENSWAP_PROPOSER_ROLE)
         nonReentrant
         whenNotPaused
     {
-        _bmStorage.proposeTokenSwap(internalTrades, externalTrades, basketsToRebalance, targetWeights);
+        _bmStorage.proposeTokenSwap(internalTrades, externalTrades, basketsToRebalance, targetWeights, basketAssets_);
         emit TokenSwapProposed(_bmStorage.rebalanceStatus.epoch, internalTrades, externalTrades);
     }
 
@@ -375,13 +410,14 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     function completeRebalance(
         ExternalTrade[] calldata externalTrades,
         address[] calldata basketsToRebalance,
-        uint64[][] calldata targetWeights
+        uint64[][] calldata targetWeights,
+        address[][] calldata basketAssets_
     )
         external
         nonReentrant
         whenNotPaused
     {
-        _bmStorage.completeRebalance(externalTrades, basketsToRebalance, targetWeights);
+        _bmStorage.completeRebalance(externalTrades, basketsToRebalance, targetWeights, basketAssets_);
     }
 
     /// FALLBACK REDEEM LOGIC ///
@@ -442,6 +478,34 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         }
         emit SwapFeeSet(_bmStorage.swapFee, swapFee_);
         _bmStorage.swapFee = swapFee_;
+    }
+
+    /// @notice Updates the step delay for the rebalance process.
+    /// @dev The step delay defines the minimum time interval, in seconds, required between consecutive steps in a
+    /// rebalance. This ensures sufficient time for external trades or other operations to settle before proceeding.
+    /// @param stepDelay_ The new step delay duration in seconds.
+    function setStepDelay(uint40 stepDelay_) external onlyRole(_TIMELOCK_ROLE) {
+        if (stepDelay_ < _MIN_STEP_DELAY || stepDelay_ > _MAX_STEP_DELAY) {
+            revert InvalidStepDelay();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit StepDelaySet(_bmStorage.stepDelay, stepDelay_);
+        _bmStorage.stepDelay = stepDelay_;
+    }
+
+    /// @notice Sets the retry limit for future rebalances.
+    /// @param retryLimit_ New retry limit.
+    function setRetryLimit(uint8 retryLimit_) external onlyRole(_TIMELOCK_ROLE) {
+        if (retryLimit_ > _MAX_RETRY_COUNT) {
+            revert InvalidRetryCount();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit RetryLimitSet(_bmStorage.retryLimit, retryLimit_);
+        _bmStorage.retryLimit = retryLimit_;
     }
 
     /// @notice Claims the swap fee for the given asset and sends it to protocol treasury defined in the FeeCollector.
@@ -518,5 +582,53 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Unpauses the contract. Only callable by DEFAULT_ADMIN_ROLE.
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    /// @notice Allows the timelock to execute an arbitrary function call on a target contract.
+    /// @dev Can only be called by addresses with the timelock role. Reverts if the execution fails.
+    /// @param target The address of the target contract.
+    /// @param data The calldata to send to the target contract.
+    /// @param value The amount of Ether (in wei) to send with the call.
+    /// @return result The data returned from the function call.
+    function execute(
+        address target,
+        bytes calldata data,
+        uint256 value
+    )
+        external
+        payable
+        onlyRole(_TIMELOCK_ROLE)
+        returns (bytes memory)
+    {
+        // Checks
+        if (target == address(0)) revert Errors.ZeroAddress();
+        // Interactions
+        // slither-disable-start arbitrary-send-eth
+        // slither-disable-start low-level-calls
+        // nosemgrep: solidity.security.arbitrary-low-level-call.arbitrary-low-level-call
+        (bool success, bytes memory result) = target.call{ value: value }(data);
+        // slither-disable-end arbitrary-send-eth
+        // slither-disable-end low-level-calls
+        if (!success) {
+            revert ExecutionFailed();
+        }
+        return result;
+    }
+
+    /// @notice Allows the admin to rescue tokens mistakenly sent to the contract.
+    /// @dev Can only be called by the admin. This function is intended for use in case of accidental token
+    /// transfers into the contract. It will revert if the token is part of the enabled asset universe.
+    /// @param token The ERC20 token to rescue, or address(0) for ETH.
+    /// @param to The recipient address of the rescued tokens.
+    /// @param balance The amount of tokens to rescue. If set to 0, the entire balance will be rescued.
+    function rescue(IERC20 token, address to, uint256 balance) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (address(token) != address(0)) {
+            AssetRegistry.AssetStatus status = AssetRegistry(_bmStorage.assetRegistry).getAssetStatus(address(token));
+            if (status != AssetRegistry.AssetStatus.DISABLED) {
+                revert AssetExistsInUniverse();
+            }
+        }
+
+        _rescue(token, to, balance);
     }
 }

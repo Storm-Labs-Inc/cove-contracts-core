@@ -2,6 +2,8 @@
 pragma solidity 0.8.28;
 
 import { ERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
+import { ERC20PermitUpgradeable } from
+    "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { MulticallUpgradeable } from "@openzeppelin-upgradeable/contracts/utils/MulticallUpgradeable.sol";
 import { ERC165Upgradeable } from "@openzeppelin-upgradeable/contracts/utils/introspection/ERC165Upgradeable.sol";
@@ -9,7 +11,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { SelfPermit } from "src/deps/uniswap-v3-periphery/base/SelfPermit.sol";
+import { Permit2Lib } from "permit2/src/libraries/Permit2Lib.sol";
+import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC20PluginsUpgradeable.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -30,7 +33,7 @@ contract BasketToken is
     IERC7540Deposit,
     IERC7540Redeem,
     MulticallUpgradeable,
-    SelfPermit
+    ERC20PermitUpgradeable
 {
     /// LIBRARIES ///
     using SafeERC20 for IERC20;
@@ -269,7 +272,7 @@ contract BasketToken is
         // Interactions
         // Assets are immediately transferred to here to await the basketManager to pull them
         // slither-disable-next-line arbitrary-send-erc20
-        IERC20(asset()).safeTransferFrom(owner, address(this), assets);
+        Permit2Lib.transferFrom2(ERC20(asset()), owner, address(this), assets);
     }
 
     /// @notice Returns the pending deposit request amount for a controller.
@@ -959,5 +962,22 @@ contract BasketToken is
     /// See {IERC20Metadata-decimals}.
     function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
         return ERC4626Upgradeable.decimals();
+    }
+
+    /// @dev Expose internal permit function used by PermitLib
+    // See {PermitLib.permit2}
+    function permit2(
+        ERC20 token,
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
+        public
+    {
+        Permit2Lib.permit2(token, owner, spender, value, deadline, v, r, s);
     }
 }

@@ -6,7 +6,10 @@ import { Test, console } from "forge-std/Test.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
+import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { PermitHash } from "permit2/src/libraries/PermitHash.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
 abstract contract BaseTest is Test, Constants {
@@ -158,5 +161,110 @@ abstract contract BaseTest is Test, Constants {
             mstore8(0x34, 0x01) // Nonce of the proxy contract (1).
             deployed := and(keccak256(0x1e, 0x17), 0xffffffffffffffffffffffffffffffffffffffff)
         }
+    }
+
+    /// PERMIT & PERMIT2 HELPER FUNCTIONS ///
+    function _generatePermitSignature(
+        address token,
+        address approvalFrom,
+        uint256 approvalFromPrivKey,
+        address approvalTo,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline
+    )
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        (v, r, s) = vm.sign(
+            approvalFromPrivKey, // user's private key
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01", // EIP-712 encoding
+                    IERC20Permit(token).DOMAIN_SEPARATOR(),
+                    // Frontend should use deadline with enough buffer and with the correct nonce
+                    // keccak256(abi.encode(PERMIT_TYPEHASH, user, address(router), depositAmount,
+                    // sourceToken.nonces(user),
+                    // block.timestamp + 100_000))
+                    keccak256(abi.encode(PERMIT_TYPEHASH, approvalFrom, approvalTo, amount, nonce, deadline))
+                )
+            )
+        );
+    }
+
+    function _generatePermitSignatureAndLog(
+        address token,
+        address owner,
+        uint256 ownerPrivateKey,
+        address spender,
+        uint256 value,
+        uint256 nonce,
+        uint256 deadline
+    )
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        string memory typeHashInput =
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)";
+        console.log("");
+        console.log("Generating permit signature for token: ", token);
+        console.log("EIP 712 input:");
+        console.log("  TYPEHASH input: ", typeHashInput);
+        console.log("  TYPEHASH: ", vm.toString(keccak256(bytes(typeHashInput))));
+        console.log("Signature parameters:");
+        console.log("  Private Key: ", vm.toString(bytes32(ownerPrivateKey)));
+        console.log("  Owner: ", owner);
+        console.log("  Spender: ", address(0xbeef));
+        console.log("  Value: ", uint256(1000 ether));
+        console.log("  Nonce: ", nonce);
+        console.log("  Deadline: ", _MAX_UINT256);
+        (v, r, s) = _generatePermitSignature(token, owner, ownerPrivateKey, spender, value, nonce, deadline);
+        console.log("");
+        console.log("Generated signature: ");
+        console.log("  v: ", v);
+        console.log("  r: ", vm.toString(r));
+        console.log("  s: ", vm.toString(s));
+    }
+
+    function _generatePermit2Signature(
+        address token,
+        uint256 approvalFromPrivKey,
+        address approvalTo,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline
+    )
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        // Use PermitHash to generate the permit2 hash. Alternatively, you can use the following code:
+        // bytes32 permitHash = keccak256(abi.encode(_PERMIT_DETAILS_TYPEHASH, IAllowanceTransfer.PermitDetails memory
+        // details))
+        // bytes32 msgHash = keccak256(abi.encode(_PERMIT_SINGLE_TYPEHASH, permitHash, approvalTo, deadline));
+        bytes32 msgHash = PermitHash.hash(
+            IAllowanceTransfer.PermitSingle({
+                details: IAllowanceTransfer.PermitDetails({
+                    token: token,
+                    amount: uint160(amount),
+                    expiration: type(uint48).max,
+                    nonce: uint48(nonce)
+                }),
+                spender: approvalTo,
+                sigDeadline: deadline
+            })
+        );
+        (v, r, s) = vm.sign(
+            approvalFromPrivKey, // user's private key
+            keccak256(
+                abi.encodePacked(
+                    "\x19\x01", // EIP-712 encoding
+                    IAllowanceTransfer(ETH_PERMIT2).DOMAIN_SEPARATOR(),
+                    msgHash
+                )
+            )
+        );
     }
 }
