@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
@@ -10,7 +11,7 @@ import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 /// other purposes as well such as volume, liquidity, etc as long as the data is available on chain.
 /// Setters should not be implemented in this contract as the data is expected to be external and read-only.
 // solhint-disable no-empty-blocks
-contract AutomaticWeightStrategy is WeightStrategy, AccessControlEnumerable {
+contract AutomaticWeightStrategy is WeightStrategy, AccessControlEnumerable, Multicall {
     // slither-disable-next-line locked-ether
     constructor(address admin) payable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);

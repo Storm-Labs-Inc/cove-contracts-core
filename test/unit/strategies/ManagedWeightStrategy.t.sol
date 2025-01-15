@@ -71,6 +71,7 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketMask: uint256(0),
                     epoch: epoch,
                     timestamp: uint40(0),
+                    retryCount: uint8(0),
                     status: Status.NOT_STARTED
                 })
             )
@@ -120,6 +121,7 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketMask: uint256(0),
                     epoch: epoch,
                     timestamp: uint40(0),
+                    retryCount: uint8(0),
                     status: Status(status)
                 })
             )
@@ -224,5 +226,69 @@ contract ManagedWeightStrategyTest is BaseTest {
         vm.assume(BitFlag.popCount(bitFlag) >= 2);
         vm.expectRevert(ManagedWeightStrategy.NoTargetWeights.selector);
         customStrategy.getTargetWeights(bitFlag);
+    }
+
+    function testFuzz_setTargetWeightsMulticall(uint40 epoch, uint256 bitFlag0, uint256 bitFlag1) public {
+        vm.assume(BitFlag.popCount(bitFlag0) >= 2);
+        vm.assume(BitFlag.popCount(bitFlag1) >= 2);
+        vm.assume(bitFlag0 != bitFlag1);
+
+        uint64[] memory weights0 = new uint64[](BitFlag.popCount(bitFlag0));
+        uint64[] memory weights1 = new uint64[](BitFlag.popCount(bitFlag1));
+        uint64[] memory newTargetWeights0 = new uint64[](weights0.length);
+        uint256 limit = _WEIGHT_PRECISION;
+        for (uint256 i = 0; i < weights0.length; i++) {
+            if (i < weights0.length - 1) {
+                limit -= newTargetWeights0[i] = weights0[i] = uint64(bound(weights0[i], 0, limit));
+            } else {
+                newTargetWeights0[i] = weights0[i] = uint64(limit);
+            }
+        }
+
+        uint64[] memory newTargetWeights1 = new uint64[](weights1.length);
+        for (uint256 i = 0; i < weights1.length; i++) {
+            if (i < weights1.length - 1) {
+                limit -= newTargetWeights1[i] = weights1[i] = uint64(bound(weights1[i], 0, limit));
+            } else {
+                newTargetWeights1[i] = weights1[i] = uint64(limit);
+            }
+        }
+
+        vm.mockCall(
+            basketManager,
+            abi.encodeCall(BasketManager.rebalanceStatus, ()),
+            abi.encode(
+                RebalanceStatus({
+                    basketHash: bytes32(0),
+                    basketMask: uint256(0),
+                    epoch: epoch,
+                    timestamp: uint40(0),
+                    retryCount: uint8(0),
+                    status: Status.NOT_STARTED
+                })
+            )
+        );
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(ManagedWeightStrategy.setTargetWeights.selector, bitFlag0, newTargetWeights0);
+        data[1] = abi.encodeWithSelector(ManagedWeightStrategy.setTargetWeights.selector, bitFlag1, newTargetWeights1);
+
+        vm.prank(admin);
+        customStrategy.multicall(data);
+
+        for (uint256 i = 0; i < weights0.length; i++) {
+            assertEq(
+                customStrategy.getTargetWeights(bitFlag0)[i],
+                newTargetWeights0[i],
+                string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
+            );
+        }
+        for (uint256 i = 0; i < weights1.length; i++) {
+            assertEq(
+                customStrategy.getTargetWeights(bitFlag1)[i],
+                newTargetWeights1[i],
+                string(abi.encodePacked("Weight ", vm.toString(i), " should be set correctly"))
+            );
+        }
     }
 }
