@@ -13,6 +13,7 @@ import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunction
 
 import { Constants } from "test/utils/Constants.t.sol";
 
+import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -254,16 +255,20 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     }
 
     function _deployCoreContracts() private {
-        _addContractToMasterRegistry(
-            "AssetRegistry", address(deployer.deploy_AssetRegistry("AssetRegistry", COVE_DEPLOYER_ADDRESS))
-        );
-        _addContractToMasterRegistry(
-            "StrategyRegistry", address(deployer.deploy_StrategyRegistry("StrategyRegistry", COVE_DEPLOYER_ADDRESS))
-        );
-        _addContractToMasterRegistry("EulerRouter", address(_deployEulerRouter()));
-        _addContractToMasterRegistry("BasketManager", address(_deployBasketManager(_FEE_COLLECTOR_SALT)));
-        _addContractToMasterRegistry("FeeCollector", address(_deployFeeCollector(_FEE_COLLECTOR_SALT)));
-        _addContractToMasterRegistry("CoWSwapAdapter", address(_deployAndSetCowSwapAdapter()));
+        string[] memory registryNames = new string[](6);
+        registryNames[0] = "AssetRegistry";
+        deployer.deploy_AssetRegistry(registryNames[0], COVE_DEPLOYER_ADDRESS);
+        registryNames[1] = "StrategyRegistry";
+        deployer.deploy_StrategyRegistry(registryNames[1], COVE_DEPLOYER_ADDRESS);
+        registryNames[2] = "EulerRouter";
+        _deployEulerRouter();
+        registryNames[3] = "BasketManager";
+        _deployBasketManager(_FEE_COLLECTOR_SALT);
+        registryNames[4] = "FeeCollector";
+        _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        registryNames[5] = "CowSwapAdapter";
+        _deployAndSetCowSwapAdapter();
+        _addContractsToMasterRegistry(registryNames);
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment) private {
@@ -417,11 +422,17 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         assetRegistry.addAsset(asset);
     }
 
-    function _addContractToMasterRegistry(string memory registryName, address registryAddress) private {
+    function _addContractsToMasterRegistry(string[] memory registryNames) private {
         if (isProduction) {
             vm.broadcast();
         }
-        masterRegistry.addRegistry(keccak256(abi.encodePacked(registryName)), registryAddress);
+        bytes[] memory data = new bytes[](registryNames.length);
+        for (uint256 i = 0; i < registryNames.length; i++) {
+            data[i] = abi.encodeWithSelector(
+                IMasterRegistry.addRegistry.selector, bytes32(bytes(registryNames[i])), getAddress(registryNames[i])
+            );
+        }
+        Multicall(address(masterRegistry)).multicall(data);
     }
 
     // Deploys a pyth oracle for given base and quote assets

@@ -96,36 +96,23 @@ contract IntegrationTest is BaseTest {
         IMasterRegistry masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
         address basketManagerAddress = address(bm);
         assertNotEq(basketManagerAddress, address(0));
-        assertEq(
-            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("BasketManager"))),
-            basketManagerAddress
-        );
+        assertEq(masterRegistry.resolveNameToLatestAddress("BasketManager"), basketManagerAddress);
 
         address assetRegistryAddress = deployments.getAddress("AssetRegistry");
         assertNotEq(assetRegistryAddress, address(0));
-        assertEq(
-            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("AssetRegistry"))),
-            assetRegistryAddress
-        );
+        assertEq(masterRegistry.resolveNameToLatestAddress("AssetRegistry"), assetRegistryAddress);
 
         address strategyRegistryAddress = deployments.getAddress("StrategyRegistry");
         assertNotEq(strategyRegistryAddress, address(0));
-        assertEq(
-            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("StrategyRegistry"))),
-            strategyRegistryAddress
-        );
+        assertEq(masterRegistry.resolveNameToLatestAddress("StrategyRegistry"), strategyRegistryAddress);
 
         address eulerRouterAddress = deployments.getAddress("EulerRouter");
         assertNotEq(eulerRouterAddress, address(0));
-        assertEq(
-            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("EulerRouter"))), eulerRouterAddress
-        );
+        assertEq(masterRegistry.resolveNameToLatestAddress("EulerRouter"), eulerRouterAddress);
 
         address feeCollectorAddress = deployments.getAddress("FeeCollector");
         assertNotEq(feeCollectorAddress, address(0));
-        assertEq(
-            masterRegistry.resolveNameToLatestAddress(keccak256(abi.encodePacked("FeeCollector"))), feeCollectorAddress
-        );
+        assertEq(masterRegistry.resolveNameToLatestAddress("FeeCollector"), feeCollectorAddress);
         assertEq(bm.numOfBasketTokens(), 1);
     }
 
