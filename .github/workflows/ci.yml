@@ -163,13 +163,13 @@ jobs:
         run: |
           forge --version
           pnpm build
-          forge test --gas-report --fuzz-seed 0 --no-match-test "IntegrationTest" | tee gasreport.ansi
+          forge test --gas-report --fuzz-seed 0 --no-match-contract "IntegrationTest" | tee gasreport.ansi
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
 
       - name: Compare gas reports
         if: success() || failure()
-        uses: Rubilmax/foundry-gas-diff@v3.19
+        uses: Rubilmax/foundry-gas-diff@v3.20
         with:
           summaryQuantile: 0.8 # only display the 20% most significant gas diffs in the summary (defaults to 20%)
           sortCriteria: avg,max # sort diff rows by criteria
