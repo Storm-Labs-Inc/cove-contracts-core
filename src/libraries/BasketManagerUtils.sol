@@ -81,8 +81,6 @@ library BasketManagerUtils {
     uint256 private constant _MAX_WEIGHT_DEVIATION = 0.05e18; // 5%
     /// @notice Precision used for weight calculations and slippage calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
-    /// @notice Maximum number of retries for a rebalance.
-    uint8 private constant _MAX_RETRIES = 3;
     /// @notice Minimum time between rebalances in seconds.
     uint40 private constant _REBALANCE_COOLDOWN_SEC = 1 hours;
 
