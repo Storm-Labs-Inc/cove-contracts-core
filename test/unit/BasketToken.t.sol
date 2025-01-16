@@ -1874,6 +1874,16 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.totalAssets(), 1e18, "Total assets should match expected");
     }
 
+    function test_getAssets() public {
+        // Mock the Asset Registry Call
+        address[] memory assets = new address[](1);
+        assets[0] = address(0x1);
+        vm.mockCall(
+            basket.assetRegistry(), abi.encodeCall(AssetRegistry.getAssets, (basket.bitFlag())), abi.encode(assets)
+        );
+        assertEq(basket.getAssets()[0], assets[0]);
+    }
+
     function _totalAssetsMockCall() public {
         // Mock the call to assetRegistry to return a list of assets
         address[] memory assets = new address[](1);
