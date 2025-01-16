@@ -53,6 +53,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     uint40 private constant _MAX_STEP_DELAY = 60 minutes;
     /// @notice Maximum bound of retry count.
     uint8 private constant _MAX_RETRY_COUNT = 10;
+    /// @notice Maximum bound of slippage
+    uint256 private constant _MAX_SLIPPAGE_LIMIT = 0.5e18;
+    /// @notice Maximum bound of weight deviation
+    uint256 private constant _MAX_WEIGHT_DEVIATION_LIMIT = 0.5e18;
 
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
@@ -83,6 +87,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     event StepDelaySet(uint40 oldDelay, uint40 newDelay);
     /// @notice Emitted when the retry limit is set.
     event RetryLimitSet(uint8 oldLimit, uint8 newLimit);
+    /// @notice Emitted when the max slippage is set.
+    event MaxSlippageSet(uint256 oldSlippage, uint256 newSlippage);
+    /// @notice Emitted when the max weight deviation is set
+    event MaxWeightDeviationSet(uint256 oldDeviation, uint256 newDeviation);
 
     /// ERRORS ///
     /// @notice Thrown when attempting to execute a token swap without first proposing it.
@@ -128,6 +136,11 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error InvalidStepDelay();
     /// @notice Thrown when attempting to set an invalid retry limit outside the bounds of 0 and `_MAX_RETRY_COUNT`.
     error InvalidRetryCount();
+    /// @notice Thrown when attempting to set an invalid max slippage outside the bounds of 0 and `_MAX_SLIPPAGE_LIMIT`.
+    error InvalidMaxSlippage();
+    /// @notice Thrown when attempting to set an invalid max weight deviation outside the bounds of 0 and
+    /// `_MAX_WEIGHT_DEVIATION_LIMIT`.
+    error InvalidMaxWeightDeviation();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -250,6 +263,18 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @return Swap fee.
     function swapFee() external view returns (uint16) {
         return _bmStorage.swapFee;
+    }
+
+    /// @notice Returns the maximum slippage for token swaps denominated in 1e18.
+    /// @return Maximum slippage.
+    function maxSlippage() external view returns (uint256) {
+        return _bmStorage.maxSlippage;
+    }
+
+    /// @notice Returns the maximum weight deviation for token swaps denominated in 1e18.
+    /// @return Maximum weight deviation.
+    function maxWeightDeviation() external view returns (uint256) {
+        return _bmStorage.maxWeightDeviation;
     }
 
     /// @notice Returns the address of the strategy registry.
@@ -506,6 +531,30 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         }
         emit RetryLimitSet(_bmStorage.retryLimit, retryLimit_);
         _bmStorage.retryLimit = retryLimit_;
+    }
+
+    /// @notice Sets the maximum slippage multiplier for token swaps.
+    function setMaxSlippage(uint256 maxSlippage_) external onlyRole(_TIMELOCK_ROLE) {
+        if (maxSlippage_ > _MAX_SLIPPAGE_LIMIT) {
+            revert InvalidMaxSlippage();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit MaxSlippageSet(_bmStorage.maxSlippage, maxSlippage_);
+        _bmStorage.maxSlippage = maxSlippage_;
+    }
+
+    /// @notice Sets the maximum deviation multiplier to determine if a set of balances has reached the desired target
+    function setMaxWeightDeviation(uint256 maxWeightDeviation_) external onlyRole(_TIMELOCK_ROLE) {
+        if (maxWeightDeviation_ > _MAX_WEIGHT_DEVIATION_LIMIT) {
+            revert InvalidMaxWeightDeviation();
+        }
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
+        emit MaxWeightDeviationSet(_bmStorage.maxWeightDeviation, maxWeightDeviation_);
+        _bmStorage.maxWeightDeviation = maxWeightDeviation_;
     }
 
     /// @notice Claims the swap fee for the given asset and sends it to protocol treasury defined in the FeeCollector.

@@ -49,6 +49,11 @@ struct BasketManagerStorage {
     mapping(address => uint16) managementFees;
     /// @notice The current swap fee, expressed in basis points, applied to the value of internal swaps.
     uint16 swapFee;
+    /// @notice Maximum slippage multiplier for token swaps, denominated in 1e18.
+    uint256 maxSlippage;
+    /// @notice Maximum deviation multiplier to determine if a set of balances has reached the desired target weights,
+    /// denominated in 1e18.
+    uint256 maxWeightDeviation;
     /// @notice Address of the BasketToken implementation.
     address basketTokenImplementation;
     /// @notice Array of all basket tokens.

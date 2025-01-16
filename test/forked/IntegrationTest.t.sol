@@ -89,6 +89,12 @@ contract IntegrationTest is BaseTest {
         baseBasketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(baseBasketAssets);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
+
+        // Set timelock parameters
+        vm.startPrank(COVE_OPS_MULTISIG);
+        bm.setMaxSlippage(0.05e18);
+        bm.setMaxWeightDeviation(0.05e18);
+        vm.stopPrank();
     }
 
     function test_setUp() public view {

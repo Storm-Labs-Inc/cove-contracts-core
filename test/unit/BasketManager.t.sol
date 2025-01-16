@@ -54,6 +54,8 @@ contract BasketManagerTest is BaseTest {
     uint40 public constant MIN_STEP_DELAY = 1 minutes;
     uint40 public constant MAX_STEP_DELAY = 60 minutes;
     uint8 public constant MAX_RETRY_COUNT = 10;
+    uint256 public constant MAX_SLIPPAGE_LIMIT = 0.5e18;
+    uint256 public constant MAX_WEIGHT_DEVIATION_LIMIT = 0.5e18;
 
     struct TradeTestParams {
         uint256 sellWeight;
@@ -110,6 +112,12 @@ contract BasketManagerTest is BaseTest {
         basketManager.grantRole(PAUSER_ROLE, pauser);
         vm.stopPrank();
         vm.label(address(basketManager), "basketManager");
+
+        // Timelock actions
+        vm.startPrank(timelock);
+        basketManager.setMaxSlippage(0.05e18);
+        basketManager.setMaxWeightDeviation(0.05e18);
+        vm.stopPrank();
     }
 
     function testFuzz_constructor(
@@ -2608,6 +2616,66 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
         basketManager.setRetryLimit(retryLimit);
+    }
+
+    function testFuzz_setMaxSlippage(uint256 slippage) public {
+        vm.assume(slippage < MAX_SLIPPAGE_LIMIT);
+        vm.prank(timelock);
+        basketManager.setMaxSlippage(slippage);
+        assertEq(basketManager.maxSlippage(), slippage);
+    }
+
+    function testFuzz_setMaxSlippage_revertWhen_InvalidMaxSlippage(uint256 slippage) public {
+        vm.assume(slippage > MAX_SLIPPAGE_LIMIT);
+        vm.prank(timelock);
+        vm.expectRevert(BasketManager.InvalidMaxSlippage.selector);
+        basketManager.setMaxSlippage(slippage);
+    }
+
+    function testFuzz_setMaxSlippage_revertWhen_MustWaitForRebalanceToComplete(uint256 slippage) public {
+        vm.assume(slippage < MAX_SLIPPAGE_LIMIT);
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.setMaxSlippage(slippage);
+    }
+
+    function testFuzz_setMaxSlippage_revertWhen_CallerIsNotTimelock(address caller, uint256 slippage) public {
+        vm.assume(caller != timelock);
+        vm.assume(slippage < MAX_SLIPPAGE_LIMIT);
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.setMaxSlippage(slippage);
+    }
+
+    function testFuzz_setMaxWeightDeviation(uint256 deviation) public {
+        vm.assume(deviation < MAX_WEIGHT_DEVIATION_LIMIT);
+        vm.prank(timelock);
+        basketManager.setMaxWeightDeviation(deviation);
+        assertEq(basketManager.maxWeightDeviation(), deviation);
+    }
+
+    function testFuzz_setMaxWeightDeviation_revertWhen_InvalidMaxWeightDeviation(uint256 deviation) public {
+        vm.assume(deviation > MAX_WEIGHT_DEVIATION_LIMIT);
+        vm.prank(timelock);
+        vm.expectRevert(BasketManager.InvalidMaxWeightDeviation.selector);
+        basketManager.setMaxWeightDeviation(deviation);
+    }
+
+    function testFuzz_setMaxWeightDeviation_revertWhen_MustWaitForRebalanceToComplete(uint256 deviation) public {
+        vm.assume(deviation < MAX_WEIGHT_DEVIATION_LIMIT);
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.setMaxWeightDeviation(deviation);
+    }
+
+    function testFuzz_setMaxWeightDeviation_revertWhen_CallerIsNotTimelock(address caller, uint256 deviation) public {
+        vm.assume(caller != timelock);
+        vm.assume(deviation < MAX_WEIGHT_DEVIATION_LIMIT);
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.setMaxWeightDeviation(deviation);
     }
 
     function testFuzz_collectSwapFee_returnsZeroWhen_hasNotCollectedFee(address asset) public {
