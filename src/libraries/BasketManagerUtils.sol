@@ -383,7 +383,7 @@ library BasketManagerUtils {
         uint256[][] memory basketBalances = new uint256[][](numBaskets);
         _initializeBasketData(self, baskets, basketAssets, basketBalances, totalValues);
         // NOTE: for rebalance retries the internal trades must be updated as well
-        _processInternalTrades(self, internalTrades, baskets, basketBalances);
+        _processInternalTrades(self, internalTrades, baskets, totalValues, basketBalances);
         _validateExternalTrades(self, externalTrades, baskets, totalValues, basketBalances);
         if (!_isTargetWeightMet(self, baskets, basketTargetWeights, basketAssets, basketBalances, totalValues)) {
             revert TargetWeightsNotMet();
@@ -796,6 +796,7 @@ library BasketManagerUtils {
         BasketManagerStorage storage self,
         InternalTrade[] calldata internalTrades,
         address[] calldata baskets,
+        uint256[] memory totalValues,
         uint256[][] memory basketBalances
     )
         private
@@ -825,6 +826,8 @@ library BasketManagerUtils {
             // Calculate fee on sellAmount
             if (swapFee > 0) {
                 info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
+                totalValues[info.fromBasketIndex] -=
+                    self.eulerRouter.getQuote(info.feeOnSell, trade.sellToken, _USD_ISO_4217_CODE);
                 self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
                 emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
             }
@@ -832,6 +835,8 @@ library BasketManagerUtils {
             // Calculate fee on buyAmount
             if (swapFee > 0) {
                 info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
+                totalValues[info.toBasketIndex] -=
+                    self.eulerRouter.getQuote(info.feeOnBuy, trade.buyToken, _USD_ISO_4217_CODE);
                 self.collectedSwapFees[trade.buyToken] += info.feeOnBuy;
                 emit SwapFeeCharged(trade.buyToken, info.feeOnBuy);
             }
