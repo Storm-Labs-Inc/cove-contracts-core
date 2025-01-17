@@ -933,12 +933,12 @@ library BasketManagerUtils {
             info.internalMinAmount = self.eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
 
-            // Check if the given minAmount is within the _MAX_SLIPPAGE threshold of internalMinAmount
-            if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE) {
-                    revert ExternalTradeSlippage();
-                }
+            // Check if the difference between the on-chain oracle derived internal minimum amount and the proivided
+            // trade's minimum amount exceeds the maximum allowed slippage threshold
+            if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE) {
+                revert ExternalTradeSlippage();
             }
+
             unchecked {
                 // Overflow not possible: i is bounded by baskets.length
                 ++i;
