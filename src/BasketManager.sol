@@ -88,9 +88,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Emitted when the retry limit is set.
     event RetryLimitSet(uint8 oldLimit, uint8 newLimit);
     /// @notice Emitted when the max slippage is set.
-    event MaxSlippageSet(uint256 oldSlippage, uint256 newSlippage);
+    event SlippageLimitSet(uint256 oldSlippage, uint256 newSlippage);
     /// @notice Emitted when the max weight deviation is set
-    event MaxWeightDeviationSet(uint256 oldDeviation, uint256 newDeviation);
+    event WeightDeviationLimitSet(uint256 oldDeviation, uint256 newDeviation);
 
     /// ERRORS ///
     /// @notice Thrown when attempting to execute a token swap without first proposing it.
@@ -421,9 +421,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (tokenSwapAdapter_ == address(0)) {
             revert Errors.ZeroAddress();
         }
-        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalanceToComplete();
-        }
+        _revertIfCurrentlyRebalancing();
         emit TokenSwapAdapterSet(_bmStorage.tokenSwapAdapter, tokenSwapAdapter_);
         _bmStorage.tokenSwapAdapter = tokenSwapAdapter_;
     }
@@ -498,9 +496,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (swapFee_ > _MAX_SWAP_FEE) {
             revert InvalidSwapFee();
         }
-        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalanceToComplete();
-        }
+        _revertIfCurrentlyRebalancing();
         emit SwapFeeSet(_bmStorage.swapFee, swapFee_);
         _bmStorage.swapFee = swapFee_;
     }
@@ -513,9 +509,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (stepDelay_ < _MIN_STEP_DELAY || stepDelay_ > _MAX_STEP_DELAY) {
             revert InvalidStepDelay();
         }
-        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalanceToComplete();
-        }
+        _revertIfCurrentlyRebalancing();
         emit StepDelaySet(_bmStorage.stepDelay, stepDelay_);
         _bmStorage.stepDelay = stepDelay_;
     }
@@ -526,9 +520,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (retryLimit_ > _MAX_RETRY_COUNT) {
             revert InvalidRetryCount();
         }
-        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalanceToComplete();
-        }
+        _revertIfCurrentlyRebalancing();
         emit RetryLimitSet(_bmStorage.retryLimit, retryLimit_);
         _bmStorage.retryLimit = retryLimit_;
     }
@@ -538,10 +530,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (maxSlippage_ > _MAX_SLIPPAGE_LIMIT) {
             revert InvalidMaxSlippage();
         }
-        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalanceToComplete();
-        }
-        emit MaxSlippageSet(_bmStorage.maxSlippage, maxSlippage_);
+        _revertIfCurrentlyRebalancing();
+        emit SlippageLimitSet(_bmStorage.maxSlippage, maxSlippage_);
         _bmStorage.maxSlippage = maxSlippage_;
     }
 
@@ -550,10 +540,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         if (maxWeightDeviation_ > _MAX_WEIGHT_DEVIATION_LIMIT) {
             revert InvalidMaxWeightDeviation();
         }
-        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
-            revert MustWaitForRebalanceToComplete();
-        }
-        emit MaxWeightDeviationSet(_bmStorage.maxWeightDeviation, maxWeightDeviation_);
+        _revertIfCurrentlyRebalancing();
+        emit WeightDeviationLimitSet(_bmStorage.maxWeightDeviation, maxWeightDeviation_);
         _bmStorage.maxWeightDeviation = maxWeightDeviation_;
     }
 
@@ -616,6 +604,13 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         emit BasketBitFlagUpdated(basket, currentBitFlag, bitFlag, oldId, newId);
         // Update the bitFlag in the BasketToken contract
         BasketToken(basket).setBitFlag(bitFlag);
+    }
+
+    /// @notice Reverts if a rebalance is currently in progress.
+    function _revertIfCurrentlyRebalancing() private view {
+        if (_bmStorage.rebalanceStatus.status != Status.NOT_STARTED) {
+            revert MustWaitForRebalanceToComplete();
+        }
     }
 
     /// PAUSING FUNCTIONS ///
