@@ -637,14 +637,12 @@ contract BasketToken is
     /// @param from Address to redeem shares from.
     function proRataRedeem(uint256 shares, address to, address from) public {
         // Effects
-        uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
-        address feeCollector = BasketManager(basketManager).feeCollector();
-        _harvestManagementFee(feeBps, feeCollector);
         if (msg.sender != from) {
             _spendAllowance(from, msg.sender, shares);
         }
 
         // Interactions
+        harvestManagementFee();
         BasketManager(basketManager).proRataRedeem(totalSupply(), shares, to);
 
         // We intentionally defer the `_burn()` operation until after the external call to
@@ -653,6 +651,12 @@ contract BasketToken is
         // cannot be manipulated if a malicious contract attempts to reenter during the ERC20 transfer (e.g., through
         // ERC777 tokens or plugins with callbacks).
         _burn(from, shares);
+    }
+
+    function harvestManagementFee() public {
+        uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
+        address feeCollector = BasketManager(basketManager).feeCollector();
+        _harvestManagementFee(feeBps, feeCollector);
     }
 
     // slither-disable-next-line timestamp
