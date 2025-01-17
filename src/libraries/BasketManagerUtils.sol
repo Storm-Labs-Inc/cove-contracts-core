@@ -837,7 +837,7 @@ library BasketManagerUtils {
             }
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
-            if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
+            if (info.netBuyAmount < trade.minAmount || trade.maxAmount < initialBuyAmount) {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             if (trade.sellAmount > basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]) {
