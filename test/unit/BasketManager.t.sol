@@ -244,6 +244,18 @@ contract BasketManagerTest is BaseTest {
         basketManager.execute{ value: 1 ether }(address(0), data, 1 ether);
     }
 
+    function test_execute_revertWhen_AssetExistsInUniverse() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, mockTarget),
+            abi.encode(AssetRegistry.AssetStatus.ENABLED)
+        );
+        vm.expectRevert(BasketManager.AssetExistsInUniverse.selector);
+        vm.prank(timelock);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
+    }
+
     function test_rescue() public {
         ERC20 shitcoin = new ERC20Mock();
         deal(address(shitcoin), address(basketManager), 1e18);

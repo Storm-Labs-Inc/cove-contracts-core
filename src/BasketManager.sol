@@ -602,6 +602,11 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     {
         // Checks
         if (target == address(0)) revert Errors.ZeroAddress();
+        AssetRegistry.AssetStatus status = AssetRegistry(_bmStorage.assetRegistry).getAssetStatus(address(target));
+        if (status != AssetRegistry.AssetStatus.DISABLED) {
+            revert AssetExistsInUniverse();
+        }
+
         // Interactions
         // slither-disable-start arbitrary-send-eth
         // slither-disable-start low-level-calls
