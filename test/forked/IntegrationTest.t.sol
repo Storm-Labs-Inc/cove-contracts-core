@@ -588,12 +588,14 @@ contract IntegrationTest is BaseTest {
 
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
+        vm.snapshotGasLastCall("proposeRebalance w/ single basket");
 
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
             _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
 
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
+        vm.snapshotGasLastCall("proposeTokenSwap w/ single basket (no internal trades)");
 
         uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; ++i) {
@@ -607,11 +609,13 @@ contract IntegrationTest is BaseTest {
 
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
+        vm.snapshotGasLastCall("executeTokenSwap");
 
         _completeSwapAdapterTrades(externalTrades);
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
 
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
+        vm.snapshotGasLastCall("completeRebalance w/ single basket");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
 
@@ -619,7 +623,9 @@ contract IntegrationTest is BaseTest {
         // each asset in the basket.
         vm.startPrank(alice);
         baseBasket.deposit(aliceDepositAmount, alice, alice);
+        vm.snapshotGasLastCall("BasketToken.deposit");
         baseBasket.proRataRedeem(baseBasket.balanceOf(alice), alice, alice);
+        vm.snapshotGasLastCall("BasketToken.proRataRedeem");
         vm.stopPrank();
 
         // 5. The basket then attempts to rebalance once more with the same target weights as last rebalance
