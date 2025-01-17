@@ -162,6 +162,8 @@ library BasketManagerUtils {
     error AssetNotEnabled();
     /// @dev Reverts when no internal or external trades are provided for a rebalance.
     error CannotProposeEmptyTrades();
+    /// @dev Reverts when the sum of tradeOwnerships do not match the _WEIGHT_PRECISION
+    error OwnershipSumMismatch();
 
     /// @notice Creates a new basket token with the given parameters.
     /// @param self BasketManagerStorage struct containing strategy data.
@@ -894,9 +896,11 @@ library BasketManagerUtils {
             BasketOwnershipInfo memory ownershipInfo;
             // slither-disable-end uninitialized-local
 
+            uint256 ownershipSum = 0;
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
                 BasketTradeOwnership calldata ownership = trade.basketTradeOwnership[j];
+                ownershipSum += ownership.tradeOwnership;
                 ownershipInfo.basketIndex = _indexOf(baskets, ownership.basket);
                 ownershipInfo.buyTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.buyToken);
                 ownershipInfo.sellTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.sellToken);
@@ -926,6 +930,9 @@ library BasketManagerUtils {
                     // Overflow not possible: j is bounded by trade.basketTradeOwnership.length
                     ++j;
                 }
+            }
+            if (ownershipSum != _WEIGHT_PRECISION) {
+                revert OwnershipSumMismatch();
             }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             info.sellValue = self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE);
