@@ -110,6 +110,12 @@ contract BasketManagerTest is BaseTest {
         basketManager.grantRole(PAUSER_ROLE, pauser);
         vm.stopPrank();
         vm.label(address(basketManager), "basketManager");
+
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, mockTarget),
+            abi.encode(AssetRegistry.AssetStatus.DISABLED)
+        );
     }
 
     function testFuzz_constructor(
