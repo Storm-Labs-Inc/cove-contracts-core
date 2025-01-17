@@ -2634,10 +2634,13 @@ contract BasketManagerTest is BaseTest {
 
         address strategy = BasketToken(basket).strategy();
         vm.mockCall(strategy, abi.encodeCall(WeightStrategy.supportsBitFlag, (newBitFlag)), abi.encode(true));
+
+        // Assume that now the root asset will be at the last index
         address[] memory newAssets = new address[](5);
         for (uint256 i = 0; i < 5; i++) {
-            newAssets[i] = address(uint160(uint160(rootAsset) + i));
+            newAssets[i] = address(uint160(uint160(rootAsset) + 4 - i));
         }
+
         vm.mockCall(
             address(assetRegistry), abi.encodeCall(AssetRegistry.getAssets, (newBitFlag)), abi.encode(newAssets)
         );
@@ -2661,14 +2664,23 @@ contract BasketManagerTest is BaseTest {
         assertEq(basketManager.basketIdToAddress(newBasketId), basket, "New basketIdToAddress() not set correctly");
 
         address[] memory updatedAssets = basketManager.basketAssets(basket);
+        assertEq(updatedAssets.length, 5);
         for (uint256 i = 0; i < updatedAssets.length; i++) {
-            assertEq(updatedAssets[i], address(uint160(uint160(rootAsset) + i)), "basketAssets() not updated correctly");
+            assertEq(
+                updatedAssets[i], address(uint160(uint160(rootAsset) + 4 - i)), "basketAssets() not updated correctly"
+            );
             assertEq(
                 basketManager.getAssetIndexInBasket(basket, updatedAssets[i]),
                 i,
                 "rebalanceAssetToIndex not updated correctly"
             );
         }
+
+        assertEq(
+            basketManager.basketTokenToBaseAssetIndex(basket),
+            4,
+            "basketTokenToBaseAssetIndexPlusOne is not updated correctly"
+        );
     }
 
     function testFuzz_updateBitFlag_revertWhen_BasketTokenNotFound(address invalidBasket, uint256 newBitFlag) public {

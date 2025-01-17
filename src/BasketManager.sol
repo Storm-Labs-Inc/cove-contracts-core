@@ -185,6 +185,18 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         return _bmStorage.getAssetIndexInBasket(basketToken, asset);
     }
 
+    /// @notice Returns the index of the base asset in the given basket token
+    /// @dev Reverts if the basket token does not exist
+    /// @param basketToken Address of the basket token
+    /// @return Index of the base asset in the basket token's assets array
+    function basketTokenToBaseAssetIndex(address basketToken) public view returns (uint256) {
+        uint256 index = _bmStorage.basketTokenToBaseAssetIndexPlusOne[basketToken];
+        if (index == 0) {
+            revert BasketTokenNotFound();
+        }
+        return index - 1;
+    }
+
     /// @notice Returns the number of basket tokens.
     /// @return Number of basket tokens.
     function numOfBasketTokens() public view returns (uint256) {
@@ -554,11 +566,17 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.basketIdToAddress[newId] = basket;
         // Update the basketAssets and the basketAssetToIndexPlusOne mapping
         address[] memory assets = AssetRegistry(_bmStorage.assetRegistry).getAssets(bitFlag);
+        address baseAsset = _bmStorage.basketAssets[basket][_bmStorage.basketTokenToBaseAssetIndexPlusOne[basket] - 1];
         _bmStorage.basketAssets[basket] = assets;
         uint256 length = assets.length;
         for (uint256 i = 0; i < length;) {
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             _bmStorage.basketAssetToIndexPlusOne[basket][assets[i]] = i + 1;
+            // Update the base asset index
+            if (assets[i] == baseAsset) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                _bmStorage.basketTokenToBaseAssetIndexPlusOne[basket] = i + 1;
+            }
             unchecked {
                 // Overflow not possible: i is less than length
                 ++i;
