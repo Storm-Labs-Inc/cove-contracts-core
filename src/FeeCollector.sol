@@ -2,16 +2,18 @@
 pragma solidity 0.8.28;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
+import { Rescuable } from "src/Rescuable.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 /// @title FeeCollector
 /// @notice Contract to collect fees from the BasketManager and distribute them to sponsors and the protocol treasury
 // slither-disable-next-line locked-ether
-contract FeeCollector is AccessControlEnumerable {
+contract FeeCollector is AccessControlEnumerable, Rescuable {
     /// CONSTANTS ///
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     /// @dev Fee split is denominated in 1e4. Also used as maximum fee split for the sponsor.
@@ -152,6 +154,14 @@ contract FeeCollector is AccessControlEnumerable {
         uint256 fee = claimableTreasuryFees[basketToken];
         claimableTreasuryFees[basketToken] = 0;
         BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
+    }
+
+    /// @notice Rescue ERC20 tokens or ETH from the contract
+    /// @param token address of the token to rescue. Use zero address for ETH.
+    /// @param to address to send the rescued tokens to
+    /// @param amount amount of tokens to rescue
+    function rescue(IERC20 token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _rescue(token, to, amount);
     }
 
     function _checkIfBasketToken(address token) internal view {
