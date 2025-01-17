@@ -128,6 +128,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error InvalidStepDelay();
     /// @notice Thrown when attempting to set an invalid retry limit outside the bounds of 0 and `_MAX_RETRY_COUNT`.
     error InvalidRetryCount();
+    /// @notice Thrown when attempting to execute a token swap with empty external trades array
+    error EmptyExternalTrades();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -369,6 +371,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         address swapAdapter = _bmStorage.tokenSwapAdapter;
         if (swapAdapter == address(0)) {
             revert Errors.ZeroAddress();
+        }
+        if (externalTrades.length == 0) {
+            revert EmptyExternalTrades();
         }
         // Check if the external trades match the hash from proposeTokenSwap
         if (keccak256(abi.encode(externalTrades)) != _bmStorage.externalTradesHash) {
