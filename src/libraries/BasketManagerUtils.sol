@@ -1049,7 +1049,7 @@ library BasketManagerUtils {
         // Division-by-zero is not possible: basketValue is greater than 0
         newShares = basketValue > 0
             ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
-            : pendingDeposit;
+            : pendingDepositValue;
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
         self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
         // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
