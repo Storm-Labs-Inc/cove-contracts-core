@@ -992,6 +992,10 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < len;) {
             // slither-disable-next-line calls-loop
             uint64[] calldata proposedTargetWeights = basketsTargetWeights[i];
+            uint64[] memory adjustedTargetWeights = new uint64[](proposedTargetWeights.length);
+            uint256 withdrawValue = FixedPointMathLib.fullMulDiv(
+                self.pendingRedeems[baskets[i]], _WEIGHT_PRECISION, BasketToken(baskets[i]).totalSupply()
+            );
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] calldata assets = basketAssets[i];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
@@ -1004,7 +1008,8 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
+
+                if (MathUtils.diff(adjustedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
                     return false;
                 }
                 unchecked {
