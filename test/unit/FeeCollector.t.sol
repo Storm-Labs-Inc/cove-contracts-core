@@ -2,6 +2,8 @@
 pragma solidity 0.8.28;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -202,5 +204,14 @@ contract FeeCollectorTest is BaseTest {
         vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(treasury);
         feeCollector.claimTreasuryFee(token);
+    }
+
+    function test_rescue() public {
+        address alice = createUser("alice");
+        ERC20 shitcoin = new ERC20Mock();
+        deal(address(shitcoin), address(feeCollector), 1e18);
+        vm.prank(admin);
+        feeCollector.rescue(IERC20(address(shitcoin)), alice, 1e18);
+        assertEq(shitcoin.balanceOf(alice), 1e18, "rescue failed");
     }
 }
