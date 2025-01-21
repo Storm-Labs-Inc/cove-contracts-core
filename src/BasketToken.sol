@@ -653,12 +653,17 @@ contract BasketToken is
         _burn(from, shares);
     }
 
+    /// @notice Harvests management fees owed to the fee collector.
     function harvestManagementFee() public {
         uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
         address feeCollector = BasketManager(basketManager).feeCollector();
         _harvestManagementFee(feeBps, feeCollector);
     }
 
+    /// @notice Internal function to harvest management fees. Updates the timestamp of the last management fee harvest
+    /// if a non zero fee is collected. Mints the fee to the fee collector and notifies the basket manager.
+    /// @param feeBps The management fee in basis points to be harvested.
+    /// @param feeCollector The address that will receive the harvested management fee.
     // slither-disable-next-line timestamp
     function _harvestManagementFee(uint16 feeBps, address feeCollector) internal {
         // Checks
