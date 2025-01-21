@@ -1889,6 +1889,19 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapProposer);
         vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - 1
+        });
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
     }
 
     function testFuzz_proposeTokenSwap_internalTrade_revertWhen_TargetWeightsNotMet(
