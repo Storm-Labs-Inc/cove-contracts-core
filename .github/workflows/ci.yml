@@ -169,7 +169,7 @@ jobs:
 
       - name: Compare gas reports
         if: success() || failure()
-        uses: Rubilmax/foundry-gas-diff@v3.20
+        uses: Rubilmax/foundry-gas-diff@v3.21
         with:
           summaryQuantile: 0.8 # only display the 20% most significant gas diffs in the summary (defaults to 20%)
           sortCriteria: avg,max # sort diff rows by criteria
