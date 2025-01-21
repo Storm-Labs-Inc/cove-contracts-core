@@ -267,13 +267,13 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
 
     /// @notice Returns the maximum slippage for token swaps denominated in 1e18.
     /// @return Maximum slippage.
-    function maxSlippage() external view returns (uint256) {
+    function slippageLimit() external view returns (uint256) {
         return _bmStorage.maxSlippage;
     }
 
     /// @notice Returns the maximum weight deviation for token swaps denominated in 1e18.
     /// @return Maximum weight deviation.
-    function maxWeightDeviation() external view returns (uint256) {
+    function weightDeviationLimit() external view returns (uint256) {
         return _bmStorage.maxWeightDeviation;
     }
 
@@ -525,8 +525,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.retryLimit = retryLimit_;
     }
 
-    /// @notice Sets the maximum slippage multiplier for token swaps.
-    function setMaxSlippage(uint256 maxSlippage_) external onlyRole(_TIMELOCK_ROLE) {
+    /// @notice Sets the slippage multiplier for token swaps.
+    function setSlippageLimit(uint256 maxSlippage_) external onlyRole(_TIMELOCK_ROLE) {
         if (maxSlippage_ > _MAX_SLIPPAGE_LIMIT) {
             revert InvalidMaxSlippage();
         }
@@ -535,8 +535,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.maxSlippage = maxSlippage_;
     }
 
-    /// @notice Sets the maximum deviation multiplier to determine if a set of balances has reached the desired target
-    function setMaxWeightDeviation(uint256 maxWeightDeviation_) external onlyRole(_TIMELOCK_ROLE) {
+    /// @notice Sets the deviation multiplier to determine if a set of balances has reached the desired target
+    function setWeightDeviation(uint256 maxWeightDeviation_) external onlyRole(_TIMELOCK_ROLE) {
         if (maxWeightDeviation_ > _MAX_WEIGHT_DEVIATION_LIMIT) {
             revert InvalidMaxWeightDeviation();
         }

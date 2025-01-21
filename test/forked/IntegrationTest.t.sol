@@ -92,8 +92,8 @@ contract IntegrationTest is BaseTest {
 
         // Set timelock parameters
         vm.startPrank(COVE_OPS_MULTISIG);
-        bm.setMaxSlippage(0.05e18);
-        bm.setMaxWeightDeviation(0.05e18);
+        bm.setSlippageLimit(0.05e18);
+        bm.setWeightDeviation(0.05e18);
         vm.stopPrank();
     }
 
