@@ -57,6 +57,8 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
     error NotBasketToken();
     /// @notice Thrown when attempting to claim treasury fees from an address that is not the protocol treasury.
     error NotTreasury();
+    /// @notice Thrown funds attempted to be rescued exceed the available balance.
+    error InsufficientFundsToRescue();
 
     /// @notice Constructor to set the admin, basket manager, and protocol treasury
     /// @param admin The address of the admin
@@ -156,11 +158,20 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
         BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
     }
 
-    /// @notice Rescue ERC20 tokens or ETH from the contract
+    /// @notice Rescue ERC20 tokens or ETH from the contract. Reverts if the balance trying to rescue exceeds the
+    /// available balance minus claimable fees.
     /// @param token address of the token to rescue. Use zero address for ETH.
     /// @param to address to send the rescued tokens to
     /// @param amount amount of tokens to rescue
     function rescue(IERC20 token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address rescueToken = address(token);
+        if (
+            amount
+                > BasketToken(rescueToken).balanceOf(address(this)) - claimableTreasuryFees[rescueToken]
+                    - claimableSponsorFees[rescueToken]
+        ) {
+            revert InsufficientFundsToRescue();
+        }
         _rescue(token, to, amount);
     }
 

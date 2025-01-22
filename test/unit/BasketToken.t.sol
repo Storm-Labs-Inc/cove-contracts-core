@@ -1941,6 +1941,39 @@ contract BasketTokenTest is BaseTest {
         }
     }
 
+    function testFuzz_harvestManagementFee_doesntConsiderPendingRedeems(
+        uint256 totalDepositAmount,
+        uint256 issuedShares,
+        uint16 feeBps
+    )
+        public
+    {
+        // Assume shares are available to be harvested
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
+        vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+        assertEq(basket.balanceOf(feeCollector), 0);
+        // First harvest sets the date to start accruing rewards for the feeCollector
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
+        assertEq(basket.balanceOf(feeCollector), 0);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
+        // Malicous user requests redeem for feeCollector
+        address user = fuzzedUsers[0];
+        vm.startPrank(user);
+        basket.approve(user, basket.balanceOf(user));
+        basket.requestRedeem(basket.balanceOf(user), feeCollector, user);
+        vm.stopPrank();
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(feeBps, feeCollector);
+        uint256 balance = basket.balanceOf(feeCollector);
+        // Fee is unaffected by malicous user
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
+        if (expected > 0) {
+            assertEq(balance, expected);
+        }
+    }
+
     function testFuzz_prepareForRebalance(
         uint256 totalDepositAmount,
         uint256 issuedShares,

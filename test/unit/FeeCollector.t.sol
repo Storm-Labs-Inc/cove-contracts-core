@@ -214,4 +214,24 @@ contract FeeCollectorTest is BaseTest {
         feeCollector.rescue(IERC20(address(shitcoin)), alice, 1e18);
         assertEq(shitcoin.balanceOf(alice), 1e18, "rescue failed");
     }
+
+    function testFuzz_rescue_revertsWhen_InsufficientFundsToRescue(uint256 shares, uint16 sponsorSplit) public {
+        // Harvest some fees
+        vm.assume(shares > _FEE_SPLIT_DECIMALS && shares < type(uint256).max / shares);
+        vm.assume(sponsorSplit < _MAX_FEE);
+        vm.prank(admin);
+        feeCollector.setSponsorSplit(address(basketToken), sponsorSplit);
+        vm.prank(basketToken);
+        feeCollector.notifyHarvestFee(shares);
+        // mint fee collector its owed shares
+        deal(address(basketToken), address(feeCollector), shares);
+        uint256 expectedSponsorFee = shares.mulDiv(sponsorSplit, _FEE_SPLIT_DECIMALS);
+        uint256 expectedTreasuryFee = shares - expectedSponsorFee;
+        assertEq(feeCollector.claimableSponsorFees(address(basketToken)), expectedSponsorFee);
+        assertEq(feeCollector.claimableTreasuryFees(address(basketToken)), expectedTreasuryFee);
+        // attempt to rescue the minted shares
+        vm.expectRevert(FeeCollector.InsufficientFundsToRescue.selector);
+        vm.prank(admin);
+        feeCollector.rescue(IERC20(address(basketToken)), admin, shares);
+    }
 }
