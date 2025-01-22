@@ -227,8 +227,14 @@ contract BasketToken is
         return WeightStrategy(strategy).getTargetWeights(bitFlag);
     }
 
-    /// @notice Returns the assets in the basket.
-    /// @return The array of basket assets.
+    /// @notice Returns all assets that are eligible to be included in this basket based on the bitFlag
+    /// @dev This returns the complete list of eligible assets from the AssetRegistry, filtered by this basket's
+    /// bitFlag.
+    ///      The list includes all assets that could potentially be part of the basket, regardless of:
+    ///      - Their current balance in the basket
+    ///      - Their current target weight
+    ///      - Whether they are paused
+    /// @return Array of asset token addresses that are eligible for this basket
     function getAssets() public view returns (address[] memory) {
         return AssetRegistry(assetRegistry).getAssets(bitFlag);
     }
