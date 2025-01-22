@@ -319,7 +319,12 @@ library BasketManagerUtils {
             uint256[] memory targetBalances = _calculateTargetBalances(
                 self, basket, basketValue, requiredWithdrawValue, assets, basketTargetWeights[i]
             );
-            if (_isRebalanceRequired(assets, balances, targetBalances)) {
+            // Calculate target total value (sum of target balances in USD)
+            uint256 targetTotalValueUSD = basketValue;
+            if (requiredWithdrawValue > 0) {
+                targetTotalValueUSD += requiredWithdrawValue;
+            }
+            if (_isRebalanceRequired(self, assets, balances, targetBalances, basketValue, targetTotalValueUSD)) {
                 shouldRebalance = true;
             }
             // slither-disable-end calls-loop
@@ -1137,38 +1142,48 @@ library BasketManagerUtils {
         }
     }
 
-    /// @notice Internal function to check if a rebalance is required for the given basket.
-    /// @dev A rebalance is required if the difference between the current asset balances and the target balances is
-    /// greater than 0. We assume the permissioned caller has already validated the condition to call this function
-    /// optimally.
+    /// @notice Internal function to determine if a rebalance is required based on weight deviations.
     /// @param assets Array of asset addresses in the basket.
-    /// @param balances Array of balances of each asset in the basket.
-    /// @param targetBalances Array of target balances for each asset in the basket.
-    /// @return shouldRebalance Boolean indicating if a rebalance is required.
+    /// @param currentBalances Array of current balances for each asset.
+    /// @param targetBalances Array of target balances for each asset.
+    /// @param currentTotalValueUSD Total USD value of current balances (pre-calculated in proposeRebalance).
+    /// @param targetTotalValueUSD Total USD value of target balances (pre-calculated from _calculateTargetBalances).
+    /// @return True if rebalance is required, false otherwise.
+    /// @dev A rebalance is required if any asset's current weight deviates from its target weight by more than
+    /// _MAX_WEIGHT_DEVIATION
     function _isRebalanceRequired(
+        BasketManagerStorage storage self,
         address[] memory assets,
-        uint256[] memory balances,
-        uint256[] memory targetBalances
+        uint256[] memory currentBalances,
+        uint256[] memory targetBalances,
+        uint256 currentTotalValueUSD,
+        uint256 targetTotalValueUSD
     )
         private
-        pure
-        returns (bool shouldRebalance)
+        view
+        returns (bool)
     {
-        uint256 assetsLength = assets.length;
-        for (uint256 j = 0; j < assetsLength;) {
-            // slither-disable-start calls-loop
-            if (
-                MathUtils.diff(balances[j], targetBalances[j]) > 0 // nosemgrep
-            ) {
-                shouldRebalance = true;
-                break;
+        // Compare weights
+        for (uint256 i = 0; i < assets.length;) {
+            uint256 currentValueUSD = self.eulerRouter.getQuote(currentBalances[i], assets[i], _USD_ISO_4217_CODE);
+            uint256 targetValueUSD = self.eulerRouter.getQuote(targetBalances[i], assets[i], _USD_ISO_4217_CODE);
+
+            // Calculate weights with _WEIGHT_PRECISION (1e18)
+            uint256 currentWeight =
+                FixedPointMathLib.fullMulDiv(currentValueUSD, _WEIGHT_PRECISION, currentTotalValueUSD);
+            uint256 targetWeight = FixedPointMathLib.fullMulDiv(targetValueUSD, _WEIGHT_PRECISION, targetTotalValueUSD);
+
+            // If deviation exceeds _MAX_WEIGHT_DEVIATION (5%), rebalance is required
+            if (MathUtils.diff(currentWeight, targetWeight) > _MAX_WEIGHT_DEVIATION) {
+                return true;
             }
-            // slither-disable-end calls-loop
+
             unchecked {
-                // Overflow not possible: j is less than assetsLength
-                ++j;
+                ++i;
             }
         }
+
+        return false;
     }
 
     /// @notice Internal function to store the index of the base asset for a given basket. Reverts if the base asset is
