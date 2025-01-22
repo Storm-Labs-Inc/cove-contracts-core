@@ -21,7 +21,6 @@ remappings = [
     "forge-deploy-1/=dependencies/forge-deploy-1/",
     "forge-std-1.9.3/=dependencies/forge-std-1.9.3/",
     "lifinance/create3-factory-0/=dependencies/lifinance-create3-factory-0/",
-    "permit2-1/=dependencies/permit2-1/",
     "solidity-utils-5.3.0/=dependencies/solidity-utils-5.3.0/",
     "token-plugins-upgradeable-1/=dependencies/token-plugins-upgradeable-1/",
 ]
@@ -60,7 +59,6 @@ mainnet = { key = "${API_KEY_ETHERSCAN}" }
 forge-std = "1.9.3"
 "@openzeppelin-contracts" = "5.1.0"
 "@openzeppelin-contracts-upgradeable" = "5.1.0"
-permit2 = { version = "1", git = "https://github.com/Uniswap/permit2.git", rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219" }
 clones-with-immutable-args = { version = "1.1.1", git = "https://github.com/wighawag/clones-with-immutable-args.git", rev = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce" }
 token-plugins-upgradeable = { version = "1", git = "https://github.com/Storm-Labs-Inc/token-plugins-upgradeable.git", rev = "439806ce46954563a921059b6d44f792f4375312" }
 solidity-utils = { version = "5.3.0", git = "https://github.com/1inch/solidity-utils.git", rev = "2a69e2ea6c7551cfae4731752a579de9564b263e" }

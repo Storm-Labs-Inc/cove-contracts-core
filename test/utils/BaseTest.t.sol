@@ -8,8 +8,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
-import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
-import { PermitHash } from "permit2/src/libraries/PermitHash.sol";
+import { IAllowanceTransfer } from "src/interfaces/deps/permit2/IAllowanceTransfer.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
 abstract contract BaseTest is Test, Constants {
@@ -23,6 +22,13 @@ abstract contract BaseTest is Test, Constants {
     /// @dev Hash of the `_PROXY_INITCODE`.
     /// Equivalent to `keccak256(abi.encodePacked(hex"67363d3d37363d34f03d5260086018f3"))`.
     bytes32 internal constant _PROXY_INITCODE_HASH = 0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f;
+
+    bytes32 public constant _PERMIT_DETAILS_TYPEHASH =
+        keccak256("PermitDetails(address token,uint160 amount,uint48 expiration,uint48 nonce)");
+
+    bytes32 public constant _PERMIT_SINGLE_TYPEHASH = keccak256(
+        "PermitSingle(PermitDetails details,address spender,uint256 sigDeadline)PermitDetails(address token,uint160 amount,uint48 expiration,uint48 nonce)"
+    );
 
     mapping(string => address) public users;
     mapping(string => Fork) public forks;
@@ -240,22 +246,18 @@ abstract contract BaseTest is Test, Constants {
         view
         returns (uint8 v, bytes32 r, bytes32 s)
     {
-        // Use PermitHash to generate the permit2 hash. Alternatively, you can use the following code:
-        // bytes32 permitHash = keccak256(abi.encode(_PERMIT_DETAILS_TYPEHASH, IAllowanceTransfer.PermitDetails memory
-        // details))
-        // bytes32 msgHash = keccak256(abi.encode(_PERMIT_SINGLE_TYPEHASH, permitHash, approvalTo, deadline));
-        bytes32 msgHash = PermitHash.hash(
-            IAllowanceTransfer.PermitSingle({
-                details: IAllowanceTransfer.PermitDetails({
+        bytes32 permitHash = keccak256(
+            abi.encode(
+                _PERMIT_DETAILS_TYPEHASH,
+                IAllowanceTransfer.PermitDetails({
                     token: token,
                     amount: uint160(amount),
                     expiration: type(uint48).max,
                     nonce: uint48(nonce)
-                }),
-                spender: approvalTo,
-                sigDeadline: deadline
-            })
+                })
+            )
         );
+        bytes32 msgHash = keccak256(abi.encode(_PERMIT_SINGLE_TYPEHASH, permitHash, approvalTo, deadline));
         (v, r, s) = vm.sign(
             approvalFromPrivKey, // user's private key
             keccak256(
