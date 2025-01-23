@@ -177,6 +177,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.feeCollector = feeCollector_;
         _bmStorage.retryLimit = 3;
         _bmStorage.stepDelay = 15 minutes;
+        _bmStorage.maxSlippage = 0.05e18;
+        _bmStorage.maxWeightDeviation = 0.05e18;
     }
 
     /// PUBLIC FUNCTIONS ///
@@ -535,7 +537,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         _bmStorage.maxSlippage = maxSlippage_;
     }
 
-    /// @notice Sets the deviation multiplier to determine if a set of balances has reached the desired target
+    /// @notice Sets the deviation multiplier to determine if a set of balances has reached the desired target.
     function setWeightDeviation(uint256 maxWeightDeviation_) external onlyRole(_TIMELOCK_ROLE) {
         if (maxWeightDeviation_ > _MAX_WEIGHT_DEVIATION_LIMIT) {
             revert InvalidMaxWeightDeviation();
