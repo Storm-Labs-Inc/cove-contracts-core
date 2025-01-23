@@ -5,8 +5,8 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
@@ -1459,8 +1459,7 @@ contract BasketManagerTest is BaseTest {
 
         // Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
         address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -1485,6 +1484,27 @@ contract BasketManagerTest is BaseTest {
 
         uint256 sellAmount = params.depositAmount * params.sellWeight / 1e18;
         uint256 minAmount = sellAmount * 1.06e18 / 1e18; // Set minAmount 6% higher than sellAmount
+
+        externalTrades[0] = ExternalTrade({
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            sellAmount: sellAmount,
+            minAmount: minAmount,
+            basketTradeOwnership: tradeOwnerships
+        });
+
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.ExternalTradeSlippage.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        // Price of buy asset reduces
+        vm.startPrank(admin);
+        mockPriceOracle.setPrice(params.pairAsset, USD_ISO_4217_CODE, 9e17);
+        mockPriceOracle.setPrice(USD_ISO_4217_CODE, params.pairAsset, 1.1e18);
+        vm.stopPrank();
+
+        // Set minAmount to a valid value
+        minAmount = sellAmount * 0.995e18 / 1e18;
 
         externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
@@ -1528,7 +1548,6 @@ contract BasketManagerTest is BaseTest {
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         params.pairAsset = pairAsset;
-        _setPrices(params.pairAsset);
 
         // Setup basket and target weights
         address[][] memory basketAssets = new address[][](2);
@@ -1663,8 +1682,7 @@ contract BasketManagerTest is BaseTest {
 
         // Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -1720,8 +1738,7 @@ contract BasketManagerTest is BaseTest {
         // Minimum deposit amount must be greater than 500 for a rebalance to be valid
         vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
 
         /// Setup basket and target weights
         address[][] memory basketAssets = new address[][](2);
@@ -1797,8 +1814,7 @@ contract BasketManagerTest is BaseTest {
         vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
         // Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
         address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -1849,8 +1865,7 @@ contract BasketManagerTest is BaseTest {
 
         // Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -1907,8 +1922,7 @@ contract BasketManagerTest is BaseTest {
         params.baseAssetWeight = 1e18 - params.sellWeight;
         deviation = bound(deviation, max_weight_deviation, params.baseAssetWeight);
         vm.assume(params.baseAssetWeight + deviation < 1e18);
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
 
         // Setup basket and target weights
         address[][] memory basketAssets = new address[][](2);
@@ -1963,8 +1977,7 @@ contract BasketManagerTest is BaseTest {
 
         // Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
         address[][] memory basketAssets = new address[][](2);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -2078,8 +2091,7 @@ contract BasketManagerTest is BaseTest {
 
         /// Setup basket and target weights
         params.baseAssetWeight = 1e18 - params.sellWeight;
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
         address[][] memory basketAssets = new address[][](1);
         basketAssets[0] = new address[](2);
         basketAssets[0][0] = rootAsset;
@@ -2130,8 +2142,7 @@ contract BasketManagerTest is BaseTest {
         params.baseAssetWeight = 1e18 - params.sellWeight;
         deviation = bound(deviation, max_weight_deviation, params.baseAssetWeight);
         vm.assume(params.baseAssetWeight + deviation < 1e18);
-        params.pairAsset = address(new ERC20Mock());
-        _setPrices(params.pairAsset);
+        params.pairAsset = pairAsset;
 
         /// Setup basket and target weights
         address[][] memory basketAssets = new address[][](1);
