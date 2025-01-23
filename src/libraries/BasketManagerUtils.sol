@@ -871,7 +871,7 @@ library BasketManagerUtils {
     /// @param baskets Array of basket addresses currently being rebalanced.
     /// @param totalValue_ Array of total basket values in USD.
     /// @param afterTradeAmounts_ An initialized array of asset amounts for each basket being rebalanced.
-    /// @dev If the result of an external trade is not within the maxSlippage threshold of the minAmount, this
+    /// @dev If the result of an external trade is not within the slippageLimit threshold of the minAmount, this
     /// function will revert.
     function _validateExternalTrades(
         BasketManagerStorage storage self,
@@ -929,9 +929,9 @@ library BasketManagerUtils {
             info.internalMinAmount = self.eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
 
-            // Check if the given minAmount is within the maxSlippage threshold of internalMinAmount
+            // Check if the given minAmount is within the slippageLimit threshold of internalMinAmount
             if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > self.maxSlippage) {
+                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > self.slippageLimit) {
                     revert ExternalTradeSlippage();
                 }
             }
@@ -963,7 +963,7 @@ library BasketManagerUtils {
         }
     }
 
-    /// @notice Checks if weight deviations after trades are within the acceptable maxWeightDeviation threshold.
+    /// @notice Checks if weight deviations after trades are within the acceptable weightDeviationLimit threshold.
     /// Returns true if all deviations are within bounds for each asset in every basket.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param baskets Array of basket addresses currently being rebalanced.
@@ -983,7 +983,7 @@ library BasketManagerUtils {
         view
         returns (bool)
     {
-        // Check if total weight change due to all trades is within the maxWeightDeviation threshold
+        // Check if total weight change due to all trades is within the weightDeviationLimit threshold
         uint256 len = baskets.length;
         for (uint256 i = 0; i < len;) {
             // slither-disable-next-line calls-loop
@@ -1000,7 +1000,7 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > self.maxWeightDeviation) {
+                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > self.weightDeviationLimit) {
                     return false;
                 }
                 unchecked {

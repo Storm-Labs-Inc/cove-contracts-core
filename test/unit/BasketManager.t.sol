@@ -2625,10 +2625,10 @@ contract BasketManagerTest is BaseTest {
         assertEq(basketManager.slippageLimit(), slippage);
     }
 
-    function testFuzz_setSlippageLimit_revertWhen_InvalidMaxSlippage(uint256 slippage) public {
+    function testFuzz_setSlippageLimit_revertWhen_InvalidSlippageLimit(uint256 slippage) public {
         vm.assume(slippage > MAX_SLIPPAGE_LIMIT);
         vm.prank(timelock);
-        vm.expectRevert(BasketManager.InvalidMaxSlippage.selector);
+        vm.expectRevert(BasketManager.InvalidSlippageLimit.selector);
         basketManager.setSlippageLimit(slippage);
     }
 
@@ -2655,10 +2655,10 @@ contract BasketManagerTest is BaseTest {
         assertEq(basketManager.weightDeviationLimit(), deviation);
     }
 
-    function testFuzz_setWeightDeviation_revertWhen_InvalidMaxWeightDeviation(uint256 deviation) public {
+    function testFuzz_setWeightDeviation_revertWhen_InvalidWeightDeviationLimit(uint256 deviation) public {
         vm.assume(deviation > MAX_WEIGHT_DEVIATION_LIMIT);
         vm.prank(timelock);
-        vm.expectRevert(BasketManager.InvalidMaxWeightDeviation.selector);
+        vm.expectRevert(BasketManager.InvalidWeightDeviationLimit.selector);
         basketManager.setWeightDeviation(deviation);
     }
 
