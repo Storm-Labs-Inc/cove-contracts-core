@@ -90,6 +90,13 @@ contract FeeCollector is AccessControlEnumerable {
     /// @param sponsor The address of the sponsor
     function setSponsor(address basketToken, address sponsor) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _checkIfBasketToken(basketToken);
+        // claim any outstanding fees for previous sponsor
+        address currentSponsor = basketTokenSponsors[basketToken];
+        if (claimableSponsorFees[basketToken] > 0) {
+            if (currentSponsor != address(0)) {
+                _claimSponsorFee(basketToken, currentSponsor);
+            }
+        }
         basketTokenSponsors[basketToken] = sponsor;
         emit SponsorSet(basketToken, sponsor);
     }
@@ -135,9 +142,7 @@ contract FeeCollector is AccessControlEnumerable {
                 revert Unauthorized();
             }
         }
-        uint256 fee = claimableSponsorFees[basketToken];
-        claimableSponsorFees[basketToken] = 0;
-        BasketToken(basketToken).proRataRedeem(fee, sponsor, address(this));
+        _claimSponsorFee(basketToken, msg.sender);
     }
 
     /// @notice Claim the treasury fee for a given basket token, only callable by the protocol treasury or admin
@@ -154,6 +159,18 @@ contract FeeCollector is AccessControlEnumerable {
         BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
     }
 
+    /// @notice Internal function to claim the sponsor fee for a given basket token. Will immediately redeem the shares
+    /// through a proRataRedeem.
+    /// @param basketToken The address of the basket token
+    /// @param sponsor The address of the sponsor
+    function _claimSponsorFee(address basketToken, address sponsor) internal {
+        uint256 fee = claimableSponsorFees[basketToken];
+        claimableSponsorFees[basketToken] = 0;
+        BasketToken(basketToken).proRataRedeem(fee, sponsor, address(this));
+    }
+
+    /// @notice Internal function to check if a given address is a basket token
+    /// @param token The address to check
     function _checkIfBasketToken(address token) internal view {
         if (!_basketManager.hasRole(_BASKET_TOKEN_ROLE, token)) {
             revert NotBasketToken();
