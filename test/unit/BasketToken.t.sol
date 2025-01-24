@@ -1998,6 +1998,20 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.lastManagementFeeHarvestTimestamp(), lastHarvest);
     }
 
+    function testFuzz_harvestManagementFee_updatesTimeStampWhen0Supply(uint16 feeBps) public {
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
+        // First harvest sets the date to start accruing rewards for the feeCollector
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
+        uint256 lastHarvestTimeStamp = basket.lastManagementFeeHarvestTimestamp();
+        assertEq(basket.balanceOf(feeCollector), 0);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(feeBps, feeCollector);
+        assertEq(lastHarvestTimeStamp + 365 days, basket.lastManagementFeeHarvestTimestamp());
+        assertEq(basket.balanceOf(feeCollector), 0);
+    }
+
     function testFuzz_prepareForRebalance(
         uint256 totalDepositAmount,
         uint256 issuedShares,
