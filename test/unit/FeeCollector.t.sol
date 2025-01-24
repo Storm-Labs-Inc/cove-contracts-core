@@ -208,11 +208,11 @@ contract FeeCollectorTest is BaseTest {
 
     function test_rescue() public {
         address alice = createUser("alice");
-        ERC20 shitcoin = new ERC20Mock();
-        deal(address(shitcoin), address(feeCollector), 1e18);
+        ERC20 mockToken = new ERC20Mock();
+        deal(address(mockToken), address(feeCollector), 1e18);
         vm.prank(admin);
-        feeCollector.rescue(IERC20(address(shitcoin)), alice, 1e18);
-        assertEq(shitcoin.balanceOf(alice), 1e18, "rescue failed");
+        feeCollector.rescue(IERC20(address(mockToken)), alice, 1e18);
+        assertEq(mockToken.balanceOf(alice), 1e18, "rescue failed");
     }
 
     function testFuzz_rescue_revertsWhen_InsufficientFundsToRescue(uint256 shares, uint16 sponsorSplit) public {
