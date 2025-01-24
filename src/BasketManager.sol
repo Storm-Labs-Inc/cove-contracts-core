@@ -138,7 +138,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error InvalidRetryCount();
     /// @notice Thrown when attempting to set a slippage limit outside the bounds of 0 and `_MAX_SLIPPAGE_LIMIT`.
     error InvalidSlippageLimit();
-    /// @notice Thrown when attempting to set a weight deviation limt outside the bounds of 0 and
+    /// @notice Thrown when attempting to set a weight deviation limit outside the bounds of 0 and
     /// `_MAX_WEIGHT_DEVIATION_LIMIT`.
     error InvalidWeightDeviationLimit();
 
