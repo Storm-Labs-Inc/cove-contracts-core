@@ -256,7 +256,6 @@ library BasketManagerUtils {
 
         // Interactions
         for (uint256 i = 0; i < baskets.length;) {
-            bool shouldRebalance = false;
             // slither-disable-start calls-loop
             address basket = baskets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -278,7 +277,6 @@ library BasketManagerUtils {
             uint256 totalSupply = BasketToken(basket).totalSupply();
             // Process pending deposits
             if (pendingDeposits > 0) {
-                shouldRebalance = true;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 // Process pending deposits and fulfill them
@@ -298,7 +296,6 @@ library BasketManagerUtils {
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
             if (pendingRedeems > 0) {
-                shouldRebalance = true;
                 if (totalSupply > 0) {
                     // totalSupply cannot be 0 when pendingRedeems is greater than 0, as redemptions
                     // can only occur if there are issued shares (i.e., totalSupply > 0).
@@ -316,24 +313,10 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.pendingRedeems[basket] = pendingRedeems;
             }
-            uint256[] memory targetBalances = _calculateTargetBalances(
-                self, basket, basketValue, requiredWithdrawValue, assets, basketTargetWeights[i]
-            );
-            // Calculate target total value (sum of target balances in USD)
-            uint256 targetTotalValueUSD = basketValue;
-            if (requiredWithdrawValue > 0) {
-                targetTotalValueUSD += requiredWithdrawValue;
-            }
-            if (_isRebalanceRequired(self, assets, balances, targetBalances, basketValue, targetTotalValueUSD)) {
-                shouldRebalance = true;
-            }
             // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: i is less than baskets.length
                 ++i;
-            }
-            if (!shouldRebalance) {
-                revert RebalanceNotRequired();
             }
         }
 
@@ -1140,53 +1123,6 @@ library BasketManagerUtils {
                 ++j;
             }
         }
-    }
-
-    /// @notice Internal function to determine if a rebalance is required based on weight deviations.
-    /// @param assets Array of asset addresses in the basket.
-    /// @param currentBalances Array of current balances for each asset.
-    /// @param targetBalances Array of target balances for each asset.
-    /// @param currentTotalValueUSD Total USD value of current balances (pre-calculated in proposeRebalance).
-    /// @param targetTotalValueUSD Total USD value of target balances (pre-calculated from _calculateTargetBalances).
-    /// @return True if rebalance is required, false otherwise.
-    /// @dev A rebalance is required if any asset's current weight deviates from its target weight by more than
-    /// _MAX_WEIGHT_DEVIATION
-    function _isRebalanceRequired(
-        BasketManagerStorage storage self,
-        address[] memory assets,
-        uint256[] memory currentBalances,
-        uint256[] memory targetBalances,
-        uint256 currentTotalValueUSD,
-        uint256 targetTotalValueUSD
-    )
-        private
-        view
-        returns (bool)
-    {
-        // Compare weights
-        uint256 length = assets.length;
-        for (uint256 i = 0; i < length;) {
-            // slither-disable-next-line calls-loop
-            uint256 currentValueUSD = self.eulerRouter.getQuote(currentBalances[i], assets[i], _USD_ISO_4217_CODE);
-            // slither-disable-next-line calls-loop
-            uint256 targetValueUSD = self.eulerRouter.getQuote(targetBalances[i], assets[i], _USD_ISO_4217_CODE);
-
-            // Calculate weights with _WEIGHT_PRECISION (1e18)
-            uint256 currentWeight =
-                FixedPointMathLib.fullMulDiv(currentValueUSD, _WEIGHT_PRECISION, currentTotalValueUSD);
-            uint256 targetWeight = FixedPointMathLib.fullMulDiv(targetValueUSD, _WEIGHT_PRECISION, targetTotalValueUSD);
-
-            // If deviation exceeds _MAX_WEIGHT_DEVIATION (5%), rebalance is required
-            if (MathUtils.diff(currentWeight, targetWeight) > _MAX_WEIGHT_DEVIATION) {
-                return true;
-            }
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        return false;
     }
 
     /// @notice Internal function to store the index of the base asset for a given basket. Reverts if the base asset is
