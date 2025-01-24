@@ -1974,7 +1974,7 @@ contract BasketTokenTest is BaseTest {
             assertEq(balance, expected);
         }
         uint256 lastHarvest = basket.lastManagementFeeHarvestTimestamp();
-        // Malicous user attempts to force a fee harvest of 0 to increase the lastHarvest timestamp
+        // Malicious user attempts to force a fee harvest of 0 to increase the lastHarvest timestamp
         vm.warp(vm.getBlockTimestamp() + 1 days);
         // Mock proRataRedeem
         uint256 totalSupply = basket.totalSupply();
