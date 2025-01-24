@@ -1166,7 +1166,9 @@ library BasketManagerUtils {
         // Compare weights
         uint256 length = assets.length;
         for (uint256 i = 0; i < length;) {
+            // slither-disable-next-line calls-loop
             uint256 currentValueUSD = self.eulerRouter.getQuote(currentBalances[i], assets[i], _USD_ISO_4217_CODE);
+            // slither-disable-next-line calls-loop
             uint256 targetValueUSD = self.eulerRouter.getQuote(targetBalances[i], assets[i], _USD_ISO_4217_CODE);
 
             // Calculate weights with _WEIGHT_PRECISION (1e18)
