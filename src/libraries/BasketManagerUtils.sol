@@ -1164,7 +1164,8 @@ library BasketManagerUtils {
         returns (bool)
     {
         // Compare weights
-        for (uint256 i = 0; i < assets.length;) {
+        uint256 length = assets.length;
+        for (uint256 i = 0; i < length;) {
             uint256 currentValueUSD = self.eulerRouter.getQuote(currentBalances[i], assets[i], _USD_ISO_4217_CODE);
             uint256 targetValueUSD = self.eulerRouter.getQuote(targetBalances[i], assets[i], _USD_ISO_4217_CODE);
 
