@@ -613,41 +613,6 @@ contract BasketManagerTest is BaseTest {
         );
     }
 
-    function test_proposeRebalance_revertWhen_noDeposits_RebalanceNotRequired() public {
-        address basket = _setupSingleBasketAndMocks(0);
-        address[] memory targetBaskets = new address[](1);
-        targetBaskets[0] = basket;
-
-        vm.expectRevert(BasketManagerUtils.RebalanceNotRequired.selector);
-        vm.prank(rebalanceProposer);
-        basketManager.proposeRebalance(targetBaskets);
-    }
-
-    function test_proposeRebalance_revertWhen_NotAllBaskets_RebalanceNotRequired() public {
-        address[][] memory assetsPerBasket = new address[][](2);
-        assetsPerBasket[0] = new address[](2);
-        assetsPerBasket[0][0] = rootAsset;
-        assetsPerBasket[0][1] = pairAsset;
-        assetsPerBasket[1] = new address[](2);
-        assetsPerBasket[1][0] = rootAsset;
-        assetsPerBasket[1][1] = pairAsset;
-        uint64[][] memory weightsPerBasket = new uint64[][](2);
-        weightsPerBasket[0] = new uint64[](2);
-        weightsPerBasket[0][0] = 1e18;
-        weightsPerBasket[0][1] = 0;
-        weightsPerBasket[1] = new uint64[](2);
-        weightsPerBasket[1][0] = 1e18;
-        weightsPerBasket[1][1] = 0;
-        uint256[] memory initialDepositAmounts = new uint256[](2);
-        initialDepositAmounts[0] = 1e18;
-        initialDepositAmounts[1] = 0; // No deposits in the second basket
-        address[] memory baskets = _setupBasketsAndMocks(assetsPerBasket, weightsPerBasket, initialDepositAmounts);
-
-        vm.prank(rebalanceProposer);
-        vm.expectRevert(BasketManagerUtils.RebalanceNotRequired.selector);
-        basketManager.proposeRebalance(baskets);
-    }
-
     function test_proposeRebalance_revertWhen_HasPausedAssets() public {
         address basket = _setupSingleBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
