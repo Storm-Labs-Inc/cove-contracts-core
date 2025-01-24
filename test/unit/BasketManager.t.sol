@@ -2683,6 +2683,13 @@ contract BasketManagerTest is BaseTest {
         );
     }
 
+    function testFuzz_basketTokenToBaseAssetIndex_revertWhen_basketTokenNotFound(address invalidBasket) public {
+        address basket = _setupSingleBasketAndMocks();
+        vm.assume(invalidBasket != basket);
+        vm.expectRevert(BasketManager.BasketTokenNotFound.selector);
+        basketManager.basketTokenToBaseAssetIndex(invalidBasket);
+    }
+
     function testFuzz_updateBitFlag_revertWhen_BasketTokenNotFound(address invalidBasket, uint256 newBitFlag) public {
         address basket = _setupSingleBasketAndMocks();
         vm.assume(invalidBasket != basket);
