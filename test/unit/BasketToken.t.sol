@@ -1949,8 +1949,10 @@ contract BasketTokenTest is BaseTest {
         public
     {
         // Assume shares are available to be harvested
-        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
+        vm.assume(feeBps > 1e2 && feeBps <= MAX_MANAGEMENT_FEE);
         vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
+        vm.assume(expected > 0);
         testFuzz_deposit(totalDepositAmount, issuedShares);
         assertEq(basket.balanceOf(feeCollector), 0);
         // First harvest sets the date to start accruing rewards for the feeCollector
@@ -1968,10 +1970,7 @@ contract BasketTokenTest is BaseTest {
         basket.prepareForRebalance(feeBps, feeCollector);
         uint256 balance = basket.balanceOf(feeCollector);
         // Fee is unaffected by malicious user
-        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
-        if (expected > 0) {
-            assertEq(balance, expected);
-        }
+        assertEq(balance, expected);
     }
 
     function testFuzz_prepareForRebalance(

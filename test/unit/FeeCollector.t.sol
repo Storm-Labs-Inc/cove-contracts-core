@@ -234,4 +234,11 @@ contract FeeCollectorTest is BaseTest {
         vm.prank(admin);
         feeCollector.rescue(IERC20(address(basketToken)), admin, shares);
     }
+
+    function testFuzz_rescue_revertswhen_notAdmin(address caller) public {
+        vm.assume(caller != address(0) && caller != admin);
+        vm.expectRevert(_formatAccessControlError(caller, DEFAULT_ADMIN_ROLE));
+        vm.prank(caller);
+        feeCollector.rescue(IERC20(address(dummyAsset)), caller, 1e18);
+    }
 }
