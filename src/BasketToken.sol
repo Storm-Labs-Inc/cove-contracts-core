@@ -142,6 +142,8 @@ contract BasketToken is
     error NotAuthorizedOperator();
     /// @notice Thrown when an address other than the basket manager attempts to call a basket manager only function.
     error NotBasketManager();
+    /// @notice Thrown when an address other than the feeCollector attempts to harvest management fees.
+    error NotFeeCollector();
     /// @notice Thrown when attempting to set an invalid management fee percentage greater than the maximum allowed.
     error InvalidManagementFee();
     /// @notice Thrown when the basket manager attempts to fulfill a deposit request that has already been fulfilled.
@@ -642,8 +644,9 @@ contract BasketToken is
         }
 
         // Interactions
-        harvestManagementFee();
-        BasketManager(basketManager).proRataRedeem(totalSupply(), shares, to);
+        BasketManager bm = BasketManager(basketManager);
+        _harvestManagementFee(bm.managementFee(address(this)), bm.feeCollector());
+        bm.proRataRedeem(totalSupply(), shares, to);
 
         // We intentionally defer the `_burn()` operation until after the external call to
         // `BasketManager.proRataRedeem()` to prevent potential price manipulation via read-only reentrancy attacks. By
@@ -655,8 +658,12 @@ contract BasketToken is
 
     /// @notice Harvests management fees owed to the fee collector.
     function harvestManagementFee() public {
-        uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
-        address feeCollector = BasketManager(basketManager).feeCollector();
+        BasketManager bm = BasketManager(basketManager);
+        address feeCollector = bm.feeCollector();
+        if (msg.sender != feeCollector) {
+            revert NotFeeCollector();
+        }
+        uint16 feeBps = bm.managementFee(address(this));
         _harvestManagementFee(feeBps, feeCollector);
     }
 

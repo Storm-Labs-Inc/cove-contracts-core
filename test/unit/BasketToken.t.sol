@@ -1942,6 +1942,7 @@ contract BasketTokenTest is BaseTest {
             abi.encodeWithSelector(BasketManager.feeCollector.selector),
             abi.encode(feeCollector)
         );
+        vm.prank(feeCollector);
         basket.harvestManagementFee();
         uint256 balance = basket.balanceOf(feeCollector);
         uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
@@ -1994,6 +1995,18 @@ contract BasketTokenTest is BaseTest {
         if (expectedFee > 0) {
             assertEq(balance, expectedFee);
         }
+    }
+
+    function testFuzz_harvestManagementFee_revertsWhenSenderNotFeeCollector(address caller) public {
+        vm.assume(caller != feeCollector);
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.feeCollector.selector),
+            abi.encode(feeCollector)
+        );
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.NotFeeCollector.selector));
+        vm.prank(caller);
+        basket.harvestManagementFee();
     }
 
     function testFuzz_prepareForRebalance(
