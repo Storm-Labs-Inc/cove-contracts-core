@@ -92,11 +92,7 @@ contract FeeCollector is AccessControlEnumerable {
         _checkIfBasketToken(basketToken);
         // claim any outstanding fees for previous sponsor
         address currentSponsor = basketTokenSponsors[basketToken];
-        if (claimableSponsorFees[basketToken] > 0) {
-            if (currentSponsor != address(0)) {
-                _claimSponsorFee(basketToken, currentSponsor);
-            }
-        }
+        _claimSponsorFee(basketToken, currentSponsor);
         basketTokenSponsors[basketToken] = sponsor;
         emit SponsorSet(basketToken, sponsor);
     }
@@ -142,7 +138,7 @@ contract FeeCollector is AccessControlEnumerable {
                 revert Unauthorized();
             }
         }
-        _claimSponsorFee(basketToken, msg.sender);
+        _claimSponsorFee(basketToken, sponsor);
     }
 
     /// @notice Claim the treasury fee for a given basket token, only callable by the protocol treasury or admin
@@ -155,8 +151,10 @@ contract FeeCollector is AccessControlEnumerable {
         }
         _checkIfBasketToken(basketToken);
         uint256 fee = claimableTreasuryFees[basketToken];
-        claimableTreasuryFees[basketToken] = 0;
-        BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
+        if (fee > 0) {
+            claimableTreasuryFees[basketToken] = 0;
+            BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
+        }
     }
 
     /// @notice Internal function to claim the sponsor fee for a given basket token. Will immediately redeem the shares
@@ -165,8 +163,12 @@ contract FeeCollector is AccessControlEnumerable {
     /// @param sponsor The address of the sponsor
     function _claimSponsorFee(address basketToken, address sponsor) internal {
         uint256 fee = claimableSponsorFees[basketToken];
-        claimableSponsorFees[basketToken] = 0;
-        BasketToken(basketToken).proRataRedeem(fee, sponsor, address(this));
+        if (fee > 0) {
+            if (sponsor != address(0)) {
+                claimableSponsorFees[basketToken] = 0;
+                BasketToken(basketToken).proRataRedeem(fee, sponsor, address(this));
+            }
+        }
     }
 
     /// @notice Internal function to check if a given address is a basket token

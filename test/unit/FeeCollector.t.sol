@@ -147,8 +147,14 @@ contract FeeCollectorTest is BaseTest {
             abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector))),
             abi.encode(0)
         );
-        vm.prank(sponsor);
+        if (sponsorFee > 0) {
+            vm.expectCall(
+                basketToken, abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector)))
+            );
+        }
+        vm.startPrank(sponsor);
         feeCollector.claimSponsorFee(address(basketToken));
+        vm.stopPrank();
         assertEq(feeCollector.claimableSponsorFees(address(basketToken)), 0);
     }
 
