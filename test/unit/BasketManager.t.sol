@@ -1504,7 +1504,6 @@ contract BasketManagerTest is BaseTest {
         uint256 depositAmount
     )
         public
-        returns (ExternalTrade[] memory, address[] memory)
     {
         // Setup fuzzing bounds
         TradeTestParams memory params;
@@ -1538,7 +1537,7 @@ contract BasketManagerTest is BaseTest {
         ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
         InternalTrade[] memory internalTrades = new InternalTrade[](0);
         BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
-        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) + 1 });
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18 - 1) });
         externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,
