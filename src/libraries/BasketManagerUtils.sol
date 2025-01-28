@@ -21,7 +21,6 @@ library BasketManagerUtils {
     using SafeERC20 for IERC20;
 
     /// STRUCTS ///
-
     /// @notice Struct containing data for an internal trade.
     struct InternalTradeInfo {
         // Index of the basket that is selling.
@@ -44,30 +43,6 @@ library BasketManagerUtils {
         uint256 feeOnBuy;
         // Fee charged on the sell token on the trade.
         uint256 feeOnSell;
-    }
-
-    /// @notice Struct containing data for an external trade.
-    struct ExternalTradeInfo {
-        // Price of the sell token.
-        uint256 sellTokenPrice;
-        // Price of the buy token.
-        uint256 buyTokenPrice;
-        // Value of the sell token.
-        uint256 sellValue;
-        // Minimum amount of the buy token that the trade results in.
-        uint256 internalMinAmount;
-        // Difference between the internalMinAmount and the minAmount.
-        uint256 diff;
-    }
-
-    /// @notice Struct containing data for basket ownership of an external trade.
-    struct BasketOwnershipInfo {
-        // Index of the basket.
-        uint256 basketIndex;
-        // Index of the buy token asset.
-        uint256 buyTokenAssetIndex;
-        // Index of the sell token asset.
-        uint256 sellTokenAssetIndex;
     }
 
     /// CONSTANTS ///
@@ -891,37 +866,30 @@ library BasketManagerUtils {
     {
         for (uint256 i = 0; i < externalTrades.length;) {
             ExternalTrade calldata trade = externalTrades[i];
-            // slither-disable-start uninitialized-local
-            ExternalTradeInfo memory info;
-            BasketOwnershipInfo memory ownershipInfo;
-            // slither-disable-end uninitialized-local
 
             uint256 ownershipSum = 0;
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
                 BasketTradeOwnership calldata ownership = trade.basketTradeOwnership[j];
                 ownershipSum += ownership.tradeOwnership;
-                ownershipInfo.basketIndex = _indexOf(baskets, ownership.basket);
-                ownershipInfo.buyTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.buyToken);
-                ownershipInfo.sellTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.sellToken);
+                uint256 basketIndex = _indexOf(baskets, ownership.basket);
+                uint256 buyTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.buyToken);
+                uint256 sellTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.sellToken);
                 uint256 ownershipSellAmount =
                     FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 uint256 ownershipBuyAmount =
                     FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Record changes in basket asset holdings due to the external trade
-                if (
-                    ownershipSellAmount
-                        > afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
-                ) {
+                if (ownershipSellAmount > afterTradeAmounts_[basketIndex][sellTokenAssetIndex]) {
                     revert IncorrectTradeTokenAmount();
                 }
                 // solhint-disable-next-line max-line-length
-                afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] = afterTradeAmounts_[ownershipInfo
-                    .basketIndex][ownershipInfo.sellTokenAssetIndex] - ownershipSellAmount;
-                afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] =
-                    afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] + ownershipBuyAmount;
+                afterTradeAmounts_[basketIndex][sellTokenAssetIndex] =
+                    afterTradeAmounts_[basketIndex][sellTokenAssetIndex] - ownershipSellAmount;
+                afterTradeAmounts_[basketIndex][buyTokenAssetIndex] =
+                    afterTradeAmounts_[basketIndex][buyTokenAssetIndex] + ownershipBuyAmount;
                 // Update total basket value
-                totalValue_[ownershipInfo.basketIndex] = totalValue_[ownershipInfo.basketIndex]
+                totalValue_[basketIndex] = totalValue_[basketIndex]
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 - self.eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, _USD_ISO_4217_CODE)
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -935,14 +903,14 @@ library BasketManagerUtils {
                 revert OwnershipSumMismatch();
             }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            info.sellValue = self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE);
+            uint256 sellValue = self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE);
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            info.internalMinAmount = self.eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
-            info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
+            uint256 internalMinAmount = self.eulerRouter.getQuote(sellValue, _USD_ISO_4217_CODE, trade.buyToken);
+            uint256 diff = MathUtils.diff(internalMinAmount, trade.minAmount);
 
             // Check if the given minAmount is within the _MAX_SLIPPAGE threshold of internalMinAmount
-            if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE) {
+            if (internalMinAmount < trade.minAmount) {
+                if (diff * _WEIGHT_PRECISION / internalMinAmount > _MAX_SLIPPAGE) {
                     revert ExternalTradeSlippage();
                 }
             }
