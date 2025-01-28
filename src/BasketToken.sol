@@ -657,7 +657,7 @@ contract BasketToken is
     }
 
     /// @notice Harvests management fees owed to the fee collector.
-    function harvestManagementFee() public {
+    function harvestManagementFee() external {
         BasketManager bm = BasketManager(basketManager);
         address feeCollector = bm.feeCollector();
         if (msg.sender != feeCollector) {
