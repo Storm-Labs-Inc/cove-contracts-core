@@ -992,7 +992,8 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < len;) {
             // slither-disable-next-line calls-loop
             uint64[] calldata proposedTargetWeights = basketsTargetWeights[i];
-            uint64[] memory adjustedTargetWeights = new uint64[](proposedTargetWeights.length);
+            uint256 numOfAssets = proposedTargetWeights.length;
+            uint64[] memory adjustedTargetWeights = new uint64[](numOfAssets);
 
             // Calculate adjusted target weights accounting for pending redeems
             uint256 pendingRedeems = self.pendingRedeems[baskets[i]];
@@ -1005,36 +1006,36 @@ library BasketManagerUtils {
 
                 // Track running sum for all weights except the last one
                 uint256 runningSum;
-                uint256 lastIndex = proposedTargetWeights.length - 1;
+                uint256 lastIndex = numOfAssets - 1;
 
                 // Adjust weights while maintaining 1e18 sum
-                for (uint256 k = 0; k < proposedTargetWeights.length;) {
-                    if (k == lastIndex) {
+                for (uint256 j = 0; j < numOfAssets;) {
+                    if (j == lastIndex) {
                         // Use remainder for the last weight to ensure exact 1e18 sum
-                        adjustedTargetWeights[k] = uint64(_WEIGHT_PRECISION - runningSum);
+                        adjustedTargetWeights[j] = uint64(_WEIGHT_PRECISION - runningSum);
                     } else {
-                        if (k == baseAssetIndex) {
+                        if (j == baseAssetIndex) {
                             // Increase base asset weight by adding extra weight from pending redeems
-                            adjustedTargetWeights[k] = uint64(
+                            adjustedTargetWeights[j] = uint64(
                                 FixedPointMathLib.fullMulDiv(
                                     FixedPointMathLib.fullMulDiv(
-                                        remainingSupply, proposedTargetWeights[k], _WEIGHT_PRECISION
+                                        remainingSupply, proposedTargetWeights[j], _WEIGHT_PRECISION
                                     ) + pendingRedeems,
                                     _WEIGHT_PRECISION,
                                     totalSupply
                                 )
                             );
-                            runningSum += adjustedTargetWeights[k];
+                            runningSum += adjustedTargetWeights[j];
                         } else {
                             // Scale down other weights proportionally
-                            adjustedTargetWeights[k] = uint64(
-                                FixedPointMathLib.fullMulDiv(remainingSupply, proposedTargetWeights[k], totalSupply)
+                            adjustedTargetWeights[j] = uint64(
+                                FixedPointMathLib.fullMulDiv(remainingSupply, proposedTargetWeights[j], totalSupply)
                             );
-                            runningSum += adjustedTargetWeights[k];
+                            runningSum += adjustedTargetWeights[j];
                         }
                     }
                     unchecked {
-                        ++k;
+                        ++j;
                     }
                 }
             } else {
