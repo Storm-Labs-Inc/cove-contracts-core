@@ -20,7 +20,7 @@ import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
-import { Status } from "src/types/BasketManagerStorage.sol";
+import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 contract BasketManagerTest is BaseTest {
@@ -1391,6 +1391,179 @@ contract BasketManagerTest is BaseTest {
         );
         vm.expectRevert(BasketManagerUtils.CompleteTokenSwapFailed.selector);
         basketManager.completeRebalance(trades, targetBaskets, _targetWeights, basketAssets);
+    }
+
+    function test_completeRebalance_withMultipleAssets() public {
+        _setTokenSwapAdapter();
+        // Setup baskets with 4 assets each
+        address[][] memory basketAssets = new address[][](2);
+        address thirdAsset = address(new ERC20Mock());
+        address fourthAsset = address(new ERC20Mock());
+        for (uint256 i = 0; i < 2; i++) {
+            basketAssets[i] = new address[](4);
+            basketAssets[i][0] = rootAsset;
+            basketAssets[i][1] = pairAsset;
+            basketAssets[i][2] = thirdAsset;
+            basketAssets[i][3] = fourthAsset;
+        }
+
+        // Set prices for the 2 new ERC20Mock assets
+        vm.startPrank(admin);
+        for (uint256 i = 0; i < 2; i++) {
+            mockPriceOracle.setPrice(basketAssets[i][2], USD_ISO_4217_CODE, 1e18); // new asset 1
+            mockPriceOracle.setPrice(basketAssets[i][3], USD_ISO_4217_CODE, 1e18); // new asset 2
+            mockPriceOracle.setPrice(USD_ISO_4217_CODE, basketAssets[i][2], 1e18);
+            mockPriceOracle.setPrice(USD_ISO_4217_CODE, basketAssets[i][3], 1e18);
+            eulerRouter.govSetConfig(basketAssets[i][2], USD_ISO_4217_CODE, address(mockPriceOracle));
+            eulerRouter.govSetConfig(basketAssets[i][3], USD_ISO_4217_CODE, address(mockPriceOracle));
+        }
+        vm.stopPrank();
+
+        // Setup target weights for each basket (must sum to 1e18)
+        uint64[][] memory targetWeights = new uint64[][](2);
+        for (uint256 i = 0; i < 2; i++) {
+            targetWeights[i] = new uint64[](4);
+            targetWeights[i][0] = 0.4e18;
+            targetWeights[i][1] = 0.3e18;
+            targetWeights[i][2] = 0.2e18;
+            targetWeights[i][3] = 0.1e18;
+        }
+
+        // Setup initial deposit amounts for each basket
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = 1000e18;
+        initialDepositAmounts[1] = 3000e18;
+        uint256 totalDepositAmount = 0;
+        for (uint256 i = 0; i < initialDepositAmounts.length; i++) {
+            totalDepositAmount += initialDepositAmounts[i];
+        }
+
+        // Create baskets and setup mocks
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
+
+        // Propose rebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Increase total supply of each basket
+        for (uint256 i = 0; i < baskets.length; i++) {
+            vm.mockCall(
+                baskets[i], abi.encodeWithSelector(IERC20.totalSupply.selector), abi.encode(initialDepositAmounts[i])
+            );
+        }
+
+        // Verify rebalance status
+        RebalanceStatus memory status = basketManager.rebalanceStatus();
+
+        assertEq(uint8(status.status), uint8(Status.REBALANCE_PROPOSED));
+        assertEq(status.timestamp, block.timestamp);
+        assertEq(status.epoch, 0);
+        assertEq(status.retryCount, 0);
+        assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
+        assertEq(status.basketMask, 3); // Binary 11 for two baskets
+
+        // Propose token swap
+        vm.prank(tokenswapProposer);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](3);
+
+        // Setup external trades to achieve target weights
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](2);
+        for (uint256 i = 0; i < tradeOwnerships.length; i++) {
+            tradeOwnerships[i] = BasketTradeOwnership({
+                basket: baskets[i],
+                tradeOwnership: uint64(initialDepositAmounts[i] * 1e18 / totalDepositAmount)
+            });
+        }
+        for (uint256 i = 0; i < 3; i++) {
+            uint256 sellAmount = totalDepositAmount * targetWeights[0][i + 1] / 1e18;
+            externalTrades[i] = ExternalTrade({
+                sellToken: basketAssets[0][0],
+                buyToken: basketAssets[0][i + 1],
+                sellAmount: sellAmount,
+                minAmount: sellAmount * 99 / 100, // 1% slippage
+                basketTradeOwnership: tradeOwnerships
+            });
+        }
+
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, targetWeights, basketAssets);
+
+        // Verify token swap status
+        status = basketManager.rebalanceStatus();
+        assertEq(uint8(status.status), uint8(Status.TOKEN_SWAP_PROPOSED));
+        assertEq(status.timestamp, block.timestamp);
+        assertEq(status.epoch, 0);
+        assertEq(status.retryCount, 0);
+        assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
+        assertEq(status.basketMask, 3);
+        assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
+
+        // Mock successful token swap execution
+        vm.mockCall(
+            tokenSwapAdapter, abi.encodeWithSelector(TokenSwapAdapter.executeTokenSwap.selector), abi.encode(true)
+        );
+
+        // Execute token swap
+        vm.prank(tokenswapExecutor);
+        basketManager.executeTokenSwap(externalTrades, "");
+
+        // Verify token swap execution status
+        status = basketManager.rebalanceStatus();
+        assertEq(uint8(status.status), uint8(Status.TOKEN_SWAP_EXECUTED));
+
+        // Mock results of external trade
+        uint256[2][] memory claimedAmounts = new uint256[2][](externalTrades.length);
+        // TODO: Test additional cases where price is not 1:1
+        for (uint256 i = 0; i < externalTrades.length; i++) {
+            uint256 sellAmount = externalTrades[i].sellAmount;
+            uint256 buyAmount = sellAmount; // Assumes 1:1 price ratio
+            claimedAmounts[i] = [0, buyAmount]; // First element 0 means no sellToken is claimed back, indicating
+                // successful trade
+        }
+        vm.mockCall(
+            address(tokenSwapAdapter),
+            abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
+            abi.encode(claimedAmounts)
+        );
+
+        // Read balances before completeRebalance and verify initial state
+        for (uint256 i = 0; i < baskets.length; i++) {
+            for (uint256 j = 0; j < basketAssets[i].length; j++) {
+                uint256 balancesBefore = basketManager.basketBalanceOf(baskets[i], basketAssets[i][j]);
+                if (basketAssets[i][j] == rootAsset) {
+                    assertEq(
+                        balancesBefore,
+                        initialDepositAmounts[i],
+                        "Root asset balance should match initial deposit amount"
+                    );
+                } else {
+                    assertEq(balancesBefore, 0, "Non-root assets should have 0 balance");
+                }
+            }
+        }
+
+        // Complete rebalance
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
+        vm.prank(rebalanceProposer);
+        basketManager.completeRebalance(externalTrades, baskets, targetWeights, basketAssets);
+
+        // Verify final rebalance status
+        status = basketManager.rebalanceStatus();
+        assertEq(uint8(status.status), uint8(Status.NOT_STARTED));
+        assertEq(status.epoch, 1);
+        assertEq(status.retryCount, 0);
+        assertEq(status.basketHash, bytes32(0));
+        assertEq(status.basketMask, 0);
+        assertEq(basketManager.externalTradesHash(), bytes32(0));
+
+        // Verify final balances match target weights
+        for (uint256 i = 0; i < baskets.length; i++) {
+            for (uint256 j = 0; j < basketAssets[i].length; j++) {
+                uint256 finalBalance = basketManager.basketBalanceOf(baskets[i], basketAssets[i][j]);
+                uint256 expectedBalance = initialDepositAmounts[i] * targetWeights[i][j] / 1e18;
+                assertEq(finalBalance, expectedBalance, "Final balance should match expected balance");
+            }
+        }
     }
 
     // TODO: Write a fuzz test that generalizes the number of external trades
