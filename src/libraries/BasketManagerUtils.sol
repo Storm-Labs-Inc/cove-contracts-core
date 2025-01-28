@@ -14,6 +14,8 @@ import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
+import { console } from "forge-std/console.sol";
+
 /// @title BasketManagerUtils
 /// @notice Library containing utility functions for managing storage related to baskets, including creating new
 /// baskets, proposing and executing rebalances, and settling internal and external token trades.
@@ -818,28 +820,22 @@ library BasketManagerUtils {
                 feeOnSell: 0
             });
             // Calculate initial buyAmount based on trade.sellAmount
-            uint256 initialBuyAmount = self.eulerRouter.getQuote(
-                self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE),
-                _USD_ISO_4217_CODE,
-                trade.buyToken
-            );
+            uint256 sellValue = self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE);
+            uint256 initialBuyAmount = self.eulerRouter.getQuote(sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             // Calculate fee on sellAmount
             if (swapFee > 0) {
                 info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
-                totalValues[info.fromBasketIndex] -=
-                    self.eulerRouter.getQuote(info.feeOnSell, trade.sellToken, _USD_ISO_4217_CODE);
+                uint256 feeValue = FixedPointMathLib.fullMulDiv(sellValue, swapFee, 20_000);
+                totalValues[info.fromBasketIndex] -= feeValue;
                 self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
                 emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
-            }
-            info.netSellAmount = trade.sellAmount - info.feeOnSell;
-            // Calculate fee on buyAmount
-            if (swapFee > 0) {
+
                 info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
-                totalValues[info.toBasketIndex] -=
-                    self.eulerRouter.getQuote(info.feeOnBuy, trade.buyToken, _USD_ISO_4217_CODE);
+                totalValues[info.toBasketIndex] -= feeValue;
                 self.collectedSwapFees[trade.buyToken] += info.feeOnBuy;
                 emit SwapFeeCharged(trade.buyToken, info.feeOnBuy);
             }
+            info.netSellAmount = trade.sellAmount - info.feeOnSell;
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
@@ -1009,6 +1005,12 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
+                console.log("asset: %s ", asset);
+                console.log("afterTradeWeight: %d", afterTradeWeight);
+                console.log("proposedTargetWeight: %d", proposedTargetWeights[j]);
+                console.log("assetValueInUSD: %d", assetValueInUSD);
+                console.log("totalValue: %d", totalValues[i]);
+                console.log("basketBalance: %d", basketBalances[i][j]);
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
                     return false;
                 }
