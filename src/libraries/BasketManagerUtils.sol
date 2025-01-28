@@ -992,6 +992,7 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < len;) {
             // slither-disable-next-line calls-loop
             uint64[] calldata proposedTargetWeights = basketsTargetWeights[i];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 numOfAssets = proposedTargetWeights.length;
             uint64[] memory adjustedTargetWeights = new uint64[](numOfAssets);
 
