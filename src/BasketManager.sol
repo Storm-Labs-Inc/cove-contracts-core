@@ -136,10 +136,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error InvalidStepDelay();
     /// @notice Thrown when attempting to set an invalid retry limit outside the bounds of 0 and `_MAX_RETRY_COUNT`.
     error InvalidRetryCount();
-    /// @notice Thrown when attempting to set a slippage limit outside the bounds of 0 and `_MAX_SLIPPAGE_LIMIT`.
+    /// @notice Thrown when attempting to set a slippage limit greater than `_MAX_SLIPPAGE_LIMIT`.
     error InvalidSlippageLimit();
-    /// @notice Thrown when attempting to set a weight deviation limit outside the bounds of 0 and
-    /// `_MAX_WEIGHT_DEVIATION_LIMIT`.
+    /// @notice Thrown when attempting to set a weight deviation greater than `_MAX_WEIGHT_DEVIATION_LIMIT`.
     error InvalidWeightDeviationLimit();
 
     /// @notice Initializes the contract with the given parameters.
@@ -528,6 +527,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     }
 
     /// @notice Sets the slippage multiplier for token swaps.
+    /// @param slippageLimit_ New slippage limit.
     function setSlippageLimit(uint256 slippageLimit_) external onlyRole(_TIMELOCK_ROLE) {
         if (slippageLimit_ > _MAX_SLIPPAGE_LIMIT) {
             revert InvalidSlippageLimit();
@@ -538,6 +538,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     }
 
     /// @notice Sets the deviation multiplier to determine if a set of balances has reached the desired target.
+    /// @param weightDeviationLimit_ New weight deviation limit.
     function setWeightDeviation(uint256 weightDeviationLimit_) external onlyRole(_TIMELOCK_ROLE) {
         if (weightDeviationLimit_ > _MAX_WEIGHT_DEVIATION_LIMIT) {
             revert InvalidWeightDeviationLimit();
