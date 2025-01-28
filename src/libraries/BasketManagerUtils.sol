@@ -44,6 +44,8 @@ library BasketManagerUtils {
         uint256 feeOnBuy;
         // Fee charged on the sell token on the trade.
         uint256 feeOnSell;
+        // USD value of the sell token amount
+        uint256 sellValue;
     }
 
     /// @notice Struct containing data for an external trade.
@@ -815,15 +817,14 @@ library BasketManagerUtils {
                 netBuyAmount: 0,
                 netSellAmount: 0,
                 feeOnBuy: 0,
-                feeOnSell: 0
+                feeOnSell: 0,
+                sellValue: self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE)
             });
-            // Calculate initial buyAmount based on trade.sellAmount
-            uint256 sellValue = self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE);
-            uint256 initialBuyAmount = self.eulerRouter.getQuote(sellValue, _USD_ISO_4217_CODE, trade.buyToken);
+            uint256 initialBuyAmount = self.eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             // Calculate fee on sellAmount
             if (swapFee > 0) {
                 info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
-                uint256 feeValue = FixedPointMathLib.fullMulDiv(sellValue, swapFee, 20_000);
+                uint256 feeValue = FixedPointMathLib.fullMulDiv(info.sellValue, swapFee, 20_000);
                 totalValues[info.fromBasketIndex] -= feeValue;
                 self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
                 emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
