@@ -1564,6 +1564,45 @@ contract BasketManagerTest is BaseTest {
                 assertEq(finalBalance, expectedBalance, "Final balance should match expected balance");
             }
         }
+
+        // Redeem all existing base asset from the first basket
+        uint256 redeemAmount = 400e18;
+        vm.mockCall(
+            baskets[0], abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, redeemAmount)
+        );
+
+        address[] memory redeemBaskets = new address[](1);
+        redeemBaskets[0] = baskets[0];
+        uint64[][] memory redeemTargetWeights = new uint64[][](1);
+        redeemTargetWeights[0] = targetWeights[0];
+        address[][] memory redeemBasketAssets = new address[][](1);
+        redeemBasketAssets[0] = basketAssets[0];
+
+        vm.warp(vm.getBlockTimestamp() + 60 minutes);
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(redeemBaskets);
+
+        // Do not trade anything and process redeems only
+        uint256 retryLimit = basketManager.retryLimit();
+        for (uint256 i = 0; i < retryLimit; i++) {
+            vm.warp(vm.getBlockTimestamp() + 15 minutes);
+            basketManager.completeRebalance(
+                new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets
+            );
+        }
+
+        // Since the retries all failed, the next complete rebalance will process redeems if it can and exit the
+        // rebalancing status
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
+        vm.expectCall(baskets[0], abi.encodeCall(BasketToken.fulfillRedeem, (redeemAmount)));
+        basketManager.completeRebalance(new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets);
+
+        // Check the base asset balance was reduced
+        assertEq(
+            basketManager.basketBalanceOf(baskets[0], rootAsset),
+            0,
+            "Base asset balance should be reduced by redeem amount"
+        );
     }
 
     // TODO: Write a fuzz test that generalizes the number of external trades
