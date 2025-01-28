@@ -14,6 +14,8 @@ import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
+import { console } from "forge-std/console.sol";
+
 /// @title BasketManagerUtils
 /// @notice Library containing utility functions for managing storage related to baskets, including creating new
 /// baskets, proposing and executing rebalances, and settling internal and external token trades.
@@ -993,21 +995,78 @@ library BasketManagerUtils {
             // slither-disable-next-line calls-loop
             uint64[] calldata proposedTargetWeights = basketsTargetWeights[i];
             uint64[] memory adjustedTargetWeights = new uint64[](proposedTargetWeights.length);
-            uint256 withdrawValue = FixedPointMathLib.fullMulDiv(
-                self.pendingRedeems[baskets[i]], _WEIGHT_PRECISION, BasketToken(baskets[i]).totalSupply()
-            );
+
+            // Calculate adjusted target weights accounting for pending redeems
+            uint256 pendingRedeems = self.pendingRedeems[baskets[i]];
+            if (pendingRedeems > 0) {
+                uint256 totalSupply = BasketToken(baskets[i]).totalSupply();
+                console.log("totalSupply: %d", totalSupply);
+                uint256 remainingSupply = totalSupply - pendingRedeems;
+                console.log("remainingSupply: %d", remainingSupply);
+
+                // Get base asset index
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[baskets[i]] - 1;
+                console.log("baseAssetIndex: %d", baseAssetIndex);
+
+                // Track running sum for all weights except the last one
+                uint256 runningSum;
+                uint256 lastIndex = proposedTargetWeights.length - 1;
+
+                // Adjust weights while maintaining 1e18 sum
+                for (uint256 k = 0; k < proposedTargetWeights.length;) {
+                    if (k == lastIndex) {
+                        // Use remainder for the last weight to ensure exact 1e18 sum
+                        adjustedTargetWeights[k] = uint64(_WEIGHT_PRECISION - runningSum);
+                    } else {
+                        if (k == baseAssetIndex) {
+                            // Increase base asset weight by adding extra weight from pending redeems
+                            adjustedTargetWeights[k] = uint64(
+                                FixedPointMathLib.fullMulDiv(
+                                    FixedPointMathLib.fullMulDiv(
+                                        remainingSupply, proposedTargetWeights[k], _WEIGHT_PRECISION
+                                    ) + pendingRedeems,
+                                    _WEIGHT_PRECISION,
+                                    totalSupply
+                                )
+                            );
+                            runningSum += adjustedTargetWeights[k];
+                        } else {
+                            // Scale down other weights proportionally
+                            adjustedTargetWeights[k] = uint64(
+                                FixedPointMathLib.fullMulDiv(remainingSupply, proposedTargetWeights[k], totalSupply)
+                            );
+                            runningSum += adjustedTargetWeights[k];
+                        }
+                    }
+                    console.log("adjustedTargetWeights[%d]: %d", k, adjustedTargetWeights[k]);
+                    unchecked {
+                        ++k;
+                    }
+                }
+            } else {
+                // If no pending redeems, use original target weights
+                adjustedTargetWeights = proposedTargetWeights;
+            }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] calldata assets = basketAssets[i];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
+                console.log("j: %d", j);
+                console.log("assets[j]: %s", assets[j]);
+                console.log("proposedTargetWeight: %d", proposedTargetWeights[j]);
+                console.log("adjustedTargetWeight: %d", adjustedTargetWeights[j]);
+                console.log("balance: %d", basketBalances[i][j]);
                 address asset = assets[j];
                 uint256 assetValueInUSD =
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                  self.eulerRouter.getQuote(basketBalances[i][j], asset, _USD_ISO_4217_CODE);
+                console.log("assetValueInUSD: %d", assetValueInUSD);
+                console.log("totalValues[i]: %d", totalValues[i]);
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
+                console.log("afterTradeWeight: %d", afterTradeWeight);
 
                 if (MathUtils.diff(adjustedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
                     return false;
