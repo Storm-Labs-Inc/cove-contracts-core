@@ -853,7 +853,8 @@ library BasketManagerUtils {
     /// @param totalValue_ Array of total basket values in USD.
     /// @param afterTradeAmounts_ An initialized array of asset amounts for each basket being rebalanced.
     /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE threshold of the minAmount, this
-    /// function will revert.
+    /// function will revert. If the sum of the trade ownerships is not equal to _WEIGHT_PRECISION, this function will
+    /// revert.
     function _validateExternalTrades(
         BasketManagerStorage storage self,
         ExternalTrade[] calldata externalTrades,
