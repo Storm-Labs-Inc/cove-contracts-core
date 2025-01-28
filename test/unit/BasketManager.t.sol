@@ -902,7 +902,7 @@ contract BasketManagerTest is BaseTest {
         assertEq(basketManager.retryCount(), uint256(MAX_RETRIES));
 
         // We have reached max retries, if the next proposed token swap does not meet target weights the rebalance
-        // will compelted with the current balances.
+        // will completed with the current balances.
         _swapFirstBasketRootAssetToPairAsset(baskets, targetWeights, sellAmount, 0);
         assertEq(basketManager.retryCount(), uint256(0));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.NOT_STARTED));
