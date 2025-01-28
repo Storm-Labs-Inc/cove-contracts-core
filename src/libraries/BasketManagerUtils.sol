@@ -14,8 +14,6 @@ import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
-import { console } from "forge-std/console.sol";
-
 /// @title BasketManagerUtils
 /// @notice Library containing utility functions for managing storage related to baskets, including creating new
 /// baskets, proposing and executing rebalances, and settling internal and external token trades.
@@ -1005,12 +1003,6 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
-                console.log("asset: %s ", asset);
-                console.log("afterTradeWeight: %d", afterTradeWeight);
-                console.log("proposedTargetWeight: %d", proposedTargetWeights[j]);
-                console.log("assetValueInUSD: %d", assetValueInUSD);
-                console.log("totalValue: %d", totalValues[i]);
-                console.log("basketBalance: %d", basketBalances[i][j]);
                 if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
                     return false;
                 }
