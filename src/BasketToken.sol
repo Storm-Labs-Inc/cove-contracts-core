@@ -24,6 +24,18 @@ import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 /// @title BasketToken
 /// @notice Manages user deposits and redemptions, which are processed asynchronously by the Basket Manager.
+/// @dev Considerations for Integrators:
+///
+/// When users call `requestDeposit` or `requestRedeem`, the system ensures that the controller does not have any
+/// pending or claimable deposits or redeems from the controller's `lastDepositRequestId`.
+///
+/// This behavior allows for a potential griefing attack: an attacker can call `requestDeposit` or `requestRedeem` with
+/// a minimal dust amount and specify the target controller address. As a result, the target controller would then be
+/// unable to make legitimate `requestDeposit` or `requestRedeem` requests until they first claim the pending request.
+///
+/// RECOMMENDATION FOR INTEGRATORS: When integrating `BasketToken` into other contracts, always check for any pending or
+/// claimable tokens before requesting a deposit or redeem. This ensures that any pending deposits or redeems are
+/// resolved, preventing such griefing attacks.
 // slither-disable-next-line missing-inheritance
 contract BasketToken is
     ERC20PluginsUpgradeable,
