@@ -636,13 +636,17 @@ contract BasketToken is
     /// @param to Address to receive the assets.
     /// @param from Address to redeem shares from.
     function proRataRedeem(uint256 shares, address to, address from) public {
+        // Checks and effects
+        if (msg.sender != from) {
+            if (!isOperator[from][msg.sender]) {
+                _spendAllowance(from, msg.sender, shares);
+            }
+        }
+
         // Effects
         uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
         address feeCollector = BasketManager(basketManager).feeCollector();
         _harvestManagementFee(feeBps, feeCollector);
-        if (msg.sender != from) {
-            _spendAllowance(from, msg.sender, shares);
-        }
 
         // Interactions
         BasketManager(basketManager).proRataRedeem(totalSupply(), shares, to);
