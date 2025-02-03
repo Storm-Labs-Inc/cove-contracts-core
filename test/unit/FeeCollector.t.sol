@@ -5,7 +5,6 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
@@ -157,8 +156,38 @@ contract FeeCollectorTest is BaseTest {
         vm.mockCall(
             address(basketManager), abi.encodeCall(BasketManager.managementFee, address(basketToken)), abi.encode(0)
         );
+        if (sponsorFee > 0) {
+            vm.expectCall(
+                basketToken, abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector)))
+            );
+        }
         vm.prank(sponsor);
         feeCollector.claimSponsorFee(address(basketToken));
+        assertEq(feeCollector.claimableSponsorFees(address(basketToken)), 0);
+    }
+
+    function testFuzz_claimOutStandingSponsorFee_setSponsor(
+        uint256 shares,
+        uint16 sponsorSplit,
+        address newSponsor
+    )
+        public
+    {
+        vm.assume(sponsorSplit < _MAX_FEE && sponsorSplit != 0);
+        vm.assume(newSponsor != address(0) && newSponsor != sponsor && newSponsor != admin);
+        vm.prank(admin);
+        feeCollector.setSponsorSplit(address(basketToken), sponsorSplit);
+        testFuzz_notifyHarvestFee(shares, sponsorSplit);
+        uint256 sponsorFee = feeCollector.claimableSponsorFees(address(basketToken));
+        vm.mockCall(
+            address(basketToken),
+            abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector))),
+            abi.encode(0)
+        );
+        // Sponsor fees are available to claim
+        assertGt(feeCollector.claimableSponsorFees(address(basketToken)), 0);
+        vm.prank(admin);
+        feeCollector.setSponsor(address(basketToken), newSponsor);
         assertEq(feeCollector.claimableSponsorFees(address(basketToken)), 0);
     }
 
