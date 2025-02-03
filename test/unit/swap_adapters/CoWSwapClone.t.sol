@@ -269,6 +269,31 @@ contract CoWSwapCloneTest is Test {
         );
     }
 
+    function testFuzz_isValidSignature_returnsNonMagicValueWhen_AppDataIsNotZero(
+        address sellToken,
+        address buyToken,
+        uint256 sellAmount,
+        uint256 buyAmount,
+        uint32 validTo,
+        address receiver,
+        address operator,
+        bytes32 salt,
+        bytes32 appData
+    )
+        public
+    {
+        vm.assume(appData != bytes32(0));
+        address clone = testFuzz_clone(sellToken, buyToken, sellAmount, buyAmount, validTo, receiver, operator, salt);
+        GPv2Order.Data memory order = _getOrderData(sellToken, buyToken, sellAmount, buyAmount, validTo, clone);
+        order.appData = appData;
+
+        assertEq(
+            CoWSwapClone(clone).isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
+            _ERC1271_NON_MAGIC_VALUE,
+            "Invalid signature non-magic value"
+        );
+    }
+
     function testFuzz_isValidSignature_returnsNonMagicValueWhen_FeeAmountIsNotZero(
         address sellToken,
         address buyToken,
