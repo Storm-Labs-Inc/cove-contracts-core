@@ -139,6 +139,8 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
                 revert Unauthorized();
             }
         }
+        // Call harvestManagementFee to ensure that the fee is up to date
+        BasketToken(basketToken).harvestManagementFee();
         uint256 fee = claimableSponsorFees[basketToken];
         claimableSponsorFees[basketToken] = 0;
         BasketToken(basketToken).proRataRedeem(fee, sponsor, address(this));
@@ -147,15 +149,18 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
     /// @notice Claim the treasury fee for a given basket token, only callable by the protocol treasury or admin
     /// @param basketToken The address of the basket token
     function claimTreasuryFee(address basketToken) external {
-        if (msg.sender != protocolTreasury) {
+        _checkIfBasketToken(basketToken);
+        address protocolTreasury_ = protocolTreasury;
+        if (msg.sender != protocolTreasury_) {
             if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
                 revert Unauthorized();
             }
         }
-        _checkIfBasketToken(basketToken);
+        // Call harvestManagementFee to ensure that the fee is up to date
+        BasketToken(basketToken).harvestManagementFee();
         uint256 fee = claimableTreasuryFees[basketToken];
         claimableTreasuryFees[basketToken] = 0;
-        BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
+        BasketToken(basketToken).proRataRedeem(fee, protocolTreasury_, address(this));
     }
 
     /// @notice Rescue ERC20 tokens or ETH from the contract. Reverts if the balance trying to rescue exceeds the

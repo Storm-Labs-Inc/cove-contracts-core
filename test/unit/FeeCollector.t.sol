@@ -10,6 +10,7 @@ import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
+import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { Errors } from "src/libraries/Errors.sol";
@@ -46,6 +47,9 @@ contract FeeCollectorTest is BaseTest {
         );
         vm.label(basketToken, "basketToken");
         feeCollector = new FeeCollector(admin, basketManager, treasury);
+        vm.mockCall(
+            address(basketManager), abi.encodeCall(BasketManager.feeCollector, ()), abi.encode(address(feeCollector))
+        );
         vm.prank(admin);
         feeCollector.setSponsor(address(basketToken), sponsor);
     }
@@ -150,6 +154,9 @@ contract FeeCollectorTest is BaseTest {
             abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector))),
             abi.encode(0)
         );
+        vm.mockCall(
+            address(basketManager), abi.encodeCall(BasketManager.managementFee, address(basketToken)), abi.encode(0)
+        );
         vm.prank(sponsor);
         feeCollector.claimSponsorFee(address(basketToken));
         assertEq(feeCollector.claimableSponsorFees(address(basketToken)), 0);
@@ -182,6 +189,9 @@ contract FeeCollectorTest is BaseTest {
             address(basketToken),
             abi.encodeCall(BasketToken.proRataRedeem, (treasuryFee, treasury, address(feeCollector))),
             abi.encode(0)
+        );
+        vm.mockCall(
+            address(basketManager), abi.encodeCall(BasketManager.managementFee, address(basketToken)), abi.encode(0)
         );
         vm.prank(treasury);
         feeCollector.claimTreasuryFee(address(basketToken));
