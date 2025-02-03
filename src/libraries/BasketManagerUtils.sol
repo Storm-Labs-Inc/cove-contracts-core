@@ -229,7 +229,6 @@ library BasketManagerUtils {
 
         // Interactions
         for (uint256 i = 0; i < baskets.length;) {
-            bool shouldRebalance = false;
             // slither-disable-start calls-loop
             address basket = baskets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -251,7 +250,6 @@ library BasketManagerUtils {
             uint256 totalSupply = BasketToken(basket).totalSupply();
             // Process pending deposits
             if (pendingDeposits > 0) {
-                shouldRebalance = true;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 // Process pending deposits and fulfill them
@@ -271,7 +269,6 @@ library BasketManagerUtils {
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
             if (pendingRedeems > 0) {
-                shouldRebalance = true;
                 if (totalSupply > 0) {
                     // totalSupply cannot be 0 when pendingRedeems is greater than 0, as redemptions
                     // can only occur if there are issued shares (i.e., totalSupply > 0).
@@ -289,19 +286,10 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.pendingRedeems[basket] = pendingRedeems;
             }
-            uint256[] memory targetBalances = _calculateTargetBalances(
-                self, basket, basketValue, requiredWithdrawValue, assets, basketTargetWeights[i]
-            );
-            if (_isRebalanceRequired(assets, balances, targetBalances)) {
-                shouldRebalance = true;
-            }
             // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: i is less than baskets.length
                 ++i;
-            }
-            if (!shouldRebalance) {
-                revert RebalanceNotRequired();
             }
         }
 
@@ -1102,40 +1090,6 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
             }
-            unchecked {
-                // Overflow not possible: j is less than assetsLength
-                ++j;
-            }
-        }
-    }
-
-    /// @notice Internal function to check if a rebalance is required for the given basket.
-    /// @dev A rebalance is required if the difference between the current asset balances and the target balances is
-    /// greater than 0. We assume the permissioned caller has already validated the condition to call this function
-    /// optimally.
-    /// @param assets Array of asset addresses in the basket.
-    /// @param balances Array of balances of each asset in the basket.
-    /// @param targetBalances Array of target balances for each asset in the basket.
-    /// @return shouldRebalance Boolean indicating if a rebalance is required.
-    function _isRebalanceRequired(
-        address[] memory assets,
-        uint256[] memory balances,
-        uint256[] memory targetBalances
-    )
-        private
-        pure
-        returns (bool shouldRebalance)
-    {
-        uint256 assetsLength = assets.length;
-        for (uint256 j = 0; j < assetsLength;) {
-            // slither-disable-start calls-loop
-            if (
-                MathUtils.diff(balances[j], targetBalances[j]) > 0 // nosemgrep
-            ) {
-                shouldRebalance = true;
-                break;
-            }
-            // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;
