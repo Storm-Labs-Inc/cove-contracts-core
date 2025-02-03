@@ -140,6 +140,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     error InvalidSlippageLimit();
     /// @notice Thrown when attempting to set a weight deviation greater than `_MAX_WEIGHT_DEVIATION_LIMIT`.
     error InvalidWeightDeviationLimit();
+    /// @notice Thrown when attempting to execute a token swap with empty external trades array
+    error EmptyExternalTrades();
 
     /// @notice Initializes the contract with the given parameters.
     /// @param basketTokenImplementation Address of the basket token implementation.
@@ -395,6 +397,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         address swapAdapter = _bmStorage.tokenSwapAdapter;
         if (swapAdapter == address(0)) {
             revert Errors.ZeroAddress();
+        }
+        if (externalTrades.length == 0) {
+            revert EmptyExternalTrades();
         }
         // Check if the external trades match the hash from proposeTokenSwap
         if (keccak256(abi.encode(externalTrades)) != _bmStorage.externalTradesHash) {

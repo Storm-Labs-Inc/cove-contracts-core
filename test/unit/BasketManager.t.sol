@@ -2535,6 +2535,7 @@ contract BasketManagerTest is BaseTest {
     )
         public
     {
+        vm.assume(badTrades.length > 0);
         _setTokenSwapAdapter();
         (ExternalTrade[] memory trades,) = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
         vm.assume(keccak256(abi.encode(badTrades)) != keccak256(abi.encode(trades)));
@@ -2543,6 +2544,21 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(BasketManager.ExternalTradesHashMismatch.selector);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(badTrades, "");
+    }
+
+    function testFuzz_executeTokenSwap_revertWhen_EmptyExternalTrades(
+        uint256 sellWeight,
+        uint256 depositAmount,
+        bytes memory data
+    )
+        public
+    {
+        _setTokenSwapAdapter();
+        testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
+        // Now test empty trades execution
+        vm.prank(tokenswapExecutor);
+        vm.expectRevert(BasketManager.EmptyExternalTrades.selector);
+        basketManager.executeTokenSwap(new ExternalTrade[](0), data);
     }
 
     function testFuzz_executeTokenSwap_revertWhen_TokenSwapNotProposed(ExternalTrade[] memory trades) public {
