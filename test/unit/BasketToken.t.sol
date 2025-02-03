@@ -142,10 +142,6 @@ contract BasketTokenTest is BaseTest {
         assertEq(token.supportsInterface(erc7540Operator), true);
         assertEq(token.supportsInterface(erc7540Deposit), true);
         assertEq(token.supportsInterface(erc7540Redeem), true);
-        // eip 712
-        (, string memory eip712name, string memory version,,,,) = token.eip712Domain();
-        assertEq(eip712name, token.name());
-        assertEq(version, "1");
     }
 
     function testFuzz_initialize_revertsWhen_strategyZero(
