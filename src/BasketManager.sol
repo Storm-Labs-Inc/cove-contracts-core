@@ -632,7 +632,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     }
 
     /// @notice Allows the timelock to execute an arbitrary function call on a target contract.
-    /// @dev Can only be called by addresses with the timelock role. Reverts if the execution fails.
+    /// @dev Can only be called by addresses with the timelock role. Reverts if the execution fails. Reverts if the
+    /// target of the call is an asset that is active in the asset registry.
     /// @param target The address of the target contract.
     /// @param data The calldata to send to the target contract.
     /// @param value The amount of Ether (in wei) to send with the call.
@@ -649,6 +650,11 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     {
         // Checks
         if (target == address(0)) revert Errors.ZeroAddress();
+        AssetRegistry.AssetStatus status = AssetRegistry(_bmStorage.assetRegistry).getAssetStatus(address(target));
+        if (status != AssetRegistry.AssetStatus.DISABLED) {
+            revert AssetExistsInUniverse();
+        }
+
         // Interactions
         // slither-disable-start arbitrary-send-eth
         // slither-disable-start low-level-calls

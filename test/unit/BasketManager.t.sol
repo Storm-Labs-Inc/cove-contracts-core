@@ -113,11 +113,11 @@ contract BasketManagerTest is BaseTest {
         vm.stopPrank();
         vm.label(address(basketManager), "basketManager");
 
-        // Timelock actions
-        vm.startPrank(timelock);
-        basketManager.setSlippageLimit(0.05e18);
-        basketManager.setWeightDeviation(0.05e18);
-        vm.stopPrank();
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, mockTarget),
+            abi.encode(AssetRegistry.AssetStatus.DISABLED)
+        );
     }
 
     function testFuzz_constructor(
@@ -250,6 +250,18 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(timelock);
         basketManager.execute{ value: 1 ether }(address(0), data, 1 ether);
+    }
+
+    function test_execute_revertWhen_AssetExistsInUniverse() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, mockTarget),
+            abi.encode(AssetRegistry.AssetStatus.ENABLED)
+        );
+        vm.expectRevert(BasketManager.AssetExistsInUniverse.selector);
+        vm.prank(timelock);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
     }
 
     function test_rescue() public {
