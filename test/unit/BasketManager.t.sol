@@ -1430,6 +1430,109 @@ contract BasketManagerTest is BaseTest {
         return (externalTrades, baskets);
     }
 
+    function test_proposeTokenSwap_externalTrade_multipleBaskets() public {
+        TradeTestParams memory params;
+        params.depositAmount = 77;
+        // New dummy asset for new basket
+        address dummyAsset = address(new ERC20Mock());
+        // vm.startPrank(admin);
+        _setPrices(dummyAsset);
+        _setTokenSwapAdapter();
+
+        // Setup basket and target weights
+        params.pairAsset = pairAsset;
+        address[][] memory basketAssets = new address[][](2);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        basketAssets[1] = new address[](3);
+        basketAssets[1][0] = rootAsset;
+        basketAssets[1][1] = params.pairAsset;
+        basketAssets[1][2] = dummyAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = params.depositAmount;
+        // 2nd basket will have smaller deposit amount to force calculation in external trade ownership
+        uint256 depositAmount2 = 33;
+        initialDepositAmounts[1] = depositAmount2;
+        // Setup target weights to force trades into pair asset
+        uint64[][] memory targetWeights = new uint64[][](2);
+        targetWeights[0] = new uint64[](2);
+        targetWeights[0][0] = 0;
+        targetWeights[0][1] = uint64(1e18);
+        targetWeights[1] = new uint64[](3);
+        targetWeights[1][0] = 0;
+        targetWeights[1][1] = uint64(1e18);
+        targetWeights[1][2] = 0;
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
+
+        // Propose the rebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Setup the trade and propose token swap
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](2);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(0.7e18) });
+        tradeOwnerships[1] = BasketTradeOwnership({ basket: baskets[1], tradeOwnership: uint96(0.3e18) });
+        externalTrades[0] = ExternalTrade({
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            sellAmount: 110,
+            minAmount: 110,
+            basketTradeOwnership: tradeOwnerships
+        });
+        vm.expectEmit();
+        emit BasketManager.TokenSwapProposed(basketManager.rebalanceStatus().epoch, internalTrades, externalTrades);
+        vm.prank(tokenswapProposer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        // Confirm end state
+        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
+        assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
+
+        // Mock calls for executeTokenSwap
+        uint256 numTrades = externalTrades.length;
+        bytes32[] memory tradeHashes = new bytes32[](numTrades);
+        for (uint8 i = 0; i < numTrades; i++) {
+            tradeHashes[i] = keccak256(abi.encode(externalTrades[i]));
+        }
+        vm.mockCall(
+            address(tokenSwapAdapter),
+            abi.encodeWithSelector(TokenSwapAdapter.executeTokenSwap.selector),
+            abi.encode(tradeHashes)
+        );
+
+        // Execute
+        vm.prank(tokenswapExecutor);
+        basketManager.executeTokenSwap(externalTrades, "");
+
+        // Simulate the passage of time
+        vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
+
+        vm.mockCall(baskets[0], abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
+        vm.mockCall(baskets[1], abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
+        vm.mockCall(baskets[0], abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
+        vm.mockCall(baskets[1], abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0));
+        vm.mockCall(baskets[0], abi.encodeWithSelector(BasketToken.fulfillRedeem.selector), new bytes(0));
+        vm.mockCall(baskets[1], abi.encodeWithSelector(BasketToken.fulfillRedeem.selector), new bytes(0));
+        vm.mockCall(baskets[0], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(params.depositAmount));
+        vm.mockCall(baskets[1], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(depositAmount2));
+        // Mock results of external trade
+        uint256[2][] memory claimedAmounts = new uint256[2][](1);
+        claimedAmounts[0] = [0, uint256(111)];
+        vm.mockCall(
+            address(tokenSwapAdapter),
+            abi.encodeWithSelector(TokenSwapAdapter.completeTokenSwap.selector),
+            abi.encode(claimedAmounts)
+        );
+        basketManager.completeRebalance(externalTrades, baskets, targetWeights, basketAssets);
+        assertEq(basketManager.basketBalanceOf(baskets[0], pairAsset), 77);
+        // Previous implementation the 1 dust would be lost.
+        assertEq(basketManager.basketBalanceOf(baskets[1], pairAsset), 34);
+    }
+
     function testFuzz_proposeTokenSwap_revertWhen_externalTrade_ExternalTradeSlippage(
         uint256 sellWeight,
         uint256 depositAmount

@@ -681,16 +681,37 @@ library BasketManagerUtils {
             ExternalTrade calldata trade = externalTrades[i];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 tradeOwnershipLength = trade.basketTradeOwnership.length;
+            uint256 remainingSellTokenAmount = claimedAmounts[i][0];
+            uint256 remainingBuyTokenAmount = claimedAmounts[i][1];
+            uint256 remainingSellAmount = trade.sellAmount;
+
             for (uint256 j; j < tradeOwnershipLength;) {
                 BasketTradeOwnership calldata ownership = trade.basketTradeOwnership[j];
-                address basket = ownership.basket;
-                // Account for bought tokens
-                self.basketBalanceOf[basket][trade.buyToken] +=
-                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, _WEIGHT_PRECISION);
-                // Account for sold tokens
-                self.basketBalanceOf[basket][trade.sellToken] = self.basketBalanceOf[basket][trade.sellToken]
-                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, _WEIGHT_PRECISION)
-                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
+
+                if (j == tradeOwnershipLength - 1) {
+                    // Last ownership gets remaining amounts
+                    self.basketBalanceOf[ownership.basket][trade.buyToken] += remainingBuyTokenAmount;
+                    self.basketBalanceOf[ownership.basket][trade.sellToken] = self.basketBalanceOf[ownership.basket][trade
+                        .sellToken] + remainingSellTokenAmount - remainingSellAmount;
+                } else {
+                    // Calculate ownership portions
+                    uint256 buyTokenAmount =
+                        FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, _WEIGHT_PRECISION);
+                    uint256 sellTokenAmount =
+                        FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, _WEIGHT_PRECISION);
+                    uint256 sellAmount =
+                        FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
+
+                    // Update balances
+                    self.basketBalanceOf[ownership.basket][trade.buyToken] += buyTokenAmount;
+                    self.basketBalanceOf[ownership.basket][trade.sellToken] =
+                        self.basketBalanceOf[ownership.basket][trade.sellToken] + sellTokenAmount - sellAmount;
+
+                    // Track remaining amounts
+                    remainingBuyTokenAmount -= buyTokenAmount;
+                    remainingSellTokenAmount -= sellTokenAmount;
+                    remainingSellAmount -= sellAmount;
+                }
                 unchecked {
                     // Overflow not possible: i is less than tradeOwnerShipLength.length
                     ++j;
