@@ -2001,6 +2001,77 @@ contract BasketTokenTest is BaseTest {
         }
     }
 
+    function test_harvestManagementFee_doesntUpdateTimestampOn0Fee() public {
+        // Small deposit to force a 0 fee calculation
+        uint256 totalDepositAmount = 1e5;
+        uint256 issuedShares = 1e5;
+        uint16 feeBps = 1;
+        address user = fuzzedUsers[0];
+        // Request deposit
+        testFuzz_requestDeposit(totalDepositAmount, user);
+        // Fulfill deposit
+        vm.startPrank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
+        basket.fulfillDeposit(issuedShares);
+        vm.stopPrank();
+        uint256 maxDeposit = basket.maxDeposit(user);
+        // Claim deposit
+        vm.prank(user);
+        basket.deposit(maxDeposit, user);
+        assertEq(basket.balanceOf(feeCollector), 0);
+
+        // First harvest sets the date to start accruing rewards for the feeCollector
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
+        assertEq(basket.balanceOf(feeCollector), 0);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
+        // Second harvest sets a valid lastManagementFeeHarvestTimestamp
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(feeBps, feeCollector);
+        uint256 balance = basket.balanceOf(feeCollector);
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
+        if (expected > 0) {
+            assertEq(balance, expected);
+        }
+        uint256 lastHarvest = basket.lastManagementFeeHarvestTimestamp();
+        // Malicious user attempts to force a fee harvest of 0 to increase the lastHarvest timestamp
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        // Mock proRataRedeem
+        uint256 totalSupply = basket.totalSupply();
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, 1, user),
+            abi.encode(0)
+        );
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+            abi.encode(feeBps)
+        );
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.feeCollector.selector),
+            abi.encode(feeCollector)
+        );
+        vm.prank(user);
+        basket.proRataRedeem(1, user, user);
+        assertEq(basket.lastManagementFeeHarvestTimestamp(), lastHarvest);
+    }
+
+    function testFuzz_harvestManagementFee_updatesTimeStampWhen0Supply(uint16 feeBps) public {
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
+        // First harvest sets the date to start accruing rewards for the feeCollector
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
+        uint256 lastHarvestTimeStamp = basket.lastManagementFeeHarvestTimestamp();
+        assertEq(basket.balanceOf(feeCollector), 0);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(feeBps, feeCollector);
+        assertEq(lastHarvestTimeStamp + 365 days, basket.lastManagementFeeHarvestTimestamp());
+        assertEq(basket.balanceOf(feeCollector), 0);
+    }
+
     function testFuzz_prepareForRebalance(
         uint256 totalDepositAmount,
         uint256 issuedShares,
