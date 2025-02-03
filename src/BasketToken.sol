@@ -638,9 +638,11 @@ contract BasketToken is
     /// @param to Address to receive the assets.
     /// @param from Address to redeem shares from.
     function proRataRedeem(uint256 shares, address to, address from) public {
-        // Effects
+        // Checks and effects
         if (msg.sender != from) {
-            _spendAllowance(from, msg.sender, shares);
+            if (!isOperator[from][msg.sender]) {
+                _spendAllowance(from, msg.sender, shares);
+            }
         }
 
         // Interactions
@@ -680,26 +682,30 @@ contract BasketToken is
         uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
 
         // Effects
-        lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
         if (feeBps != 0) {
             if (timeSinceLastHarvest != 0) {
-                if (timeSinceLastHarvest != block.timestamp) {
-                    // remove shares held by the treasury or currently pending redemption from calculation
-                    uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
-                        - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
+                // remove shares held by the treasury or currently pending redemption from calculation
+                uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
+                    - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
+                if (currentTotalSupply > 0) {
                     uint256 fee = FixedPointMathLib.fullMulDiv(
                         currentTotalSupply,
                         feeBps * timeSinceLastHarvest,
                         ((_MANAGEMENT_FEE_DECIMALS - feeBps) * uint256(365 days))
                     );
                     if (fee != 0) {
+                        lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
                         emit ManagementFeeHarvested(fee);
                         _mint(feeCollector, fee);
                         // Interactions
                         FeeCollector(feeCollector).notifyHarvestFee(fee);
                     }
+                } else {
+                    lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
                 }
             }
+        } else {
+            lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
         }
     }
 
