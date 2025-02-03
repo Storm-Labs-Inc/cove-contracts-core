@@ -1750,6 +1750,7 @@ contract BasketTokenTest is BaseTest {
             // Approve token spend
             vm.prank(from);
             basket.approve(caller, sharesToRedeem);
+            assertGt(basket.allowance(from, caller), 0);
 
             // Mock proRataRedeem
             uint256 totalSupply = basket.totalSupply();
@@ -1770,6 +1771,65 @@ contract BasketTokenTest is BaseTest {
             );
 
             // Call proRataRedeem
+            vm.prank(caller);
+            vm.expectCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, sharesToRedeem, to)
+            );
+            basket.proRataRedeem(sharesToRedeem, to, from);
+
+            // Check state
+            assertEq(basket.balanceOf(from), userShares - sharesToRedeem);
+            assertEq(basket.totalSupply(), totalSupply - sharesToRedeem);
+            // Verify the allowance is consumed
+            assertEq(basket.allowance(from, caller), 0);
+        }
+    }
+
+    function testFuzz_proRataRedeem_passWhen_CallerIsOperator(
+        uint256 totalDepositAmount,
+        uint256 issuedShares,
+        address caller,
+        address to
+    )
+        public
+    {
+        vm.assume(caller != address(0) && to != address(0));
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+        for (uint256 i = 0; i < MAX_USERS; ++i) {
+            address from = fuzzedUsers[i];
+            uint256 userShares = basket.balanceOf(from);
+            // Ignore the cases where the user has deposited non zero amount but has zero shares
+            vm.assume(userShares > 0);
+            uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userShares))), 1, userShares);
+
+            // Set caller as operator for from
+            vm.prank(from);
+            basket.setOperator(caller, true);
+            assertTrue(basket.isOperator(from, caller));
+
+            // Mock proRataRedeem
+            uint256 totalSupply = basket.totalSupply();
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, sharesToRedeem, to),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+                abi.encode(0)
+            );
+            vm.mockCall(
+                address(basketManager),
+                abi.encodeWithSelector(BasketManager.feeCollector.selector),
+                abi.encode(feeCollector)
+            );
+
+            // Verify no allowance is given to the operator
+            assertEq(basket.allowance(from, caller), 0);
+
+            // Call proRataRedeem without any allowance since caller is operator
             vm.prank(caller);
             vm.expectCall(
                 address(basketManager),
