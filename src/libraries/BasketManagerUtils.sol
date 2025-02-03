@@ -915,11 +915,10 @@ library BasketManagerUtils {
             uint256 diff = MathUtils.diff(internalMinAmount, trade.minAmount);
 
             // Check if the given minAmount is within the slippageLimit threshold of internalMinAmount
-            if (internalMinAmount < trade.minAmount) {
-                if (diff * _WEIGHT_PRECISION / internalMinAmount > self.slippageLimit) {
-                    revert ExternalTradeSlippage();
-                }
+            if (diff * _WEIGHT_PRECISION / internalMinAmount > self.slippageLimit) {
+                revert ExternalTradeSlippage();
             }
+
             unchecked {
                 // Overflow not possible: i is bounded by baskets.length
                 ++i;
