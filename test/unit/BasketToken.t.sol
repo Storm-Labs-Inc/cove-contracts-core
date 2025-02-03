@@ -1992,13 +1992,81 @@ contract BasketTokenTest is BaseTest {
         basket.prepareForRebalance(0, feeCollector);
         assertEq(basket.balanceOf(feeCollector), 0);
         vm.warp(vm.getBlockTimestamp() + 365 days);
-        vm.prank(address(basketManager));
-        basket.prepareForRebalance(feeBps, feeCollector);
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+            abi.encode(feeBps)
+        );
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.feeCollector.selector),
+            abi.encode(feeCollector)
+        );
+        vm.prank(feeCollector);
+        basket.harvestManagementFee();
         uint256 balance = basket.balanceOf(feeCollector);
         uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
         if (expected > 0) {
             assertEq(balance, expected);
         }
+    }
+
+    function testFuzz_harvestManagementFee_proRataRedeem(
+        uint256 totalDepositAmount,
+        uint256 issuedShares,
+        uint16 feeBps
+    )
+        public
+    {
+        // Assume shares are available to be harvested
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
+        vm.assume(issuedShares > 1e4 && issuedShares < type(uint256).max / (feeBps * uint256(365 days)));
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+        assertEq(basket.balanceOf(feeCollector), 0);
+        // First harvest sets the date to start accruing rewards for the feeCollector
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
+        assertEq(basket.balanceOf(feeCollector), 0);
+        vm.warp(vm.getBlockTimestamp() + 365 days);
+
+        // User 1 proRataRedeems, triggering a harvest of management fees
+        address user = fuzzedUsers[0];
+        uint256 sharesToRedeem = basket.balanceOf(user);
+        uint256 expectedFee = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
+        uint256 totalSupply = basket.totalSupply() + expectedFee;
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.proRataRedeem.selector, totalSupply, sharesToRedeem, user),
+            abi.encode(0)
+        );
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.managementFee.selector, address(basket)),
+            abi.encode(feeBps)
+        );
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.feeCollector.selector),
+            abi.encode(feeCollector)
+        );
+        vm.prank(user);
+        basket.proRataRedeem(sharesToRedeem, user, user);
+        uint256 balance = basket.balanceOf(feeCollector);
+        if (expectedFee > 0) {
+            assertEq(balance, expectedFee);
+        }
+    }
+
+    function testFuzz_harvestManagementFee_revertsWhenSenderNotFeeCollector(address caller) public {
+        vm.assume(caller != feeCollector);
+        vm.mockCall(
+            address(basketManager),
+            abi.encodeWithSelector(BasketManager.feeCollector.selector),
+            abi.encode(feeCollector)
+        );
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.NotFeeCollector.selector));
+        vm.prank(caller);
+        basket.harvestManagementFee();
     }
 
     function test_harvestManagementFee_doesntUpdateTimestampOn0Fee() public {
