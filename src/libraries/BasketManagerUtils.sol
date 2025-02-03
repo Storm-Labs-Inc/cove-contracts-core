@@ -50,10 +50,6 @@ library BasketManagerUtils {
     address private constant _USD_ISO_4217_CODE = address(840);
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 private constant _MAX_NUM_OF_BASKET_TOKENS = 256;
-    /// @notice Maximum slippage multiplier for token swaps, expressed in 1e18.
-    uint256 private constant _MAX_SLIPPAGE = 0.05e18; // 5%
-    /// @notice Maximum deviation multiplier to determine if a set of balances has reached the desired target weights.
-    uint256 private constant _MAX_WEIGHT_DEVIATION = 0.05e18; // 5%
     /// @notice Precision used for weight calculations and slippage calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
     /// @notice Maximum number of retries for a rebalance.
@@ -814,7 +810,7 @@ library BasketManagerUtils {
             }
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
-            if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
+            if (info.netBuyAmount < trade.minAmount || trade.maxAmount < initialBuyAmount) {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             if (trade.sellAmount > basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]) {
@@ -852,7 +848,7 @@ library BasketManagerUtils {
     /// @param baskets Array of basket addresses currently being rebalanced.
     /// @param totalValue_ Array of total basket values in USD.
     /// @param afterTradeAmounts_ An initialized array of asset amounts for each basket being rebalanced.
-    /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE threshold of the minAmount, this
+    /// @dev If the result of an external trade is not within the slippageLimit threshold of the minAmount, this
     /// function will revert. If the sum of the trade ownerships is not equal to _WEIGHT_PRECISION, this function will
     /// revert.
     function _validateExternalTrades(
@@ -909,9 +905,9 @@ library BasketManagerUtils {
             uint256 internalMinAmount = self.eulerRouter.getQuote(sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             uint256 diff = MathUtils.diff(internalMinAmount, trade.minAmount);
 
-            // Check if the given minAmount is within the _MAX_SLIPPAGE threshold of internalMinAmount
+            // Check if the given minAmount is within the slippageLimit threshold of internalMinAmount
             if (internalMinAmount < trade.minAmount) {
-                if (diff * _WEIGHT_PRECISION / internalMinAmount > _MAX_SLIPPAGE) {
+                if (diff * _WEIGHT_PRECISION / internalMinAmount > self.slippageLimit) {
                     revert ExternalTradeSlippage();
                 }
             }
@@ -943,7 +939,7 @@ library BasketManagerUtils {
         }
     }
 
-    /// @notice Checks if weight deviations after trades are within the acceptable _MAX_WEIGHT_DEVIATION threshold.
+    /// @notice Checks if weight deviations after trades are within the acceptable weightDeviationLimit threshold.
     /// Returns true if all deviations are within bounds for each asset in every basket.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param baskets Array of basket addresses currently being rebalanced.
@@ -963,7 +959,7 @@ library BasketManagerUtils {
         view
         returns (bool)
     {
-        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION threshold
+        // Check if total weight change due to all trades is within the weightDeviationLimit threshold
         uint256 len = baskets.length;
         for (uint256 i = 0; i < len;) {
             // slither-disable-next-line calls-loop
@@ -980,7 +976,7 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
+                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > self.weightDeviationLimit) {
                     return false;
                 }
                 unchecked {
@@ -1025,7 +1021,7 @@ library BasketManagerUtils {
         // Division-by-zero is not possible: basketValue is greater than 0
         newShares = basketValue > 0
             ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
-            : pendingDeposit;
+            : pendingDepositValue;
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
         self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
         // slither-disable-next-line reentrancy-no-eth,reentrancy-benign

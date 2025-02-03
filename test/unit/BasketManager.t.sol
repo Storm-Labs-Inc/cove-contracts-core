@@ -54,6 +54,8 @@ contract BasketManagerTest is BaseTest {
     uint40 public constant MIN_STEP_DELAY = 1 minutes;
     uint40 public constant MAX_STEP_DELAY = 60 minutes;
     uint8 public constant MAX_RETRY_COUNT = 10;
+    uint256 public constant MAX_SLIPPAGE_LIMIT = 0.5e18;
+    uint256 public constant MAX_WEIGHT_DEVIATION_LIMIT = 0.5e18;
 
     struct TradeTestParams {
         uint256 sellWeight;
@@ -110,6 +112,12 @@ contract BasketManagerTest is BaseTest {
         basketManager.grantRole(PAUSER_ROLE, pauser);
         vm.stopPrank();
         vm.label(address(basketManager), "basketManager");
+
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, mockTarget),
+            abi.encode(AssetRegistry.AssetStatus.DISABLED)
+        );
     }
 
     function testFuzz_constructor(
@@ -242,6 +250,18 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(Errors.ZeroAddress.selector);
         vm.prank(timelock);
         basketManager.execute{ value: 1 ether }(address(0), data, 1 ether);
+    }
+
+    function test_execute_revertWhen_AssetExistsInUniverse() public {
+        bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
+        vm.mockCall(
+            assetRegistry,
+            abi.encodeWithSelector(AssetRegistry.getAssetStatus.selector, mockTarget),
+            abi.encode(AssetRegistry.AssetStatus.ENABLED)
+        );
+        vm.expectRevert(BasketManager.AssetExistsInUniverse.selector);
+        vm.prank(timelock);
+        basketManager.execute{ value: 1 ether }(mockTarget, data, 1 ether);
     }
 
     function test_rescue() public {
@@ -1940,6 +1960,112 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapProposer);
         vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - 1
+        });
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+    }
+
+    function testFuzz_proposeTokenSwap_revertWhen_InternalTradeMinMaxAmountNotReached_withSwapFee(
+        uint256 sellWeight,
+        uint256 depositAmount,
+        uint16 swapFee
+    )
+        public
+    {
+        // Setup fuzzing bounds
+        vm.assume(swapFee > 0 && swapFee <= MAX_SWAP_FEE);
+        vm.prank(timelock);
+        basketManager.setSwapFee(swapFee);
+        TradeTestParams memory params;
+        params.sellWeight = bound(sellWeight, 0, 1e18);
+        // Below bound is due to deposit amount being scaled by price and target weight
+        params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
+        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+
+        // Setup basket and target weights
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = address(new ERC20Mock());
+        _setPrices(params.pairAsset);
+        address[][] memory basketAssets = new address[][](2);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        basketAssets[1] = new address[](2);
+        basketAssets[1][0] = params.pairAsset;
+        basketAssets[1][1] = rootAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = params.depositAmount;
+        initialDepositAmounts[1] = params.depositAmount;
+        uint64[][] memory initialWeights = new uint64[][](2);
+        initialWeights[0] = new uint64[](2);
+        initialWeights[0][0] = uint64(params.baseAssetWeight);
+        initialWeights[0][1] = uint64(params.sellWeight);
+        initialWeights[1] = new uint64[](2);
+        initialWeights[1][0] = uint64(params.baseAssetWeight);
+        initialWeights[1][1] = uint64(params.sellWeight);
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, initialDepositAmounts);
+        vm.prank(rebalanceProposer);
+
+        // Propose the rebalance
+        basketManager.proposeRebalance(baskets);
+
+        // Expect revert on maxAmount regardless of swap fee consideration
+        // Setup the trade and propose token swap
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - 1
+        });
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        // ensure minAmount check with swap fee reverts correctly
+        uint256 swapFeeAmount = internalTrades[0].sellAmount.fullMulDiv(swapFee, 2e4);
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - swapFeeAmount + 1,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18
+        });
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        // minAmount is reduced by swap fee so the following should not revert
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - swapFeeAmount,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18
+        });
+        vm.prank(tokenswapProposer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
     }
 
     function testFuzz_proposeTokenSwap_internalTrade_revertWhen_TargetWeightsNotMet(
@@ -2460,6 +2586,7 @@ contract BasketManagerTest is BaseTest {
     )
         public
     {
+        vm.assume(badTrades.length > 0);
         _setTokenSwapAdapter();
         (ExternalTrade[] memory trades,) = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
         vm.assume(keccak256(abi.encode(badTrades)) != keccak256(abi.encode(trades)));
@@ -2468,6 +2595,21 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(BasketManager.ExternalTradesHashMismatch.selector);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(badTrades, "");
+    }
+
+    function testFuzz_executeTokenSwap_revertWhen_EmptyExternalTrades(
+        uint256 sellWeight,
+        uint256 depositAmount,
+        bytes memory data
+    )
+        public
+    {
+        _setTokenSwapAdapter();
+        testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
+        // Now test empty trades execution
+        vm.prank(tokenswapExecutor);
+        vm.expectRevert(BasketManager.EmptyExternalTrades.selector);
+        basketManager.executeTokenSwap(new ExternalTrade[](0), data);
     }
 
     function testFuzz_executeTokenSwap_revertWhen_TokenSwapNotProposed(ExternalTrade[] memory trades) public {
@@ -2659,6 +2801,66 @@ contract BasketManagerTest is BaseTest {
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
         basketManager.setRetryLimit(retryLimit);
+    }
+
+    function testFuzz_setSlippageLimit(uint256 slippage) public {
+        vm.assume(slippage < MAX_SLIPPAGE_LIMIT);
+        vm.prank(timelock);
+        basketManager.setSlippageLimit(slippage);
+        assertEq(basketManager.slippageLimit(), slippage);
+    }
+
+    function testFuzz_setSlippageLimit_revertWhen_InvalidSlippageLimit(uint256 slippage) public {
+        vm.assume(slippage > MAX_SLIPPAGE_LIMIT);
+        vm.prank(timelock);
+        vm.expectRevert(BasketManager.InvalidSlippageLimit.selector);
+        basketManager.setSlippageLimit(slippage);
+    }
+
+    function testFuzz_setSlippageLimit_revertWhen_MustWaitForRebalanceToComplete(uint256 slippage) public {
+        vm.assume(slippage < MAX_SLIPPAGE_LIMIT);
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.setSlippageLimit(slippage);
+    }
+
+    function testFuzz_setSlippageLimit_revertWhen_CallerIsNotTimelock(address caller, uint256 slippage) public {
+        vm.assume(caller != timelock);
+        vm.assume(slippage < MAX_SLIPPAGE_LIMIT);
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.setSlippageLimit(slippage);
+    }
+
+    function testFuzz_setWeightDeviation(uint256 deviation) public {
+        vm.assume(deviation < MAX_WEIGHT_DEVIATION_LIMIT);
+        vm.prank(timelock);
+        basketManager.setWeightDeviation(deviation);
+        assertEq(basketManager.weightDeviationLimit(), deviation);
+    }
+
+    function testFuzz_setWeightDeviation_revertWhen_InvalidWeightDeviationLimit(uint256 deviation) public {
+        vm.assume(deviation > MAX_WEIGHT_DEVIATION_LIMIT);
+        vm.prank(timelock);
+        vm.expectRevert(BasketManager.InvalidWeightDeviationLimit.selector);
+        basketManager.setWeightDeviation(deviation);
+    }
+
+    function testFuzz_setWeightDeviation_revertWhen_MustWaitForRebalanceToComplete(uint256 deviation) public {
+        vm.assume(deviation < MAX_WEIGHT_DEVIATION_LIMIT);
+        test_proposeRebalance_processesDeposits();
+        vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
+        vm.prank(timelock);
+        basketManager.setWeightDeviation(deviation);
+    }
+
+    function testFuzz_setWeightDeviation_revertWhen_CallerIsNotTimelock(address caller, uint256 deviation) public {
+        vm.assume(caller != timelock);
+        vm.assume(deviation < MAX_WEIGHT_DEVIATION_LIMIT);
+        vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
+        vm.prank(caller);
+        basketManager.setWeightDeviation(deviation);
     }
 
     function testFuzz_collectSwapFee_returnsZeroWhen_hasNotCollectedFee(address asset) public {
