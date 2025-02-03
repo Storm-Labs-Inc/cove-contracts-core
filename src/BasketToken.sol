@@ -684,9 +684,8 @@ contract BasketToken is
         // Effects
         if (feeBps != 0) {
             if (timeSinceLastHarvest != 0) {
-                // remove shares held by the treasury or currently pending redemption from calculation
-                uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
-                    - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
+                // remove shares held by the treasury
+                uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector);
                 if (currentTotalSupply > 0) {
                     uint256 fee = FixedPointMathLib.fullMulDiv(
                         currentTotalSupply,
