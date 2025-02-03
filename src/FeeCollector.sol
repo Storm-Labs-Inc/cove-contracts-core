@@ -2,16 +2,18 @@
 pragma solidity 0.8.28;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
+import { Rescuable } from "src/Rescuable.sol";
 import { Errors } from "src/libraries/Errors.sol";
 
 /// @title FeeCollector
 /// @notice Contract to collect fees from the BasketManager and distribute them to sponsors and the protocol treasury
 // slither-disable-next-line locked-ether
-contract FeeCollector is AccessControlEnumerable {
+contract FeeCollector is AccessControlEnumerable, Rescuable {
     /// CONSTANTS ///
     bytes32 private constant _BASKET_TOKEN_ROLE = keccak256("BASKET_TOKEN_ROLE");
     /// @dev Fee split is denominated in 1e4. Also used as maximum fee split for the sponsor.
@@ -55,6 +57,8 @@ contract FeeCollector is AccessControlEnumerable {
     error NotBasketToken();
     /// @notice Thrown when attempting to claim treasury fees from an address that is not the protocol treasury.
     error NotTreasury();
+    /// @notice Thrown funds attempted to be rescued exceed the available balance.
+    error InsufficientFundsToRescue();
 
     /// @notice Constructor to set the admin, basket manager, and protocol treasury
     /// @param admin The address of the admin
@@ -135,6 +139,8 @@ contract FeeCollector is AccessControlEnumerable {
                 revert Unauthorized();
             }
         }
+        // Call harvestManagementFee to ensure that the fee is up to date
+        BasketToken(basketToken).harvestManagementFee();
         uint256 fee = claimableSponsorFees[basketToken];
         claimableSponsorFees[basketToken] = 0;
         BasketToken(basketToken).proRataRedeem(fee, sponsor, address(this));
@@ -143,15 +149,34 @@ contract FeeCollector is AccessControlEnumerable {
     /// @notice Claim the treasury fee for a given basket token, only callable by the protocol treasury or admin
     /// @param basketToken The address of the basket token
     function claimTreasuryFee(address basketToken) external {
-        if (msg.sender != protocolTreasury) {
+        _checkIfBasketToken(basketToken);
+        address protocolTreasury_ = protocolTreasury;
+        if (msg.sender != protocolTreasury_) {
             if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
                 revert Unauthorized();
             }
         }
-        _checkIfBasketToken(basketToken);
+        // Call harvestManagementFee to ensure that the fee is up to date
+        BasketToken(basketToken).harvestManagementFee();
         uint256 fee = claimableTreasuryFees[basketToken];
         claimableTreasuryFees[basketToken] = 0;
-        BasketToken(basketToken).proRataRedeem(fee, protocolTreasury, address(this));
+        BasketToken(basketToken).proRataRedeem(fee, protocolTreasury_, address(this));
+    }
+
+    /// @notice Rescue ERC20 tokens or ETH from the contract. Reverts if the balance trying to rescue exceeds the
+    /// available balance minus claimable fees.
+    /// @param token address of the token to rescue. Use zero address for ETH.
+    /// @param to address to send the rescued tokens to
+    /// @param amount amount of tokens to rescue
+    function rescue(IERC20 token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        address rescueToken = address(token);
+        if (
+            amount
+                > token.balanceOf(address(this)) - claimableTreasuryFees[rescueToken] - claimableSponsorFees[rescueToken]
+        ) {
+            revert InsufficientFundsToRescue();
+        }
+        _rescue(token, to, amount);
     }
 
     function _checkIfBasketToken(address token) internal view {
