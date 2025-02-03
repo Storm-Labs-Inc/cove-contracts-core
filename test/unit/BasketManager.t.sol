@@ -1897,6 +1897,112 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapProposer);
         vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - 1
+        });
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+    }
+
+    function testFuzz_proposeTokenSwap_revertWhen_InternalTradeMinMaxAmountNotReached_withSwapFee(
+        uint256 sellWeight,
+        uint256 depositAmount,
+        uint16 swapFee
+    )
+        public
+    {
+        // Setup fuzzing bounds
+        vm.assume(swapFee > 0 && swapFee <= MAX_SWAP_FEE);
+        vm.prank(timelock);
+        basketManager.setSwapFee(swapFee);
+        TradeTestParams memory params;
+        params.sellWeight = bound(sellWeight, 0, 1e18);
+        // Below bound is due to deposit amount being scaled by price and target weight
+        params.depositAmount = bound(depositAmount, 0, type(uint256).max) / 1e36;
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
+        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+
+        // Setup basket and target weights
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = address(new ERC20Mock());
+        _setPrices(params.pairAsset);
+        address[][] memory basketAssets = new address[][](2);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        basketAssets[1] = new address[](2);
+        basketAssets[1][0] = params.pairAsset;
+        basketAssets[1][1] = rootAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = params.depositAmount;
+        initialDepositAmounts[1] = params.depositAmount;
+        uint64[][] memory initialWeights = new uint64[][](2);
+        initialWeights[0] = new uint64[](2);
+        initialWeights[0][0] = uint64(params.baseAssetWeight);
+        initialWeights[0][1] = uint64(params.sellWeight);
+        initialWeights[1] = new uint64[](2);
+        initialWeights[1][0] = uint64(params.baseAssetWeight);
+        initialWeights[1][1] = uint64(params.sellWeight);
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, initialWeights, initialDepositAmounts);
+        vm.prank(rebalanceProposer);
+
+        // Propose the rebalance
+        basketManager.proposeRebalance(baskets);
+
+        // Expect revert on maxAmount regardless of swap fee consideration
+        // Setup the trade and propose token swap
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - 1
+        });
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        // ensure minAmount check with swap fee reverts correctly
+        uint256 swapFeeAmount = internalTrades[0].sellAmount.fullMulDiv(swapFee, 2e4);
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - swapFeeAmount + 1,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18
+        });
+        vm.prank(tokenswapProposer);
+        vm.expectRevert(BasketManagerUtils.InternalTradeMinMaxAmountNotReached.selector);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+
+        // minAmount is reduced by swap fee so the following should not revert
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[1],
+            sellAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18,
+            minAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18 - swapFeeAmount,
+            maxAmount: params.depositAmount * (1e18 - params.baseAssetWeight) / 1e18
+        });
+        vm.prank(tokenswapProposer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
     }
 
     function testFuzz_proposeTokenSwap_internalTrade_revertWhen_TargetWeightsNotMet(
