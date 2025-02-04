@@ -972,6 +972,57 @@ library BasketManagerUtils {
         for (uint256 i = 0; i < len;) {
             // slither-disable-next-line calls-loop
             uint64[] calldata proposedTargetWeights = basketsTargetWeights[i];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 numOfAssets = proposedTargetWeights.length;
+            uint64[] memory adjustedTargetWeights = new uint64[](numOfAssets);
+
+            // Calculate adjusted target weights accounting for pending redeems
+            uint256 pendingRedeems = self.pendingRedeems[baskets[i]];
+            if (pendingRedeems > 0) {
+                uint256 totalSupply = BasketToken(baskets[i]).totalSupply();
+                uint256 remainingSupply = totalSupply - pendingRedeems;
+
+                // Get base asset index
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[baskets[i]] - 1;
+
+                // Track running sum for all weights except the last one
+                uint256 runningSum;
+                uint256 lastIndex = numOfAssets - 1;
+
+                // Adjust weights while maintaining 1e18 sum
+                for (uint256 j = 0; j < numOfAssets;) {
+                    if (j == lastIndex) {
+                        // Use remainder for the last weight to ensure exact 1e18 sum
+                        adjustedTargetWeights[j] = uint64(_WEIGHT_PRECISION - runningSum);
+                    } else {
+                        if (j == baseAssetIndex) {
+                            // Increase base asset weight by adding extra weight from pending redeems
+                            adjustedTargetWeights[j] = uint64(
+                                FixedPointMathLib.fullMulDiv(
+                                    FixedPointMathLib.fullMulDiv(
+                                        remainingSupply, proposedTargetWeights[j], _WEIGHT_PRECISION
+                                    ) + pendingRedeems,
+                                    _WEIGHT_PRECISION,
+                                    totalSupply
+                                )
+                            );
+                            runningSum += adjustedTargetWeights[j];
+                        } else {
+                            // Scale down other weights proportionally
+                            adjustedTargetWeights[j] = uint64(
+                                FixedPointMathLib.fullMulDiv(remainingSupply, proposedTargetWeights[j], totalSupply)
+                            );
+                            runningSum += adjustedTargetWeights[j];
+                        }
+                    }
+                    unchecked {
+                        ++j;
+                    }
+                }
+            } else {
+                // If no pending redeems, use original target weights
+                adjustedTargetWeights = proposedTargetWeights;
+            }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] calldata assets = basketAssets[i];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
@@ -984,7 +1035,7 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > self.weightDeviationLimit) {
+                if (MathUtils.diff(adjustedTargetWeights[j], afterTradeWeight) > self.weightDeviationLimit) {
                     return false;
                 }
                 unchecked {
