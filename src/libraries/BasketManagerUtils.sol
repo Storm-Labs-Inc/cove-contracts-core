@@ -601,8 +601,8 @@ library BasketManagerUtils {
             // redemption processing logic to a ZK coprocessor like Axiom for improved efficiency and scalability.
             address basket = baskets[i];
             address[] calldata assets = basketAssets[i];
-            uint256 assetsLength = assets.length;
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 assetsLength = assets.length;
             uint256[] memory balances = new uint256[](assetsLength);
             uint256 basketValue = 0;
 
