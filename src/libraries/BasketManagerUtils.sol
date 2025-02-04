@@ -937,8 +937,9 @@ library BasketManagerUtils {
 
             // Check if the given minAmount is within the slippageLimit threshold of internalMinAmount
             if (
-                MathUtils.diff(internalMinAmount, trade.minAmount) * _WEIGHT_PRECISION / internalMinAmount
-                    > slippageLimit
+                FixedPointMathLib.fullMulDiv(
+                    MathUtils.diff(internalMinAmount, trade.minAmount), _WEIGHT_PRECISION, internalMinAmount
+                ) > slippageLimit
             ) {
                 revert ExternalTradeSlippage();
             }
