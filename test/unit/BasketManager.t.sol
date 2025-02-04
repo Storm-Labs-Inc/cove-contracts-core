@@ -6,7 +6,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
+import { console } from "forge-std/console.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
@@ -1879,16 +1881,123 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
     }
 
+    function test_findPriceDeviationBounds() public {
+        // Setup test parameters
+        uint256 sellWeight = 8e17; // 0.8e18
+        uint256 depositAmount = 10e18;
+        uint256 baseAssetWeight = 1e18 - sellWeight;
+
+        // Setup basket assets and weights
+        address[][] memory basketAssets = new address[][](1);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = pairAsset;
+
+        uint64[][] memory targetWeights = new uint64[][](1);
+        targetWeights[0] = new uint64[](2);
+        targetWeights[0][0] = uint64(baseAssetWeight);
+        targetWeights[0][1] = uint64(sellWeight);
+
+        uint256[] memory initialDepositAmounts = new uint256[](1);
+        initialDepositAmounts[0] = depositAmount;
+
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
+
+        // Propose rebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Setup trade parameters
+        uint256 sellAmount = depositAmount * sellWeight / 1e18;
+        uint256 minAmount = sellAmount * 0.995e18 / 1e18;
+
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+
+        // Find negative price deviation bound
+        int256 left = -1e18;
+        int256 right = 0;
+        int256 negativeThreshold;
+
+        while (right - left > 1) {
+            int256 mid = (left + right) / 2;
+            uint256 snapshotId = vm.snapshotState();
+
+            _changePrice(pairAsset, mid);
+            externalTrades[0] = ExternalTrade({
+                sellToken: rootAsset,
+                buyToken: pairAsset,
+                sellAmount: sellAmount,
+                minAmount: minAmount,
+                basketTradeOwnership: tradeOwnerships
+            });
+
+            vm.prank(tokenswapProposer);
+            try basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets) {
+                right = mid;
+            } catch {
+                left = mid;
+            }
+
+            negativeThreshold = right;
+            vm.revertToState(snapshotId);
+        }
+
+        // Find positive price deviation bound
+        left = 0;
+        right = 100e18;
+        int256 positiveThreshold;
+
+        while (right - left > 1) {
+            int256 mid = (left + right) / 2;
+            uint256 snapshotId = vm.snapshotState();
+
+            _changePrice(pairAsset, mid);
+            externalTrades[0] = ExternalTrade({
+                sellToken: rootAsset,
+                buyToken: pairAsset,
+                sellAmount: sellAmount,
+                minAmount: minAmount,
+                basketTradeOwnership: tradeOwnerships
+            });
+
+            vm.prank(tokenswapProposer);
+            try basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets) {
+                left = mid;
+            } catch {
+                right = mid;
+            }
+
+            positiveThreshold = left;
+            vm.revertToState(snapshotId);
+        }
+
+        // Price deviation thresholds for pair asset (buy asset from external market) that trigger a revert
+        // Negative threshold: -4.52% (-0.0452e18)
+        // Positive threshold: +5.53% (+0.0553e18)
+        console.log("Negative threshold: ", negativeThreshold); // -45226130653266333
+        console.log("Positive threshold: ", positiveThreshold); // 55276381909547738
+    }
+
     function testFuzz_proposeTokenSwap_revertWhen_externalTrade_buyAssetPriceChanges_outsideDeviation(
         uint256 sellWeight,
         uint256 depositAmount,
-        uint256 priceDeviation
+        int256 priceDeviation
     )
         public
     {
         // Setup fuzzing bounds
         sellWeight = bound(sellWeight, 5e17, 1e18 - 1); // Ensure non-zero sell weight
         depositAmount = bound(depositAmount, 2e18, type(uint256).max / 1e36); // Ensure non-zero deposit
+        // Assume price deviation is either:
+        // 1) Between -100% and -4.52% (negative deviation beyond threshold)
+        // 2) Between +5.53% and +10000% (positive deviation beyond threshold)
+        vm.assume(
+            (priceDeviation > -1e18 && priceDeviation < -45_226_130_653_266_333)
+                || (priceDeviation > 55_276_381_909_547_738 && priceDeviation < 100e18)
+        );
         vm.assume(depositAmount * sellWeight / 1e18 > 500);
 
         // Setup basket and target weights
@@ -1919,23 +2028,9 @@ contract BasketManagerTest is BaseTest {
         // Set minAmount to a valid value
         uint256 minAmount = sellAmount * 0.995e18 / 1e18;
 
-        priceDeviation = bound(priceDeviation, 0.055e18, 0.9e18);
         // Price of buy asset reduces
-        _reducePrice(pairAsset, priceDeviation);
+        _changePrice(pairAsset, priceDeviation);
 
-        externalTrades[0] = ExternalTrade({
-            sellToken: rootAsset,
-            buyToken: pairAsset,
-            sellAmount: sellAmount,
-            minAmount: minAmount,
-            basketTradeOwnership: tradeOwnerships
-        });
-        vm.prank(tokenswapProposer);
-        vm.expectRevert(BasketManagerUtils.ExternalTradeSlippage.selector);
-        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
-
-        // Price of buy asset increases
-        _increasePrice(pairAsset, priceDeviation);
         externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: pairAsset,
@@ -1951,7 +2046,7 @@ contract BasketManagerTest is BaseTest {
     function testFuzz_proposeTokenSwap_passWhen_externalTrade_buyAssetPriceChanges_withinDeviation(
         uint256 sellWeight,
         uint256 depositAmount,
-        uint256 priceDeviation
+        int256 priceDeviation
     )
         public
     {
@@ -1959,6 +2054,8 @@ contract BasketManagerTest is BaseTest {
         sellWeight = bound(sellWeight, 5e17, 1e18 - 1); // Ensure non-zero sell weight
         depositAmount = bound(depositAmount, 2e18, type(uint256).max / 1e36); // Ensure non-zero deposit
         vm.assume(depositAmount * sellWeight / 1e18 > 500);
+        // Bound price deviation between -4.5226% and +5.5276% to test valid price changes
+        vm.assume((priceDeviation >= -45_226_130_653_266_333) && (priceDeviation <= 55_276_381_909_547_738));
 
         // Setup basket and target weights
         uint256 baseAssetWeight = 1e18 - sellWeight;
@@ -1980,19 +2077,15 @@ contract BasketManagerTest is BaseTest {
 
         // Setup the trade and propose token swap
         ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
-        InternalTrade[] memory internalTrades = new InternalTrade[](0);
         BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
         tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
 
         uint256 sellAmount = depositAmount * sellWeight / 1e18;
         // Set minAmount to a valid value
         uint256 minAmount = sellAmount * 0.995e18 / 1e18;
-        // Save state
-        uint256 snapshotId = vm.snapshot();
 
-        priceDeviation = bound(priceDeviation, 0.01e18, 0.045e18);
-        // Price of buy asset reduces
-        _reducePrice(pairAsset, priceDeviation);
+        // Price of buy asset changes
+        _changePrice(pairAsset, priceDeviation);
 
         externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
@@ -2002,21 +2095,7 @@ contract BasketManagerTest is BaseTest {
             basketTradeOwnership: tradeOwnerships
         });
         vm.prank(tokenswapProposer);
-        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
-
-        // revert to before proposeTokenSwap
-        vm.revertTo(snapshotId);
-        // Price of buy asset increases
-        _increasePrice(pairAsset, priceDeviation);
-        externalTrades[0] = ExternalTrade({
-            sellToken: rootAsset,
-            buyToken: pairAsset,
-            sellAmount: sellAmount,
-            minAmount: minAmount,
-            basketTradeOwnership: tradeOwnerships
-        });
-        vm.prank(tokenswapProposer);
-        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+        basketManager.proposeTokenSwap(new InternalTrade[](0), externalTrades, baskets, _targetWeights, basketAssets);
     }
 
     function testFuzz_proposeTokenSwap_revertWhen_externalTrade_sellAssetPriceChanges_outsideDeviation(
@@ -2128,7 +2207,7 @@ contract BasketManagerTest is BaseTest {
         // Set minAmount to a valid value
         uint256 minAmount = sellAmount * 0.995e18 / 1e18;
         // Save state
-        uint256 snapshotId = vm.snapshot();
+        uint256 snapshotId = vm.snapshotState();
 
         priceDeviation = bound(priceDeviation, 0.01e18, 0.045e18);
         // Price of buy asset reduces
@@ -2145,7 +2224,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
 
         // revert to before proposeTokenSwap
-        vm.revertTo(snapshotId);
+        vm.revertToState(snapshotId);
         // Price of buy asset increases
         _increasePrice(rootAsset, priceDeviation);
         externalTrades[0] = ExternalTrade({
@@ -3890,6 +3969,18 @@ contract BasketManagerTest is BaseTest {
         targetWeights[0] = 0.05e18;
         targetWeights[1] = 0.05e18;
         return _setupSingleBasketAndMocks(assets, targetWeights, depositAmount);
+    }
+
+    function _changePrice(address asset, int256 alterPercentage) internal {
+        uint256 currentPrice = mockPriceOracle.getQuote(1e18, asset, USD_ISO_4217_CODE);
+        uint256 newPrice;
+        if (alterPercentage > 0) {
+            newPrice = currentPrice + (currentPrice * uint256(alterPercentage)) / 1e18;
+        } else {
+            newPrice = currentPrice - (currentPrice * uint256(-alterPercentage)) / 1e18;
+        }
+        mockPriceOracle.setPrice(asset, USD_ISO_4217_CODE, newPrice);
+        mockPriceOracle.setPrice(USD_ISO_4217_CODE, asset, 1e36 / newPrice);
     }
 
     function _reducePrice(address asset, uint256 alterAmount) internal {
