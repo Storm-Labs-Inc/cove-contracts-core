@@ -213,7 +213,7 @@ contract BasketToken is
     /// factors that may affect the swap rates.
     /// @return The total value of the basket in assets.
     function totalAssets() public view override returns (uint256) {
-        address[] memory assets = AssetRegistry(assetRegistry).getAssets(bitFlag);
+        address[] memory assets = getAssets();
         uint256 usdAmount;
         uint256 assetsLength = assets.length;
 
@@ -240,6 +240,18 @@ contract BasketToken is
     /// @return The target weights for the basket.
     function getTargetWeights() public view returns (uint64[] memory) {
         return WeightStrategy(strategy).getTargetWeights(bitFlag);
+    }
+
+    /// @notice Returns all assets that are eligible to be included in this basket based on the bitFlag
+    /// @dev This returns the complete list of eligible assets from the AssetRegistry, filtered by this basket's
+    /// bitFlag.
+    ///      The list includes all assets that could potentially be part of the basket, regardless of:
+    ///      - Their current balance in the basket
+    ///      - Their current target weight
+    ///      - Whether they are paused
+    /// @return Array of asset token addresses that are eligible for this basket
+    function getAssets() public view returns (address[] memory) {
+        return AssetRegistry(assetRegistry).getAssets(bitFlag);
     }
 
     /// ERC7540 LOGIC ///
