@@ -118,6 +118,10 @@ contract CoWSwapClone is IERC1271, Clone {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
+        if (order.appData != bytes32(0)) {
+            return _ERC1271_NON_MAGIC_VALUE;
+        }
+
         if (order.feeAmount != 0) {
             return _ERC1271_NON_MAGIC_VALUE;
         }
