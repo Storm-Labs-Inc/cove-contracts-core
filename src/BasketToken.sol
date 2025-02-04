@@ -11,13 +11,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { Permit2Lib } from "permit2/src/libraries/Permit2Lib.sol";
-import { ERC20 } from "solmate/src/tokens/ERC20.sol";
 import { ERC20PluginsUpgradeable } from "token-plugins-upgradeable/contracts/ERC20PluginsUpgradeable.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { Permit2Lib } from "src/deps/permit2/Permit2Lib.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
 import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
@@ -214,7 +213,7 @@ contract BasketToken is
     /// factors that may affect the swap rates.
     /// @return The total value of the basket in assets.
     function totalAssets() public view override returns (uint256) {
-        address[] memory assets = AssetRegistry(assetRegistry).getAssets(bitFlag);
+        address[] memory assets = getAssets();
         uint256 usdAmount;
         uint256 assetsLength = assets.length;
 
@@ -241,6 +240,18 @@ contract BasketToken is
     /// @return The target weights for the basket.
     function getTargetWeights() public view returns (uint64[] memory) {
         return WeightStrategy(strategy).getTargetWeights(bitFlag);
+    }
+
+    /// @notice Returns all assets that are eligible to be included in this basket based on the bitFlag
+    /// @dev This returns the complete list of eligible assets from the AssetRegistry, filtered by this basket's
+    /// bitFlag.
+    ///      The list includes all assets that could potentially be part of the basket, regardless of:
+    ///      - Their current balance in the basket
+    ///      - Their current target weight
+    ///      - Whether they are paused
+    /// @return Array of asset token addresses that are eligible for this basket
+    function getAssets() public view returns (address[] memory) {
+        return AssetRegistry(assetRegistry).getAssets(bitFlag);
     }
 
     /// ERC7540 LOGIC ///
@@ -288,7 +299,7 @@ contract BasketToken is
         // Interactions
         // Assets are immediately transferred to here to await the basketManager to pull them
         // slither-disable-next-line arbitrary-send-erc20
-        Permit2Lib.transferFrom2(ERC20(asset()), owner, address(this), assets);
+        Permit2Lib.transferFrom2(IERC20(asset()), owner, address(this), assets);
     }
 
     /// @notice Returns the pending deposit request amount for a controller.
@@ -999,10 +1010,19 @@ contract BasketToken is
         return ERC4626Upgradeable.decimals();
     }
 
-    /// @dev Expose internal permit function used by PermitLib
-    // See {PermitLib.permit2}
+    /// @notice External wrapper around Permit2Lib's permit2 function to handle ERC20 permit signatures.
+    /// @dev Supports both Permit2 and ERC20Permit (ERC-2612) signatures. Will try ERC-2612 first,
+    /// then fall back to Permit2 if the token doesn't support ERC-2612 or if the permit call fails.
+    /// @param token The token to permit
+    /// @param owner The owner of the tokens
+    /// @param spender The spender to approve
+    /// @param value The amount to approve
+    /// @param deadline The deadline for the permit
+    /// @param v The v component of the signature
+    /// @param r The r component of the signature
+    /// @param s The s component of the signature
     function permit2(
-        ERC20 token,
+        IERC20 token,
         address owner,
         address spender,
         uint256 value,
@@ -1011,7 +1031,7 @@ contract BasketToken is
         bytes32 r,
         bytes32 s
     )
-        public
+        external
     {
         Permit2Lib.permit2(token, owner, spender, value, deadline, v, r, s);
     }
