@@ -23,6 +23,18 @@ import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 /// @title BasketToken
 /// @notice Manages user deposits and redemptions, which are processed asynchronously by the Basket Manager.
+/// @dev Considerations for Integrators:
+///
+/// When users call `requestDeposit` or `requestRedeem`, the system ensures that the controller does not have any
+/// pending or claimable deposits or redeems from the controller's `lastDepositRequestId`.
+///
+/// This behavior allows for a potential griefing attack: an attacker can call `requestDeposit` or `requestRedeem` with
+/// a minimal dust amount and specify the target controller address. As a result, the target controller would then be
+/// unable to make legitimate `requestDeposit` or `requestRedeem` requests until they first claim the pending request.
+///
+/// RECOMMENDATION FOR INTEGRATORS: When integrating `BasketToken` into other contracts, always check for any pending or
+/// claimable tokens before requesting a deposit or redeem. This ensures that any pending deposits or redeems are
+/// resolved, preventing such griefing attacks.
 // slither-disable-next-line missing-inheritance
 contract BasketToken is
     ERC20PluginsUpgradeable,
@@ -141,6 +153,8 @@ contract BasketToken is
     error NotAuthorizedOperator();
     /// @notice Thrown when an address other than the basket manager attempts to call a basket manager only function.
     error NotBasketManager();
+    /// @notice Thrown when an address other than the feeCollector attempts to harvest management fees.
+    error NotFeeCollector();
     /// @notice Thrown when attempting to set an invalid management fee percentage greater than the maximum allowed.
     error InvalidManagementFee();
     /// @notice Thrown when the basket manager attempts to fulfill a deposit request that has already been fulfilled.
@@ -189,7 +203,9 @@ contract BasketToken is
         nextDepositRequestId = 2;
         nextRedeemRequestId = 3;
         __ERC4626_init(asset_);
-        __ERC20_init(string.concat(_NAME_PREFIX, name_), string.concat(_SYMBOL_PREFIX, symbol_));
+        string memory tokenName = string.concat(_NAME_PREFIX, name_);
+        __ERC20_init(tokenName, string.concat(_SYMBOL_PREFIX, symbol_));
+        __ERC20Permit_init(tokenName);
         __ERC20Plugins_init(8, 2_000_000);
     }
 
@@ -635,16 +651,17 @@ contract BasketToken is
     /// @param to Address to receive the assets.
     /// @param from Address to redeem shares from.
     function proRataRedeem(uint256 shares, address to, address from) public {
-        // Effects
-        uint16 feeBps = BasketManager(basketManager).managementFee(address(this));
-        address feeCollector = BasketManager(basketManager).feeCollector();
-        _harvestManagementFee(feeBps, feeCollector);
+        // Checks and effects
         if (msg.sender != from) {
-            _spendAllowance(from, msg.sender, shares);
+            if (!isOperator[from][msg.sender]) {
+                _spendAllowance(from, msg.sender, shares);
+            }
         }
 
         // Interactions
-        BasketManager(basketManager).proRataRedeem(totalSupply(), shares, to);
+        BasketManager bm = BasketManager(basketManager);
+        _harvestManagementFee(bm.managementFee(address(this)), bm.feeCollector());
+        bm.proRataRedeem(totalSupply(), shares, to);
 
         // We intentionally defer the `_burn()` operation until after the external call to
         // `BasketManager.proRataRedeem()` to prevent potential price manipulation via read-only reentrancy attacks. By
@@ -654,6 +671,21 @@ contract BasketToken is
         _burn(from, shares);
     }
 
+    /// @notice Harvests management fees owed to the fee collector.
+    function harvestManagementFee() external {
+        BasketManager bm = BasketManager(basketManager);
+        address feeCollector = bm.feeCollector();
+        if (msg.sender != feeCollector) {
+            revert NotFeeCollector();
+        }
+        uint16 feeBps = bm.managementFee(address(this));
+        _harvestManagementFee(feeBps, feeCollector);
+    }
+
+    /// @notice Internal function to harvest management fees. Updates the timestamp of the last management fee harvest
+    /// if a non zero fee is collected. Mints the fee to the fee collector and notifies the basket manager.
+    /// @param feeBps The management fee in basis points to be harvested.
+    /// @param feeCollector The address that will receive the harvested management fee.
     // slither-disable-next-line timestamp
     function _harvestManagementFee(uint16 feeBps, address feeCollector) internal {
         // Checks
@@ -663,26 +695,29 @@ contract BasketToken is
         uint256 timeSinceLastHarvest = block.timestamp - lastManagementFeeHarvestTimestamp;
 
         // Effects
-        lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
         if (feeBps != 0) {
             if (timeSinceLastHarvest != 0) {
-                if (timeSinceLastHarvest != block.timestamp) {
-                    // remove shares held by the treasury or currently pending redemption from calculation
-                    uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector)
-                        - pendingRedeemRequest(lastRedeemRequestId[feeCollector], feeCollector);
+                // remove shares held by the treasury
+                uint256 currentTotalSupply = totalSupply() - balanceOf(feeCollector);
+                if (currentTotalSupply > 0) {
                     uint256 fee = FixedPointMathLib.fullMulDiv(
                         currentTotalSupply,
                         feeBps * timeSinceLastHarvest,
                         ((_MANAGEMENT_FEE_DECIMALS - feeBps) * uint256(365 days))
                     );
                     if (fee != 0) {
+                        lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
                         emit ManagementFeeHarvested(fee);
                         _mint(feeCollector, fee);
                         // Interactions
                         FeeCollector(feeCollector).notifyHarvestFee(fee);
                     }
+                } else {
+                    lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
                 }
             }
+        } else {
+            lastManagementFeeHarvestTimestamp = uint40(block.timestamp);
         }
     }
 
