@@ -3902,6 +3902,15 @@ contract BasketManagerTest is BaseTest {
         mockPriceOracle.setPrice(USD_ISO_4217_CODE, asset, 1e18 - alterAmount);
     }
 
+    function _setPrices(address asset) internal {
+        mockPriceOracle.setPrice(asset, USD_ISO_4217_CODE, 1e18);
+        mockPriceOracle.setPrice(USD_ISO_4217_CODE, asset, 1e18);
+        vm.startPrank(admin);
+        eulerRouter.govSetConfig(asset, USD_ISO_4217_CODE, address(mockPriceOracle));
+        eulerRouter.govSetConfig(rootAsset, asset, address(mockPriceOracle));
+        vm.stopPrank();
+    }
+
     // Helper function to execute external swaps and complete rebalance in tests
     // Assumptions and gotchas:
     // - Only swaps the first basket in the array, ignores any additional baskets
