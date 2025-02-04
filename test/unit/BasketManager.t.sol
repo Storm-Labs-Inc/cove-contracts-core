@@ -2296,6 +2296,103 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
     }
 
+    function test_proposeTokenSwap_InternalSwapFeeAffectsTotalValue(uint16 swapFee) public {
+        swapFee = uint16(bound(swapFee, 1, MAX_SWAP_FEE));
+
+        address[][] memory basketAssets = new address[][](2);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = pairAsset;
+        basketAssets[1] = new address[](2);
+        basketAssets[1][0] = rootAsset;
+        basketAssets[1][1] = pairAsset;
+        address[] memory baseAssets = new address[](2);
+        baseAssets[0] = rootAsset;
+        baseAssets[1] = pairAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](2);
+        initialDepositAmounts[0] = 1000e18;
+        initialDepositAmounts[1] = 1000e18;
+        uint64[][] memory initialWeights = new uint64[][](2);
+        initialWeights[0] = new uint64[](2);
+        initialWeights[0][0] = uint64(5e17);
+        initialWeights[0][1] = uint64(5e17);
+        initialWeights[1] = new uint64[](2);
+        initialWeights[1][0] = uint64(5e17);
+        initialWeights[1][1] = uint64(5e17);
+        uint256[] memory bitFlags = new uint256[](2);
+        bitFlags[0] = 3;
+        bitFlags[1] = 3;
+        address[] memory strategies = new address[](2);
+        strategies[0] = address(uint160(uint256(keccak256("Strategy")) + 0));
+        strategies[1] = address(uint160(uint256(keccak256("Strategy")) + 1));
+        // Setup baskets
+        address[] memory baskets =
+            _setupBasketsAndMocks(basketAssets, baseAssets, initialWeights, initialDepositAmounts, bitFlags, strategies);
+
+        // Set allowed weight deviation to 0
+        vm.prank(timelock);
+        basketManager.setWeightDeviation(0);
+
+        // Setup Internal trade between the two baskets
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: pairAsset,
+            toBasket: baskets[1],
+            sellAmount: 500e18,
+            minAmount: 500e18 * 95 / 100,
+            maxAmount: 500e18 * 105 / 100
+        });
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](0);
+
+        uint256 snapshot = vm.snapshotState();
+        // Test 1: When swap fees are enabled, internal trades should fail to meet target weights
+        // This is because the fee reduces the effective balance after each trade, causing weights to deviate slightly
+        {
+            // Configure non-zero swap fee
+            vm.prank(timelock);
+            basketManager.setSwapFee(swapFee);
+
+            // Propose the rebalance
+            vm.prank(rebalanceProposer);
+            basketManager.proposeRebalance(baskets);
+
+            // Mock basket token supplies
+            vm.mockCall(baskets[0], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(1000e18));
+            vm.mockCall(baskets[1], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(1000e18));
+
+            // Expect revert since fees will cause weights to deviate from targets
+            vm.prank(tokenswapProposer);
+            vm.expectRevert(BasketManagerUtils.TargetWeightsNotMet.selector);
+            basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+        }
+
+        // Reset state for next test
+        vm.revertToState(snapshot);
+
+        // Test 2: With zero fees, the same trades should successfully meet target weights
+        // This test confirms that the swap fee is the factor causing weight deviations,
+        // and ensures the basket manager utilities account for it correctly.
+        {
+            // Configure zero swap fee
+            vm.prank(timelock);
+            basketManager.setSwapFee(0);
+
+            // Propose the rebalance
+            vm.prank(rebalanceProposer);
+            basketManager.proposeRebalance(baskets);
+
+            // Mock basket token supplies
+            vm.mockCall(baskets[0], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(1000e18));
+            vm.mockCall(baskets[1], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(1000e18));
+
+            // Should succeed since no fees means trades maintain target weights
+            vm.prank(tokenswapProposer);
+            basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+        }
+    }
+
     function testFuzz_executeTokenSwap_revertWhen_CallerIsNotTokenswapExecutor(
         address caller,
         ExternalTrade[] calldata trades,
@@ -3151,6 +3248,27 @@ contract BasketManagerTest is BaseTest {
         public
         returns (address[] memory baskets)
     {
+        // Set baseAssets to the first asset of each basket
+        address[] memory baseAssets = new address[](assetsPerBasket.length);
+        for (uint256 i = 0; i < assetsPerBasket.length; i++) {
+            baseAssets[i] = assetsPerBasket[i][0];
+        }
+        return _setupBasketsAndMocks(
+            assetsPerBasket, baseAssets, weightsPerBasket, initialDepositAmounts, bitFlags, strategies
+        );
+    }
+
+    function _setupBasketsAndMocks(
+        address[][] memory assetsPerBasket,
+        address[] memory baseAssets,
+        uint64[][] memory weightsPerBasket,
+        uint256[] memory initialDepositAmounts,
+        uint256[] memory bitFlags,
+        address[] memory strategies
+    )
+        public
+        returns (address[] memory baskets)
+    {
         string memory name = "basket";
         string memory symbol = "b";
 
@@ -3171,9 +3289,7 @@ contract BasketManagerTest is BaseTest {
         for (uint256 i = 0; i < numBaskets; i++) {
             address[] memory assets = assetsPerBasket[i];
             uint64[] memory weights = weightsPerBasket[i];
-            address baseAsset = assets[0];
-            mockPriceOracle.setPrice(assets[i], baseAsset, 1e18);
-            mockPriceOracle.setPrice(baseAsset, assets[i], 1e18);
+            address baseAsset = baseAssets[i];
             uint256 bitFlag = bitFlags[i];
             address strategy = strategies[i];
             vm.mockCall(

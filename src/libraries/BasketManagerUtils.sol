@@ -43,6 +43,8 @@ library BasketManagerUtils {
         uint256 feeOnBuy;
         // Fee charged on the sell token on the trade.
         uint256 feeOnSell;
+        // USD value of the sell token amount
+        uint256 sellValue;
     }
 
     /// CONSTANTS ///
@@ -344,7 +346,7 @@ library BasketManagerUtils {
         uint256[][] memory basketBalances = new uint256[][](numBaskets);
         _initializeBasketData(self, baskets, basketAssets, basketBalances, totalValues);
         // NOTE: for rebalance retries the internal trades must be updated as well
-        _processInternalTrades(self, internalTrades, baskets, basketBalances);
+        _processInternalTrades(self, internalTrades, baskets, totalValues, basketBalances);
         _validateExternalTrades(self, externalTrades, baskets, totalValues, basketBalances);
         if (!_isTargetWeightMet(self, baskets, basketTargetWeights, basketAssets, basketBalances, totalValues)) {
             revert TargetWeightsNotMet();
@@ -778,6 +780,7 @@ library BasketManagerUtils {
         BasketManagerStorage storage self,
         InternalTrade[] calldata internalTrades,
         address[] calldata baskets,
+        uint256[] memory totalValues,
         uint256[][] memory basketBalances
     )
         private
@@ -796,27 +799,24 @@ library BasketManagerUtils {
                 netBuyAmount: 0,
                 netSellAmount: 0,
                 feeOnBuy: 0,
-                feeOnSell: 0
+                feeOnSell: 0,
+                sellValue: self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE)
             });
-            // Calculate initial buyAmount based on trade.sellAmount
-            uint256 initialBuyAmount = self.eulerRouter.getQuote(
-                self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE),
-                _USD_ISO_4217_CODE,
-                trade.buyToken
-            );
+            uint256 initialBuyAmount = self.eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             // Calculate fee on sellAmount
             if (swapFee > 0) {
                 info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
+                uint256 feeValue = FixedPointMathLib.fullMulDiv(info.sellValue, swapFee, 20_000);
+                totalValues[info.fromBasketIndex] -= feeValue;
                 self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
                 emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
-            }
-            info.netSellAmount = trade.sellAmount - info.feeOnSell;
-            // Calculate fee on buyAmount
-            if (swapFee > 0) {
+
                 info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
+                totalValues[info.toBasketIndex] -= feeValue;
                 self.collectedSwapFees[trade.buyToken] += info.feeOnBuy;
                 emit SwapFeeCharged(trade.buyToken, info.feeOnBuy);
             }
+            info.netSellAmount = trade.sellAmount - info.feeOnSell;
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < initialBuyAmount) {
