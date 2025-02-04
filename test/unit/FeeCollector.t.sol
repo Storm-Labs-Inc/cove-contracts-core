@@ -2,12 +2,14 @@
 pragma solidity 0.8.28;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 
+import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { Errors } from "src/libraries/Errors.sol";
@@ -44,6 +46,9 @@ contract FeeCollectorTest is BaseTest {
         );
         vm.label(basketToken, "basketToken");
         feeCollector = new FeeCollector(admin, basketManager, treasury);
+        vm.mockCall(
+            address(basketManager), abi.encodeCall(BasketManager.feeCollector, ()), abi.encode(address(feeCollector))
+        );
         vm.prank(admin);
         feeCollector.setSponsor(address(basketToken), sponsor);
     }
@@ -148,8 +153,41 @@ contract FeeCollectorTest is BaseTest {
             abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector))),
             abi.encode(0)
         );
+        vm.mockCall(
+            address(basketManager), abi.encodeCall(BasketManager.managementFee, address(basketToken)), abi.encode(0)
+        );
+        if (sponsorFee > 0) {
+            vm.expectCall(
+                basketToken, abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector)))
+            );
+        }
         vm.prank(sponsor);
         feeCollector.claimSponsorFee(address(basketToken));
+        assertEq(feeCollector.claimableSponsorFees(address(basketToken)), 0);
+    }
+
+    function testFuzz_claimOutStandingSponsorFee_setSponsor(
+        uint256 shares,
+        uint16 sponsorSplit,
+        address newSponsor
+    )
+        public
+    {
+        vm.assume(sponsorSplit < _MAX_FEE && sponsorSplit != 0);
+        vm.assume(newSponsor != address(0) && newSponsor != sponsor && newSponsor != admin);
+        vm.prank(admin);
+        feeCollector.setSponsorSplit(address(basketToken), sponsorSplit);
+        testFuzz_notifyHarvestFee(shares, sponsorSplit);
+        uint256 sponsorFee = feeCollector.claimableSponsorFees(address(basketToken));
+        vm.mockCall(
+            address(basketToken),
+            abi.encodeCall(BasketToken.proRataRedeem, (sponsorFee, sponsor, address(feeCollector))),
+            abi.encode(0)
+        );
+        // Sponsor fees are available to claim
+        assertGt(feeCollector.claimableSponsorFees(address(basketToken)), 0);
+        vm.prank(admin);
+        feeCollector.setSponsor(address(basketToken), newSponsor);
         assertEq(feeCollector.claimableSponsorFees(address(basketToken)), 0);
     }
 
@@ -181,6 +219,9 @@ contract FeeCollectorTest is BaseTest {
             abi.encodeCall(BasketToken.proRataRedeem, (treasuryFee, treasury, address(feeCollector))),
             abi.encode(0)
         );
+        vm.mockCall(
+            address(basketManager), abi.encodeCall(BasketManager.managementFee, address(basketToken)), abi.encode(0)
+        );
         vm.prank(treasury);
         feeCollector.claimTreasuryFee(address(basketToken));
         assertEq(feeCollector.claimableTreasuryFees(address(basketToken)), 0);
@@ -202,5 +243,41 @@ contract FeeCollectorTest is BaseTest {
         vm.expectRevert(FeeCollector.NotBasketToken.selector);
         vm.prank(treasury);
         feeCollector.claimTreasuryFee(token);
+    }
+
+    function test_rescue() public {
+        address alice = createUser("alice");
+        ERC20 mockToken = new ERC20Mock();
+        deal(address(mockToken), address(feeCollector), 1e18);
+        vm.prank(admin);
+        feeCollector.rescue(IERC20(address(mockToken)), alice, 1e18);
+        assertEq(mockToken.balanceOf(alice), 1e18, "rescue failed");
+    }
+
+    function testFuzz_rescue_revertsWhen_InsufficientFundsToRescue(uint256 shares, uint16 sponsorSplit) public {
+        // Harvest some fees
+        vm.assume(shares > _FEE_SPLIT_DECIMALS && shares < type(uint256).max / shares);
+        vm.assume(sponsorSplit < _MAX_FEE);
+        vm.prank(admin);
+        feeCollector.setSponsorSplit(address(basketToken), sponsorSplit);
+        vm.prank(basketToken);
+        feeCollector.notifyHarvestFee(shares);
+        // mint fee collector its owed shares
+        deal(address(basketToken), address(feeCollector), shares);
+        uint256 expectedSponsorFee = shares.mulDiv(sponsorSplit, _FEE_SPLIT_DECIMALS);
+        uint256 expectedTreasuryFee = shares - expectedSponsorFee;
+        assertEq(feeCollector.claimableSponsorFees(address(basketToken)), expectedSponsorFee);
+        assertEq(feeCollector.claimableTreasuryFees(address(basketToken)), expectedTreasuryFee);
+        // attempt to rescue the minted shares
+        vm.expectRevert(FeeCollector.InsufficientFundsToRescue.selector);
+        vm.prank(admin);
+        feeCollector.rescue(IERC20(address(basketToken)), admin, shares);
+    }
+
+    function testFuzz_rescue_revertswhen_notAdmin(address caller) public {
+        vm.assume(caller != address(0) && caller != admin);
+        vm.expectRevert(_formatAccessControlError(caller, DEFAULT_ADMIN_ROLE));
+        vm.prank(caller);
+        feeCollector.rescue(IERC20(address(dummyAsset)), caller, 1e18);
     }
 }
