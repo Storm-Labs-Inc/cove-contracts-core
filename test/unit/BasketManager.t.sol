@@ -2787,36 +2787,40 @@ contract BasketManagerTest is BaseTest {
     function test_proposeTokenSwap_InternalSwapFeeAffectsTotalValue(uint16 swapFee) public {
         swapFee = uint16(bound(swapFee, 1, MAX_SWAP_FEE));
 
-        address[][] memory basketAssets = new address[][](2);
-        basketAssets[0] = new address[](2);
-        basketAssets[0][0] = rootAsset;
-        basketAssets[0][1] = pairAsset;
-        basketAssets[1] = new address[](2);
-        basketAssets[1][0] = rootAsset;
-        basketAssets[1][1] = pairAsset;
-        address[] memory baseAssets = new address[](2);
-        baseAssets[0] = rootAsset;
-        baseAssets[1] = pairAsset;
-        uint256[] memory initialDepositAmounts = new uint256[](2);
-        initialDepositAmounts[0] = 1000e18;
-        initialDepositAmounts[1] = 1000e18;
-        uint64[][] memory initialWeights = new uint64[][](2);
-        initialWeights[0] = new uint64[](2);
-        initialWeights[0][0] = uint64(5e17);
-        initialWeights[0][1] = uint64(5e17);
-        initialWeights[1] = new uint64[](2);
-        initialWeights[1][0] = uint64(5e17);
-        initialWeights[1][1] = uint64(5e17);
-        uint256[] memory bitFlags = new uint256[](2);
-        bitFlags[0] = 3;
-        bitFlags[1] = 3;
-        address[] memory strategies = new address[](2);
-        strategies[0] = address(uint160(uint256(keccak256("Strategy")) + 0));
-        strategies[1] = address(uint160(uint256(keccak256("Strategy")) + 1));
-        // Setup baskets
-        address[] memory baskets =
-            _setupBasketsAndMocks(basketAssets, baseAssets, initialWeights, initialDepositAmounts, bitFlags, strategies);
-
+        address[][] memory basketAssets;
+        address[] memory baskets;
+        {
+            basketAssets = new address[][](2);
+            basketAssets[0] = new address[](2);
+            basketAssets[0][0] = rootAsset;
+            basketAssets[0][1] = pairAsset;
+            basketAssets[1] = new address[](2);
+            basketAssets[1][0] = rootAsset;
+            basketAssets[1][1] = pairAsset;
+            address[] memory baseAssets = new address[](2);
+            baseAssets[0] = rootAsset;
+            baseAssets[1] = pairAsset;
+            uint256[] memory initialDepositAmounts = new uint256[](2);
+            initialDepositAmounts[0] = 1000e18;
+            initialDepositAmounts[1] = 1000e18;
+            uint64[][] memory initialWeights = new uint64[][](2);
+            initialWeights[0] = new uint64[](2);
+            initialWeights[0][0] = uint64(5e17);
+            initialWeights[0][1] = uint64(5e17);
+            initialWeights[1] = new uint64[](2);
+            initialWeights[1][0] = uint64(5e17);
+            initialWeights[1][1] = uint64(5e17);
+            uint256[] memory bitFlags = new uint256[](2);
+            bitFlags[0] = 3;
+            bitFlags[1] = 3;
+            address[] memory strategies = new address[](2);
+            strategies[0] = address(uint160(uint256(keccak256("Strategy")) + 0));
+            strategies[1] = address(uint160(uint256(keccak256("Strategy")) + 1));
+            // Setup baskets
+            baskets = _setupBasketsAndMocks(
+                basketAssets, baseAssets, initialWeights, initialDepositAmounts, bitFlags, strategies
+            );
+        }
         // Set allowed weight deviation to 0
         vm.prank(timelock);
         basketManager.setWeightDeviation(0);
@@ -2836,7 +2840,8 @@ contract BasketManagerTest is BaseTest {
 
         uint256 snapshot = vm.snapshotState();
         // Test 1: When swap fees are enabled, internal trades should fail to meet target weights
-        // This is because the fee reduces the effective balance after each trade, causing weights to deviate slightly
+        // This is because the fee reduces the effective balance after each trade, causing weights to deviate
+        // slightly
         {
             // Configure non-zero swap fee
             vm.prank(timelock);
@@ -3733,7 +3738,7 @@ contract BasketManagerTest is BaseTest {
         uint256[] memory bitFlags,
         address[] memory strategies
     )
-        public
+        internal
         returns (address[] memory baskets)
     {
         // Set baseAssets to the first asset of each basket
@@ -3754,12 +3759,9 @@ contract BasketManagerTest is BaseTest {
         uint256[] memory bitFlags,
         address[] memory strategies
     )
-        public
+        internal
         returns (address[] memory baskets)
     {
-        string memory name = "basket";
-        string memory symbol = "b";
-
         uint256 numBaskets = assetsPerBasket.length;
         baskets = new address[](numBaskets);
 
@@ -3783,7 +3785,7 @@ contract BasketManagerTest is BaseTest {
             vm.mockCall(
                 basketTokenImplementation,
                 abi.encodeCall(
-                    BasketToken.initialize, (IERC20(baseAsset), name, symbol, bitFlag, strategy, assetRegistry)
+                    BasketToken.initialize, (IERC20(baseAsset), "basket", "b", bitFlag, strategy, assetRegistry)
                 ),
                 new bytes(0)
             );
@@ -3796,7 +3798,7 @@ contract BasketManagerTest is BaseTest {
             vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.hasPausedAssets, (bitFlag)), abi.encode(false));
             vm.mockCall(assetRegistry, abi.encodeCall(AssetRegistry.getAssets, (bitFlag)), abi.encode(assets));
             vm.prank(manager);
-            baskets[i] = basketManager.createNewBasket(name, symbol, baseAsset, bitFlag, strategy);
+            baskets[i] = basketManager.createNewBasket("basket", "b", baseAsset, bitFlag, strategy);
 
             vm.mockCall(baskets[i], abi.encodeWithSelector(bytes4(keccak256("bitFlag()"))), abi.encode(bitFlag));
             vm.mockCall(
@@ -3821,7 +3823,7 @@ contract BasketManagerTest is BaseTest {
         uint256[] memory initialDepositAmounts,
         address[] memory strategies
     )
-        public
+        internal
         returns (address[] memory baskets)
     {
         uint256[] memory bitFlags = new uint256[](assetsPerBasket.length);
