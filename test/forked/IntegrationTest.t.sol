@@ -53,8 +53,10 @@ contract IntegrationTest is BaseTest {
         super.setUp();
         vm.allowCheatcodes(0xa5F044DA84f50f2F6fD7c309C5A8225BCE8b886B);
 
+        vm.pauseGasMetering();
         deployments = new Deployments();
         deployments.deploy(false);
+        vm.resumeGasMetering();
 
         bm = BasketManager(deployments.getAddress("BasketManager"));
         eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
@@ -119,10 +121,10 @@ contract IntegrationTest is BaseTest {
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(basket0Bitflag, initialTargetWeights0);
         vm.prank(deployments.admin());
-        vm.label(
-            bm.createNewBasket("Test Basket0", "TEST0", address(ETH_SUSDE), basket0Bitflag, strategyAddress),
-            "2AssetBasket0"
-        );
+        address basket =
+            bm.createNewBasket("Test Basket0", "TEST0", address(ETH_SUSDE), basket0Bitflag, strategyAddress);
+        vm.snapshotGasLastCall("BasketManager.createNewBasket");
+        vm.label(basket, "2AssetBasket0");
 
         // 2. Two rebalances are completed, one to process deposits for both baskets. This results in both baskets
         // having 100% of their assets allocated to their respective base assets. Another rebalance is completed only
@@ -585,6 +587,7 @@ contract IntegrationTest is BaseTest {
             ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
+        vm.snapshotGasLastCall("ManagedWeightStrategy.setTargetWeights");
 
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
@@ -1224,6 +1227,7 @@ contract IntegrationTest is BaseTest {
         IERC20(asset).approve(basket, amount);
         uint256 balanceBefore = IERC20(asset).balanceOf(basket);
         requestId = BasketToken(basket).requestDeposit(amount, user, user);
+        vm.snapshotGasLastCall("BasketToken.requestDeposit");
         assertEq(balanceBefore + amount, IERC20(asset).balanceOf(basket));
         vm.stopPrank();
     }
