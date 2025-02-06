@@ -11,6 +11,7 @@ import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
@@ -94,13 +95,29 @@ contract IntegrationTest is BaseTest {
         _updateChainLinkOraclesTimeStamp();
     }
 
-    function test_setUp() public {
+
+    function test_setUp() public view {
         vm.dumpState("dumpStates/IntegrationTest_setup.json");
+
+        IMasterRegistry masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
         assertNotEq(address(bm), address(0));
-        assertNotEq(deployments.getAddress("AssetRegistry"), address(0));
-        assertNotEq(deployments.getAddress("StrategyRegistry"), address(0));
-        assertNotEq(deployments.getAddress("EulerRouter"), address(0));
-        assertNotEq(deployments.getAddress("FeeCollector"), address(0));
+        assertEq(masterRegistry.resolveNameToLatestAddress("BasketManager"), address(bm));
+
+        address assetRegistryAddress = deployments.getAddress("AssetRegistry");
+        assertNotEq(assetRegistryAddress, address(0));
+        assertEq(masterRegistry.resolveNameToLatestAddress("AssetRegistry"), assetRegistryAddress);
+
+        address strategyRegistryAddress = deployments.getAddress("StrategyRegistry");
+        assertNotEq(strategyRegistryAddress, address(0));
+        assertEq(masterRegistry.resolveNameToLatestAddress("StrategyRegistry"), strategyRegistryAddress);
+
+        address eulerRouterAddress = deployments.getAddress("EulerRouter");
+        assertNotEq(eulerRouterAddress, address(0));
+        assertEq(masterRegistry.resolveNameToLatestAddress("EulerRouter"), eulerRouterAddress);
+
+        address feeCollectorAddress = deployments.getAddress("FeeCollector");
+        assertNotEq(feeCollectorAddress, address(0));
+        assertEq(masterRegistry.resolveNameToLatestAddress("FeeCollector"), feeCollectorAddress);
         assertEq(bm.numOfBasketTokens(), 1);
     }
 
