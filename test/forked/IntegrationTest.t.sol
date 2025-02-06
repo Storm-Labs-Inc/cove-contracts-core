@@ -97,7 +97,6 @@ contract IntegrationTest is BaseTest {
         _updateChainLinkOraclesTimeStamp();
     }
 
-
     function test_setUp() public view {
         vm.dumpState("dumpStates/IntegrationTest_setup.json");
 
@@ -783,7 +782,7 @@ contract IntegrationTest is BaseTest {
         bm.executeTokenSwap(externalTrades, "");
 
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
-        // do not complete trades, failed rebalance triggeres fallback
+        // do not complete trades, failed rebalance triggers fallback
         // _completeSwapAdapterTrades(externalTrades);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
