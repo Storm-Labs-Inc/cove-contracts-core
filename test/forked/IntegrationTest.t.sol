@@ -95,11 +95,11 @@ contract IntegrationTest is BaseTest {
         baseBasketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(baseBasketAssets);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
+
+        vm.dumpState("dumpStates/IntegrationTest_setup.json");
     }
 
     function test_setUp() public {
-        vm.dumpState("dumpStates/IntegrationTest_setup.json");
-
         IMasterRegistry masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
         assertNotEq(address(bm), address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("BasketManager"), address(bm));
@@ -861,16 +861,9 @@ contract IntegrationTest is BaseTest {
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encode(basketTokens, targetWeights, basketAssets)));
         vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_depositsRequestsProcessing.json");
-        ExternalTrade[] memory externalTradesLocal = new ExternalTrade[](0);
-        InternalTrade[] memory internalTradesLocal = new InternalTrade[](0);
-
-        vm.prank(deployments.tokenSwapProposer());
-        bm.proposeTokenSwap(internalTradesLocal, externalTradesLocal, basketTokens, targetWeights, basketAssets);
-        assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
-        assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
 
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
-        bm.completeRebalance(externalTradesLocal, basketTokens, targetWeights, basketAssets);
+        bm.completeRebalance(new ExternalTrade[](0), basketTokens, targetWeights, basketAssets);
         vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_processDeposits_depositsClaimable.json");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }

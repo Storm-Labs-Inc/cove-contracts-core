@@ -17,7 +17,7 @@ def process_json_file(file_path):
     needs_processing = False
     # Check if data has "accounts" key
     if "accounts" not in data:
-        logging.warning("File %s does not have 'accounts' key, skipping...", file_path)
+        logging.info("File %s needs processing - missing 'accounts' key", file_path)
         needs_processing = True
 
     for account in data.get("accounts", {}).values():
