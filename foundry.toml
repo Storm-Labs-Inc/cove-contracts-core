@@ -19,8 +19,7 @@ remappings = [
     "euler-price-oracle-1/=dependencies/euler-price-oracle-1/",
     "farming-3.2.0/=dependencies/farming-3.2.0/",
     "forge-deploy-1/=dependencies/forge-deploy-1/",
-    "forge-std-1.9.3/=dependencies/forge-std-1.9.3/",
-    "forge-std-1.9.5/=dependencies/forge-std-1.9.5/",
+    "forge-std-1.9.6/=dependencies/forge-std-1.9.6/",
     "lifinance/create3-factory-0/=dependencies/lifinance-create3-factory-0/",
     "permit2-1/=dependencies/permit2-1/",
     "solidity-utils-5.3.0/=dependencies/solidity-utils-5.3.0/",
@@ -58,7 +57,7 @@ mainnet = "${MAINNET_RPC_URL}"
 mainnet = { key = "${API_KEY_ETHERSCAN}" }
 
 [dependencies]
-forge-std = "1.9.5"
+forge-std = "1.9.6"
 "@openzeppelin-contracts" = "5.1.0"
 "@openzeppelin-contracts-upgradeable" = "5.1.0"
 permit2 = { version = "1", git = "https://github.com/Uniswap/permit2.git", rev = "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219" }
