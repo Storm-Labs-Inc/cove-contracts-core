@@ -57,8 +57,10 @@ contract IntegrationTest is BaseTest {
         super.setUp();
         vm.allowCheatcodes(0xa5F044DA84f50f2F6fD7c309C5A8225BCE8b886B);
 
+        vm.pauseGasMetering();
         deployments = new Deployments();
         deployments.deploy(false);
+        vm.resumeGasMetering();
 
         bm = BasketManager(deployments.getAddress("BasketManager"));
         eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
@@ -140,10 +142,10 @@ contract IntegrationTest is BaseTest {
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(basket0Bitflag, initialTargetWeights0);
         vm.prank(deployments.admin());
-        vm.label(
-            bm.createNewBasket("Test Basket0", "TEST0", address(ETH_SUSDE), basket0Bitflag, strategyAddress),
-            "2AssetBasket0"
-        );
+        address basket =
+            bm.createNewBasket("Test Basket0", "TEST0", address(ETH_SUSDE), basket0Bitflag, strategyAddress);
+        vm.snapshotGasLastCall("BasketManager.createNewBasket");
+        vm.label(basket, "2AssetBasket0");
 
         // 2. Two rebalances are completed, one to process deposits for both baskets. This results in both baskets
         // having 100% of their assets allocated to their respective base assets. Another rebalance is completed only
@@ -637,15 +639,18 @@ contract IntegrationTest is BaseTest {
             ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
+        vm.snapshotGasLastCall("ManagedWeightStrategy.setTargetWeights");
 
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
+        vm.snapshotGasLastCall("proposeRebalance w/ single basket");
 
         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
             _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
 
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
+        vm.snapshotGasLastCall("proposeTokenSwap w/ single basket (no internal trades)");
 
         uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
         for (uint256 i = 0; i < basketTokens.length; ++i) {
@@ -659,11 +664,13 @@ contract IntegrationTest is BaseTest {
 
         vm.prank(deployments.tokenSwapExecutor());
         bm.executeTokenSwap(externalTrades, "");
+        vm.snapshotGasLastCall("executeTokenSwap");
 
         _completeSwapAdapterTrades(externalTrades);
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
 
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
+        vm.snapshotGasLastCall("completeRebalance w/ single basket");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
 
@@ -671,7 +678,9 @@ contract IntegrationTest is BaseTest {
         // each asset in the basket.
         vm.startPrank(alice);
         baseBasket.deposit(aliceDepositAmount, alice, alice);
+        vm.snapshotGasLastCall("BasketToken.deposit");
         baseBasket.proRataRedeem(baseBasket.balanceOf(alice), alice, alice);
+        vm.snapshotGasLastCall("BasketToken.proRataRedeem");
         vm.stopPrank();
 
         // 5. The basket then attempts to rebalance once more with the same target weights as last rebalance
@@ -1416,6 +1425,7 @@ contract IntegrationTest is BaseTest {
         IERC20(asset).approve(basket, amount);
         uint256 balanceBefore = IERC20(asset).balanceOf(basket);
         requestId = BasketToken(basket).requestDeposit(amount, user, user);
+        vm.snapshotGasLastCall("BasketToken.requestDeposit");
         assertEq(balanceBefore + amount, IERC20(asset).balanceOf(basket));
         vm.stopPrank();
     }
