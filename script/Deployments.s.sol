@@ -13,10 +13,12 @@ import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunction
 
 import { Constants } from "test/utils/Constants.t.sol";
 
+import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
@@ -56,6 +58,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     address public tokenSwapProposer;
     address public tokenSwapExecutor;
     address public basketTokenImplementation;
+    IMasterRegistry public masterRegistry;
 
     bool public isProduction;
     // TODO: see if this is needed
@@ -89,6 +92,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         rebalanceProposer = COVE_OPS_MULTISIG;
         tokenSwapProposer = COVE_OPS_MULTISIG;
         tokenSwapExecutor = COVE_OPS_MULTISIG;
+        masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
 
         // Deploy unique core contracts
         _deployCoreContracts();
@@ -251,12 +255,20 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     }
 
     function _deployCoreContracts() private {
-        deployer.deploy_AssetRegistry("AssetRegistry", COVE_DEPLOYER_ADDRESS);
-        deployer.deploy_StrategyRegistry("StrategyRegistry", COVE_DEPLOYER_ADDRESS);
+        string[] memory registryNames = new string[](6);
+        registryNames[0] = "AssetRegistry";
+        deployer.deploy_AssetRegistry(registryNames[0], COVE_DEPLOYER_ADDRESS);
+        registryNames[1] = "StrategyRegistry";
+        deployer.deploy_StrategyRegistry(registryNames[1], COVE_DEPLOYER_ADDRESS);
+        registryNames[2] = "EulerRouter";
         _deployEulerRouter();
+        registryNames[3] = "BasketManager";
         _deployBasketManager(_FEE_COLLECTOR_SALT);
+        registryNames[4] = "FeeCollector";
         _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        registryNames[5] = "CowSwapAdapter";
         _deployAndSetCowSwapAdapter();
+        _addContractsToMasterRegistry(registryNames);
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment) private {
@@ -304,7 +316,11 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     }
 
     // Deploys basket manager given a fee collector salt which must be used to deploy the fee collector using CREATE3.
-    function _deployBasketManager(bytes32 feeCollectorSalt) private deployIfMissing("BasketManager") {
+    function _deployBasketManager(bytes32 feeCollectorSalt)
+        private
+        deployIfMissing("BasketManager")
+        returns (address)
+    {
         basketTokenImplementation = address(deployer.deploy_BasketToken("BasketTokenImplementation"));
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Determine feeCollector deployment address
@@ -326,37 +342,42 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         if (isProduction) {
             vm.stopBroadcast();
         }
+        return address(bm);
     }
 
     // Uses CREATE3 to deploy a fee collector contract. Salt must be the same given to the basket manager deploy.
-    function _deployFeeCollector(bytes32 feeCollectorSalt) private deployIfMissing("FeeCollector") {
+    function _deployFeeCollector(bytes32 feeCollectorSalt)
+        private
+        deployIfMissing("FeeCollector")
+        returns (address feeCollector)
+    {
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Prepare constructor arguments for FeeCollector
         bytes memory constructorArgs = abi.encode(admin, getAddress("BasketManager"), treasury);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(FeeCollector).creationCode, constructorArgs);
-        address feeCollector = address(factory.deploy(feeCollectorSalt, creationBytecode));
+        feeCollector = address(factory.deploy(feeCollectorSalt, creationBytecode));
         deployer.save("FeeCollector", feeCollector, "FeeCollector.sol:FeeCollector", constructorArgs, creationBytecode);
         require(getAddress("FeeCollector") == feeCollector, "Failed to save FeeCollector deployment");
     }
 
     // Deploys and save euler router deployment
-    function _deployEulerRouter() private deployIfMissing("EulerRouter") {
+    function _deployEulerRouter() private deployIfMissing("EulerRouter") returns (address eulerRouter) {
         bytes memory constructorArgs = abi.encode(EVC, admin);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(EulerRouter).creationCode, constructorArgs);
         if (isProduction) {
             vm.broadcast();
         }
-        address eulerRouter = address(new EulerRouter(EVC, COVE_DEPLOYER_ADDRESS));
+        eulerRouter = address(new EulerRouter(EVC, COVE_DEPLOYER_ADDRESS));
         deployer.save("EulerRouter", eulerRouter, "EulerRouter.sol:EulerRouter", constructorArgs, creationBytecode);
         require(getAddress("EulerRouter") == eulerRouter, "Failed to save EulerRouter deployment");
     }
 
     // Deploys cow swap adapter, sets it as the token swap adapter in BasketManager
-    function _deployAndSetCowSwapAdapter() private deployIfMissing("CowSwapAdapter") {
+    function _deployAndSetCowSwapAdapter() private deployIfMissing("CowSwapAdapter") returns (address cowSwapAdapter) {
         address cowSwapCloneImplementation = address(deployer.deploy_CoWSwapClone("CoWSwapClone"));
-        address cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter("CowSwapAdapter", cowSwapCloneImplementation));
+        cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter("CowSwapAdapter", cowSwapCloneImplementation));
         require(getAddress("CowSwapAdapter") == cowSwapAdapter, "Failed to save CowSwapAdapter deployment");
         address basketManager = getAddress("BasketManager");
         if (isProduction) {
@@ -399,6 +420,19 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             vm.broadcast();
         }
         assetRegistry.addAsset(asset);
+    }
+
+    function _addContractsToMasterRegistry(string[] memory registryNames) private {
+        if (isProduction) {
+            vm.broadcast();
+        }
+        bytes[] memory data = new bytes[](registryNames.length);
+        for (uint256 i = 0; i < registryNames.length; i++) {
+            data[i] = abi.encodeWithSelector(
+                IMasterRegistry.addRegistry.selector, bytes32(bytes(registryNames[i])), getAddress(registryNames[i])
+            );
+        }
+        Multicall(address(masterRegistry)).multicall(data);
     }
 
     // Deploys a pyth oracle for given base and quote assets
