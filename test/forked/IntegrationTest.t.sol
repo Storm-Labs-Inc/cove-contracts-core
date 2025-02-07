@@ -583,22 +583,29 @@ contract IntegrationTest is BaseTest {
         // 7. Confirm that end state of the basket is the same as the start state
         for (uint256 i = 0; i < basketTokens.length; ++i) {
             address[] memory assets = bm.basketAssets(basketTokens[i]);
+            uint256 baseAssetIndex = bm.basketTokenToBaseAssetIndex(basketTokens[i]);
             for (uint256 j = 0; j < assets.length; j++) {
                 uint256 currentBal = bm.basketBalanceOf(basketTokens[i], assets[j]);
                 // account for missing assets due to user's redeem requests
-                if (j == 0) {
-                    uint256 claimableUserRedeem = BasketToken(basketTokens[i]).claimableRedeemRequest(
-                        BasketToken(basketTokens[i]).lastRedeemRequestId(user), user
-                    );
+                if (j == baseAssetIndex) {
+                    uint256 claimableUserWithdraw = BasketToken(basketTokens[i]).maxWithdraw(user);
                     assertApproxEqRel(
-                        firstCycleBalances[i][j], IERC20(assets[j]).balanceOf(address(bm)) + claimableUserRedeem, 1e2
+                        firstCycleBalances[i][j],
+                        IERC20(assets[j]).balanceOf(address(bm)) + claimableUserWithdraw,
+                        10,
+                        "First cycle balance mismatch for base asset"
                     );
                 }
                 // allow for dust due to rounding
                 else if (currentBal == 1) {
-                    assertApproxEqAbs(firstCycleBalances[i][j], currentBal, 1);
+                    assertApproxEqAbs(firstCycleBalances[i][j], currentBal, 1, "First cycle balance mismatch (dust)");
                 } else {
-                    assertApproxEqRel(firstCycleBalances[i][j], IERC20(assets[j]).balanceOf(address(bm)), 1e2);
+                    assertApproxEqRel(
+                        firstCycleBalances[i][j],
+                        IERC20(assets[j]).balanceOf(address(bm)),
+                        10,
+                        "First cycle balance mismatch"
+                    );
                 }
             }
         }
