@@ -1,0 +1,166 @@
+[
+  {
+    "type": "function",
+    "name": "enroll",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "resolver",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "selectionsLength",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getAllocationElement",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "index",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAllocationLength",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTargetWeight",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isEnrolled",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isSubscribed",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "proposer",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setAllocation",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "newAllocation",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setBasketResolver",
+    "inputs": [
+      {
+        "name": "basket",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "resolver",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  }
+]

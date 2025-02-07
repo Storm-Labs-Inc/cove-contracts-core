@@ -1,0 +1,17 @@
+export const abi = [
+  {
+    type: "error",
+    name: "EthTransferFailed",
+    inputs: []
+  },
+  {
+    type: "error",
+    name: "ZeroEthTransfer",
+    inputs: []
+  },
+  {
+    type: "error",
+    name: "ZeroTokenTransfer",
+    inputs: []
+  }
+];

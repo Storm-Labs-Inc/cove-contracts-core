@@ -1,0 +1,12 @@
+export const abi = [
+  {
+    type: "error",
+    name: "ZeroAddress",
+    inputs: []
+  },
+  {
+    type: "error",
+    name: "ZeroAmount",
+    inputs: []
+  }
+];

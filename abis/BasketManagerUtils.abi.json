@@ -1,0 +1,294 @@
+[
+  {
+    "type": "event",
+    "name": "InternalTradeSettled",
+    "inputs": [
+      {
+        "name": "internalTrade",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct InternalTrade",
+        "components": [
+          {
+            "name": "fromBasket",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "sellToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "buyToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "toBasket",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "sellAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "buyAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RebalanceCompleted",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint40",
+        "indexed": true,
+        "internalType": "uint40"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RebalanceProposed",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint40",
+        "indexed": true,
+        "internalType": "uint40"
+      },
+      {
+        "name": "baskets",
+        "type": "address[]",
+        "indexed": false,
+        "internalType": "address[]"
+      },
+      {
+        "name": "proposedTargetWeights",
+        "type": "uint64[][]",
+        "indexed": false,
+        "internalType": "uint64[][]"
+      },
+      {
+        "name": "basketAssets",
+        "type": "address[][]",
+        "indexed": false,
+        "internalType": "address[][]"
+      },
+      {
+        "name": "basketHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SwapFeeCharged",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "AssetListEmpty",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "AssetNotEnabled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "AssetNotFoundInBasket",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BaseAssetMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BasketTokenAlreadyExists",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BasketTokenMaxExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BasketTokenNotFound",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BasketsMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CannotBurnMoreSharesThanTotalSupply",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CannotProposeEmptyTrades",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CompleteTokenSwapFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ElementIndexNotFound",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ExternalTradeMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ExternalTradeSlippage",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FailedDeployment",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "IncorrectTradeTokenAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientBalance",
+    "inputs": [
+      {
+        "name": "balance",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "needed",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InternalTradeMinMaxAmountNotReached",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MustWaitForRebalanceToComplete",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoRebalanceInProgress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OwnershipSumMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RebalanceNotRequired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StrategyRegistryDoesNotSupportStrategy",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TargetWeightsNotMet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooEarlyToCompleteRebalance",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooEarlyToProposeRebalance",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroBurnedShares",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroTotalSupply",
+    "inputs": []
+  }
+]
