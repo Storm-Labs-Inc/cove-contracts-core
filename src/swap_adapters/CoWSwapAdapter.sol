@@ -74,7 +74,7 @@ contract CoWSwapAdapter is TokenSwapAdapter {
     /// @notice Executes a series of token swaps by creating orders on the CoWSwap protocol.
     /// @param externalTrades The external trades to execute.
     function executeTokenSwap(ExternalTrade[] calldata externalTrades, bytes calldata) external payable override {
-        uint32 validTo = uint32(block.timestamp + 15 minutes);
+        uint32 validTo = uint32(block.timestamp + 60 minutes);
         _cowswapAdapterStorage().orderValidTo = validTo;
         for (uint256 i = 0; i < externalTrades.length;) {
             _createOrder(

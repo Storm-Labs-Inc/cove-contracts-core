@@ -1435,7 +1435,7 @@ contract IntegrationTest is BaseTest {
     // Airdrops the tokens involved in an external trade to the mockTradeAdapter to simulate cowswap completing a trade
     // order.
     function _completeSwapAdapterTrades(ExternalTrade[] memory trades) internal {
-        uint32 validTo = uint32(vm.getBlockTimestamp() + 15 minutes);
+        uint32 validTo = uint32(vm.getBlockTimestamp() + 60 minutes);
         for (uint256 i = 0; i < trades.length; ++i) {
             ExternalTrade memory trade = trades[i];
             bytes32 salt =

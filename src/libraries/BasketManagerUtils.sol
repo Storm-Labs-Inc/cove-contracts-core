@@ -5,6 +5,7 @@ import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -21,7 +22,6 @@ library BasketManagerUtils {
     using SafeERC20 for IERC20;
 
     /// STRUCTS ///
-
     /// @notice Struct containing data for an internal trade.
     struct InternalTradeInfo {
         // Index of the basket that is selling.
@@ -44,30 +44,10 @@ library BasketManagerUtils {
         uint256 feeOnBuy;
         // Fee charged on the sell token on the trade.
         uint256 feeOnSell;
-    }
-
-    /// @notice Struct containing data for an external trade.
-    struct ExternalTradeInfo {
-        // Price of the sell token.
-        uint256 sellTokenPrice;
-        // Price of the buy token.
-        uint256 buyTokenPrice;
-        // Value of the sell token.
+        // USD value of the sell token amount
         uint256 sellValue;
-        // Minimum amount of the buy token that the trade results in.
-        uint256 internalMinAmount;
-        // Difference between the internalMinAmount and the minAmount.
-        uint256 diff;
-    }
-
-    /// @notice Struct containing data for basket ownership of an external trade.
-    struct BasketOwnershipInfo {
-        // Index of the basket.
-        uint256 basketIndex;
-        // Index of the buy token asset.
-        uint256 buyTokenAssetIndex;
-        // Index of the sell token asset.
-        uint256 sellTokenAssetIndex;
+        // USD value of the fees charged on the trade
+        uint256 feeValue;
     }
 
     /// CONSTANTS ///
@@ -75,14 +55,8 @@ library BasketManagerUtils {
     address private constant _USD_ISO_4217_CODE = address(840);
     /// @notice Maximum number of basket tokens allowed to be created.
     uint256 private constant _MAX_NUM_OF_BASKET_TOKENS = 256;
-    /// @notice Maximum slippage multiplier for token swaps, expressed in 1e18.
-    uint256 private constant _MAX_SLIPPAGE = 0.05e18; // 5%
-    /// @notice Maximum deviation multiplier to determine if a set of balances has reached the desired target weights.
-    uint256 private constant _MAX_WEIGHT_DEVIATION = 0.05e18; // 5%
     /// @notice Precision used for weight calculations and slippage calculations.
     uint256 private constant _WEIGHT_PRECISION = 1e18;
-    /// @notice Maximum number of retries for a rebalance.
-    uint8 private constant _MAX_RETRIES = 3;
     /// @notice Minimum time between rebalances in seconds.
     uint40 private constant _REBALANCE_COOLDOWN_SEC = 1 hours;
 
@@ -162,6 +136,8 @@ library BasketManagerUtils {
     error AssetNotEnabled();
     /// @dev Reverts when no internal or external trades are provided for a rebalance.
     error CannotProposeEmptyTrades();
+    /// @dev Reverts when the sum of tradeOwnerships do not match the _WEIGHT_PRECISION
+    error OwnershipSumMismatch();
 
     /// @notice Creates a new basket token with the given parameters.
     /// @param self BasketManagerStorage struct containing strategy data.
@@ -251,12 +227,13 @@ library BasketManagerUtils {
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
         address assetRegistry = self.assetRegistry;
+        address feeCollector = self.feeCollector;
+        EulerRouter eulerRouter = self.eulerRouter;
         uint64[][] memory basketTargetWeights = new uint64[][](baskets.length);
         address[][] memory basketAssets = new address[][](baskets.length);
 
         // Interactions
         for (uint256 i = 0; i < baskets.length;) {
-            bool shouldRebalance = false;
             // slither-disable-start calls-loop
             address basket = baskets[i];
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -270,20 +247,20 @@ library BasketManagerUtils {
                 revert AssetNotEnabled();
             }
             // Calculate current basket value
-            (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, basket, assets);
+            (uint256[] memory balances, uint256 basketValue) = _calculateBasketValue(self, eulerRouter, basket, assets);
             // Notify Basket Token of rebalance:
             (uint256 pendingDeposits, uint256 pendingRedeems) =
-                BasketToken(basket).prepareForRebalance(self.managementFees[basket], self.feeCollector);
+                BasketToken(basket).prepareForRebalance(self.managementFees[basket], feeCollector);
             // Cache total supply for later use
             uint256 totalSupply = BasketToken(basket).totalSupply();
             // Process pending deposits
             if (pendingDeposits > 0) {
-                shouldRebalance = true;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 // Process pending deposits and fulfill them
                 (uint256 newShares, uint256 pendingDepositValue) = _processPendingDeposits(
                     self,
+                    eulerRouter,
                     basket,
                     totalSupply,
                     basketValue,
@@ -298,7 +275,6 @@ library BasketManagerUtils {
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
             if (pendingRedeems > 0) {
-                shouldRebalance = true;
                 if (totalSupply > 0) {
                     // totalSupply cannot be 0 when pendingRedeems is greater than 0, as redemptions
                     // can only occur if there are issued shares (i.e., totalSupply > 0).
@@ -316,19 +292,10 @@ library BasketManagerUtils {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 self.pendingRedeems[basket] = pendingRedeems;
             }
-            uint256[] memory targetBalances = _calculateTargetBalances(
-                self, basket, basketValue, requiredWithdrawValue, assets, basketTargetWeights[i]
-            );
-            if (_isRebalanceRequired(assets, balances, targetBalances)) {
-                shouldRebalance = true;
-            }
             // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: i is less than baskets.length
                 ++i;
-            }
-            if (!shouldRebalance) {
-                revert RebalanceNotRequired();
             }
         }
 
@@ -377,15 +344,20 @@ library BasketManagerUtils {
         self.rebalanceStatus = status;
         self.externalTradesHash = keccak256(abi.encode(externalTrades));
 
+        EulerRouter eulerRouter = self.eulerRouter;
         uint256 numBaskets = baskets.length;
         uint256[] memory totalValues = new uint256[](numBaskets);
         // 2d array of asset balances for each basket
         uint256[][] memory basketBalances = new uint256[][](numBaskets);
-        _initializeBasketData(self, baskets, basketAssets, basketBalances, totalValues);
+        _initializeBasketData(self, eulerRouter, baskets, basketAssets, basketBalances, totalValues);
         // NOTE: for rebalance retries the internal trades must be updated as well
-        _processInternalTrades(self, internalTrades, baskets, basketBalances);
-        _validateExternalTrades(self, externalTrades, baskets, totalValues, basketBalances);
-        if (!_isTargetWeightMet(self, baskets, basketTargetWeights, basketAssets, basketBalances, totalValues)) {
+        _processInternalTrades(self, eulerRouter, internalTrades, baskets, totalValues, basketBalances);
+        _validateExternalTrades(self, eulerRouter, externalTrades, baskets, totalValues, basketBalances);
+        if (
+            !_isTargetWeightMet(
+                self, eulerRouter, baskets, basketTargetWeights, basketAssets, basketBalances, totalValues
+            )
+        ) {
             revert TargetWeightsNotMet();
         }
     }
@@ -425,16 +397,20 @@ library BasketManagerUtils {
             _processExternalTrades(self, externalTrades);
         }
 
+        EulerRouter eulerRouter = self.eulerRouter;
         uint256 len = baskets.length;
         uint256[] memory totalValue_ = new uint256[](len);
         // 2d array of asset amounts for each basket after all trades are settled
         uint256[][] memory afterTradeAmounts_ = new uint256[][](len);
-        _initializeBasketData(self, baskets, basketAssets, afterTradeAmounts_, totalValue_);
+        _initializeBasketData(self, eulerRouter, baskets, basketAssets, afterTradeAmounts_, totalValue_);
         // Confirm that target weights have been met, if max retries is reached continue regardless
         uint8 currentRetryCount = self.rebalanceStatus.retryCount;
         if (currentRetryCount < self.retryLimit) {
-            if (!_isTargetWeightMet(self, baskets, basketTargetWeights, basketAssets, afterTradeAmounts_, totalValue_))
-            {
+            if (
+                !_isTargetWeightMet(
+                    self, eulerRouter, baskets, basketTargetWeights, basketAssets, afterTradeAmounts_, totalValue_
+                )
+            ) {
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
                 self.rebalanceStatus.retryCount = currentRetryCount + 1;
@@ -444,7 +420,7 @@ library BasketManagerUtils {
                 return;
             }
         }
-        _finalizeRebalance(self, baskets, basketAssets);
+        _finalizeRebalance(self, eulerRouter, baskets, basketAssets);
     }
 
     /// FALLBACK REDEEM LOGIC ///
@@ -597,6 +573,7 @@ library BasketManagerUtils {
     /// @param baskets Array of basket addresses currently being rebalanced.
     function _finalizeRebalance(
         BasketManagerStorage storage self,
+        EulerRouter eulerRouter,
         address[] calldata baskets,
         address[][] calldata basketAssets
     )
@@ -615,8 +592,8 @@ library BasketManagerUtils {
         emit RebalanceCompleted(epoch);
 
         // Process the redeems for the given baskets
-        // slither-disable-start calls-loop
         uint256 len = baskets.length;
+        // slither-disable-start calls-loop
         for (uint256 i = 0; i < len;) {
             // NOTE: Can be optimized by using calldata for the `baskets` parameter or by moving the
             // redemption processing logic to a ZK coprocessor like Axiom for improved efficiency and scalability.
@@ -633,7 +610,7 @@ library BasketManagerUtils {
                 balances[j] = self.basketBalanceOf[basket][assets[j]];
                 // Rounding direction: down
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+                basketValue += eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -646,18 +623,17 @@ library BasketManagerUtils {
             if (pendingRedeems > 0) {
                 // slither-disable-next-line costly-loop
                 delete self.pendingRedeems[basket]; // nosemgrep
-                // Assume the first asset listed in the basket is the base asset
-                // Rounding direction: down
-                // Division-by-zero is not possible: priceOfAssets[baseAssetIndex] is greater than 0, totalSupply is
-                // greater than 0
-                // when pendingRedeems is greater than 0
-                uint256 rawAmount =
-                    FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply());
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 address baseAsset = assets[baseAssetIndex];
                 uint256 baseAssetBalance = balances[baseAssetIndex];
+                // Rounding direction: down
+                // Division-by-zero is not possible: totalSupply is greater than 0 when pendingRedeems is greater than 0
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 withdrawAmount = self.eulerRouter.getQuote(rawAmount, _USD_ISO_4217_CODE, baseAsset);
+                uint256 withdrawAmount = eulerRouter.getQuote(
+                    FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply()),
+                    _USD_ISO_4217_CODE,
+                    baseAsset
+                );
                 if (withdrawAmount <= baseAssetBalance) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[baseAssetIndex]
@@ -720,16 +696,39 @@ library BasketManagerUtils {
             ExternalTrade calldata trade = externalTrades[i];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 tradeOwnershipLength = trade.basketTradeOwnership.length;
+            uint256 remainingSellTokenAmount = claimedAmounts[i][0];
+            uint256 remainingBuyTokenAmount = claimedAmounts[i][1];
+            uint256 remainingSellAmount = trade.sellAmount;
+
             for (uint256 j; j < tradeOwnershipLength;) {
                 BasketTradeOwnership calldata ownership = trade.basketTradeOwnership[j];
-                address basket = ownership.basket;
-                // Account for bought tokens
-                self.basketBalanceOf[basket][trade.buyToken] +=
-                    FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, _WEIGHT_PRECISION);
-                // Account for sold tokens
-                self.basketBalanceOf[basket][trade.sellToken] = self.basketBalanceOf[basket][trade.sellToken]
-                    + FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, _WEIGHT_PRECISION)
-                    - FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
+
+                // Get basket balances mapping for this ownership
+                mapping(address => uint256) storage basketBalanceOf = self.basketBalanceOf[ownership.basket];
+
+                if (j == tradeOwnershipLength - 1) {
+                    // Last ownership gets remaining amounts
+                    basketBalanceOf[trade.buyToken] += remainingBuyTokenAmount;
+                    basketBalanceOf[trade.sellToken] =
+                        basketBalanceOf[trade.sellToken] + remainingSellTokenAmount - remainingSellAmount;
+                } else {
+                    // Calculate ownership portions
+                    uint256 buyTokenAmount =
+                        FixedPointMathLib.fullMulDiv(claimedAmounts[i][1], ownership.tradeOwnership, _WEIGHT_PRECISION);
+                    uint256 sellTokenAmount =
+                        FixedPointMathLib.fullMulDiv(claimedAmounts[i][0], ownership.tradeOwnership, _WEIGHT_PRECISION);
+                    uint256 sellAmount =
+                        FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
+
+                    // Update balances
+                    basketBalanceOf[trade.buyToken] += buyTokenAmount;
+                    basketBalanceOf[trade.sellToken] = basketBalanceOf[trade.sellToken] + sellTokenAmount - sellAmount;
+
+                    // Track remaining amounts
+                    remainingBuyTokenAmount -= buyTokenAmount;
+                    remainingSellTokenAmount -= sellTokenAmount;
+                    remainingSellAmount -= sellAmount;
+                }
                 unchecked {
                     // Overflow not possible: i is less than tradeOwnerShipLength.length
                     ++j;
@@ -747,31 +746,33 @@ library BasketManagerUtils {
     /// @param baskets Array of basket addresses currently being rebalanced.
     /// @param basketBalances An empty array used for asset balances for each basket being rebalanced. Updated with
     /// current balances at the end of the function.
-    /// @param totalValue_ An initialized array of total basket values for each basket being rebalanced.
+    /// @param totalValues An initialized array of total basket values for each basket being rebalanced.
     function _initializeBasketData(
         BasketManagerStorage storage self,
+        EulerRouter eulerRouter,
         address[] calldata baskets,
         address[][] calldata basketAssets,
         uint256[][] memory basketBalances,
-        uint256[] memory totalValue_
+        uint256[] memory totalValues
     )
         private
         view
     {
         uint256 numBaskets = baskets.length;
         for (uint256 i = 0; i < numBaskets;) {
-            address basket = baskets[i];
             address[] calldata assets = basketAssets[i];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 assetsLength = assets.length;
             basketBalances[i] = new uint256[](assetsLength);
+            // Create a storage mapping reference for the current basket's balances
+            mapping(address => uint256) storage basketBalanceOf = self.basketBalanceOf[baskets[i]];
             for (uint256 j = 0; j < assetsLength;) {
                 address asset = assets[j];
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                uint256 currentAssetAmount = self.basketBalanceOf[basket][asset];
+                uint256 currentAssetAmount = basketBalanceOf[asset];
                 basketBalances[i][j] = currentAssetAmount;
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                totalValue_[i] += self.eulerRouter.getQuote(currentAssetAmount, asset, _USD_ISO_4217_CODE);
+                totalValues[i] += eulerRouter.getQuote(currentAssetAmount, asset, _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
                     ++j;
@@ -794,8 +795,10 @@ library BasketManagerUtils {
     /// revert.
     function _processInternalTrades(
         BasketManagerStorage storage self,
+        EulerRouter eulerRouter,
         InternalTrade[] calldata internalTrades,
         address[] calldata baskets,
+        uint256[] memory totalValues,
         uint256[][] memory basketBalances
     )
         private
@@ -814,30 +817,28 @@ library BasketManagerUtils {
                 netBuyAmount: 0,
                 netSellAmount: 0,
                 feeOnBuy: 0,
-                feeOnSell: 0
+                feeOnSell: 0,
+                sellValue: eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE),
+                feeValue: 0
             });
-            // Calculate initial buyAmount based on trade.sellAmount
-            uint256 initialBuyAmount = self.eulerRouter.getQuote(
-                self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE),
-                _USD_ISO_4217_CODE,
-                trade.buyToken
-            );
+            uint256 initialBuyAmount = eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             // Calculate fee on sellAmount
             if (swapFee > 0) {
                 info.feeOnSell = FixedPointMathLib.fullMulDiv(trade.sellAmount, swapFee, 20_000);
+                info.feeValue = FixedPointMathLib.fullMulDiv(info.sellValue, swapFee, 20_000);
+                totalValues[info.fromBasketIndex] -= info.feeValue;
                 self.collectedSwapFees[trade.sellToken] += info.feeOnSell;
                 emit SwapFeeCharged(trade.sellToken, info.feeOnSell);
-            }
-            info.netSellAmount = trade.sellAmount - info.feeOnSell;
-            // Calculate fee on buyAmount
-            if (swapFee > 0) {
+
                 info.feeOnBuy = FixedPointMathLib.fullMulDiv(initialBuyAmount, swapFee, 20_000);
+                totalValues[info.toBasketIndex] -= info.feeValue;
                 self.collectedSwapFees[trade.buyToken] += info.feeOnBuy;
                 emit SwapFeeCharged(trade.buyToken, info.feeOnBuy);
             }
+            info.netSellAmount = trade.sellAmount - info.feeOnSell;
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
-            if (info.netBuyAmount < trade.minAmount || trade.maxAmount < info.netBuyAmount) {
+            if (info.netBuyAmount < trade.minAmount || trade.maxAmount < initialBuyAmount) {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             if (trade.sellAmount > basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]) {
@@ -875,10 +876,12 @@ library BasketManagerUtils {
     /// @param baskets Array of basket addresses currently being rebalanced.
     /// @param totalValue_ Array of total basket values in USD.
     /// @param afterTradeAmounts_ An initialized array of asset amounts for each basket being rebalanced.
-    /// @dev If the result of an external trade is not within the _MAX_SLIPPAGE threshold of the minAmount, this
-    /// function will revert.
+    /// @dev If the result of an external trade is not within the slippageLimit threshold of the minAmount, this
+    /// function will revert. If the sum of the trade ownerships is not equal to _WEIGHT_PRECISION, this function will
+    /// revert.
     function _validateExternalTrades(
         BasketManagerStorage storage self,
+        EulerRouter eulerRouter,
         ExternalTrade[] calldata externalTrades,
         address[] calldata baskets,
         uint256[] memory totalValue_,
@@ -887,58 +890,60 @@ library BasketManagerUtils {
         private
         view
     {
+        uint256 slippageLimit = self.slippageLimit;
         for (uint256 i = 0; i < externalTrades.length;) {
             ExternalTrade calldata trade = externalTrades[i];
-            // slither-disable-start uninitialized-local
-            ExternalTradeInfo memory info;
-            BasketOwnershipInfo memory ownershipInfo;
-            // slither-disable-end uninitialized-local
-
+            uint256 ownershipSum = 0;
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             for (uint256 j = 0; j < trade.basketTradeOwnership.length;) {
                 BasketTradeOwnership calldata ownership = trade.basketTradeOwnership[j];
-                ownershipInfo.basketIndex = _indexOf(baskets, ownership.basket);
-                ownershipInfo.buyTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.buyToken);
-                ownershipInfo.sellTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.sellToken);
+                ownershipSum += ownership.tradeOwnership;
+                uint256 basketIndex = _indexOf(baskets, ownership.basket);
+                uint256 buyTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.buyToken);
+                uint256 sellTokenAssetIndex = getAssetIndexInBasket(self, ownership.basket, trade.sellToken);
                 uint256 ownershipSellAmount =
                     FixedPointMathLib.fullMulDiv(trade.sellAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 uint256 ownershipBuyAmount =
                     FixedPointMathLib.fullMulDiv(trade.minAmount, ownership.tradeOwnership, _WEIGHT_PRECISION);
                 // Record changes in basket asset holdings due to the external trade
-                if (
-                    ownershipSellAmount
-                        > afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex]
-                ) {
+                if (ownershipSellAmount > afterTradeAmounts_[basketIndex][sellTokenAssetIndex]) {
                     revert IncorrectTradeTokenAmount();
                 }
                 // solhint-disable-next-line max-line-length
-                afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.sellTokenAssetIndex] = afterTradeAmounts_[ownershipInfo
-                    .basketIndex][ownershipInfo.sellTokenAssetIndex] - ownershipSellAmount;
-                afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] =
-                    afterTradeAmounts_[ownershipInfo.basketIndex][ownershipInfo.buyTokenAssetIndex] + ownershipBuyAmount;
+                afterTradeAmounts_[basketIndex][sellTokenAssetIndex] =
+                    afterTradeAmounts_[basketIndex][sellTokenAssetIndex] - ownershipSellAmount;
+                afterTradeAmounts_[basketIndex][buyTokenAssetIndex] =
+                    afterTradeAmounts_[basketIndex][buyTokenAssetIndex] + ownershipBuyAmount;
                 // Update total basket value
-                totalValue_[ownershipInfo.basketIndex] = totalValue_[ownershipInfo.basketIndex]
+                totalValue_[basketIndex] = totalValue_[basketIndex]
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                - self.eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, _USD_ISO_4217_CODE)
+                - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, _USD_ISO_4217_CODE)
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                + self.eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, _USD_ISO_4217_CODE);
+                + eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is bounded by trade.basketTradeOwnership.length
                     ++j;
                 }
             }
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            info.sellValue = self.eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE);
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            info.internalMinAmount = self.eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
-            info.diff = MathUtils.diff(info.internalMinAmount, trade.minAmount);
-
-            // Check if the given minAmount is within the _MAX_SLIPPAGE threshold of internalMinAmount
-            if (info.internalMinAmount < trade.minAmount) {
-                if (info.diff * _WEIGHT_PRECISION / info.internalMinAmount > _MAX_SLIPPAGE) {
-                    revert ExternalTradeSlippage();
-                }
+            if (ownershipSum != _WEIGHT_PRECISION) {
+                revert OwnershipSumMismatch();
             }
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            uint256 internalMinAmount = eulerRouter.getQuote(
+                eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE),
+                _USD_ISO_4217_CODE,
+                trade.buyToken
+            );
+
+            // Check if the given minAmount is within the slippageLimit threshold of internalMinAmount
+            if (
+                FixedPointMathLib.fullMulDiv(
+                    MathUtils.diff(internalMinAmount, trade.minAmount), _WEIGHT_PRECISION, internalMinAmount
+                ) > slippageLimit
+            ) {
+                revert ExternalTradeSlippage();
+            }
+
             unchecked {
                 // Overflow not possible: i is bounded by baskets.length
                 ++i;
@@ -967,7 +972,7 @@ library BasketManagerUtils {
         }
     }
 
-    /// @notice Checks if weight deviations after trades are within the acceptable _MAX_WEIGHT_DEVIATION threshold.
+    /// @notice Checks if weight deviations after trades are within the acceptable weightDeviationLimit threshold.
     /// Returns true if all deviations are within bounds for each asset in every basket.
     /// @param self BasketManagerStorage struct containing strategy data.
     /// @param baskets Array of basket addresses currently being rebalanced.
@@ -977,6 +982,7 @@ library BasketManagerUtils {
     /// @param totalValues Array of total basket values in USD.
     function _isTargetWeightMet(
         BasketManagerStorage storage self,
+        EulerRouter eulerRouter,
         address[] calldata baskets,
         uint64[][] calldata basketsTargetWeights,
         address[][] calldata basketAssets,
@@ -987,24 +993,75 @@ library BasketManagerUtils {
         view
         returns (bool)
     {
-        // Check if total weight change due to all trades is within the _MAX_WEIGHT_DEVIATION threshold
+        // Check if total weight change due to all trades is within the weightDeviationLimit threshold
         uint256 len = baskets.length;
+        uint256 weightDeviationLimit = self.weightDeviationLimit;
         for (uint256 i = 0; i < len;) {
             // slither-disable-next-line calls-loop
             uint64[] calldata proposedTargetWeights = basketsTargetWeights[i];
+            // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
+            uint256 numOfAssets = proposedTargetWeights.length;
+            uint64[] memory adjustedTargetWeights = new uint64[](numOfAssets);
+
+            // Calculate adjusted target weights accounting for pending redeems
+            uint256 pendingRedeems = self.pendingRedeems[baskets[i]];
+            if (pendingRedeems > 0) {
+                uint256 totalSupply = BasketToken(baskets[i]).totalSupply();
+                uint256 remainingSupply = totalSupply - pendingRedeems;
+
+                // Get base asset index
+                uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[baskets[i]] - 1;
+
+                // Track running sum for all weights except the last one
+                uint256 runningSum;
+                uint256 lastIndex = numOfAssets - 1;
+
+                // Adjust weights while maintaining 1e18 sum
+                for (uint256 j = 0; j < numOfAssets;) {
+                    if (j == lastIndex) {
+                        // Use remainder for the last weight to ensure exact 1e18 sum
+                        adjustedTargetWeights[j] = uint64(_WEIGHT_PRECISION - runningSum);
+                    } else {
+                        if (j == baseAssetIndex) {
+                            // Increase base asset weight by adding extra weight from pending redeems
+                            adjustedTargetWeights[j] = uint64(
+                                FixedPointMathLib.fullMulDiv(
+                                    FixedPointMathLib.fullMulDiv(
+                                        remainingSupply, proposedTargetWeights[j], _WEIGHT_PRECISION
+                                    ) + pendingRedeems,
+                                    _WEIGHT_PRECISION,
+                                    totalSupply
+                                )
+                            );
+                            runningSum += adjustedTargetWeights[j];
+                        } else {
+                            // Scale down other weights proportionally
+                            adjustedTargetWeights[j] = uint64(
+                                FixedPointMathLib.fullMulDiv(remainingSupply, proposedTargetWeights[j], totalSupply)
+                            );
+                            runningSum += adjustedTargetWeights[j];
+                        }
+                    }
+                    unchecked {
+                        ++j;
+                    }
+                }
+            } else {
+                // If no pending redeems, use original target weights
+                adjustedTargetWeights = proposedTargetWeights;
+            }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             address[] calldata assets = basketAssets[i];
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
-                address asset = assets[j];
                 uint256 assetValueInUSD =
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                 self.eulerRouter.getQuote(basketBalances[i][j], asset, _USD_ISO_4217_CODE);
+                 eulerRouter.getQuote(basketBalances[i][j], assets[j], _USD_ISO_4217_CODE);
                 // Rounding direction: down
                 uint256 afterTradeWeight =
                     FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, totalValues[i]);
-                if (MathUtils.diff(proposedTargetWeights[j], afterTradeWeight) > _MAX_WEIGHT_DEVIATION) {
+                if (MathUtils.diff(adjustedTargetWeights[j], afterTradeWeight) > weightDeviationLimit) {
                     return false;
                 }
                 unchecked {
@@ -1031,6 +1088,7 @@ library BasketManagerUtils {
     // slither-disable-next-line calls-loop
     function _processPendingDeposits(
         BasketManagerStorage storage self,
+        EulerRouter eulerRouter,
         address basket,
         uint256 totalSupply,
         uint256 basketValue,
@@ -1044,63 +1102,16 @@ library BasketManagerUtils {
         // Assume the first asset listed in the basket is the base asset
         // Round direction: down
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        pendingDepositValue = self.eulerRouter.getQuote(pendingDeposit, baseAssetAddress, _USD_ISO_4217_CODE);
+        pendingDepositValue = eulerRouter.getQuote(pendingDeposit, baseAssetAddress, _USD_ISO_4217_CODE);
         // Rounding direction: down
         // Division-by-zero is not possible: basketValue is greater than 0
         newShares = basketValue > 0
             ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
-            : pendingDeposit;
+            : pendingDepositValue;
         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
         self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
         // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
         BasketToken(basket).fulfillDeposit(newShares);
-    }
-
-    /// @notice Internal function to calculate the target balances for each asset in a given basket.
-    /// @param self BasketManagerStorage struct containing strategy data.
-    /// @param basket Basket token address.
-    /// @param basketValue Current value of the basket in USD.
-    /// @param requiredWithdrawValue Value of the assets to be withdrawn from the basket.
-    /// @param assets Array of asset addresses in the basket.
-    /// @return targetBalances Array of target balances for each asset in the basket.
-    // slither-disable-next-line calls-loop,naming-convention
-    function _calculateTargetBalances(
-        BasketManagerStorage storage self,
-        address basket,
-        uint256 basketValue,
-        uint256 requiredWithdrawValue,
-        address[] memory assets,
-        uint64[] memory proposedTargetWeights
-    )
-        private
-        view
-        returns (uint256[] memory targetBalances)
-    {
-        uint256 assetsLength = assets.length;
-        targetBalances = new uint256[](assetsLength);
-        // Rounding direction: down
-        // Division-by-zero is not possible: priceOfAssets[j] is greater than 0
-        for (uint256 j = 0; j < assetsLength;) {
-            if (proposedTargetWeights[j] > 0) {
-                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                targetBalances[j] = self.eulerRouter.getQuote(
-                    FixedPointMathLib.fullMulDiv(proposedTargetWeights[j], basketValue, _WEIGHT_PRECISION),
-                    _USD_ISO_4217_CODE,
-                    assets[j]
-                );
-            }
-            unchecked {
-                // Overflow not possible: j is less than assetsLength
-                ++j;
-            }
-        }
-        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
-        if (requiredWithdrawValue > 0) {
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-            targetBalances[baseAssetIndex] +=
-                self.eulerRouter.getQuote(requiredWithdrawValue, _USD_ISO_4217_CODE, assets[baseAssetIndex]);
-        }
     }
 
     /// @notice Internal function to calculate the current value of all assets in a given basket.
@@ -1112,6 +1123,7 @@ library BasketManagerUtils {
     // slither-disable-next-line calls-loop
     function _calculateBasketValue(
         BasketManagerStorage storage self,
+        EulerRouter eulerRouter,
         address basket,
         address[] memory assets
     )
@@ -1128,42 +1140,8 @@ library BasketManagerUtils {
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             if (balances[j] > 0) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                basketValue += self.eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+                basketValue += eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
             }
-            unchecked {
-                // Overflow not possible: j is less than assetsLength
-                ++j;
-            }
-        }
-    }
-
-    /// @notice Internal function to check if a rebalance is required for the given basket.
-    /// @dev A rebalance is required if the difference between the current asset balances and the target balances is
-    /// greater than 0. We assume the permissioned caller has already validated the condition to call this function
-    /// optimally.
-    /// @param assets Array of asset addresses in the basket.
-    /// @param balances Array of balances of each asset in the basket.
-    /// @param targetBalances Array of target balances for each asset in the basket.
-    /// @return shouldRebalance Boolean indicating if a rebalance is required.
-    function _isRebalanceRequired(
-        address[] memory assets,
-        uint256[] memory balances,
-        uint256[] memory targetBalances
-    )
-        private
-        pure
-        returns (bool shouldRebalance)
-    {
-        uint256 assetsLength = assets.length;
-        for (uint256 j = 0; j < assetsLength;) {
-            // slither-disable-start calls-loop
-            if (
-                MathUtils.diff(balances[j], targetBalances[j]) > 0 // nosemgrep
-            ) {
-                shouldRebalance = true;
-                break;
-            }
-            // slither-disable-end calls-loop
             unchecked {
                 // Overflow not possible: j is less than assetsLength
                 ++j;
