@@ -53,7 +53,7 @@ contract IntegrationTest is BaseTest {
     ERC20Mock public rewardToken;
 
     function setUp() public override {
-        forkNetworkAt("mainnet", 21_238_272);
+        forkNetworkAt("mainnet", BLOCK_NUMBER_MAINNET_FORK);
         super.setUp();
         vm.allowCheatcodes(0xa5F044DA84f50f2F6fD7c309C5A8225BCE8b886B);
 
@@ -524,6 +524,8 @@ contract IntegrationTest is BaseTest {
                     basket.approve(address(basket), shares);
                     basket.requestRedeem(shares, user, user);
                     vm.stopPrank();
+
+                    vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_afterRequestRedeem.json");
                 } else {
                     // Select two indexes deterministically based on the cycle number
                     uint256 index1 = c % assets.length;
@@ -854,7 +856,6 @@ contract IntegrationTest is BaseTest {
             basketAssets[i] = bm.basketAssets(basketTokens[i]);
         }
 
-        _updatePythOracleTimeStamps();
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
         assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());

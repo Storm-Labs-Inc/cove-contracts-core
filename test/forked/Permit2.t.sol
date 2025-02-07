@@ -17,7 +17,7 @@ contract Permit2Test is BaseTest {
     BasketToken public basket2;
 
     function setUp() public override {
-        forkNetworkAt("mainnet", 21_238_272);
+        forkNetworkAt("mainnet", BLOCK_NUMBER_MAINNET_FORK);
         super.setUp();
         address assetRegistry = createUser("assetRegistry");
         address implementation = address(new BasketToken());

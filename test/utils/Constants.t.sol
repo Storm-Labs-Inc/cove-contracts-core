@@ -111,4 +111,8 @@ contract Constants {
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
+
+    // This block number includes all pyth oracle updates
+    // https://etherscan.io/tx/0xdb4a012e6c07cc6417c6c2fd020e110ea40fd1207221bbbc5e346045b9b26ecd
+    uint256 public constant BLOCK_NUMBER_MAINNET_FORK = 21_792_603;
 }

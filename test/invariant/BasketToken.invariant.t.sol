@@ -30,7 +30,7 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
     // The target contract is explicitly set to avoid testing all deployed contracts.
     function setUp() public override {
         super.setUp();
-        forkNetworkAt("mainnet", 21_238_272);
+        forkNetworkAt("mainnet", BLOCK_NUMBER_MAINNET_FORK);
         IERC20[] memory assets = new IERC20[](3);
         assets[0] = IERC20(ETH_USDT);
         assets[1] = IERC20(ETH_SUSDE);
