@@ -2973,11 +2973,13 @@ contract BasketManagerTest is BaseTest {
         TradeTestParams memory params;
         params.sellWeight = bound(sellWeight, 0, 1e18 - max_weight_deviation);
         params.depositAmount = bound(depositAmount, 1e18, type(uint256).max) / 1e36;
-        vm.assume(params.depositAmount.fullMulDiv(params.sellWeight, 1e18) > 500);
         params.baseAssetWeight = 1e18 - params.sellWeight;
         deviation = bound(deviation, max_weight_deviation, params.baseAssetWeight);
         vm.assume(params.baseAssetWeight + deviation < 1e18);
         params.pairAsset = pairAsset;
+
+        uint256 deviatedTradeAmount = params.depositAmount.fullMulDiv(1e18 - params.baseAssetWeight - deviation, 1e18);
+        vm.assume(deviatedTradeAmount > 100);
 
         /// Setup basket and target weights
         address[][] memory basketAssets = new address[][](1);
@@ -3002,7 +3004,6 @@ contract BasketManagerTest is BaseTest {
         InternalTrade[] memory internalTrades = new InternalTrade[](0);
         BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
         tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
-        uint256 deviatedTradeAmount = params.depositAmount.fullMulDiv(1e18 - params.baseAssetWeight - deviation, 1e18);
         externalTrades[0] = ExternalTrade({
             sellToken: rootAsset,
             buyToken: params.pairAsset,

@@ -16,7 +16,8 @@ def load_json_file(file_path):
 
 def save_json_file(data, file_path):
     with open(file_path, "w") as file:
-        json.dump(data, file, indent=4)
+        json.dump(data, file, indent=2)
+        file.write("\n")
 
 
 def convert_hex_nonces(data):
