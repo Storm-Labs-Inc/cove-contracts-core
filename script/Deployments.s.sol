@@ -288,7 +288,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         }
         address basketToken = BasketManager(basketManager).createNewBasket(
             string.concat(deployment.name, "_basketToken"),
-            deployment.name,
+            deployment.symbol,
             deployment.rootAsset,
             deployment.bitFlag,
             deployment.strategy
