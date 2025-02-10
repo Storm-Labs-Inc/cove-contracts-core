@@ -1,0 +1,232 @@
+export const abi = [
+  {
+    type: "function",
+    name: "buyToken",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "claim",
+    inputs: [],
+    outputs: [
+      {
+        name: "claimedSellAmount",
+        type: "uint256",
+        internalType: "uint256"
+      },
+      {
+        name: "claimedBuyAmount",
+        type: "uint256",
+        internalType: "uint256"
+      }
+    ],
+    stateMutability: "payable"
+  },
+  {
+    type: "function",
+    name: "initialize",
+    inputs: [],
+    outputs: [],
+    stateMutability: "payable"
+  },
+  {
+    type: "function",
+    name: "isValidSignature",
+    inputs: [
+      {
+        name: "orderDigest",
+        type: "bytes32",
+        internalType: "bytes32"
+      },
+      {
+        name: "encodedOrder",
+        type: "bytes",
+        internalType: "bytes"
+      }
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bytes4",
+        internalType: "bytes4"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "minBuyAmount",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256"
+      }
+    ],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "operator",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "receiver",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "sellAmount",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256"
+      }
+    ],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "sellToken",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    stateMutability: "pure"
+  },
+  {
+    type: "function",
+    name: "validTo",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint32",
+        internalType: "uint32"
+      }
+    ],
+    stateMutability: "pure"
+  },
+  {
+    type: "event",
+    name: "OrderClaimed",
+    inputs: [
+      {
+        name: "operator",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "claimedSellAmount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      },
+      {
+        name: "claimedBuyAmount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "OrderCreated",
+    inputs: [
+      {
+        name: "sellToken",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "buyToken",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "sellAmount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      },
+      {
+        name: "minBuyAmount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      },
+      {
+        name: "validTo",
+        type: "uint32",
+        indexed: false,
+        internalType: "uint32"
+      },
+      {
+        name: "receiver",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "operator",
+        type: "address",
+        indexed: false,
+        internalType: "address"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "error",
+    name: "CallerIsNotOperatorOrReceiver",
+    inputs: []
+  },
+  {
+    type: "error",
+    name: "SafeERC20FailedOperation",
+    inputs: [
+      {
+        name: "token",
+        type: "address",
+        internalType: "address"
+      }
+    ]
+  }
+];
