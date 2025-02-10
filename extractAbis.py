@@ -60,6 +60,9 @@ def extract_abis():
                 if "abi" not in data:
                     continue
 
+                if not data["abi"]:
+                    continue
+
                 contract_name = file.replace(".json", "")
 
                 # Save JSON ABI
