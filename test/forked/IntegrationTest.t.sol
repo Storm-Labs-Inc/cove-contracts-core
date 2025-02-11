@@ -96,7 +96,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
 
-        vm.dumpState("dumpStates/IntegrationTest_setup.json");
+        _dumpStateWithTimestamp("IntegrationTest_setup");
     }
 
     function test_setUp() public {
@@ -505,7 +505,7 @@ contract IntegrationTest is BaseTest {
                 firstCycleBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
-        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_depositsClaimed.json");
+        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_depositsClaimed");
         for (uint256 c = 0; c < cycles; ++c) {
             vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
@@ -524,8 +524,6 @@ contract IntegrationTest is BaseTest {
                     basket.approve(address(basket), shares);
                     basket.requestRedeem(shares, user, user);
                     vm.stopPrank();
-
-                    vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_afterRequestRedeem.json");
                 } else {
                     // Select two indexes deterministically based on the cycle number
                     uint256 index1 = c % assets.length;
@@ -544,6 +542,8 @@ contract IntegrationTest is BaseTest {
 
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
+            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_afterRequestRedeem");
+
             vm.prank(deployments.rebalanceProposer());
             bm.proposeRebalance(basketTokens);
 
@@ -562,7 +562,7 @@ contract IntegrationTest is BaseTest {
 
             vm.prank(deployments.tokenSwapProposer());
             bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
-            vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_redeemRequestsProcessing.json");
+            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_redeemRequestsProcessing");
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
             vm.prank(deployments.tokenSwapExecutor());
@@ -578,7 +578,7 @@ contract IntegrationTest is BaseTest {
                 assertTrue(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
             }
         }
-        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_userRedeemClaimable.json");
+        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_userRedeemClaimable");
 
         // 7. Confirm that end state of the basket is the same as the start state
         for (uint256 i = 0; i < basketTokens.length; ++i) {
@@ -798,7 +798,7 @@ contract IntegrationTest is BaseTest {
         _updateChainLinkOraclesTimeStamp();
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
         assert(basket.fallbackTriggered(redeemRequestId) == true);
-        vm.dumpState("dumpStates/fallbackRedeem_userFallBackSharesClaimable.json");
+        _dumpStateWithTimestamp("fallbackRedeem_userFallBackSharesClaimable");
         uint256 sharesBefore = basket.balanceOf(user);
         vm.prank(user);
         basket.claimFallbackShares(user, user);
@@ -834,12 +834,18 @@ contract IntegrationTest is BaseTest {
 
         vm.warp(vm.getBlockTimestamp() + rewardPeriod / 2);
         // state has claimable and currently accruing rewards
-        vm.dumpState("dumpStates/completeRebalance_rewardsHalfClaimable.json");
+        _dumpStateWithTimestamp("completeRebalance_rewardsHalfClaimable");
         vm.warp(vm.getBlockTimestamp() + farmingPlugin.farmInfo().finished);
-        vm.dumpState("dumpStates/completeRebalance_rewardsFullClaimable.json");
+        _dumpStateWithTimestamp("completeRebalance_rewardsFullClaimable");
     }
 
     /// INTERNAL HELPER FUNCTIONS
+
+    // Helper function to dump state and log timestamp
+    function _dumpStateWithTimestamp(string memory label) internal {
+        vm.writeFile(string.concat("dumpStates/", label, ".timestamp.txt"), vm.toString(vm.getBlockTimestamp()));
+        vm.dumpState(string.concat("dumpStates/", label, ".json"));
+    }
 
     // Requests and processes deposits into every basket
     function _completeRebalance_processDeposits(uint256 numUsers, uint256 entropy) internal {
@@ -854,7 +860,7 @@ contract IntegrationTest is BaseTest {
                 _requestDepositToBasket(user, basketTokens[j], amount);
             }
         }
-        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_afterRequestDeposit.json");
+        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_afterRequestDeposit");
 
         uint64[][] memory targetWeights = new uint64[][](basketTokens.length);
         address[][] memory basketAssets = new address[][](basketTokens.length);
@@ -868,11 +874,11 @@ contract IntegrationTest is BaseTest {
         assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encode(basketTokens, targetWeights, basketAssets)));
-        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_depositsRequestsProcessing.json");
+        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_depositsRequestsProcessing");
 
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         bm.completeRebalance(new ExternalTrade[](0), basketTokens, targetWeights, basketAssets);
-        vm.dumpState("dumpStates/completeRebalance_MultipleBaskets_processDeposits_depositsClaimable.json");
+        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_processDeposits_depositsClaimable");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
@@ -1462,21 +1468,42 @@ contract IntegrationTest is BaseTest {
 
     // Updates the timestamp of a Pyth oracle response
     function _updatePythOracleTimeStamp(bytes32 pythPriceFeed) internal {
+        vm.record();
+        IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
+        (bytes32[] memory readSlots,) = vm.accesses(PYTH);
+        // Second read slot contains the timestamp in the last 32 bits
+        // key   "0x28b01e5f9379f2a22698d286ce7faa0c31f6e4041ee32933d99cfe45a4a8ced5":
+        // value "0x0000000000000000071021bc0000003f435df940fffffff80000000067a59cb0",
+        // Where timestamp is 0x67a59cb0
+        // overwrite this by using vm.store(readSlots[1], modified state)
+        uint256 newPublishTime = vm.getBlockTimestamp();
+        bytes32 modifiedStorageData =
+            bytes32((uint256(vm.load(PYTH, readSlots[1])) & ~uint256(0xFFFFFFFF)) | newPublishTime);
+        vm.store(PYTH, readSlots[1], modifiedStorageData);
+
+        // Verify the storage was updated.
         PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
-        res.publishTime = vm.getBlockTimestamp();
-        vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (pythPriceFeed)), abi.encode(res));
+        assertEq(res.publishTime, newPublishTime, "PythOracle timestamp was not updated correctly");
     }
 
     // Updates the timestamp of a ChainLink oracle response
     function _updateChainLinkOracleTimeStamp(address chainlinkOracle) internal {
-        (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) =
-            IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
-        updatedAt = vm.getBlockTimestamp();
-        vm.mockCall(
-            chainlinkOracle,
-            abi.encodeWithSelector(IChainlinkAggregatorV3Interface.latestRoundData.selector),
-            abi.encode(roundId, answer, startedAt, updatedAt, answeredInRound)
+        address aggregator = IChainlinkAggregatorV3Interface(chainlinkOracle).aggregator();
+        vm.record();
+        IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
+        (bytes32[] memory readSlots,) = vm.accesses(aggregator);
+        // The third slot of the aggregator reads contains the timestamp in the first 32 bits
+        // Format: 0x67a4876b67a48757000000000000000000000000000000000f806f93b728efc0
+        // Where 0x67a4876b is the timestamp
+        uint256 newPublishTime = vm.getBlockTimestamp();
+        bytes32 modifiedStorageData = bytes32(
+            (uint256(vm.load(aggregator, readSlots[2])) & ~uint256(0xFFFFFFFF << 224)) | (newPublishTime << 224)
         );
+        vm.store(aggregator, readSlots[2], modifiedStorageData);
+
+        // Verify the storage was updated
+        (,,, uint256 updatedTimestamp,) = IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
+        assertEq(updatedTimestamp, newPublishTime, "ChainLink timestamp was not updated correctly");
     }
 
     // Updates the timestamps of all ChainLink oracles
