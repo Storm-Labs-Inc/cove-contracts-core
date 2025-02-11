@@ -1492,7 +1492,7 @@ contract IntegrationTest is BaseTest {
         vm.record();
         IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
         (bytes32[] memory readSlots,) = vm.accesses(aggregator);
-        // The third slot of the aggregator reads contains the timestamp in the last 32 bits
+        // The third slot of the aggregator reads contains the timestamp in the first 32 bits
         // Format: 0x67a4876b67a48757000000000000000000000000000000000f806f93b728efc0
         // Where 0x67a4876b is the timestamp
         uint256 newPublishTime = vm.getBlockTimestamp();
