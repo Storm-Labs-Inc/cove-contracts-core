@@ -96,7 +96,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
 
-        vm.dumpState("dumpStates/IntegrationTest_setup.json");
+        _dumpStateWithTimestamp("IntegrationTest_setup");
     }
 
     function test_setUp() public {
