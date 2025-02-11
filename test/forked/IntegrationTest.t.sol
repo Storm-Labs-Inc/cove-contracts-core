@@ -194,7 +194,7 @@ contract IntegrationTest is BaseTest {
         }
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
-        _dumpStateWithTimestamp("completeRebalance_afterInternalTradeProposeTokenSwap");
+        _dumpStateWithTimestamp("afterInternalTradeProposeTokenSwap");
 
         // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
         // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
@@ -278,7 +278,7 @@ contract IntegrationTest is BaseTest {
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
             bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
-            _dumpStateWithTimestamp("completeRebalance_inRetryState_afterCompleteRebalance");
+            _dumpStateWithTimestamp("afterCompleteRebalance_inRetryState");
 
             // Rebalance enters retry state
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
@@ -316,7 +316,7 @@ contract IntegrationTest is BaseTest {
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals));
-        _dumpStateWithTimestamp("completeRebalance_afterMaxRetries_afterCompleteRebalance");
+        _dumpStateWithTimestamp("afterCompleteRebalance_afterMaxRetries");
     }
 
     // Completes two rebalances, one to process deposits and one to get balances of all assets in the base basket. Then
@@ -509,7 +509,7 @@ contract IntegrationTest is BaseTest {
                 firstCycleBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
-        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_depositsClaimed");
+        _dumpStateWithTimestamp("multipleBaskets_depositsClaimed");
         for (uint256 c = 0; c < cycles; ++c) {
             vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
@@ -565,7 +565,7 @@ contract IntegrationTest is BaseTest {
 
             vm.prank(deployments.tokenSwapProposer());
             bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
-            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_redeemRequestsProcessing_afterProposeTokenSwap");
+            _dumpStateWithTimestamp("afterProposeTokenSwap_multipleBaskets_redeemRequestsProcessing");
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
             vm.prank(deployments.tokenSwapExecutor());
@@ -573,7 +573,7 @@ contract IntegrationTest is BaseTest {
             _completeSwapAdapterTrades(externalTrades);
 
             // After execute token swap
-            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_afterExecuteTokenSwap");
+            _dumpStateWithTimestamp("afterExecuteTokenSwap_completeRebalance_MultipleBaskets");
 
             // 6. completeRebalance() is called. The rebalance is confirmed to be completed and the internal balances
             // are verified to correctly reflect the results of each trade.
@@ -584,7 +584,7 @@ contract IntegrationTest is BaseTest {
                 assertTrue(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
             }
         }
-        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_userRedeemClaimable");
+        _dumpStateWithTimestamp("multipleBaskets_userRedeemClaimable");
 
         // 7. Confirm that end state of the basket is the same as the start state
         for (uint256 i = 0; i < basketTokens.length; ++i) {
@@ -871,7 +871,7 @@ contract IntegrationTest is BaseTest {
                 _requestDepositToBasket(user, basketTokens[j], amount);
             }
         }
-        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_afterRequestDeposit");
+        _dumpStateWithTimestamp("multipleBaskets_afterRequestDeposit");
 
         uint64[][] memory targetWeights = new uint64[][](basketTokens.length);
         address[][] memory basketAssets = new address[][](basketTokens.length);
@@ -885,11 +885,11 @@ contract IntegrationTest is BaseTest {
         assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encode(basketTokens, targetWeights, basketAssets)));
-        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_depositsRequestsProcessing");
+        _dumpStateWithTimestamp("multipleBaskets_depositsRequestsProcessing");
 
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         bm.completeRebalance(new ExternalTrade[](0), basketTokens, targetWeights, basketAssets);
-        _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_processDeposits_depositsClaimable");
+        _dumpStateWithTimestamp("multipleBaskets_processDeposits_depositsClaimable");
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
