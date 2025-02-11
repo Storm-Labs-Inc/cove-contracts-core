@@ -194,6 +194,7 @@ contract IntegrationTest is BaseTest {
         }
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
+        _dumpStateWithTimestamp("completeRebalance_afterInternalTradeProposeTokenSwap");
 
         // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
         // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
@@ -277,6 +278,8 @@ contract IntegrationTest is BaseTest {
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
             bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
+            _dumpStateWithTimestamp("completeRebalance_inRetryState_afterCompleteRebalance");
+
             // Rebalance enters retry state
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
             assertEq(uint8(bm.retryCount()), retryNum + 1);
@@ -313,6 +316,7 @@ contract IntegrationTest is BaseTest {
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals));
+        _dumpStateWithTimestamp("completeRebalance_afterMaxRetries_afterCompleteRebalance");
     }
 
     // Completes two rebalances, one to process deposits and one to get balances of all assets in the base basket. Then
@@ -542,7 +546,6 @@ contract IntegrationTest is BaseTest {
 
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
-            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_afterRequestRedeem");
 
             vm.prank(deployments.rebalanceProposer());
             bm.proposeRebalance(basketTokens);
@@ -562,12 +565,15 @@ contract IntegrationTest is BaseTest {
 
             vm.prank(deployments.tokenSwapProposer());
             bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
-            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_redeemRequestsProcessing");
+            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_redeemRequestsProcessing_afterProposeTokenSwap");
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
             vm.prank(deployments.tokenSwapExecutor());
             bm.executeTokenSwap(externalTrades, "");
             _completeSwapAdapterTrades(externalTrades);
+
+            // After execute token swap
+            _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_afterExecuteTokenSwap");
 
             // 6. completeRebalance() is called. The rebalance is confirmed to be completed and the internal balances
             // are verified to correctly reflect the results of each trade.
@@ -691,6 +697,9 @@ contract IntegrationTest is BaseTest {
         vm.snapshotGasLastCall("BasketToken.proRataRedeem");
         vm.stopPrank();
 
+        // After alice claims shares
+        _dumpStateWithTimestamp("proRataRedeem_afterSharesClaim");
+
         // 5. The basket then attempts to rebalance once more with the same target weights as last rebalance
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
         _updatePythOracleTimeStamps();
@@ -803,6 +812,8 @@ contract IntegrationTest is BaseTest {
         vm.prank(user);
         basket.claimFallbackShares(user, user);
         assert(basket.balanceOf(user) == sharesBefore + shares);
+        // After redeem request
+        _dumpStateWithTimestamp("fallbackRedeem_afterRedeemRequest");
     }
 
     function test_farmingPlugin_ExternalRewards() public {
