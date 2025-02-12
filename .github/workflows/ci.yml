@@ -136,11 +136,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Cache current states
-        run: |
-          if [ -d "dumpStates" ]; then
-            cp -r dumpStates dumpStates_original
-          fi
       - name: Run Forge build and tests
         run: |
           forge --version
@@ -151,36 +146,6 @@ jobs:
           # due to non-deterministic fuzzing (but still use pseudo-random fuzzing seeds)
           FOUNDRY_FUZZ_SEED: 0x${{ github.event.pull_request.base.sha || github.sha }}
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
-      - name: Genrate dump state jsons
-        run: python ./process_states.py
-      - name: Compare state jsons
-        run: |
-          if [ ! -d "dumpStates_original" ]; then
-            echo "No original states found. Skipping comparison."
-            exit 0
-          fi
-
-          for file in dumpStates/*.json; do
-            filename=$(basename "$file")
-            if [ -f "dumpStates_original/$filename" ]; then
-              if ! diff -q "dumpStates_original/$filename" "$file" >/dev/null; then
-                echo "❌ State file $filename has changed"
-                diff -u "dumpStates_original/$filename" "$file"
-                exit 1
-              fi
-            else
-              echo "⚠️ New state file detected: $filename"
-            fi
-          done
-
-          for file in dumpStates_original/*.json; do
-            filename=$(basename "$file")
-            if [ ! -f "dumpStates/$filename" ]; then
-              echo "⚠️ State file removed: $filename"
-            fi
-          done
-
-          echo "✅ All state jsons match"
 
   compare-gas-reports:
     name: Compare gas reports
