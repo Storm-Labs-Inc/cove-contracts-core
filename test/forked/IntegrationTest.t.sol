@@ -546,6 +546,7 @@ contract IntegrationTest is BaseTest {
 
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
+            _dumpStateWithTimestamp("multipleBaskets_beforeProposeRebalance_afterRequestRedeem");
 
             vm.prank(deployments.rebalanceProposer());
             bm.proposeRebalance(basketTokens);
