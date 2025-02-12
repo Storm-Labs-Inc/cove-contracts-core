@@ -3,6 +3,9 @@ pragma solidity ^0.8.23;
 
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
+import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
@@ -83,15 +86,14 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         deployer.setAutoBroadcast(isProduction);
 
         // Define permissioned addresses
-        // TODO: replace with actual addresses
-        admin = COVE_OPS_MULTISIG;
-        treasury = COVE_OPS_MULTISIG;
-        pauser = COVE_OPS_MULTISIG;
-        manager = COVE_OPS_MULTISIG;
-        timelock = COVE_OPS_MULTISIG;
-        rebalanceProposer = COVE_OPS_MULTISIG;
-        tokenSwapProposer = COVE_OPS_MULTISIG;
-        tokenSwapExecutor = COVE_OPS_MULTISIG;
+        admin = vm.envOr("COVE_ADMIN", COVE_OPS_MULTISIG);
+        treasury = vm.envOr("COVE_TREASURY", COVE_OPS_MULTISIG);
+        pauser = vm.envOr("COVE_PAUSER", COVE_OPS_MULTISIG);
+        manager = vm.envOr("COVE_MANAGER", COVE_OPS_MULTISIG);
+        timelock = vm.envOr("COVE_TIMELOCK", COVE_OPS_MULTISIG);
+        rebalanceProposer = vm.envOr("COVE_REBALANCE_PROPOSER", COVE_OPS_MULTISIG);
+        tokenSwapProposer = vm.envOr("COVE_TOKEN_SWAP_PROPOSER", COVE_OPS_MULTISIG);
+        tokenSwapExecutor = vm.envOr("COVE_TOKEN_SWAP_EXECUTOR", COVE_OPS_MULTISIG);
         masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
 
         // Deploy unique core contracts
@@ -412,6 +414,60 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         if (isProduction) {
             vm.stopBroadcast();
         }
+    }
+
+    function _deployTimelockController(
+        uint256 minDelay,
+        address[] memory proposers,
+        address[] memory executors,
+        address timelockAdmin
+    )
+        private
+        deployIfMissing("TimelockController")
+        returns (address timelockController)
+    {
+        bytes memory constructorArgs = abi.encode(minDelay, proposers, executors, timelockAdmin);
+        bytes memory creationBytecode = abi.encodePacked(type(TimelockController).creationCode, constructorArgs);
+
+        if (isProduction) {
+            vm.broadcast();
+        }
+        timelockController = address(new TimelockController(minDelay, proposers, executors, timelockAdmin));
+        deployer.save(
+            "TimelockController",
+            timelockController,
+            "TimelockController.sol:TimelockController",
+            constructorArgs,
+            creationBytecode
+        );
+        require(getAddress("TimelockController") == timelockController, "Failed to save TimelockController deployment");
+        string[] memory registryNames = new string[](1);
+        registryNames[0] = "TimelockController";
+        _addContractsToMasterRegistry(registryNames);
+    }
+
+    function _deployFarmingPlugin(
+        address basketToken,
+        string memory basketName,
+        address rewardToken,
+        address distributor
+    )
+        private
+    {
+        BasketToken basket = BasketToken(basketToken);
+        IERC20 reward = IERC20(rewardToken);
+        bytes memory constructorArgs = abi.encode(basket, reward, distributor);
+        bytes memory creationBytecode = abi.encodePacked(type(FarmingPlugin).creationCode, constructorArgs);
+        if (isProduction) {
+            vm.broadcast();
+        }
+        address farmingPlugin = address(new FarmingPlugin(basket, reward, distributor));
+        string memory name = string.concat(basketName, "_FarmingPlugin");
+        deployer.save(name, farmingPlugin, "FarmingPlugin.sol:FarmingPlugin", constructorArgs, creationBytecode);
+        require(getAddress(name) == farmingPlugin, "Failed to save FarmingPlugin deployment");
+        string[] memory registryNames = new string[](1);
+        registryNames[0] = name;
+        _addContractsToMasterRegistry(registryNames);
     }
 
     function _addAssetToAssetRegistry(address asset) private {
