@@ -7,7 +7,6 @@ import { PythStructs } from "@pyth/PythStructs.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
-
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { AnchoredOracle } from "src/AnchoredOracle.sol";
@@ -45,5 +44,29 @@ contract AnchoredOracle_ForkedTest is BaseTest {
 
         uint256 outAmount = oracle.getQuote(1e18, ETH, USD);
         assertEq(outAmount, 349_371_565_257e10);
+    }
+
+    function test_getQuote_revertWhen_divergenceTooHigh(uint256 divergencePercent, uint256 amount) public {
+        // Bound divergence between 2.1% and 100% (above MAX_DIVERGENCE of 2%)
+        divergencePercent = bound(divergencePercent, 21, 1000);
+        divergencePercent = divergencePercent * 1e15; // Convert to WAD (e.g., 21 -> 0.021e18 -> 2.1%)
+        // Bound amount between 0.1e18 and 1000e18
+        amount = bound(amount, 0.1e18, 1000e18);
+
+        // Get Chainlink's current price
+        uint256 chainlinkPrice = anchor.getQuote(amount, ETH, USD);
+
+        // Mock Pyth price
+        PythStructs.Price memory p = IPyth(PYTH).getPriceUnsafe(PYTH_ETH_USD_FEED);
+
+        // Calculate the adjusted price based on Chainlink's price plus our divergence
+        uint256 adjustedPrice = chainlinkPrice * (1e18 + divergencePercent) / 1e18;
+        p.price = int64(int256(adjustedPrice / 1e10)); // Adjust for Pyth's decimal format
+        p.publishTime = vm.getBlockTimestamp() - 5 minutes;
+
+        vm.mockCall(PYTH, abi.encodeCall(IPyth.getPriceUnsafe, (PYTH_ETH_USD_FEED)), abi.encode(p));
+
+        vm.expectRevert(Errors.PriceOracle_InvalidAnswer.selector);
+        oracle.getQuote(amount, ETH, USD);
     }
 }

@@ -548,11 +548,11 @@ contract IntegrationTest is BaseTest {
             bm.proposeRebalance(basketTokens);
 
             // 4. Tokenswaps are proposed
-            (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+            (InternalTrade[] memory internalTradesForCycle, ExternalTrade[] memory externalTradesForCycle) =
                 _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
-            address[][] memory basketAssets = new address[][](basketTokens.length);
+            address[][] memory basketAssetsForCycle = new address[][](basketTokens.length);
             for (uint256 i = 0; i < basketTokens.length; ++i) {
-                address[] memory assets = basketAssets[i] = bm.basketAssets(basketTokens[i]);
+                address[] memory assets = basketAssetsForCycle[i] = bm.basketAssets(basketTokens[i]);
                 uint256[] memory balances = new uint256[](assets.length);
                 for (uint256 j = 0; j < assets.length; j++) {
                     balances[j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
@@ -561,21 +561,29 @@ contract IntegrationTest is BaseTest {
             }
 
             vm.prank(deployments.tokenSwapProposer());
-            bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
+            bm.proposeTokenSwap(
+                internalTradesForCycle,
+                externalTradesForCycle,
+                basketTokens,
+                newTargetWeightsTotal,
+                basketAssetsForCycle
+            );
             _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_redeemRequestsProcessing");
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
             vm.prank(deployments.tokenSwapExecutor());
-            bm.executeTokenSwap(externalTrades, "");
-            _completeSwapAdapterTrades(externalTrades);
+            bm.executeTokenSwap(externalTradesForCycle, "");
+            _completeSwapAdapterTrades(externalTradesForCycle);
 
             // 6. completeRebalance() is called. The rebalance is confirmed to be completed and the internal balances
             // are verified to correctly reflect the results of each trade.
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
-            bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
+            bm.completeRebalance(externalTradesForCycle, basketTokens, newTargetWeightsTotal, basketAssetsForCycle);
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
             if (c != cycles - 1) {
-                assertTrue(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
+                assertTrue(
+                    _validateTradeResults(internalTradesForCycle, externalTradesForCycle, basketTokens, initialBalances)
+                );
             }
         }
         _dumpStateWithTimestamp("completeRebalance_MultipleBaskets_userRedeemClaimable");
@@ -608,6 +616,45 @@ contract IntegrationTest is BaseTest {
                     );
                 }
             }
+        }
+
+        // 8. Test redemption claims
+        for (uint256 i = 0; i < basketTokens.length; i++) {
+            BasketToken basket = BasketToken(basketTokens[i]);
+
+            // Get user's claimable redemption amounts
+            uint256 claimableShares = basket.maxRedeem(user);
+            uint256 claimableAssets = basket.maxWithdraw(user);
+
+            // Skip if no claimable redemption
+            if (claimableShares == 0) continue;
+
+            // Store initial balances
+            uint256 userInitialAssetBalance = IERC20(basket.asset()).balanceOf(user);
+            uint256 userInitialShareBalance = basket.balanceOf(user);
+            uint256 basketInitialAssetBalance = IERC20(basket.asset()).balanceOf(address(basket));
+
+            // Test redeem function
+            vm.prank(user);
+            uint256 redeemedAssets = basket.redeem(claimableShares, user, user);
+
+            // Verify redeem results
+            assertEq(redeemedAssets, claimableAssets, "Redeemed assets should match claimable assets");
+            assertEq(basket.balanceOf(user), userInitialShareBalance, "User share balance should not change");
+            assertEq(
+                IERC20(basket.asset()).balanceOf(user),
+                userInitialAssetBalance + claimableAssets,
+                "User asset balance should increase by claimable assets"
+            );
+            assertEq(
+                IERC20(basket.asset()).balanceOf(address(basket)),
+                basketInitialAssetBalance - claimableAssets,
+                "Basket asset balance should decrease by claimable assets"
+            );
+
+            // Verify redemption request is cleared
+            assertEq(basket.maxRedeem(user), 0, "Redemption request should be cleared after claim");
+            assertEq(basket.maxWithdraw(user), 0, "Withdrawal request should be cleared after claim");
         }
     }
 
@@ -837,6 +884,119 @@ contract IntegrationTest is BaseTest {
         _dumpStateWithTimestamp("completeRebalance_rewardsHalfClaimable");
         vm.warp(vm.getBlockTimestamp() + farmingPlugin.farmInfo().finished);
         _dumpStateWithTimestamp("completeRebalance_rewardsFullClaimable");
+    }
+
+    function test_swapFees_multipleCycles() public {
+        uint256 cycles = 4;
+        address feeCollector = deployments.getAddress("FeeCollector");
+        uint256 expectedFees = 0;
+        BasketToken baseBasket = BasketToken(bm.basketTokens()[0]);
+
+        // 1. Complete initial rebalance to process deposits
+        _completeRebalance_processDeposits(100, 100);
+
+        // 2. Cycle through target weights to generate fees
+        for (uint256 c = 0; c < cycles; ++c) {
+            vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
+
+            // Alternate between two weight configurations
+            uint64[] memory newTargetWeights = new uint64[](6);
+            if (c % 2 == 0) {
+                newTargetWeights[0] = 0; // 0% ETH_WETH
+                newTargetWeights[1] = 1e18; // 100% ETH_SUSDE
+                newTargetWeights[2] = 0; // 0% ETH_WEETH
+                newTargetWeights[3] = 0; // 0% ETH_EZETH
+                newTargetWeights[4] = 0; // 0% ETH_RSETH
+                newTargetWeights[5] = 0; // 0% ETH_RETH
+            } else {
+                newTargetWeights[0] = 1e18; // 100% ETH_WETH
+                newTargetWeights[1] = 0; // 0% ETH_SUSDE
+                newTargetWeights[2] = 0; // 0% ETH_WEETH
+                newTargetWeights[3] = 0; // 0% ETH_EZETH
+                newTargetWeights[4] = 0; // 0% ETH_RSETH
+                newTargetWeights[5] = 0; // 0% ETH_RETH
+            }
+
+            uint64[][] memory newTargetWeightsTotal = new uint64[][](1);
+            newTargetWeightsTotal[0] = newTargetWeights;
+            address[] memory basketTokens = new address[](1);
+            basketTokens[0] = address(baseBasket);
+
+            _updatePythOracleTimeStamps();
+            _updateChainLinkOraclesTimeStamp();
+
+            // Set new target weights
+            ManagedWeightStrategy strategy =
+                ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
+            vm.prank(GAUNTLET_STRATEGIST);
+            strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
+            vm.prank(deployments.rebalanceProposer());
+            bm.proposeRebalance(basketTokens);
+
+            // Find and execute trades
+            (InternalTrade[] memory internalTradesForCycle, ExternalTrade[] memory externalTradesForCycle) =
+                _findInternalAndExternalTrades(basketTokens, newTargetWeightsTotal);
+
+            // Calculate expected fees for this cycle
+            uint256 swapFee = bm.swapFee();
+            for (uint256 i = 0; i < internalTradesForCycle.length; i++) {
+                InternalTrade memory trade = internalTradesForCycle[i];
+                uint256 swapFeeAmount = trade.sellAmount.fullMulDiv(swapFee, 2e4);
+                uint256 usdBuyAmount = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, USD);
+                uint256 buyAmount = eulerRouter.getQuote(usdBuyAmount, USD, trade.buyToken);
+                uint256 buyFeeAmount = buyAmount.fullMulDiv(swapFee, 2e4);
+                expectedFees += swapFeeAmount + buyFeeAmount;
+            }
+
+            for (uint256 i = 0; i < externalTradesForCycle.length; i++) {
+                ExternalTrade memory trade = externalTradesForCycle[i];
+                uint256 swapFeeAmount = trade.sellAmount.fullMulDiv(swapFee, 2e4);
+                uint256 usdBuyAmount = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, USD);
+                uint256 buyAmount = eulerRouter.getQuote(usdBuyAmount, USD, trade.buyToken);
+                uint256 buyFeeAmount = buyAmount.fullMulDiv(swapFee, 2e4);
+                expectedFees += swapFeeAmount + buyFeeAmount;
+            }
+
+            address[][] memory basketAssetsForCycle = new address[][](1);
+            basketAssetsForCycle[0] = bm.basketAssets(address(baseBasket));
+            uint256[][] memory initialBalances = new uint256[][](1);
+            initialBalances[0] = new uint256[](basketAssetsForCycle[0].length);
+            for (uint256 j = 0; j < basketAssetsForCycle[0].length; j++) {
+                initialBalances[0][j] = bm.basketBalanceOf(address(baseBasket), basketAssetsForCycle[0][j]);
+            }
+
+            vm.prank(deployments.tokenSwapProposer());
+            bm.proposeTokenSwap(
+                internalTradesForCycle,
+                externalTradesForCycle,
+                basketTokens,
+                newTargetWeightsTotal,
+                basketAssetsForCycle
+            );
+
+            vm.prank(deployments.tokenSwapExecutor());
+            bm.executeTokenSwap(externalTradesForCycle, "");
+            _completeSwapAdapterTrades(externalTradesForCycle);
+
+            vm.warp(vm.getBlockTimestamp() + 15 minutes);
+            bm.completeRebalance(externalTradesForCycle, basketTokens, newTargetWeightsTotal, basketAssetsForCycle);
+            assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
+            assert(_validateTradeResults(internalTradesForCycle, externalTradesForCycle, basketTokens, initialBalances));
+        }
+
+        // 3. Claim and verify fees
+        uint256 feeCollectorBalanceBefore = IERC20(ETH_SUSDE).balanceOf(feeCollector);
+        vm.prank(deployments.admin());
+        uint256 actualFees = bm.collectSwapFee(ETH_SUSDE);
+        uint256 feeCollectorBalanceAfter = IERC20(ETH_SUSDE).balanceOf(feeCollector);
+
+        // Verify fee collection
+        assertEq(actualFees, expectedFees, "Collected fees do not match expected amount");
+        assertEq(
+            feeCollectorBalanceAfter - feeCollectorBalanceBefore,
+            expectedFees,
+            "Fee collector balance change does not match expected fees"
+        );
     }
 
     /// INTERNAL HELPER FUNCTIONS
@@ -1241,15 +1401,15 @@ contract IntegrationTest is BaseTest {
         externalTradeCount = 0;
         for (uint256 i = 0; i < baskets.length; i++) {
             address basket = baskets[i];
-            address[] memory assets = bm.basketAssets(basket);
+            address[] memory currentAssets = bm.basketAssets(basket);
             // Process each potential sell asset
-            for (uint256 j = 0; j < assets.length; j++) {
-                address sellAsset = assets[j];
+            for (uint256 j = 0; j < currentAssets.length; j++) {
+                address sellAsset = currentAssets[j];
 
                 if (surplusDeficitMap[sellAsset][basket].surplusUSD == 0) continue;
 
                 externalTradeCount =
-                    _processSellAsset(basket, sellAsset, assets, externalTradesTemp, externalTradeCount);
+                    _processSellAsset(basket, sellAsset, currentAssets, externalTradesTemp, externalTradeCount);
             }
         }
     }
@@ -1259,7 +1419,7 @@ contract IntegrationTest is BaseTest {
     function _processSellAsset(
         address basket,
         address sellAsset,
-        address[] memory assets,
+        address[] memory currentAssets,
         ExternalTrade[] memory externalTradesTemp,
         uint256 tradeCount
     )
@@ -1267,8 +1427,8 @@ contract IntegrationTest is BaseTest {
         returns (uint256)
     {
         // Look for matching deficits
-        for (uint256 i = 0; i < assets.length; i++) {
-            address buyAsset = assets[i];
+        for (uint256 i = 0; i < currentAssets.length; i++) {
+            address buyAsset = currentAssets[i];
             if (buyAsset == sellAsset) continue;
 
             // Recalculate surplusUSD to ensure it reflects the current state
@@ -1540,6 +1700,5 @@ contract IntegrationTest is BaseTest {
             abi.encodeWithSelector(IChainlinkAggregatorV3Interface.latestRoundData.selector),
             abi.encode(roundId, answer, startedAt, updatedAt, answeredInRound)
         );
-    }
+    } // slither-disable-end cyclomatic-complexity
 }
-// slither-disable-end cyclomatic-complexity
