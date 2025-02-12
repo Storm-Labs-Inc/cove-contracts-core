@@ -1304,6 +1304,7 @@ contract BasketTokenTest is BaseTest {
         testFuzz_fulfillRedeem(totalDepositAmount, issuedShares, redeemAmount);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(operator != from);
             uint256 maxRedeem = basket.maxRedeem(from);
             // Previous tests ensures that the user has non zero shares to redeem
             assertGt(maxRedeem, 0, "Max redeem should be greater than 0 for this test");
@@ -1411,6 +1412,7 @@ contract BasketTokenTest is BaseTest {
         testFuzz_fulfillRedeem(totalDepositAmount, issuedShares, redeemAmount);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
+            vm.assume(operator != from);
             uint256 maxWithdraw = basket.maxWithdraw(from);
 
             assert(!basket.isOperator(fuzzedUsers[i], operator));
@@ -1749,12 +1751,13 @@ contract BasketTokenTest is BaseTest {
             uint256 userShares = basket.balanceOf(from);
             // Ignore the cases where the user has deposited non zero amount but has zero shares
             vm.assume(userShares > 0);
+            vm.assume(caller != from);
             uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userShares))), 1, userShares);
 
             // Approve token spend
             vm.prank(from);
             basket.approve(caller, sharesToRedeem);
-            assertGt(basket.allowance(from, caller), 0);
+            assertEq(basket.allowance(from, caller), sharesToRedeem);
 
             // Mock proRataRedeem
             uint256 totalSupply = basket.totalSupply();
