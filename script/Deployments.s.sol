@@ -4,7 +4,6 @@ pragma solidity ^0.8.23;
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
-import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -414,36 +413,6 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         if (isProduction) {
             vm.stopBroadcast();
         }
-    }
-
-    function _deployTimelockController(
-        uint256 minDelay,
-        address[] memory proposers,
-        address[] memory executors,
-        address timelockAdmin
-    )
-        private
-        deployIfMissing("TimelockController")
-        returns (address timelockController)
-    {
-        bytes memory constructorArgs = abi.encode(minDelay, proposers, executors, timelockAdmin);
-        bytes memory creationBytecode = abi.encodePacked(type(TimelockController).creationCode, constructorArgs);
-
-        if (isProduction) {
-            vm.broadcast();
-        }
-        timelockController = address(new TimelockController(minDelay, proposers, executors, timelockAdmin));
-        deployer.save(
-            "TimelockController",
-            timelockController,
-            "TimelockController.sol:TimelockController",
-            constructorArgs,
-            creationBytecode
-        );
-        require(getAddress("TimelockController") == timelockController, "Failed to save TimelockController deployment");
-        string[] memory registryNames = new string[](1);
-        registryNames[0] = "TimelockController";
-        _addContractsToMasterRegistry(registryNames);
     }
 
     function _deployFarmingPlugin(
