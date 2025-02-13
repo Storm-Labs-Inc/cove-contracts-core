@@ -100,13 +100,16 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         treasury = vm.envOr("COVE_TREASURY", COVE_OPS_MULTISIG);
         pauser = vm.envOr("COVE_PAUSER", COVE_OPS_MULTISIG);
         manager = vm.envOr("COVE_MANAGER", COVE_OPS_MULTISIG);
-        if (_isDeploymentEnv("staging")) {
-            timelock = _deployStagingTimelockController();
-        } else if (_isDeploymentEnv("production")) {
-            timelock = getAddress("TimelockController");
+        if (isProduction) {
+            if (_isDeploymentEnv("staging")) {
+                timelock = _deployStagingTimelockController();
+            } else {
+                timelock = getAddress("TimelockController");
+            }
         } else {
             timelock = COVE_OPS_MULTISIG;
         }
+
         rebalanceProposer = vm.envOr("COVE_REBALANCE_PROPOSER", COVE_OPS_MULTISIG);
         tokenSwapProposer = vm.envOr("COVE_TOKEN_SWAP_PROPOSER", COVE_OPS_MULTISIG);
         tokenSwapExecutor = vm.envOr("COVE_TOKEN_SWAP_EXECUTOR", COVE_OPS_MULTISIG);
@@ -117,7 +120,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
         // Deploy oracles and strategies for launch asset universe and baskets
 
-        if (_isDeploymentEnv("staging")) {
+        if (isProduction_ && _isDeploymentEnv("staging")) {
             basketAssets = new address[](4);
             basketAssets[0] = ETH_USDC;
             basketAssets[1] = ETH_SDAI;
@@ -173,8 +176,14 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             // Deploy MockERC20 for farming plugin rewards
             bytes memory constructorArgs = abi.encode("CoveMockERC20", "CMRC20", 18);
             bytes memory creationBytecode = abi.encodePacked(type(MockERC20).creationCode, constructorArgs);
+            if (isProduction) {
+                vm.startBroadcast();
+            }
             MockERC20 mockERC20 = new MockERC20();
             mockERC20.initialize("CoveMockERC20", "CMRC20", 18);
+            if (isProduction) {
+                vm.stopBroadcast();
+            }
             deployer.save(
                 "CoveMockERC20", address(mockERC20), "MockERC20.sol:MockERC20", constructorArgs, creationBytecode
             );
