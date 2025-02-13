@@ -51,8 +51,13 @@ contract Constants {
     address public constant ETH_WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
     address public constant ETH_WEETH = 0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee;
     address public constant ETH_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
+    address public constant ETH_SDAI = 0x83F20F44975D03b1b09e64809B757c47f942BEeA;
+    address public constant ETH_SFRAX = 0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32;
     // PRICE FEEDS
+    // USDC/USD
+    bytes32 public constant PYTH_USDC_USD_FEED = 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a;
+    address public constant ETH_CHAINLINK_USDC_USD_FEED = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
+
     // ETH/USD
     bytes32 public constant PYTH_ETH_USD_FEED = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
     address public constant ETH_CHAINLINK_ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;

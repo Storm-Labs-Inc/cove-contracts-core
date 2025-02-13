@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -11,6 +12,8 @@ import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
+
+import { MockERC20 } from "dependencies/euler-price-oracle-1/lib/forge-std/src/mocks/MockERC20.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 
 import { Constants } from "test/utils/Constants.t.sol";
@@ -63,8 +66,15 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     IMasterRegistry public masterRegistry;
 
     bool public isProduction;
+    string public deploymentEnv;
     // TODO: see if this is needed
     BasketTokenDeployment[] public basketTokenDeploymentList;
+    address[] public basketAssets;
+    string[] public registryNamesToAdd;
+
+    function _isDeploymentEnv(string memory env) private view returns (bool) {
+        return keccak256(bytes(deploymentEnv)) == keccak256(bytes(env));
+    }
 
     bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
 
@@ -75,6 +85,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     function deploy(bool isProduction_) public {
         isProduction = isProduction_;
+        deploymentEnv = vm.envOr("DEPLOYMENT_ENV", string("test"));
         // Start the prank if not in production
         if (!isProduction) {
             vm.startPrank(COVE_DEPLOYER_ADDRESS);
@@ -89,7 +100,13 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         treasury = vm.envOr("COVE_TREASURY", COVE_OPS_MULTISIG);
         pauser = vm.envOr("COVE_PAUSER", COVE_OPS_MULTISIG);
         manager = vm.envOr("COVE_MANAGER", COVE_OPS_MULTISIG);
-        timelock = vm.envOr("COVE_TIMELOCK", COVE_OPS_MULTISIG);
+        if (_isDeploymentEnv("staging")) {
+            timelock = _deployStagingTimelockController();
+        } else if (_isDeploymentEnv("production")) {
+            timelock = getAddress("TimelockController");
+        } else {
+            timelock = COVE_OPS_MULTISIG;
+        }
         rebalanceProposer = vm.envOr("COVE_REBALANCE_PROPOSER", COVE_OPS_MULTISIG);
         tokenSwapProposer = vm.envOr("COVE_TOKEN_SWAP_PROPOSER", COVE_OPS_MULTISIG);
         tokenSwapExecutor = vm.envOr("COVE_TOKEN_SWAP_EXECUTOR", COVE_OPS_MULTISIG);
@@ -100,139 +117,197 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
         // Deploy oracles and strategies for launch asset universe and baskets
 
-        // TODO: finalize the list of assets and their oracle options
-        // 0. WETH
-        _deployDefaultAnchoredOracleForAsset(
-            ETH_WETH,
-            "WETH",
-            OracleOptions({
-                pythPriceFeed: PYTH_ETH_USD_FEED, // TODO: confirm WETH vs ETH oracle
-                pythMaxStaleness: 15 minutes,
-                pythMaxConfWidth: 100,
-                chainlinkPriceFeed: ETH_CHAINLINK_ETH_USD_FEED, // TODO: confirm WETH vs ETH oracle
-                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                maxDivergence: 0.5e18
-            })
-        );
-        _addAssetToAssetRegistry(ETH_WETH);
+        if (_isDeploymentEnv("staging")) {
+            basketAssets = new address[](4);
+            basketAssets[0] = USD;
+            basketAssets[1] = ETH_SDAI;
+            basketAssets[2] = ETH_SFRAX;
+            basketAssets[3] = ETH_SUSDE;
+            // 0. USDC // oracle not needed for USDC
+            _addAssetToAssetRegistry(USD);
 
-        // 1. SUSDE
-        _deployDefaultAnchoredOracleForAsset(
-            ETH_SUSDE,
-            "SUSDE",
-            OracleOptions({
-                pythPriceFeed: PYTH_SUSDE_USD_FEED,
-                pythMaxStaleness: 15 minutes,
-                pythMaxConfWidth: 100,
-                chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
-                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                maxDivergence: 0.5e18
-            })
-        );
-        _addAssetToAssetRegistry(ETH_SUSDE);
+            // 1. sDAI
+            _add4626ToEulerRouter(ETH_SDAI);
+            _addAssetToAssetRegistry(ETH_SDAI);
 
-        // 2. weETH/ETH -> USD
-        _deployChainlinkCrossAdapterForNonUSDPair(
-            ETH_WEETH,
-            "weETH",
-            OracleOptions({
-                pythPriceFeed: PYTH_WEETH_USD_FEED,
-                pythMaxStaleness: 15 minutes,
-                pythMaxConfWidth: 100,
-                chainlinkPriceFeed: ETH_CHAINLINK_WEETH_ETH_FEED,
-                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                maxDivergence: 0.5e18
-            }),
-            ETH,
-            "ETH",
-            ETH_CHAINLINK_ETH_USD_FEED
-        );
-        _addAssetToAssetRegistry(ETH_WEETH);
+            // 2. sFRAX
+            _add4626ToEulerRouter(ETH_SFRAX);
+            _addAssetToAssetRegistry(ETH_SFRAX);
 
-        // 3. ezETH/ETH -> USD
-        _deployChainlinkCrossAdapterForNonUSDPair(
-            ETH_EZETH,
-            "ezETH",
-            OracleOptions({
-                pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to ezETH feed once found
-                pythMaxStaleness: 15 minutes,
-                pythMaxConfWidth: 100,
-                chainlinkPriceFeed: ETH_CHAINLINK_EZETH_ETH_FEED,
-                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                maxDivergence: 0.5e18
-            }),
-            ETH,
-            "ETH",
-            ETH_CHAINLINK_ETH_USD_FEED
-        );
-        _addAssetToAssetRegistry(ETH_EZETH);
+            // 3. sUSDe
+            _add4626ToEulerRouter(ETH_SUSDE);
+            _addAssetToAssetRegistry(ETH_SUSDE);
 
-        // 4. rsETH/ETH -> USD
-        _deployChainlinkCrossAdapterForNonUSDPair(
-            ETH_RSETH,
-            "rsETH",
-            OracleOptions({
-                pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to rsETH feed once found
-                pythMaxStaleness: 15 minutes,
-                pythMaxConfWidth: 100,
-                chainlinkPriceFeed: ETH_CHAINLINK_RSETH_ETH_FEED,
-                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                maxDivergence: 0.5e18
-            }),
-            ETH,
-            "ETH",
-            ETH_CHAINLINK_ETH_USD_FEED
-        );
-        _addAssetToAssetRegistry(ETH_RSETH);
+            // Deploy launch strategy
+            _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet V1");
 
-        // 5. rETH/ETH -> USD
-        _deployChainlinkCrossAdapterForNonUSDPair(
-            ETH_RETH,
-            "rETH",
-            OracleOptions({
-                pythPriceFeed: PYTH_RETH_USD_FEED,
-                pythMaxStaleness: 15 minutes,
-                pythMaxConfWidth: 100,
-                chainlinkPriceFeed: ETH_CHAINLINK_RETH_ETH_FEED,
-                chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                maxDivergence: 0.5e18
-            }),
-            ETH,
-            "ETH",
-            ETH_CHAINLINK_ETH_USD_FEED
-        );
-        _addAssetToAssetRegistry(ETH_RETH);
+            uint64[] memory initialWeights = new uint64[](4);
+            initialWeights[0] = 0;
+            initialWeights[1] = 0.7777777777777778e18;
+            initialWeights[2] = 0.1111111111111111e18;
+            initialWeights[3] = 0.1111111111111111e18;
 
-        // Deploy launch strategies
-        _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
+            _setInitialWeightsAndDeployBasketToken(
+                BasketTokenDeployment({
+                    name: "Staging_Stables",
+                    symbol: "stgUSD",
+                    rootAsset: USD,
+                    bitFlag: assetsToBitFlag(basketAssets),
+                    strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"),
+                    initialWeights: initialWeights
+                })
+            );
 
-        // Deploy launch basket tokens
-        address[] memory basketAssets = new address[](6); // TODO: confirm assets with Gauntlet
-        basketAssets[0] = ETH_WETH;
-        basketAssets[1] = ETH_SUSDE;
-        basketAssets[2] = ETH_WEETH;
-        basketAssets[3] = ETH_EZETH;
-        basketAssets[4] = ETH_RSETH;
-        basketAssets[5] = ETH_RETH;
+            // Deploy MockERC20 for farming plugin rewards
+            bytes memory constructorArgs = abi.encode("CoveMockERC20", "CMRC20", 18);
+            bytes memory creationBytecode = abi.encodePacked(type(MockERC20).creationCode, constructorArgs);
+            MockERC20 mockERC20 = new MockERC20();
+            mockERC20.initialize("CoveMockERC20", "CMRC20", 18);
+            deployer.save(
+                "CoveMockERC20", address(mockERC20), "MockERC20.sol:MockERC20", constructorArgs, creationBytecode
+            );
 
-        uint64[] memory initialWeights = new uint64[](6); // TODO: confirm initial weights with Guantlet
-        initialWeights[0] = 1e18;
-        initialWeights[1] = 0;
-        initialWeights[2] = 0;
-        initialWeights[3] = 0;
-        initialWeights[4] = 0;
-        initialWeights[5] = 0;
+            // Deploy farming plugin
+            address farmDistributor = vm.envOr("COVE_FARM_DISTRIBUTOR", COVE_DEPLOYER_ADDRESS);
+            _deployFarmingPlugin(
+                getAddress("Staging_Stables_BasketToken"), "Staging_Stables", address(mockERC20), farmDistributor
+            );
+        } else {
+            basketAssets = new address[](6);
+            basketAssets[0] = ETH_WETH;
+            basketAssets[1] = ETH_SUSDE;
+            basketAssets[2] = ETH_WEETH;
+            basketAssets[3] = ETH_EZETH;
+            basketAssets[4] = ETH_RSETH;
+            basketAssets[5] = ETH_RETH;
 
-        _setInitialWeightsAndDeployBasketToken(
-            BasketTokenDeployment({
-                name: "Gauntlet All Asset", // TODO: confirm basket name. Will be prefixed with "CoveBasket "
-                symbol: "gWETH", // TODO: confirm basket symbol. Will be prefixed with "cvt"
-                rootAsset: ETH_WETH, // TODO: confirm root asset
-                bitFlag: assetsToBitFlag(basketAssets),
-                strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"), // TODO: confirm strategy
-                initialWeights: initialWeights
-            })
-        );
+            // 0. WETH
+            _deployDefaultAnchoredOracleForAsset(
+                ETH_WETH,
+                "WETH",
+                OracleOptions({
+                    pythPriceFeed: PYTH_ETH_USD_FEED, // TODO: confirm WETH vs ETH oracle
+                    pythMaxStaleness: 15 minutes,
+                    pythMaxConfWidth: 100,
+                    chainlinkPriceFeed: ETH_CHAINLINK_ETH_USD_FEED, // TODO: confirm WETH vs ETH oracle
+                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                    maxDivergence: 0.5e18
+                })
+            );
+            _addAssetToAssetRegistry(ETH_WETH);
+
+            // 1. SUSDE
+            _deployDefaultAnchoredOracleForAsset(
+                ETH_SUSDE,
+                "SUSDE",
+                OracleOptions({
+                    pythPriceFeed: PYTH_SUSDE_USD_FEED,
+                    pythMaxStaleness: 15 minutes,
+                    pythMaxConfWidth: 100,
+                    chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
+                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                    maxDivergence: 0.5e18
+                })
+            );
+            _addAssetToAssetRegistry(ETH_SUSDE);
+
+            // 2. weETH/ETH -> USD
+            _deployChainlinkCrossAdapterForNonUSDPair(
+                ETH_WEETH,
+                "weETH",
+                OracleOptions({
+                    pythPriceFeed: PYTH_WEETH_USD_FEED,
+                    pythMaxStaleness: 15 minutes,
+                    pythMaxConfWidth: 100,
+                    chainlinkPriceFeed: ETH_CHAINLINK_WEETH_ETH_FEED,
+                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                    maxDivergence: 0.5e18
+                }),
+                ETH,
+                "ETH",
+                ETH_CHAINLINK_ETH_USD_FEED
+            );
+            _addAssetToAssetRegistry(ETH_WEETH);
+
+            // 3. ezETH/ETH -> USD
+            _deployChainlinkCrossAdapterForNonUSDPair(
+                ETH_EZETH,
+                "ezETH",
+                OracleOptions({
+                    pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to ezETH feed once found
+                    pythMaxStaleness: 15 minutes,
+                    pythMaxConfWidth: 100,
+                    chainlinkPriceFeed: ETH_CHAINLINK_EZETH_ETH_FEED,
+                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                    maxDivergence: 0.5e18
+                }),
+                ETH,
+                "ETH",
+                ETH_CHAINLINK_ETH_USD_FEED
+            );
+            _addAssetToAssetRegistry(ETH_EZETH);
+
+            // 4. rsETH/ETH -> USD
+            _deployChainlinkCrossAdapterForNonUSDPair(
+                ETH_RSETH,
+                "rsETH",
+                OracleOptions({
+                    pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to rsETH feed once found
+                    pythMaxStaleness: 15 minutes,
+                    pythMaxConfWidth: 100,
+                    chainlinkPriceFeed: ETH_CHAINLINK_RSETH_ETH_FEED,
+                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                    maxDivergence: 0.5e18
+                }),
+                ETH,
+                "ETH",
+                ETH_CHAINLINK_ETH_USD_FEED
+            );
+            _addAssetToAssetRegistry(ETH_RSETH);
+
+            // 5. rETH/ETH -> USD
+            _deployChainlinkCrossAdapterForNonUSDPair(
+                ETH_RETH,
+                "rETH",
+                OracleOptions({
+                    pythPriceFeed: PYTH_RETH_USD_FEED,
+                    pythMaxStaleness: 15 minutes,
+                    pythMaxConfWidth: 100,
+                    chainlinkPriceFeed: ETH_CHAINLINK_RETH_ETH_FEED,
+                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
+                    maxDivergence: 0.5e18
+                }),
+                ETH,
+                "ETH",
+                ETH_CHAINLINK_ETH_USD_FEED
+            );
+            _addAssetToAssetRegistry(ETH_RETH);
+
+            // Deploy launch strategies
+            _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
+
+            uint64[] memory initialWeights = new uint64[](6); // TODO: confirm initial weights with Guantlet
+            initialWeights[0] = 1e18;
+            initialWeights[1] = 0;
+            initialWeights[2] = 0;
+            initialWeights[3] = 0;
+            initialWeights[4] = 0;
+            initialWeights[5] = 0;
+
+            _setInitialWeightsAndDeployBasketToken(
+                BasketTokenDeployment({
+                    name: "Gauntlet All Asset", // TODO: confirm basket name. Will be prefixed with "CoveBasket "
+                    symbol: "gWETH", // TODO: confirm basket symbol. Will be prefixed with "cvt"
+                    rootAsset: ETH_WETH, // TODO: confirm root asset
+                    bitFlag: assetsToBitFlag(basketAssets),
+                    strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"), // TODO: confirm strategy
+                    initialWeights: initialWeights
+                })
+            );
+        }
+
+        // Add all collected registry names to master registry
+        _finalizeRegistryAdditions();
 
         // Give up all permissions from the deployer to the admin/manager multisig
         _cleanPermissions();
@@ -269,7 +344,11 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         _deployFeeCollector(_FEE_COLLECTOR_SALT);
         registryNames[5] = "CowSwapAdapter";
         _deployAndSetCowSwapAdapter();
-        _addContractsToMasterRegistry(registryNames);
+
+        // Add all core contract names to the collection
+        for (uint256 i = 0; i < registryNames.length; i++) {
+            registryNamesToAdd.push(registryNames[i]);
+        }
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment) private {
@@ -415,6 +494,48 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         }
     }
 
+    // NOTE: timelock deploy for staging purposes only
+    function _deployStagingTimelockController() private returns (address stagingTimelock) {
+        address[] memory proposers = new address[](3);
+        proposers[0] = admin;
+        proposers[1] = manager;
+        proposers[2] = COVE_DEPLOYER_ADDRESS;
+        address[] memory executors = new address[](1);
+        executors[0] = admin;
+        stagingTimelock = _deployTimelockController(0, proposers, executors, admin);
+    }
+
+    function _deployTimelockController(
+        uint256 minDelay,
+        address[] memory proposers,
+        address[] memory executors,
+        address timelockAdmin
+    )
+        private
+        deployIfMissing("StagingTimelockController")
+        returns (address timelockController)
+    {
+        bytes memory constructorArgs = abi.encode(minDelay, proposers, executors, timelockAdmin);
+        bytes memory creationBytecode = abi.encodePacked(type(TimelockController).creationCode, constructorArgs);
+
+        if (isProduction) {
+            vm.broadcast();
+        }
+        timelockController = address(new TimelockController(minDelay, proposers, executors, timelockAdmin));
+        deployer.save(
+            "StagingTimelockController",
+            timelockController,
+            "TimelockController.sol:TimelockController",
+            constructorArgs,
+            creationBytecode
+        );
+        require(
+            getAddress("StagingTimelockController") == timelockController,
+            "Failed to save StagingTimelockController deployment"
+        );
+        registryNamesToAdd.push("StagingTimelockController");
+    }
+
     function _deployFarmingPlugin(
         address basketToken,
         string memory basketName,
@@ -434,9 +555,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         string memory name = string.concat(basketName, "_FarmingPlugin");
         deployer.save(name, farmingPlugin, "FarmingPlugin.sol:FarmingPlugin", constructorArgs, creationBytecode);
         require(getAddress(name) == farmingPlugin, "Failed to save FarmingPlugin deployment");
-        string[] memory registryNames = new string[](1);
-        registryNames[0] = name;
-        _addContractsToMasterRegistry(registryNames);
+        registryNamesToAdd.push(name);
     }
 
     function _addAssetToAssetRegistry(address asset) private {
@@ -448,14 +567,22 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     }
 
     function _addContractsToMasterRegistry(string[] memory registryNames) private {
+        for (uint256 i = 0; i < registryNames.length; i++) {
+            registryNamesToAdd.push(registryNames[i]);
+        }
+    }
+
+    function _finalizeRegistryAdditions() private {
+        bytes[] memory data = new bytes[](registryNamesToAdd.length);
+        for (uint256 i = 0; i < registryNamesToAdd.length; i++) {
+            data[i] = abi.encodeWithSelector(
+                IMasterRegistry.addRegistry.selector,
+                bytes32(bytes(registryNamesToAdd[i])),
+                getAddress(registryNamesToAdd[i])
+            );
+        }
         if (isProduction) {
             vm.broadcast();
-        }
-        bytes[] memory data = new bytes[](registryNames.length);
-        for (uint256 i = 0; i < registryNames.length; i++) {
-            data[i] = abi.encodeWithSelector(
-                IMasterRegistry.addRegistry.selector, bytes32(bytes(registryNames[i])), getAddress(registryNames[i])
-            );
         }
         Multicall(address(masterRegistry)).multicall(data);
     }
@@ -638,6 +765,14 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             vm.broadcast();
         }
         eulerRouter.govSetConfig(asset, USD, anchoredOracle);
+    }
+
+    function _add4626ToEulerRouter(address vault) private {
+        EulerRouter eulerRouter = EulerRouter(getAddress("EulerRouter"));
+        if (isProduction) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetResolvedVault(vault, true);
     }
 
     // Performs calls to grant permissions once deployment is successful
