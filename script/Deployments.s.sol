@@ -119,12 +119,24 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
         if (_isDeploymentEnv("staging")) {
             basketAssets = new address[](4);
-            basketAssets[0] = USD;
+            basketAssets[0] = ETH_USDC;
             basketAssets[1] = ETH_SDAI;
             basketAssets[2] = ETH_SFRAX;
             basketAssets[3] = ETH_SUSDE;
-            // 0. USDC // oracle not needed for USDC
-            _addAssetToAssetRegistry(USD);
+            // 0. USDC
+            _deployDefaultAnchoredOracleForAsset(
+                ETH_USDC,
+                "USDC",
+                OracleOptions({
+                    pythPriceFeed: PYTH_USDC_USD_FEED,
+                    pythMaxStaleness: 30 seconds,
+                    pythMaxConfWidth: 50, //0.5%
+                    chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
+                    chainlinkMaxStaleness: 1 days,
+                    maxDivergence: 0.005e18 // 0.5%
+                 })
+            );
+            _addAssetToAssetRegistry(ETH_USDC);
 
             // 1. sDAI
             _add4626ToEulerRouter(ETH_SDAI);
@@ -151,7 +163,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                 BasketTokenDeployment({
                     name: "Staging_Stables",
                     symbol: "stgUSD",
-                    rootAsset: USD,
+                    rootAsset: ETH_USDC,
                     bitFlag: assetsToBitFlag(basketAssets),
                     strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"),
                     initialWeights: initialWeights
