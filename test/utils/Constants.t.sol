@@ -54,10 +54,25 @@ contract Constants {
     address public constant ETH_SDAI = 0x83F20F44975D03b1b09e64809B757c47f942BEeA;
     address public constant ETH_SFRAX = 0xA663B02CF0a4b149d2aD41910CB81e23e1c41c32;
     address public constant ETH_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address public constant ETH_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address public constant ETH_FRAX = 0x853d955aCEf822Db058eb8505911ED77F175b99e;
+    address public constant ETH_USDE = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
     // PRICE FEEDS
     // USDC/USD
     bytes32 public constant PYTH_USDC_USD_FEED = 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a;
     address public constant ETH_CHAINLINK_USDC_USD_FEED = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
+
+    // DAI/USD
+    bytes32 public constant PYTH_DAI_USD_FEED = 0xb0948a5e5313200c632b51bb5ca32f6de0d36e9950a942d19751e833f70dabfd;
+    address public constant ETH_CHAINLINK_DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
+
+    // FRAX/USD
+    bytes32 public constant PYTH_FRAX_USD_FEED = 0xc3d5d8d6d17081b3d0bbca6e2fa3a6704bb9a9561d9f9e1dc52db47629f862ad;
+    address public constant ETH_CHAINLINK_FRAX_USD_FEED = 0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD;
+
+    // USDE/USD
+    bytes32 public constant PYTH_USDE_USD_FEED = 0x6ec879b1e9963de5ee97e9c8710b742d6228252a5e2ca12d4ae81d7fe5ee8c5d;
+    address public constant ETH_CHAINLINK_USDE_USD_FEED = 0xa569d910839Ae8865Da8F8e70FfFb0cBA869F961;
 
     // ETH/USD
     bytes32 public constant PYTH_ETH_USD_FEED = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;

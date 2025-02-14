@@ -5,6 +5,8 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -143,18 +145,57 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
             // 1. sDAI
             _add4626ToEulerRouter(ETH_SDAI);
+            _deployDefaultAnchoredOracleForAsset(
+                ETH_DAI,
+                "DAI",
+                OracleOptions({
+                    pythPriceFeed: PYTH_DAI_USD_FEED,
+                    pythMaxStaleness: 30 seconds,
+                    pythMaxConfWidth: 50, //0.5%
+                    chainlinkPriceFeed: ETH_CHAINLINK_DAI_USD_FEED,
+                    chainlinkMaxStaleness: 1 days,
+                    maxDivergence: 0.005e18 // 0.5%
+                 })
+            );
             _addAssetToAssetRegistry(ETH_SDAI);
+            _addAssetToAssetRegistry(ETH_DAI);
 
             // 2. sFRAX
             _add4626ToEulerRouter(ETH_SFRAX);
+            _deployDefaultAnchoredOracleForAsset(
+                ETH_FRAX,
+                "FRAX",
+                OracleOptions({
+                    pythPriceFeed: PYTH_FRAX_USD_FEED,
+                    pythMaxStaleness: 30 seconds,
+                    pythMaxConfWidth: 100, //1%
+                    chainlinkPriceFeed: ETH_CHAINLINK_FRAX_USD_FEED,
+                    chainlinkMaxStaleness: 1 days,
+                    maxDivergence: 0.005e18 // 0.5%
+                 })
+            );
             _addAssetToAssetRegistry(ETH_SFRAX);
+            _addAssetToAssetRegistry(ETH_FRAX);
 
             // 3. sUSDe
             _add4626ToEulerRouter(ETH_SUSDE);
+            _deployDefaultAnchoredOracleForAsset(
+                ETH_USDE,
+                "USDE",
+                OracleOptions({
+                    pythPriceFeed: PYTH_USDE_USD_FEED,
+                    pythMaxStaleness: 30 seconds,
+                    pythMaxConfWidth: 50, //0.5%
+                    chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
+                    chainlinkMaxStaleness: 1 days,
+                    maxDivergence: 0.005e18 // 0.5%
+                 })
+            );
             _addAssetToAssetRegistry(ETH_SUSDE);
+            _addAssetToAssetRegistry(ETH_USDE);
 
             // Deploy launch strategy
-            _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet V1");
+            _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Staging_Gauntlet V1");
 
             uint64[] memory initialWeights = new uint64[](4);
             initialWeights[0] = 0;
@@ -168,14 +209,13 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                     symbol: "stgUSD",
                     rootAsset: ETH_USDC,
                     bitFlag: assetsToBitFlag(basketAssets),
-                    strategy: getAddress("Gauntlet V1_ManagedWeightStrategy"),
+                    strategy: getAddress("Staging_Gauntlet V1_ManagedWeightStrategy"),
                     initialWeights: initialWeights
                 })
             );
 
             // Deploy MockERC20 for farming plugin rewards
-            bytes memory constructorArgs = abi.encode("CoveMockERC20", "CMRC20", 18);
-            bytes memory creationBytecode = abi.encodePacked(type(MockERC20).creationCode, constructorArgs);
+            bytes memory creationBytecode = abi.encodePacked(type(MockERC20).creationCode, "");
             if (isProduction) {
                 vm.startBroadcast();
             }
@@ -184,9 +224,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             if (isProduction) {
                 vm.stopBroadcast();
             }
-            deployer.save(
-                "CoveMockERC20", address(mockERC20), "MockERC20.sol:MockERC20", constructorArgs, creationBytecode
-            );
+            deployer.save("CoveMockERC20", address(mockERC20), "MockERC20.sol:MockERC20", "", creationBytecode);
 
             // Deploy farming plugin
             address farmDistributor = vm.envOr("COVE_FARM_DISTRIBUTOR", COVE_DEPLOYER_ADDRESS);
@@ -794,6 +832,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             vm.broadcast();
         }
         eulerRouter.govSetResolvedVault(vault, true);
+        assertEq(eulerRouter.resolvedVaults(vault), IERC4626(vault).asset(), "Failed to set resolved vault");
     }
 
     // Performs calls to grant permissions once deployment is successful
