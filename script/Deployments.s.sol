@@ -98,23 +98,31 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         deployer.setAutoBroadcast(isProduction);
 
         // Define permissioned addresses
-        admin = vm.envOr("COVE_ADMIN", COVE_OPS_MULTISIG);
-        treasury = vm.envOr("COVE_TREASURY", COVE_OPS_MULTISIG);
-        pauser = vm.envOr("COVE_PAUSER", COVE_OPS_MULTISIG);
-        manager = vm.envOr("COVE_MANAGER", COVE_OPS_MULTISIG);
         if (isProduction) {
             if (_isDeploymentEnv("staging")) {
                 timelock = _deployStagingTimelockController();
+                admin = STAGING_COVE_ADMIN;
+                treasury = STAGING_COVE_TREASURY;
+                pauser = STAGING_COVE_PAUSER;
+                manager = STAGING_COVE_MANAGER;
+                rebalanceProposer = STAGING_COVE_REBALANCE_PROPOSER;
+                tokenSwapProposer = STAGING_COVE_TOKEN_SWAP_PROPOSER;
+                tokenSwapExecutor = STAGING_COVE_TOKEN_SWAP_EXECUTOR;
             } else {
                 timelock = getAddress("TimelockController");
+                // TODO: add production deployments
             }
         } else {
+            admin = COVE_OPS_MULTISIG;
+            treasury = COVE_OPS_MULTISIG;
+            pauser = COVE_OPS_MULTISIG;
+            manager = COVE_OPS_MULTISIG;
             timelock = COVE_OPS_MULTISIG;
+            rebalanceProposer = COVE_OPS_MULTISIG;
+            tokenSwapProposer = COVE_OPS_MULTISIG;
+            tokenSwapExecutor = COVE_OPS_MULTISIG;
         }
 
-        rebalanceProposer = vm.envOr("COVE_REBALANCE_PROPOSER", COVE_OPS_MULTISIG);
-        tokenSwapProposer = vm.envOr("COVE_TOKEN_SWAP_PROPOSER", COVE_OPS_MULTISIG);
-        tokenSwapExecutor = vm.envOr("COVE_TOKEN_SWAP_EXECUTOR", COVE_OPS_MULTISIG);
         masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
 
         // Deploy unique core contracts
@@ -144,7 +152,6 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             _addAssetToAssetRegistry(ETH_USDC);
 
             // 1. sDAI
-            _add4626ToEulerRouter(ETH_SDAI);
             _deployDefaultAnchoredOracleForAsset(
                 ETH_DAI,
                 "DAI",
@@ -157,11 +164,11 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                     maxDivergence: 0.005e18 // 0.5%
                  })
             );
+            _add4626ToEulerRouter(ETH_SDAI);
             _addAssetToAssetRegistry(ETH_SDAI);
             _addAssetToAssetRegistry(ETH_DAI);
 
             // 2. sFRAX
-            _add4626ToEulerRouter(ETH_SFRAX);
             _deployDefaultAnchoredOracleForAsset(
                 ETH_FRAX,
                 "FRAX",
@@ -174,11 +181,11 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                     maxDivergence: 0.005e18 // 0.5%
                  })
             );
+            _add4626ToEulerRouter(ETH_SFRAX);
             _addAssetToAssetRegistry(ETH_SFRAX);
             _addAssetToAssetRegistry(ETH_FRAX);
 
             // 3. sUSDe
-            _add4626ToEulerRouter(ETH_SUSDE);
             _deployDefaultAnchoredOracleForAsset(
                 ETH_USDE,
                 "USDE",
@@ -191,6 +198,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                     maxDivergence: 0.005e18 // 0.5%
                  })
             );
+            _add4626ToEulerRouter(ETH_SUSDE);
             _addAssetToAssetRegistry(ETH_SUSDE);
             _addAssetToAssetRegistry(ETH_USDE);
 
@@ -833,6 +841,8 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         }
         eulerRouter.govSetResolvedVault(vault, true);
         assertEq(eulerRouter.resolvedVaults(vault), IERC4626(vault).asset(), "Failed to set resolved vault");
+        // Below will revert if oracle is not set correctly
+        eulerRouter.resolveOracle(1, vault, USD);
     }
 
     // Performs calls to grant permissions once deployment is successful
