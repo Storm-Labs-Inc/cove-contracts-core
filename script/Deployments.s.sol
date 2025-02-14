@@ -68,26 +68,62 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     IMasterRegistry public masterRegistry;
 
     bool public isProduction;
-    string public deploymentEnv;
+    bool public isStaging;
     // TODO: see if this is needed
     BasketTokenDeployment[] public basketTokenDeploymentList;
     address[] public basketAssets;
     string[] public registryNamesToAdd;
 
-    function _isDeploymentEnv(string memory env) private view returns (bool) {
-        return keccak256(bytes(deploymentEnv)) == keccak256(bytes(env));
-    }
-
     bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
 
     // Called from DeployScript's run() function.
-    function deploy() public {
-        deploy(true);
+    function deploy() public virtual {
+        deploy(
+            true,
+            false,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG
+        );
     }
 
+    // Called from Integration Test
     function deploy(bool isProduction_) public {
+        deploy(
+            isProduction_,
+            false,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG,
+            COVE_OPS_MULTISIG
+        );
+    }
+
+    function deploy(
+        bool isProduction_,
+        bool isStaging_,
+        address admin_,
+        address treasury_,
+        address pauser_,
+        address manager_,
+        address timelock_,
+        address rebalanceProposer_,
+        address tokenSwapProposer_,
+        address tokenSwapExecutor_
+    )
+        public
+    {
         isProduction = isProduction_;
-        deploymentEnv = vm.envOr("DEPLOYMENT_ENV", string("test"));
+        isStaging = isStaging_;
         // Start the prank if not in production
         if (!isProduction) {
             vm.startPrank(COVE_DEPLOYER_ADDRESS);
@@ -97,31 +133,15 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         }
         deployer.setAutoBroadcast(isProduction);
 
-        // Define permissioned addresses
-        if (isProduction) {
-            if (_isDeploymentEnv("staging")) {
-                timelock = _deployStagingTimelockController();
-                admin = STAGING_COVE_ADMIN;
-                treasury = STAGING_COVE_TREASURY;
-                pauser = STAGING_COVE_PAUSER;
-                manager = STAGING_COVE_MANAGER;
-                rebalanceProposer = STAGING_COVE_REBALANCE_PROPOSER;
-                tokenSwapProposer = STAGING_COVE_TOKEN_SWAP_PROPOSER;
-                tokenSwapExecutor = STAGING_COVE_TOKEN_SWAP_EXECUTOR;
-            } else {
-                timelock = getAddress("TimelockController");
-                // TODO: add production deployments
-            }
-        } else {
-            admin = COVE_OPS_MULTISIG;
-            treasury = COVE_OPS_MULTISIG;
-            pauser = COVE_OPS_MULTISIG;
-            manager = COVE_OPS_MULTISIG;
-            timelock = COVE_OPS_MULTISIG;
-            rebalanceProposer = COVE_OPS_MULTISIG;
-            tokenSwapProposer = COVE_OPS_MULTISIG;
-            tokenSwapExecutor = COVE_OPS_MULTISIG;
-        }
+        // Set permissioned addresses
+        admin = admin_;
+        treasury = treasury_;
+        pauser = pauser_;
+        manager = manager_;
+        timelock = timelock_;
+        rebalanceProposer = rebalanceProposer_;
+        tokenSwapProposer = tokenSwapProposer_;
+        tokenSwapExecutor = tokenSwapExecutor_;
 
         masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
 
@@ -130,7 +150,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
         // Deploy oracles and strategies for launch asset universe and baskets
 
-        if (isProduction_ && _isDeploymentEnv("staging")) {
+        if (isProduction_ && isStaging_) {
             basketAssets = new address[](4);
             basketAssets[0] = ETH_USDC;
             basketAssets[1] = ETH_SDAI;
@@ -562,7 +582,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     }
 
     // NOTE: timelock deploy for staging purposes only
-    function _deployStagingTimelockController() private returns (address stagingTimelock) {
+    function _deployStagingTimelockController() internal returns (address stagingTimelock) {
         address[] memory proposers = new address[](3);
         proposers[0] = admin;
         proposers[1] = manager;
