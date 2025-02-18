@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-contract Constants {
+import { CommonBase } from "forge-std/Base.sol";
+
+contract Constants is CommonBase {
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 public constant BASKET_MANAGER_ROLE = keccak256("BASKET_MANAGER_ROLE");
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -123,6 +125,15 @@ contract Constants {
     address public constant COVE_OPS_MULTISIG = 0x71BDC5F3AbA49538C76d58Bc2ab4E3A1118dAe4c;
     address public constant COVE_COMMUNITY_MULTISIG = 0x7Bd578354b0B2f02E656f1bDC0e41a80f860534b;
     address public constant COVE_MASTER_REGISTRY = 0x91cf20C03bEC656BC008fB2a2177bC3caA34f772;
+    address public constant COVE_SILVERBACK_AWS_ACCOUNT = 0xd31336617fC8B5Ee3b162d88e75B9236a9be3d6D;
+
+    // STAGING
+    // 1 out of 5 addresses, ops multisig signers + deployer
+    // https://app.safe.global/settings/setup?safe=eth:0xaAc26aee89DeEFf5D0BE246391FABDfa547dc70C
+    address public constant COVE_STAGING_OPS_MULTISIG = 0xaAc26aee89DeEFf5D0BE246391FABDfa547dc70C;
+    // 1 out of 5 addresses, ops multisig signers + deployer
+    // https://app.safe.global/settings/setup?safe=eth:0xC8edE693E4B8cdf4F3C42bf141D9054050E5a728
+    address public constant COVE_STAGING_COMMUNITY_MULTISIG = 0xC8edE693E4B8cdf4F3C42bf141D9054050E5a728;
 
     // Constants hardcoded in the contracts, replicated here for testing.
     uint16 public constant MAX_MANAGEMENT_FEE = 3000;
@@ -136,4 +147,64 @@ contract Constants {
     // This block number includes all pyth oracle updates
     // https://etherscan.io/tx/0xdb4a012e6c07cc6417c6c2fd020e110ea40fd1207221bbbc5e346045b9b26ecd
     uint256 public constant BLOCK_NUMBER_MAINNET_FORK = 21_792_603;
+
+    function labelKnownAddresses() public {
+        // Cove addresses
+        vm.label(COVE_DEPLOYER_ADDRESS, "COVE DEPLOYER");
+        vm.label(COVE_OPS_MULTISIG, "COVE OPS MULTISIG");
+        vm.label(COVE_COMMUNITY_MULTISIG, "COVE COMMUNITY MULTISIG");
+        vm.label(COVE_MASTER_REGISTRY, "COVE MASTER REGISTRY");
+        vm.label(COVE_SILVERBACK_AWS_ACCOUNT, "COVE SILVERBACK AWS ACCOUNT");
+        vm.label(COVE_STAGING_OPS_MULTISIG, "COVE STAGING OPS MULTISIG");
+        vm.label(COVE_STAGING_COMMUNITY_MULTISIG, "COVE STAGING COMMUNITY MULTISIG");
+
+        // Infrastructure addresses
+        vm.label(CREATE3_FACTORY, "CREATE3 FACTORY");
+        vm.label(PYTH, "PYTH ORACLE");
+        vm.label(ETH_PERMIT2, "PERMIT2");
+        vm.label(EVC, "EVC");
+
+        // Base tokens
+        vm.label(ETH, "ETH");
+        vm.label(USD, "USD");
+        vm.label(WBTC, "WBTC");
+
+        // Asset addresses
+        vm.label(ETH_CBBTC, "cbBTC");
+        vm.label(ETH_EZETH, "ezETH");
+        vm.label(ETH_GHO, "GHO");
+        vm.label(ETH_RETH, "rETH");
+        vm.label(ETH_RSETH, "rsETH");
+        vm.label(ETH_SUSDE, "sUSDe");
+        vm.label(ETH_TBTC, "tBTC");
+        vm.label(ETH_USDT, "USDT");
+        vm.label(ETH_WBTC, "WBTC");
+        vm.label(ETH_WEETH, "weETH");
+        vm.label(ETH_WETH, "WETH");
+        vm.label(ETH_SDAI, "sDAI");
+        vm.label(ETH_SFRAX, "sFRAX");
+        vm.label(ETH_USDC, "USDC");
+        vm.label(ETH_DAI, "DAI");
+        vm.label(ETH_FRAX, "FRAX");
+        vm.label(ETH_USDE, "USDe");
+
+        // Price feeds
+        vm.label(ETH_CHAINLINK_USDC_USD_FEED, "CHAINLINK USDC/USD");
+        vm.label(ETH_CHAINLINK_DAI_USD_FEED, "CHAINLINK DAI/USD");
+        vm.label(ETH_CHAINLINK_FRAX_USD_FEED, "CHAINLINK FRAX/USD");
+        vm.label(ETH_CHAINLINK_USDE_USD_FEED, "CHAINLINK USDe/USD");
+        vm.label(ETH_CHAINLINK_ETH_USD_FEED, "CHAINLINK ETH/USD");
+        vm.label(ETH_CHAINLINK_SUSDE_USD_FEED, "CHAINLINK sUSDe/USD");
+        vm.label(ETH_CHAINLINK_WEETH_ETH_FEED, "CHAINLINK weETH/ETH");
+        vm.label(ETH_CHAINLINK_EZETH_ETH_FEED, "CHAINLINK ezETH/ETH");
+        vm.label(ETH_CHAINLINK_RSETH_ETH_FEED, "CHAINLINK rsETH/ETH");
+        vm.label(ETH_CHAINLINK_RETH_ETH_FEED, "CHAINLINK rETH/ETH");
+        vm.label(ETH_CHAINLINK_WBTC_BTC_FEED, "CHAINLINK WBTC/BTC");
+        vm.label(ETH_CHAINLINK_TBTC_BTC_FEED, "CHAINLINK tBTC/BTC");
+        vm.label(ETH_CHAINLINK_GHO_USD_FEED, "CHAINLINK GHO/USD");
+        vm.label(ETH_CHAINLINK_CBBTC_USD_FEED, "CHAINLINK cbBTC/USD");
+
+        // External addresses
+        vm.label(GAUNTLET_STRATEGIST, "GAUNTLET STRATEGIST");
+    }
 }

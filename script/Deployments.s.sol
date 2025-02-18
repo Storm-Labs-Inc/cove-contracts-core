@@ -66,8 +66,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     address public basketTokenImplementation;
     IMasterRegistry public masterRegistry;
 
-    bool public isProduction;
+    bool public shouldBroadcast;
     bool public isStaging;
+
     // TODO: see if this is needed
     BasketTokenDeployment[] public basketTokenDeploymentList;
     address[] public basketAssets;
@@ -77,70 +78,66 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     // Called from DeployScript's run() function.
     function deploy() public virtual {
-        deploy(
-            true,
-            false,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG
-        );
+        deploy(true, keccak256(bytes(vm.envString("DEPLOY_ENV"))) == keccak256("staging"));
     }
 
     // Called from Integration Test
-    function deploy(bool isProduction_) public {
-        deploy(
-            isProduction_,
-            false,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG,
-            COVE_OPS_MULTISIG
-        );
+    function deploy(bool shouldBroadcast_) public {
+        deploy(shouldBroadcast_, false);
     }
 
-    function deploy(
-        bool isProduction_,
-        bool isStaging_,
-        address admin_,
-        address treasury_,
-        address pauser_,
-        address manager_,
-        address timelock_,
-        address rebalanceProposer_,
-        address tokenSwapProposer_,
-        address tokenSwapExecutor_
-    )
-        public
-    {
-        isProduction = isProduction_;
+    function setPermissionedAddresses(bool shouldBroadcast_, bool isStaging_) public {
+        // Set permissioned addresses
+        if (shouldBroadcast_) {
+            if (isStaging_) {
+                // Staging deploy
+                admin = COVE_STAGING_COMMUNITY_MULTISIG;
+                treasury = COVE_STAGING_COMMUNITY_MULTISIG;
+                pauser = COVE_DEPLOYER_ADDRESS;
+                manager = COVE_STAGING_OPS_MULTISIG;
+                timelock = getAddress("StagingTimelockController");
+                rebalanceProposer = COVE_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapProposer = COVE_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapExecutor = COVE_SILVERBACK_AWS_ACCOUNT;
+            } else {
+                // Production deploy
+                // TODO: confirm addresses for production
+                admin = COVE_COMMUNITY_MULTISIG;
+                treasury = COVE_COMMUNITY_MULTISIG;
+                pauser = COVE_DEPLOYER_ADDRESS;
+                manager = COVE_OPS_MULTISIG;
+                timelock = getAddress("TimelockController");
+                rebalanceProposer = COVE_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapProposer = COVE_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapExecutor = COVE_SILVERBACK_AWS_ACCOUNT;
+            }
+        } else {
+            // Integration test deploy
+            admin = COVE_OPS_MULTISIG;
+            treasury = COVE_OPS_MULTISIG;
+            pauser = COVE_OPS_MULTISIG;
+            manager = COVE_OPS_MULTISIG;
+            timelock = COVE_OPS_MULTISIG;
+            rebalanceProposer = COVE_OPS_MULTISIG;
+            tokenSwapProposer = COVE_OPS_MULTISIG;
+            tokenSwapExecutor = COVE_OPS_MULTISIG;
+        }
+    }
+
+    function deploy(bool shouldBroadcast_, bool isStaging_) public {
+        labelKnownAddresses();
+        shouldBroadcast = shouldBroadcast_;
         isStaging = isStaging_;
+        setPermissionedAddresses(shouldBroadcast_, isStaging_);
+
         // Start the prank if not in production
-        if (!isProduction) {
+        if (!shouldBroadcast) {
             vm.startPrank(COVE_DEPLOYER_ADDRESS);
         } else {
             // Only allow COVE_DEPLOYER to deploy in production
             require(msg.sender == COVE_DEPLOYER_ADDRESS, "Caller must be COVE DEPLOYER");
         }
-        deployer.setAutoBroadcast(isProduction);
-
-        // Set permissioned addresses
-        admin = admin_;
-        treasury = treasury_;
-        pauser = pauser_;
-        manager = manager_;
-        timelock = timelock_;
-        rebalanceProposer = rebalanceProposer_;
-        tokenSwapProposer = tokenSwapProposer_;
-        tokenSwapExecutor = tokenSwapExecutor_;
+        deployer.setAutoBroadcast(shouldBroadcast);
 
         masterRegistry = IMasterRegistry(COVE_MASTER_REGISTRY);
 
@@ -148,117 +145,121 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         _deployCoreContracts();
 
         // Deploy oracles and strategies for launch asset universe and baskets
+        if (shouldBroadcast_) {
+            if (isStaging_) {
+                basketAssets = new address[](4);
+                basketAssets[0] = ETH_USDC;
+                basketAssets[1] = ETH_SDAI;
+                basketAssets[2] = ETH_SFRAX;
+                basketAssets[3] = ETH_SUSDE;
+                // 0. USDC
+                _deployDefaultAnchoredOracleForAsset(
+                    ETH_USDC,
+                    "USDC",
+                    OracleOptions({
+                        pythPriceFeed: PYTH_USDC_USD_FEED,
+                        pythMaxStaleness: 30 seconds,
+                        pythMaxConfWidth: 50, //0.5%
+                        chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
+                        chainlinkMaxStaleness: 1 days,
+                        maxDivergence: 0.005e18 // 0.5%
+                     })
+                );
+                _addAssetToAssetRegistry(ETH_USDC);
 
-        if (isProduction_ && isStaging_) {
-            basketAssets = new address[](4);
-            basketAssets[0] = ETH_USDC;
-            basketAssets[1] = ETH_SDAI;
-            basketAssets[2] = ETH_SFRAX;
-            basketAssets[3] = ETH_SUSDE;
-            // 0. USDC
-            _deployDefaultAnchoredOracleForAsset(
-                ETH_USDC,
-                "USDC",
-                OracleOptions({
-                    pythPriceFeed: PYTH_USDC_USD_FEED,
-                    pythMaxStaleness: 30 seconds,
-                    pythMaxConfWidth: 50, //0.5%
-                    chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
-                    chainlinkMaxStaleness: 1 days,
-                    maxDivergence: 0.005e18 // 0.5%
-                 })
-            );
-            _addAssetToAssetRegistry(ETH_USDC);
+                // 1. sDAI
+                _deployDefaultAnchoredOracleForAsset(
+                    ETH_DAI,
+                    "DAI",
+                    OracleOptions({
+                        pythPriceFeed: PYTH_DAI_USD_FEED,
+                        pythMaxStaleness: 30 seconds,
+                        pythMaxConfWidth: 50, //0.5%
+                        chainlinkPriceFeed: ETH_CHAINLINK_DAI_USD_FEED,
+                        chainlinkMaxStaleness: 1 days,
+                        maxDivergence: 0.005e18 // 0.5%
+                     })
+                );
+                _add4626ToEulerRouter(ETH_SDAI);
+                _addAssetToAssetRegistry(ETH_SDAI);
+                _addAssetToAssetRegistry(ETH_DAI);
 
-            // 1. sDAI
-            _deployDefaultAnchoredOracleForAsset(
-                ETH_DAI,
-                "DAI",
-                OracleOptions({
-                    pythPriceFeed: PYTH_DAI_USD_FEED,
-                    pythMaxStaleness: 30 seconds,
-                    pythMaxConfWidth: 50, //0.5%
-                    chainlinkPriceFeed: ETH_CHAINLINK_DAI_USD_FEED,
-                    chainlinkMaxStaleness: 1 days,
-                    maxDivergence: 0.005e18 // 0.5%
-                 })
-            );
-            _add4626ToEulerRouter(ETH_SDAI);
-            _addAssetToAssetRegistry(ETH_SDAI);
-            _addAssetToAssetRegistry(ETH_DAI);
+                // 2. sFRAX
+                _deployDefaultAnchoredOracleForAsset(
+                    ETH_FRAX,
+                    "FRAX",
+                    OracleOptions({
+                        pythPriceFeed: PYTH_FRAX_USD_FEED,
+                        pythMaxStaleness: 30 seconds,
+                        pythMaxConfWidth: 100, //1%
+                        chainlinkPriceFeed: ETH_CHAINLINK_FRAX_USD_FEED,
+                        chainlinkMaxStaleness: 1 days,
+                        maxDivergence: 0.005e18 // 0.5%
+                     })
+                );
+                _add4626ToEulerRouter(ETH_SFRAX);
+                _addAssetToAssetRegistry(ETH_SFRAX);
+                _addAssetToAssetRegistry(ETH_FRAX);
 
-            // 2. sFRAX
-            _deployDefaultAnchoredOracleForAsset(
-                ETH_FRAX,
-                "FRAX",
-                OracleOptions({
-                    pythPriceFeed: PYTH_FRAX_USD_FEED,
-                    pythMaxStaleness: 30 seconds,
-                    pythMaxConfWidth: 100, //1%
-                    chainlinkPriceFeed: ETH_CHAINLINK_FRAX_USD_FEED,
-                    chainlinkMaxStaleness: 1 days,
-                    maxDivergence: 0.005e18 // 0.5%
-                 })
-            );
-            _add4626ToEulerRouter(ETH_SFRAX);
-            _addAssetToAssetRegistry(ETH_SFRAX);
-            _addAssetToAssetRegistry(ETH_FRAX);
+                // 3. sUSDe
+                _deployDefaultAnchoredOracleForAsset(
+                    ETH_USDE,
+                    "USDE",
+                    OracleOptions({
+                        pythPriceFeed: PYTH_USDE_USD_FEED,
+                        pythMaxStaleness: 30 seconds,
+                        pythMaxConfWidth: 50, //0.5%
+                        chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
+                        chainlinkMaxStaleness: 1 days,
+                        maxDivergence: 0.005e18 // 0.5%
+                     })
+                );
+                _add4626ToEulerRouter(ETH_SUSDE);
+                _addAssetToAssetRegistry(ETH_SUSDE);
+                _addAssetToAssetRegistry(ETH_USDE);
 
-            // 3. sUSDe
-            _deployDefaultAnchoredOracleForAsset(
-                ETH_USDE,
-                "USDE",
-                OracleOptions({
-                    pythPriceFeed: PYTH_USDE_USD_FEED,
-                    pythMaxStaleness: 30 seconds,
-                    pythMaxConfWidth: 50, //0.5%
-                    chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
-                    chainlinkMaxStaleness: 1 days,
-                    maxDivergence: 0.005e18 // 0.5%
-                 })
-            );
-            _add4626ToEulerRouter(ETH_SUSDE);
-            _addAssetToAssetRegistry(ETH_SUSDE);
-            _addAssetToAssetRegistry(ETH_USDE);
+                // Deploy launch strategy
+                _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Staging_Gauntlet V1");
 
-            // Deploy launch strategy
-            _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Staging_Gauntlet V1");
+                uint64[] memory initialWeights = new uint64[](4);
+                initialWeights[0] = 0;
+                initialWeights[1] = 0.7777777777777778e18;
+                initialWeights[2] = 0.1111111111111111e18;
+                initialWeights[3] = 0.1111111111111111e18;
 
-            uint64[] memory initialWeights = new uint64[](4);
-            initialWeights[0] = 0;
-            initialWeights[1] = 0.7777777777777778e18;
-            initialWeights[2] = 0.1111111111111111e18;
-            initialWeights[3] = 0.1111111111111111e18;
+                _setInitialWeightsAndDeployBasketToken(
+                    BasketTokenDeployment({
+                        name: "Staging_Stables",
+                        symbol: "stgUSD",
+                        rootAsset: ETH_USDC,
+                        bitFlag: assetsToBitFlag(basketAssets),
+                        strategy: getAddress("Staging_Gauntlet V1_ManagedWeightStrategy"),
+                        initialWeights: initialWeights
+                    })
+                );
 
-            _setInitialWeightsAndDeployBasketToken(
-                BasketTokenDeployment({
-                    name: "Staging_Stables",
-                    symbol: "stgUSD",
-                    rootAsset: ETH_USDC,
-                    bitFlag: assetsToBitFlag(basketAssets),
-                    strategy: getAddress("Staging_Gauntlet V1_ManagedWeightStrategy"),
-                    initialWeights: initialWeights
-                })
-            );
+                // Deploy MockERC20 for farming plugin rewards
+                bytes memory creationBytecode = abi.encodePacked(type(MockERC20).creationCode, "");
+                if (shouldBroadcast) {
+                    vm.startBroadcast();
+                }
+                MockERC20 mockERC20 = new MockERC20();
+                mockERC20.initialize("CoveMockERC20", "CMRC20", 18);
+                if (shouldBroadcast) {
+                    vm.stopBroadcast();
+                }
+                deployer.save("CoveMockERC20", address(mockERC20), "MockERC20.sol:MockERC20", "", creationBytecode);
 
-            // Deploy MockERC20 for farming plugin rewards
-            bytes memory creationBytecode = abi.encodePacked(type(MockERC20).creationCode, "");
-            if (isProduction) {
-                vm.startBroadcast();
+                // Deploy farming plugin
+                address farmDistributor = vm.envOr("COVE_FARM_DISTRIBUTOR", COVE_DEPLOYER_ADDRESS);
+                _deployFarmingPlugin(
+                    getAddress("Staging_Stables_BasketToken"), "Staging_Stables", address(mockERC20), farmDistributor
+                );
+            } else {
+                revert("Production is not configured for deployment yet");
             }
-            MockERC20 mockERC20 = new MockERC20();
-            mockERC20.initialize("CoveMockERC20", "CMRC20", 18);
-            if (isProduction) {
-                vm.stopBroadcast();
-            }
-            deployer.save("CoveMockERC20", address(mockERC20), "MockERC20.sol:MockERC20", "", creationBytecode);
-
-            // Deploy farming plugin
-            address farmDistributor = vm.envOr("COVE_FARM_DISTRIBUTOR", COVE_DEPLOYER_ADDRESS);
-            _deployFarmingPlugin(
-                getAddress("Staging_Stables_BasketToken"), "Staging_Stables", address(mockERC20), farmDistributor
-            );
         } else {
+            // For integration test purposes
             basketAssets = new address[](6);
             basketAssets[0] = ETH_WETH;
             basketAssets[1] = ETH_SUSDE;
@@ -399,7 +400,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         _cleanPermissions();
 
         // Stop the prank if not in production
-        if (!isProduction) {
+        if (!shouldBroadcast) {
             vm.stopPrank();
         }
     }
@@ -440,7 +441,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment) private {
         // Set initial weights for the strategy
         ManagedWeightStrategy strategy = ManagedWeightStrategy(deployment.strategy);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         strategy.setTargetWeights(deployment.bitFlag, deployment.initialWeights);
@@ -449,7 +450,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             deployment.name, deployment.symbol, deployment.rootAsset, deployment.bitFlag, deployment.strategy
         );
         address basketManager = getAddress("BasketManager");
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         address basketToken = BasketManager(basketManager).createNewBasket(
@@ -500,12 +501,12 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             COVE_DEPLOYER_ADDRESS,
             feeCollectorAddress
         );
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.startBroadcast();
         }
         bm.grantRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.grantRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.stopBroadcast();
         }
         return address(bm);
@@ -532,7 +533,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         bytes memory constructorArgs = abi.encode(EVC, admin);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(EulerRouter).creationCode, constructorArgs);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         eulerRouter = address(new EulerRouter(EVC, COVE_DEPLOYER_ADDRESS));
@@ -546,7 +547,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter("CowSwapAdapter", cowSwapCloneImplementation));
         require(getAddress("CowSwapAdapter") == cowSwapAdapter, "Failed to save CowSwapAdapter deployment");
         address basketManager = getAddress("BasketManager");
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         BasketManager(basketManager).setTokenSwapAdapter(cowSwapAdapter);
@@ -568,14 +569,14 @@ contract Deployments is DeployScript, Constants, StdAssertions {
             )
         );
         ManagedWeightStrategy mwStrategy = ManagedWeightStrategy(strategy);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.startBroadcast();
         }
         mwStrategy.grantRole(MANAGER_ROLE, externalManager);
         mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
         mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         StrategyRegistry(getAddress("StrategyRegistry")).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.stopBroadcast();
         }
     }
@@ -592,7 +593,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         IERC20 reward = IERC20(rewardToken);
         bytes memory constructorArgs = abi.encode(basket, reward, distributor);
         bytes memory creationBytecode = abi.encodePacked(type(FarmingPlugin).creationCode, constructorArgs);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         address farmingPlugin = address(new FarmingPlugin(basket, reward, distributor));
@@ -604,7 +605,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     function _addAssetToAssetRegistry(address asset) private {
         AssetRegistry assetRegistry = AssetRegistry(getAddress("AssetRegistry"));
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         assetRegistry.addAsset(asset);
@@ -625,7 +626,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                 getAddress(registryNamesToAdd[i])
             );
         }
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         Multicall(address(masterRegistry)).multicall(data);
@@ -646,7 +647,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     {
         bytes memory pythOracleContsructorArgs =
             abi.encode(PYTH, baseAsset, quoteAsset, pythPriceFeed, pythMaxStaleness, maxConfWidth);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         pythOracle = address(
@@ -678,7 +679,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
     {
         bytes memory chainLinkOracleContsructorArgs =
             abi.encode(baseAsset, quoteAsset, chainLinkPriceFeed, chainLinkMaxStaleness);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         chainlinkOracle = address(new ChainlinkOracle(baseAsset, quoteAsset, chainLinkPriceFeed, chainLinkMaxStaleness));
@@ -726,7 +727,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         );
         // Register the asset/USD anchored oracle
         EulerRouter eulerRouter = EulerRouter(getAddress("EulerRouter"));
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         eulerRouter.govSetConfig(asset, USD, anchoredOracle);
@@ -781,7 +782,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
         bytes memory crossAdapterContsructorArgs =
             abi.encode(asset, crossAsset, USD, chainLinkBaseCrossOracle, chainLinkCrossUSDOracle);
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         address crossAdapter =
@@ -805,7 +806,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         );
         // Register the asset/USD anchored oracle
         EulerRouter eulerRouter = EulerRouter(getAddress("EulerRouter"));
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         eulerRouter.govSetConfig(asset, USD, anchoredOracle);
@@ -813,7 +814,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     function _add4626ToEulerRouter(address vault) private {
         EulerRouter eulerRouter = EulerRouter(getAddress("EulerRouter"));
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.broadcast();
         }
         eulerRouter.govSetResolvedVault(vault, true);
@@ -824,7 +825,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     // Performs calls to grant permissions once deployment is successful
     function _cleanPermissions() private {
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.startBroadcast();
         }
         // AssetRegistry
@@ -854,7 +855,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
         bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
 
-        if (isProduction) {
+        if (shouldBroadcast) {
             vm.stopBroadcast();
         }
     }
