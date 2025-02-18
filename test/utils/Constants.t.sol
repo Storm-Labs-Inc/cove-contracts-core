@@ -136,14 +136,4 @@ contract Constants {
     // This block number includes all pyth oracle updates
     // https://etherscan.io/tx/0xdb4a012e6c07cc6417c6c2fd020e110ea40fd1207221bbbc5e346045b9b26ecd
     uint256 public constant BLOCK_NUMBER_MAINNET_FORK = 21_792_603;
-
-    // STAGING ADDRESSES
-    address public constant STAGING_COVE_ADMIN = 0xaAc26aee89DeEFf5D0BE246391FABDfa547dc70C; // multisig
-    address public constant STAGING_COVE_TREASURY = 0x5dA5a68e840785Fc001f3Bc55c4E9bE84d3A8dDc;
-    address public constant STAGING_COVE_PAUSER = 0xc8C812D4cD68b3bD0d4D7E6f95661312733207dA;
-    address public constant STAGING_COVE_MANAGER = 0x39B12050140d1d61D3239a58875DaE98f7f23314;
-    address public constant STAGING_COVE_REBALANCE_PROPOSER = 0x66955d9Be79C3d9a1Dec5C82f0B6EFC34C843CA6;
-    address public constant STAGING_COVE_TOKEN_SWAP_PROPOSER = 0xAa662f0521a2287B408bd3Bc784258349d40874b;
-    address public constant STAGING_COVE_TOKEN_SWAP_EXECUTOR = 0xf95a7D8e5351E922161ae8d35E9723F93b4dAf26;
-    address public constant STAGING_COVE_FARM_DISTRIBUTOR = 0xb672B5e84df4043b435F69627079b87E64128B75;
 }
