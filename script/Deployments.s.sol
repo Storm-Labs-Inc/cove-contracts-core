@@ -78,7 +78,7 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     // Called from DeployScript's run() function.
     function deploy() public virtual {
-        deploy(true, keccak256(bytes(vm.envString("DEPLOY_ENV"))) == keccak256("staging"));
+        deploy(true, keccak256(bytes(vm.envString("DEPLOYMENT_ENV"))) == keccak256("staging"));
     }
 
     // Called from Integration Test
