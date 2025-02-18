@@ -4,7 +4,6 @@ pragma solidity ^0.8.23;
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
-import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -579,48 +578,6 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         if (isProduction) {
             vm.stopBroadcast();
         }
-    }
-
-    // NOTE: timelock deploy for staging purposes only
-    function _deployStagingTimelockController() internal returns (address stagingTimelock) {
-        address[] memory proposers = new address[](3);
-        proposers[0] = admin;
-        proposers[1] = manager;
-        proposers[2] = COVE_DEPLOYER_ADDRESS;
-        address[] memory executors = new address[](1);
-        executors[0] = admin;
-        stagingTimelock = _deployTimelockController(0, proposers, executors, admin);
-    }
-
-    function _deployTimelockController(
-        uint256 minDelay,
-        address[] memory proposers,
-        address[] memory executors,
-        address timelockAdmin
-    )
-        private
-        deployIfMissing("StagingTimelockController")
-        returns (address timelockController)
-    {
-        bytes memory constructorArgs = abi.encode(minDelay, proposers, executors, timelockAdmin);
-        bytes memory creationBytecode = abi.encodePacked(type(TimelockController).creationCode, constructorArgs);
-
-        if (isProduction) {
-            vm.broadcast();
-        }
-        timelockController = address(new TimelockController(minDelay, proposers, executors, timelockAdmin));
-        deployer.save(
-            "StagingTimelockController",
-            timelockController,
-            "TimelockController.sol:TimelockController",
-            constructorArgs,
-            creationBytecode
-        );
-        require(
-            getAddress("StagingTimelockController") == timelockController,
-            "Failed to save StagingTimelockController deployment"
-        );
-        registryNamesToAdd.push("StagingTimelockController");
     }
 
     function _deployFarmingPlugin(
