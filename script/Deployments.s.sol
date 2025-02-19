@@ -614,7 +614,11 @@ contract Deployments is DeployScript, Constants, StdAssertions {
 
     function _addContractsToMasterRegistry(string[] memory registryNames) private {
         for (uint256 i = 0; i < registryNames.length; i++) {
-            registryNamesToAdd.push(registryNames[i]);
+            if (isStaging) {
+                registryNamesToAdd.push(string.concat("Staging_", registryNames[i]));
+            } else {
+                registryNamesToAdd.push(registryNames[i]);
+            }
         }
     }
 
@@ -630,7 +634,9 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         if (shouldBroadcast) {
             vm.broadcast();
         }
-        Multicall(address(masterRegistry)).multicall(data);
+        address registry = isStaging ? COVE_STAGING_MASTER_REGISTRY : COVE_MASTER_REGISTRY;
+
+        Multicall(registry).multicall(data);
     }
 
     // Deploys a pyth oracle for given base and quote assets

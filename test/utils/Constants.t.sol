@@ -134,6 +134,7 @@ contract Constants is CommonBase {
     // 1 out of 5 addresses, ops multisig signers + deployer
     // https://app.safe.global/settings/setup?safe=eth:0xC8edE693E4B8cdf4F3C42bf141D9054050E5a728
     address public constant COVE_STAGING_COMMUNITY_MULTISIG = 0xC8edE693E4B8cdf4F3C42bf141D9054050E5a728;
+    address public constant COVE_STAGING_MASTER_REGISTRY = 0x44bB20e5A3CC2cBdfB7520Aa76281019723382Cb;
 
     // Constants hardcoded in the contracts, replicated here for testing.
     uint16 public constant MAX_MANAGEMENT_FEE = 3000;
