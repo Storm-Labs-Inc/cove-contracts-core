@@ -14,8 +14,8 @@ import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/Chainl
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 
-import { MockERC20 } from "dependencies/euler-price-oracle-1/lib/forge-std/src/mocks/MockERC20.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 import { Constants } from "test/utils/Constants.t.sol";
 
@@ -238,22 +238,23 @@ contract Deployments is DeployScript, Constants, StdAssertions {
                     })
                 );
 
-                // Deploy MockERC20 for farming plugin rewards
-                bytes memory creationBytecode = abi.encodePacked(type(MockERC20).creationCode, "");
+                // Deploy ERC20Mock for farming plugin rewards
+                bytes memory creationBytecode = abi.encodePacked(type(ERC20Mock).creationCode, "");
                 if (shouldBroadcast) {
                     vm.startBroadcast();
                 }
-                MockERC20 mockERC20 = new MockERC20();
-                mockERC20.initialize("CoveMockERC20", "CMRC20", 18);
+                ERC20Mock mockERC20 = new ERC20Mock();
                 if (shouldBroadcast) {
                     vm.stopBroadcast();
                 }
-                deployer.save("CoveMockERC20", address(mockERC20), "MockERC20.sol:MockERC20", "", creationBytecode);
+                deployer.save("CoveMockERC20", address(mockERC20), "ERC20Mock.sol:ERC20Mock", "", creationBytecode);
 
                 // Deploy farming plugin
-                address farmDistributor = vm.envOr("COVE_FARM_DISTRIBUTOR", COVE_DEPLOYER_ADDRESS);
                 _deployFarmingPlugin(
-                    getAddress("Staging_Stables_BasketToken"), "Staging_Stables", address(mockERC20), farmDistributor
+                    getAddress("Staging_Stables_BasketToken"),
+                    "Staging_Stables",
+                    address(mockERC20),
+                    COVE_DEPLOYER_ADDRESS
                 );
             } else {
                 revert("Production is not configured for deployment yet");
