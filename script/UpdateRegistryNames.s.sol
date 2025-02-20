@@ -55,49 +55,32 @@ contract UpdateRegistryNames is DeployScript, Constants, StdAssertions {
     function _updateRegistryNames(string[] memory registryNames) private {
         // First update old names in master registry to point to dead addresses
         bytes[] memory masterRegistryCalls = new bytes[](registryNames.length);
+        bytes[] memory stagingRegistryCalls = new bytes[](registryNames.length);
         for (uint256 i = 0; i < registryNames.length; i++) {
             bytes32 nameBytes = bytes32(bytes(registryNames[i]));
 
             // Update old name to point to dead address in master registry
             masterRegistryCalls[i] =
                 abi.encodeWithSelector(IMasterRegistry.updateRegistry.selector, nameBytes, _getDeadAddress(i));
-        }
-
-        // Execute updates in master registry
-        if (shouldBroadcast) {
-            vm.broadcast();
-        }
-        Multicall(address(masterRegistry)).multicall(masterRegistryCalls);
-
-        // Then set up new entries in staging registry
-        bytes[] memory stagingRegistryCalls = new bytes[](registryNames.length);
-        for (uint256 i = 0; i < registryNames.length; i++) {
-            string memory registryName = registryNames[i];
-            bool isLastRegistry = i == registryNames.length - 1;
-
-            bytes32 stagingNameBytes;
             address registryAddress;
-
-            if (!isLastRegistry) {
-                stagingNameBytes = bytes32(bytes(string.concat("Staging_", registryName)));
-                registryAddress = deployer.getAddress(string.concat("Staging_", registryName));
+            if (i == registryNames.length - 1) {
+                registryAddress = deployer.getAddress(registryNames[i]);
             } else {
-                // "Staging_Stables_FarmingPlugin" naming is correct
-                stagingNameBytes = bytes32(bytes(registryName));
-                registryAddress = deployer.getAddress(registryName);
+                registryAddress = deployer.getAddress(string.concat("Staging_", registryNames[i]));
             }
-
-            require(registryAddress != address(0), "Staging address not found");
-
+            require(registryAddress != address(0), "Registry address not found");
             // Add new entry to staging registry
             stagingRegistryCalls[i] =
-                abi.encodeWithSelector(IMasterRegistry.addRegistry.selector, stagingNameBytes, registryAddress);
+                abi.encodeWithSelector(IMasterRegistry.addRegistry.selector, nameBytes, registryAddress);
         }
 
-        // Execute updates in staging registry
         if (shouldBroadcast) {
-            vm.broadcast();
+            vm.startBroadcast();
         }
+        Multicall(address(masterRegistry)).multicall(masterRegistryCalls);
         Multicall(address(stagingMasterRegistry)).multicall(stagingRegistryCalls);
+        if (shouldBroadcast) {
+            vm.stopBroadcast();
+        }
     }
 }
