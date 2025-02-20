@@ -612,16 +612,6 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         assetRegistry.addAsset(asset);
     }
 
-    function _addContractsToMasterRegistry(string[] memory registryNames) private {
-        for (uint256 i = 0; i < registryNames.length; i++) {
-            if (isStaging) {
-                registryNamesToAdd.push(string.concat("Staging_", registryNames[i]));
-            } else {
-                registryNamesToAdd.push(registryNames[i]);
-            }
-        }
-    }
-
     function _finalizeRegistryAdditions() private {
         bytes[] memory data = new bytes[](registryNamesToAdd.length);
         for (uint256 i = 0; i < registryNamesToAdd.length; i++) {
