@@ -7,7 +7,7 @@ import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 
-import { AnchoredOracle } from "src/AnchoredOracle.sol";
+import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 
 contract AnchoredOracleTest is BaseTest {
     /// @notice The lower bound for `maxDivergence`, 0.1%.
