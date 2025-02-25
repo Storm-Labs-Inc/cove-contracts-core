@@ -25,6 +25,7 @@ contract ERC4626Oracle is BaseAdapter {
 
     /// @notice Constructor for the ERC4626Oracle contract.
     /// @param _vault The ERC4626 vault that should be used as the base asset.
+    // nosemgrep: solidity.performance.non-payable-constructor.non-payable-constructor
     constructor(IERC4626 _vault) {
         // Assume the vault is IERC4626 compliant token
         base = address(_vault);
