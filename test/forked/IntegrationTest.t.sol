@@ -62,8 +62,8 @@ contract IntegrationTest is BaseTest {
         deployments.deploy(false);
         vm.resumeGasMetering();
 
-        bm = BasketManager(deployments.getAddress("BasketManager"));
-        eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
+        bm = BasketManager(deployments.getAddress(deployments.buildBasketManagerName()));
+        eulerRouter = EulerRouter(deployments.getAddress(deployments.buildEulerRouterName()));
 
         pythPriceFeeds = new bytes32[](6);
         pythPriceFeeds[0] = PYTH_ETH_USD_FEED;
@@ -92,7 +92,9 @@ contract IntegrationTest is BaseTest {
         // TODO: add rest of asset universe
 
         baseBasketAssets = bm.basketAssets(bm.basketTokens()[0]);
-        baseBasketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(baseBasketAssets);
+        baseBasketBitFlag = AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName())).getAssetsBitFlag(
+            baseBasketAssets
+        );
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
 
@@ -104,19 +106,19 @@ contract IntegrationTest is BaseTest {
         assertNotEq(address(bm), address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("BasketManager"), address(bm));
 
-        address assetRegistryAddress = deployments.getAddress("AssetRegistry");
+        address assetRegistryAddress = deployments.getAddress(deployments.buildAssetRegistryName());
         assertNotEq(assetRegistryAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("AssetRegistry"), assetRegistryAddress);
 
-        address strategyRegistryAddress = deployments.getAddress("StrategyRegistry");
+        address strategyRegistryAddress = deployments.getAddress(deployments.buildStrategyRegistryName());
         assertNotEq(strategyRegistryAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("StrategyRegistry"), strategyRegistryAddress);
 
-        address eulerRouterAddress = deployments.getAddress("EulerRouter");
+        address eulerRouterAddress = deployments.getAddress(deployments.buildEulerRouterName());
         assertNotEq(eulerRouterAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("EulerRouter"), eulerRouterAddress);
 
-        address feeCollectorAddress = deployments.getAddress("FeeCollector");
+        address feeCollectorAddress = deployments.getAddress(deployments.buildFeeCollectorName());
         assertNotEq(feeCollectorAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("FeeCollector"), feeCollectorAddress);
         assertEq(bm.numOfBasketTokens(), 1);
@@ -132,7 +134,7 @@ contract IntegrationTest is BaseTest {
         address[] memory newBasketAssets0 = new address[](2);
         newBasketAssets0[0] = ETH_SUSDE;
         newBasketAssets0[1] = ETH_WEETH;
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         uint256 basket0Bitflag = deployments.assetsToBitFlag(newBasketAssets0);
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
@@ -216,7 +218,7 @@ contract IntegrationTest is BaseTest {
     // proposed again. The rebalance is confirmed to complete regardless.
     function test_completeRebalance_retriesOnFailedTrade() public {
         // 1. Initial target weights are set for the base basket. 100% of assets are allocated to the base asset.
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
         initialTargetWeights0[0] = 1e18;
@@ -322,10 +324,10 @@ contract IntegrationTest is BaseTest {
     // Completes two rebalances, one to process deposits and one to get balances of all assets in the base basket. Then
     // the price of one of the basket's assets is altered significantly. A rebalance is then propose with the same
     // target weights as the previous epoch. The rebalance is confirmed to account for this change in price.
-    function testFuzz_completeRebalance_rebalancesOnPriceChange() public {
+    function test_completeRebalance_rebalancesOnPriceChange() public {
         // 1. Two rebalances are completed, one to process deposits, one to get balances of all assets in the base
         // basket.
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         _baseBasket_completeRebalance_externalTrade(100, 1);
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
@@ -368,7 +370,7 @@ contract IntegrationTest is BaseTest {
         address[] memory newBasketAssets0 = new address[](2);
         newBasketAssets0[0] = ETH_SUSDE;
         newBasketAssets0[1] = ETH_WEETH;
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         uint256 basket0Bitflag = deployments.assetsToBitFlag(newBasketAssets0);
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
@@ -467,10 +469,10 @@ contract IntegrationTest is BaseTest {
     }
 
     // solhint-disable-next-line code-complexity
-    function testFuzz_completeRebalance_MultipleBaskets() public {
+    function test_completeRebalance_MultipleBaskets() public {
         uint256 cycles = 5;
 
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
 
         // 1. A new basket is created with assets ETH_SUSDE and ETH_WEETH
@@ -539,7 +541,8 @@ contract IntegrationTest is BaseTest {
                 newTargetWeightsTotal[i] = newTargetWeights;
                 // Update the target weights for the basket
                 vm.startPrank(GAUNTLET_STRATEGIST);
-                uint256 basketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(assets);
+                uint256 basketBitFlag =
+                    AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName())).getAssetsBitFlag(assets);
                 strategy.setTargetWeights(basketBitFlag, newTargetWeights);
                 vm.stopPrank();
             }
@@ -651,7 +654,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         ManagedWeightStrategy strategy =
-            ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
+            ManagedWeightStrategy(deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1")));
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
         vm.snapshotGasLastCall("ManagedWeightStrategy.setTargetWeights");
@@ -714,7 +717,7 @@ contract IntegrationTest is BaseTest {
 
     function test_fallbackRedeem() public {
         // 1. Initial target weights are set for the base basket. 100% of assets are allocated to the base asset.
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
         initialTargetWeights0[0] = 1e18;
@@ -993,7 +996,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
 
         ManagedWeightStrategy strategy =
-            ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
+            ManagedWeightStrategy(deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1")));
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
 
@@ -1423,7 +1426,7 @@ contract IntegrationTest is BaseTest {
 
     // Gets the price of an asset in USD
     function _getAssetPrice(address asset) internal returns (uint256 price) {
-        eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
+        eulerRouter = EulerRouter(deployments.getAddress(deployments.buildEulerRouterName()));
         price = eulerRouter.getQuote(10 ** ERC20(asset).decimals(), asset, USD);
     }
 

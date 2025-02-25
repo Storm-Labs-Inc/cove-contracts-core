@@ -11,6 +11,7 @@ import { BatchScript } from "forge-safe/BatchScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import { console } from "forge-std/console.sol";
 
+import { BuildDeploymentJsonNames } from "./utils/BuildDeploymentJsonNames.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
@@ -22,7 +23,7 @@ import { Constants } from "test/utils/Constants.t.sol";
  * @notice Script to update the oracles for 4626 tokens in the staging environment
  * @dev This script deploys and configures oracles for sUSDe, sDAI, and sFRAX
  */
-contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchScript {
+contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchScript, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
@@ -35,17 +36,13 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
     uint256 public constant CHAINLINK_MAX_STALENESS = 1 days;
     uint256 public constant MAX_DIVERGENCE = 0.005e18; // 0.5%
 
-    string public constant prefix = "Staging_";
-
-    string public constant Artifact_ERC4626Oracle = "ERC4626Oracle.sol:ERC4626Oracle";
-    string public constant Artifact_PythOracle = "PythOracle.sol:PythOracle";
-    string public constant Artifact_ChainlinkOracle = "ChainlinkOracle.sol:ChainlinkOracle";
-    string public constant Artifact_AnchoredOracle = "AnchoredOracle.sol:AnchoredOracle";
-    string public constant Artifact_CrossAdapter = "CrossAdapter.sol:CrossAdapter";
-
     address public governor;
 
     address public safe = COVE_STAGING_COMMUNITY_MULTISIG;
+
+    function _buildPrefix() internal view override returns (string memory) {
+        return "Staging_";
+    }
 
     function deploy() public isBatch(safe) {
         deployer.setAutoBroadcast(true);
@@ -65,7 +62,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("\n--- Final Configuration ---");
         _printCurrentConfiguration();
 
-        executeBatch(false);
+        // executeBatch(false);
     }
 
     function _printCurrentConfiguration() private {
@@ -105,7 +102,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         // 1. Skip deploying ERC4626Oracle for sUSDe since we have both Pyth and Chainlink oracles
         // 2. Deploy PythOracle for sUSDe/USD
         PythOracle sUSDe_PythOracle = deployer.deploy_PythOracle(
-            string.concat(prefix, "sUSDe-USD_PythOracle"),
+            buildPythOracleName(ETH_SUSDE, USD),
             PYTH,
             ETH_SUSDE,
             USD,
@@ -117,7 +114,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
 
         // 3. Deploy ChainlinkOracle for sUSDe/USD
         ChainlinkOracle sUSDe_ChainlinkOracle = deployer.deploy_ChainlinkOracle(
-            string.concat(prefix, "sUSDe-USD_ChainlinkOracle"),
+            buildChainlinkOracleName(ETH_SUSDE, USD),
             ETH_SUSDE,
             USD,
             ETH_CHAINLINK_SUSDE_USD_FEED,
@@ -127,7 +124,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
 
         // 4. Deploy AnchoredOracle for USDe/USD
         AnchoredOracle sUSDe_AnchoredOracle = deployer.deploy_AnchoredOracle(
-            string.concat(prefix, "sUSDe-USD_AnchoredOracle"),
+            buildAnchoredOracleName(ETH_SUSDE, USD),
             address(sUSDe_PythOracle),
             address(sUSDe_ChainlinkOracle),
             MAX_DIVERGENCE
@@ -156,12 +153,12 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("\n--- Deploying sDAI Oracles ---");
         // 1. Deploy ERC4626Oracle for sDAI
         ERC4626Oracle sDAI_ERC4626Oracle =
-            deployer.deploy_ERC4626Oracle(string.concat(prefix, "sDAI-DAI_ERC4626Oracle"), IERC4626(ETH_SDAI));
+            deployer.deploy_ERC4626Oracle(buildERC4626OracleName(ETH_SDAI, ETH_DAI), IERC4626(ETH_SDAI));
         console.log("sDAI-DAI_ERC4626Oracle deployed at:", address(sDAI_ERC4626Oracle));
 
         // 2. Deploy PythOracle for sDAI/USD
         PythOracle sDAI_PythOracle = deployer.deploy_PythOracle(
-            string.concat(prefix, "sDAI-USD_PythOracle"),
+            buildPythOracleName(ETH_SDAI, USD),
             PYTH,
             ETH_SDAI,
             USD,
@@ -173,15 +170,11 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
 
         // 3. Deploy CrossAdapter for sDAI/USD
         ChainlinkOracle dai_ChainlinkOracle = deployer.deploy_ChainlinkOracle(
-            string.concat(prefix, "DAI_ChainlinkOracle"),
-            ETH_DAI,
-            USD,
-            ETH_CHAINLINK_DAI_USD_FEED,
-            CHAINLINK_MAX_STALENESS
+            buildChainlinkOracleName(ETH_DAI, USD), ETH_DAI, USD, ETH_CHAINLINK_DAI_USD_FEED, CHAINLINK_MAX_STALENESS
         );
 
         CrossAdapter sDAI_CrossAdapter = deployer.deploy_CrossAdapter(
-            string.concat(prefix, "sDAI-USD_CrossAdapter_4626_Chainlink"),
+            buildCrossAdapterName(ETH_SDAI, ETH_DAI, USD, "4626", "Chainlink"),
             ETH_SDAI,
             ETH_DAI,
             USD,
@@ -192,10 +185,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
 
         // 4. Deploy AnchoredOracle for sDAI/USD
         AnchoredOracle sDAI_AnchoredOracle = deployer.deploy_AnchoredOracle(
-            string.concat(prefix, "sDAI-USD_AnchoredOracle"),
-            address(sDAI_PythOracle),
-            address(sDAI_CrossAdapter),
-            MAX_DIVERGENCE
+            buildAnchoredOracleName(ETH_SDAI, USD), address(sDAI_PythOracle), address(sDAI_CrossAdapter), MAX_DIVERGENCE
         );
         console.log("sDAI-USD_AnchoredOracle deployed at:", address(sDAI_AnchoredOracle));
 
@@ -221,12 +211,12 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("\n--- Deploying sFRAX Oracles ---");
         // 1. Deploy ERC4626Oracle for sFRAX
         ERC4626Oracle sFRAX_ERC4626Oracle =
-            deployer.deploy_ERC4626Oracle(string.concat(prefix, "sFRAX-FRAX_ERC4626Oracle"), IERC4626(ETH_SFRAX));
+            deployer.deploy_ERC4626Oracle(buildERC4626OracleName(ETH_SFRAX, ETH_FRAX), IERC4626(ETH_SFRAX));
         console.log("sFRAX-FRAX_ERC4626Oracle deployed at:", address(sFRAX_ERC4626Oracle));
 
         // 2. Deploy PythOracle for FRAX/USD
         PythOracle frax_PythOracle = deployer.deploy_PythOracle(
-            string.concat(prefix, "FRAX_PythOracle"),
+            buildPythOracleName(ETH_FRAX, USD),
             PYTH,
             ETH_FRAX,
             USD,
@@ -238,17 +228,13 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
 
         // 3. Deploy ChainlinkOracle for FRAX/USD
         ChainlinkOracle frax_ChainlinkOracle = deployer.deploy_ChainlinkOracle(
-            string.concat(prefix, "FRAX_ChainlinkOracle"),
-            ETH_FRAX,
-            USD,
-            ETH_CHAINLINK_FRAX_USD_FEED,
-            CHAINLINK_MAX_STALENESS
+            buildChainlinkOracleName(ETH_FRAX, USD), ETH_FRAX, USD, ETH_CHAINLINK_FRAX_USD_FEED, CHAINLINK_MAX_STALENESS
         );
         console.log("FRAX_ChainlinkOracle deployed at:", address(frax_ChainlinkOracle));
 
         // 4. Deploy CrossAdapters for sFRAX/USD
         CrossAdapter sFRAX_CrossAdapter_4626_Chainlink = deployer.deploy_CrossAdapter(
-            string.concat(prefix, "sFRAX-USD_CrossAdapter_4626_Chainlink"),
+            buildCrossAdapterName(ETH_SFRAX, ETH_FRAX, USD, "4626", "Chainlink"),
             ETH_SFRAX,
             ETH_FRAX,
             USD,
@@ -258,7 +244,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sFRAX-USD_CrossAdapter_4626_Chainlink deployed at:", address(sFRAX_CrossAdapter_4626_Chainlink));
 
         CrossAdapter sFRAX_CrossAdapter_4626_Pyth = deployer.deploy_CrossAdapter(
-            string.concat(prefix, "sFRAX-USD_CrossAdapter_4626_Pyth"),
+            buildCrossAdapterName(ETH_SFRAX, ETH_FRAX, USD, "4626", "Pyth"),
             ETH_SFRAX,
             ETH_FRAX,
             USD,
@@ -269,7 +255,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
 
         // 5. Deploy AnchoredOracle for sFRAX/USD
         AnchoredOracle sFRAX_AnchoredOracle = deployer.deploy_AnchoredOracle(
-            string.concat(prefix, "sFRAX-USD_AnchoredOracle"),
+            buildAnchoredOracleName(ETH_SFRAX, USD),
             address(sFRAX_CrossAdapter_4626_Pyth),
             address(sFRAX_CrossAdapter_4626_Chainlink),
             MAX_DIVERGENCE
