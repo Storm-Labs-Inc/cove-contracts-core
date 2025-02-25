@@ -153,7 +153,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
 
         // 1. Skip deploying ERC4626Oracle for sUSDe since we have both Pyth and Chainlink oracles
         // 2. Deploy PythOracle for sUSDe/USD
-        PythOracle sUSDe_PythOracle = deploy_PythOracle(
+        PythOracle sUSDe_PythOracle = _deploy_PythOracle(
             string.concat(prefix, "sUSDe-USD_PythOracle"),
             PYTH,
             ETH_SUSDE,
@@ -165,7 +165,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sUSDe-USD_PythOracle deployed at:", address(sUSDe_PythOracle));
 
         // 3. Deploy ChainlinkOracle for sUSDe/USD
-        ChainlinkOracle sUSDe_ChainlinkOracle = deploy_ChainlinkOracle(
+        ChainlinkOracle sUSDe_ChainlinkOracle = _deploy_ChainlinkOracle(
             string.concat(prefix, "sUSDe-USD_ChainlinkOracle"),
             ETH_SUSDE,
             USD,
@@ -209,7 +209,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sDAI-DAI_ERC4626Oracle deployed at:", address(sDAI_ERC4626Oracle));
 
         // 2. Deploy PythOracle for sDAI/USD
-        PythOracle sDAI_PythOracle = deploy_PythOracle(
+        PythOracle sDAI_PythOracle = _deploy_PythOracle(
             string.concat(prefix, "sDAI-USD_PythOracle"),
             PYTH,
             ETH_SDAI,
@@ -221,7 +221,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sDAI-USD_PythOracle deployed at:", address(sDAI_PythOracle));
 
         // 3. Deploy CrossAdapter for sDAI/USD
-        ChainlinkOracle dai_ChainlinkOracle = deploy_ChainlinkOracle(
+        ChainlinkOracle dai_ChainlinkOracle = _deploy_ChainlinkOracle(
             string.concat(prefix, "DAI_ChainlinkOracle"),
             ETH_DAI,
             USD,
@@ -229,7 +229,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
             CHAINLINK_MAX_STALENESS
         );
 
-        CrossAdapter sDAI_CrossAdapter = deploy_CrossAdapter(
+        CrossAdapter sDAI_CrossAdapter = _deploy_CrossAdapter(
             string.concat(prefix, "sDAI-USD_CrossAdapter_4626_Chainlink"),
             ETH_SDAI,
             ETH_DAI,
@@ -274,7 +274,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sFRAX-FRAX_ERC4626Oracle deployed at:", address(sFRAX_ERC4626Oracle));
 
         // 2. Deploy PythOracle for FRAX/USD
-        PythOracle frax_PythOracle = deploy_PythOracle(
+        PythOracle frax_PythOracle = _deploy_PythOracle(
             string.concat(prefix, "FRAX_PythOracle"),
             PYTH,
             ETH_FRAX,
@@ -286,7 +286,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("FRAX_PythOracle deployed at:", address(frax_PythOracle));
 
         // 3. Deploy ChainlinkOracle for FRAX/USD
-        ChainlinkOracle frax_ChainlinkOracle = deploy_ChainlinkOracle(
+        ChainlinkOracle frax_ChainlinkOracle = _deploy_ChainlinkOracle(
             string.concat(prefix, "FRAX_ChainlinkOracle"),
             ETH_FRAX,
             USD,
@@ -296,7 +296,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("FRAX_ChainlinkOracle deployed at:", address(frax_ChainlinkOracle));
 
         // 4. Deploy CrossAdapters for sFRAX/USD
-        CrossAdapter sFRAX_CrossAdapter_4626_Chainlink = deploy_CrossAdapter(
+        CrossAdapter sFRAX_CrossAdapter_4626_Chainlink = _deploy_CrossAdapter(
             string.concat(prefix, "sFRAX-USD_CrossAdapter_4626_Chainlink"),
             ETH_SFRAX,
             ETH_FRAX,
@@ -306,7 +306,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         );
         console.log("sFRAX-USD_CrossAdapter_4626_Chainlink deployed at:", address(sFRAX_CrossAdapter_4626_Chainlink));
 
-        CrossAdapter sFRAX_CrossAdapter_4626_Pyth = deploy_CrossAdapter(
+        CrossAdapter sFRAX_CrossAdapter_4626_Pyth = _deploy_CrossAdapter(
             string.concat(prefix, "sFRAX-USD_CrossAdapter_4626_Pyth"),
             ETH_SFRAX,
             ETH_FRAX,
