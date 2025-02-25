@@ -37,6 +37,12 @@ git = "https://github.com/Abracadabra-money/forge-deploy.git"
 rev = "a81ce1a5704bbee4686a13209bc17f80132542f9"
 
 [[dependencies]]
+name = "forge-safe"
+version = "1"
+git = "https://github.com/Storm-Labs-Inc/forge-safe.git"
+rev = "b050356e4667fc952fe84b66cf2990d9bb35c172"
+
+[[dependencies]]
 name = "forge-std"
 version = "1.9.6"
 url = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_9_6_01-02-2025_20:49:10_forge-std-1.9.zip"

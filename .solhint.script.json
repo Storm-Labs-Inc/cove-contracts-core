@@ -19,13 +19,18 @@
     "event-name-camelcase": "error",
     "func-param-name-mixedcase": "error",
     "modifier-name-mixedcase": "error",
-    "private-vars-leading-underscore": "error",
-    "var-name-mixedcase": "error",
+    "private-vars-leading-underscore": "warn",
+    "var-name-mixedcase": "warn",
     "imports-on-top": "error",
-    "const-name-snakecase": "error",
+    "const-name-snakecase": "warn",
     "contract-name-camelcase": "error",
     "no-unused-vars": "error",
     "no-unused-import": "error",
-    "immutable-vars-naming": ["error", { "immutablesAsConstants": true }]
+    "immutable-vars-naming": [
+      "error",
+      {
+        "immutablesAsConstants": true
+      }
+    ]
   }
 }

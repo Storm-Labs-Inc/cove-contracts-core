@@ -68,6 +68,10 @@ contract Constants is CommonBase {
     bytes32 public constant PYTH_DAI_USD_FEED = 0xb0948a5e5313200c632b51bb5ca32f6de0d36e9950a942d19751e833f70dabfd;
     address public constant ETH_CHAINLINK_DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
 
+    // sDAI/USD
+    bytes32 public constant PYTH_SDAI_USD_FEED = 0x710659c5a68e2416ce4264ca8d50d34acc20041d91289110eea152c52ff3dc39;
+    // Missing Chainlink price feed
+
     // FRAX/USD
     bytes32 public constant PYTH_FRAX_USD_FEED = 0xc3d5d8d6d17081b3d0bbca6e2fa3a6704bb9a9561d9f9e1dc52db47629f862ad;
     address public constant ETH_CHAINLINK_FRAX_USD_FEED = 0xB9E1E3A9feFf48998E45Fa90847ed4D467E8BcfD;
