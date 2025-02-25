@@ -6,12 +6,12 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
-import { DefaultDeployerFunction } from "forge-deploy/DefaultDeployerFunction.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { BatchScript } from "forge-safe/BatchScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import { console } from "forge-std/console.sol";
 
+import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
@@ -24,6 +24,7 @@ import { Constants } from "test/utils/Constants.t.sol";
  */
 contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchScript {
     using DeployerFunctions for Deployer;
+    using CustomDeployerFunctions for Deployer;
 
     // Staging EulerRouter address
     address public constant STAGING_EULER_ROUTER = 0xb96e038998049BA86c220Dda4048AC17E1109453;
@@ -98,62 +99,12 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sFRAX/USD oracle:", sFRAX_oracle);
     }
 
-    function _deploy_ERC4626Oracle(string memory name, IERC4626 _vault) internal returns (ERC4626Oracle) {
-        bytes memory args = abi.encode(_vault);
-        return ERC4626Oracle(DefaultDeployerFunction.deploy(deployer, name, Artifact_ERC4626Oracle, args));
-    }
-
-    function _deploy_PythOracle(
-        string memory name,
-        address pythOracle,
-        address base,
-        address quote,
-        bytes32 feed,
-        uint256 maxStaleness,
-        uint256 maxConfWidth
-    )
-        internal
-        returns (PythOracle)
-    {
-        bytes memory args = abi.encode(pythOracle, base, quote, feed, maxStaleness, maxConfWidth);
-        return PythOracle(DefaultDeployerFunction.deploy(deployer, name, Artifact_PythOracle, args));
-    }
-
-    function _deploy_ChainlinkOracle(
-        string memory name,
-        address base,
-        address quote,
-        address feed,
-        uint256 maxStaleness
-    )
-        internal
-        returns (ChainlinkOracle)
-    {
-        bytes memory args = abi.encode(base, quote, feed, maxStaleness);
-        return ChainlinkOracle(DefaultDeployerFunction.deploy(deployer, name, Artifact_ChainlinkOracle, args));
-    }
-
-    function _deploy_CrossAdapter(
-        string memory name,
-        address base,
-        address cross,
-        address quote,
-        address oracleBaseCross,
-        address oracleCrossQuote
-    )
-        internal
-        returns (CrossAdapter)
-    {
-        bytes memory args = abi.encode(base, cross, quote, oracleBaseCross, oracleCrossQuote);
-        return CrossAdapter(DefaultDeployerFunction.deploy(deployer, name, Artifact_CrossAdapter, args));
-    }
-
     function _deploySUSDEOracles() private {
         console.log("\n--- Deploying sUSDe Oracles ---");
 
         // 1. Skip deploying ERC4626Oracle for sUSDe since we have both Pyth and Chainlink oracles
         // 2. Deploy PythOracle for sUSDe/USD
-        PythOracle sUSDe_PythOracle = _deploy_PythOracle(
+        PythOracle sUSDe_PythOracle = deployer.deploy_PythOracle(
             string.concat(prefix, "sUSDe-USD_PythOracle"),
             PYTH,
             ETH_SUSDE,
@@ -165,7 +116,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sUSDe-USD_PythOracle deployed at:", address(sUSDe_PythOracle));
 
         // 3. Deploy ChainlinkOracle for sUSDe/USD
-        ChainlinkOracle sUSDe_ChainlinkOracle = _deploy_ChainlinkOracle(
+        ChainlinkOracle sUSDe_ChainlinkOracle = deployer.deploy_ChainlinkOracle(
             string.concat(prefix, "sUSDe-USD_ChainlinkOracle"),
             ETH_SUSDE,
             USD,
@@ -209,7 +160,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sDAI-DAI_ERC4626Oracle deployed at:", address(sDAI_ERC4626Oracle));
 
         // 2. Deploy PythOracle for sDAI/USD
-        PythOracle sDAI_PythOracle = _deploy_PythOracle(
+        PythOracle sDAI_PythOracle = deployer.deploy_PythOracle(
             string.concat(prefix, "sDAI-USD_PythOracle"),
             PYTH,
             ETH_SDAI,
@@ -221,7 +172,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sDAI-USD_PythOracle deployed at:", address(sDAI_PythOracle));
 
         // 3. Deploy CrossAdapter for sDAI/USD
-        ChainlinkOracle dai_ChainlinkOracle = _deploy_ChainlinkOracle(
+        ChainlinkOracle dai_ChainlinkOracle = deployer.deploy_ChainlinkOracle(
             string.concat(prefix, "DAI_ChainlinkOracle"),
             ETH_DAI,
             USD,
@@ -229,7 +180,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
             CHAINLINK_MAX_STALENESS
         );
 
-        CrossAdapter sDAI_CrossAdapter = _deploy_CrossAdapter(
+        CrossAdapter sDAI_CrossAdapter = deployer.deploy_CrossAdapter(
             string.concat(prefix, "sDAI-USD_CrossAdapter_4626_Chainlink"),
             ETH_SDAI,
             ETH_DAI,
@@ -274,7 +225,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("sFRAX-FRAX_ERC4626Oracle deployed at:", address(sFRAX_ERC4626Oracle));
 
         // 2. Deploy PythOracle for FRAX/USD
-        PythOracle frax_PythOracle = _deploy_PythOracle(
+        PythOracle frax_PythOracle = deployer.deploy_PythOracle(
             string.concat(prefix, "FRAX_PythOracle"),
             PYTH,
             ETH_FRAX,
@@ -286,7 +237,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("FRAX_PythOracle deployed at:", address(frax_PythOracle));
 
         // 3. Deploy ChainlinkOracle for FRAX/USD
-        ChainlinkOracle frax_ChainlinkOracle = _deploy_ChainlinkOracle(
+        ChainlinkOracle frax_ChainlinkOracle = deployer.deploy_ChainlinkOracle(
             string.concat(prefix, "FRAX_ChainlinkOracle"),
             ETH_FRAX,
             USD,
@@ -296,7 +247,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         console.log("FRAX_ChainlinkOracle deployed at:", address(frax_ChainlinkOracle));
 
         // 4. Deploy CrossAdapters for sFRAX/USD
-        CrossAdapter sFRAX_CrossAdapter_4626_Chainlink = _deploy_CrossAdapter(
+        CrossAdapter sFRAX_CrossAdapter_4626_Chainlink = deployer.deploy_CrossAdapter(
             string.concat(prefix, "sFRAX-USD_CrossAdapter_4626_Chainlink"),
             ETH_SFRAX,
             ETH_FRAX,
@@ -306,7 +257,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         );
         console.log("sFRAX-USD_CrossAdapter_4626_Chainlink deployed at:", address(sFRAX_CrossAdapter_4626_Chainlink));
 
-        CrossAdapter sFRAX_CrossAdapter_4626_Pyth = _deploy_CrossAdapter(
+        CrossAdapter sFRAX_CrossAdapter_4626_Pyth = deployer.deploy_CrossAdapter(
             string.concat(prefix, "sFRAX-USD_CrossAdapter_4626_Pyth"),
             ETH_SFRAX,
             ETH_FRAX,
