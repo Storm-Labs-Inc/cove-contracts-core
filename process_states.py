@@ -51,7 +51,7 @@ def merge_states(base_state, other_state):
 
 
 def process_folder(folder_path):
-    base_file = "IntegrationTest_setup.json"
+    base_file = "BaseState_1740551663.json"
     base_file_path = os.path.join(folder_path, base_file)
 
     if not os.path.exists(base_file_path):
