@@ -62,8 +62,8 @@ contract IntegrationTest is BaseTest {
         deployments.deploy(false);
         vm.resumeGasMetering();
 
-        bm = BasketManager(deployments.getAddress("BasketManager"));
-        eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
+        bm = BasketManager(deployments.getAddress(deployments.buildBasketManagerName()));
+        eulerRouter = EulerRouter(deployments.getAddress(deployments.buildEulerRouterName()));
 
         pythPriceFeeds = new bytes32[](6);
         pythPriceFeeds[0] = PYTH_ETH_USD_FEED;
@@ -92,11 +92,11 @@ contract IntegrationTest is BaseTest {
         // TODO: add rest of asset universe
 
         baseBasketAssets = bm.basketAssets(bm.basketTokens()[0]);
-        baseBasketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(baseBasketAssets);
+        baseBasketBitFlag = AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName())).getAssetsBitFlag(
+            baseBasketAssets
+        );
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
-
-        _dumpStateWithTimestamp("IntegrationTest_setup");
     }
 
     function test_setUp() public {
@@ -104,19 +104,19 @@ contract IntegrationTest is BaseTest {
         assertNotEq(address(bm), address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("BasketManager"), address(bm));
 
-        address assetRegistryAddress = deployments.getAddress("AssetRegistry");
+        address assetRegistryAddress = deployments.getAddress(deployments.buildAssetRegistryName());
         assertNotEq(assetRegistryAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("AssetRegistry"), assetRegistryAddress);
 
-        address strategyRegistryAddress = deployments.getAddress("StrategyRegistry");
+        address strategyRegistryAddress = deployments.getAddress(deployments.buildStrategyRegistryName());
         assertNotEq(strategyRegistryAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("StrategyRegistry"), strategyRegistryAddress);
 
-        address eulerRouterAddress = deployments.getAddress("EulerRouter");
+        address eulerRouterAddress = deployments.getAddress(deployments.buildEulerRouterName());
         assertNotEq(eulerRouterAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("EulerRouter"), eulerRouterAddress);
 
-        address feeCollectorAddress = deployments.getAddress("FeeCollector");
+        address feeCollectorAddress = deployments.getAddress(deployments.buildFeeCollectorName());
         assertNotEq(feeCollectorAddress, address(0));
         assertEq(masterRegistry.resolveNameToLatestAddress("FeeCollector"), feeCollectorAddress);
         assertEq(bm.numOfBasketTokens(), 1);
@@ -132,7 +132,7 @@ contract IntegrationTest is BaseTest {
         address[] memory newBasketAssets0 = new address[](2);
         newBasketAssets0[0] = ETH_SUSDE;
         newBasketAssets0[1] = ETH_WEETH;
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         uint256 basket0Bitflag = deployments.assetsToBitFlag(newBasketAssets0);
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
@@ -194,7 +194,6 @@ contract IntegrationTest is BaseTest {
         }
         vm.prank(deployments.tokenSwapProposer());
         bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
-        _dumpStateWithTimestamp("afterInternalTradeProposeTokenSwap");
 
         // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
         // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
@@ -216,7 +215,7 @@ contract IntegrationTest is BaseTest {
     // proposed again. The rebalance is confirmed to complete regardless.
     function test_completeRebalance_retriesOnFailedTrade() public {
         // 1. Initial target weights are set for the base basket. 100% of assets are allocated to the base asset.
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
         initialTargetWeights0[0] = 1e18;
@@ -278,7 +277,6 @@ contract IntegrationTest is BaseTest {
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
             bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
-            _dumpStateWithTimestamp("afterCompleteRebalance_inRetryState");
 
             // Rebalance enters retry state
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
@@ -316,16 +314,15 @@ contract IntegrationTest is BaseTest {
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets_);
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
         assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBals));
-        _dumpStateWithTimestamp("afterCompleteRebalance_afterMaxRetries");
     }
 
     // Completes two rebalances, one to process deposits and one to get balances of all assets in the base basket. Then
     // the price of one of the basket's assets is altered significantly. A rebalance is then propose with the same
     // target weights as the previous epoch. The rebalance is confirmed to account for this change in price.
-    function testFuzz_completeRebalance_rebalancesOnPriceChange() public {
+    function test_completeRebalance_rebalancesOnPriceChange() public {
         // 1. Two rebalances are completed, one to process deposits, one to get balances of all assets in the base
         // basket.
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         _baseBasket_completeRebalance_externalTrade(100, 1);
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
@@ -368,7 +365,7 @@ contract IntegrationTest is BaseTest {
         address[] memory newBasketAssets0 = new address[](2);
         newBasketAssets0[0] = ETH_SUSDE;
         newBasketAssets0[1] = ETH_WEETH;
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         uint256 basket0Bitflag = deployments.assetsToBitFlag(newBasketAssets0);
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
@@ -467,10 +464,10 @@ contract IntegrationTest is BaseTest {
     }
 
     // solhint-disable-next-line code-complexity
-    function testFuzz_completeRebalance_MultipleBaskets() public {
+    function test_completeRebalance_MultipleBaskets() public {
         uint256 cycles = 5;
 
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
 
         // 1. A new basket is created with assets ETH_SUSDE and ETH_WEETH
@@ -509,7 +506,7 @@ contract IntegrationTest is BaseTest {
                 firstCycleBalances[i][j] = bm.basketBalanceOf(basketTokens[i], assets[j]);
             }
         }
-        _dumpStateWithTimestamp("multipleBaskets_depositsClaimed");
+
         for (uint256 c = 0; c < cycles; ++c) {
             vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
 
@@ -539,14 +536,14 @@ contract IntegrationTest is BaseTest {
                 newTargetWeightsTotal[i] = newTargetWeights;
                 // Update the target weights for the basket
                 vm.startPrank(GAUNTLET_STRATEGIST);
-                uint256 basketBitFlag = AssetRegistry(deployments.getAddress("AssetRegistry")).getAssetsBitFlag(assets);
+                uint256 basketBitFlag =
+                    AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName())).getAssetsBitFlag(assets);
                 strategy.setTargetWeights(basketBitFlag, newTargetWeights);
                 vm.stopPrank();
             }
 
             _updatePythOracleTimeStamps();
             _updateChainLinkOraclesTimeStamp();
-            _dumpStateWithTimestamp("multipleBaskets_beforeProposeRebalance_afterRequestRedeem");
 
             vm.prank(deployments.rebalanceProposer());
             bm.proposeRebalance(basketTokens);
@@ -566,7 +563,7 @@ contract IntegrationTest is BaseTest {
 
             vm.prank(deployments.tokenSwapProposer());
             bm.proposeTokenSwap(internalTrades, externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
-            _dumpStateWithTimestamp("afterProposeTokenSwap_multipleBaskets_redeemRequestsProcessing");
+
             // 5. TokenSwapExecutor calls executeTokenSwap() with the external trades found by the solver.
             // _completeSwapAdapterTrades() is called to mock a 100% successful external trade.
             vm.prank(deployments.tokenSwapExecutor());
@@ -574,7 +571,6 @@ contract IntegrationTest is BaseTest {
             _completeSwapAdapterTrades(externalTrades);
 
             // After execute token swap
-            _dumpStateWithTimestamp("afterExecuteTokenSwap_completeRebalance_MultipleBaskets");
 
             // 6. completeRebalance() is called. The rebalance is confirmed to be completed and the internal balances
             // are verified to correctly reflect the results of each trade.
@@ -585,7 +581,6 @@ contract IntegrationTest is BaseTest {
                 assertTrue(_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
             }
         }
-        _dumpStateWithTimestamp("multipleBaskets_userRedeemClaimable");
 
         // 7. Confirm that end state of the basket is the same as the start state
         for (uint256 i = 0; i < basketTokens.length; ++i) {
@@ -651,7 +646,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         ManagedWeightStrategy strategy =
-            ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
+            ManagedWeightStrategy(deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1")));
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
         vm.snapshotGasLastCall("ManagedWeightStrategy.setTargetWeights");
@@ -699,7 +694,6 @@ contract IntegrationTest is BaseTest {
         vm.stopPrank();
 
         // After alice claims shares
-        _dumpStateWithTimestamp("proRataRedeem_afterSharesClaim");
 
         // 5. The basket then attempts to rebalance once more with the same target weights as last rebalance
         vm.warp(vm.getBlockTimestamp() + REBALANCE_COOLDOWN_SEC);
@@ -714,7 +708,7 @@ contract IntegrationTest is BaseTest {
 
     function test_fallbackRedeem() public {
         // 1. Initial target weights are set for the base basket. 100% of assets are allocated to the base asset.
-        address strategyAddress = deployments.getAddress("Gauntlet V1_ManagedWeightStrategy");
+        address strategyAddress = deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1"));
         ManagedWeightStrategy strategy = ManagedWeightStrategy(strategyAddress);
         uint64[] memory initialTargetWeights0 = new uint64[](2);
         initialTargetWeights0[0] = 1e18;
@@ -808,13 +802,12 @@ contract IntegrationTest is BaseTest {
         _updateChainLinkOraclesTimeStamp();
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
         assert(basket.fallbackTriggered(redeemRequestId) == true);
-        _dumpStateWithTimestamp("fallbackRedeem_userFallBackSharesClaimable");
+
         uint256 sharesBefore = basket.balanceOf(user);
         vm.prank(user);
         basket.claimFallbackShares(user, user);
         assert(basket.balanceOf(user) == sharesBefore + shares);
         // After redeem request
-        _dumpStateWithTimestamp("fallbackRedeem_afterRedeemRequest");
     }
 
     function test_farmingPlugin_ExternalRewards() public {
@@ -846,18 +839,11 @@ contract IntegrationTest is BaseTest {
 
         vm.warp(vm.getBlockTimestamp() + rewardPeriod / 2);
         // state has claimable and currently accruing rewards
-        _dumpStateWithTimestamp("completeRebalance_rewardsHalfClaimable");
+
         vm.warp(vm.getBlockTimestamp() + farmingPlugin.farmInfo().finished);
-        _dumpStateWithTimestamp("completeRebalance_rewardsFullClaimable");
     }
 
     /// INTERNAL HELPER FUNCTIONS
-
-    // Helper function to dump state and log timestamp
-    function _dumpStateWithTimestamp(string memory label) internal {
-        vm.writeFile(string.concat("dumpStates/", label, ".timestamp.txt"), vm.toString(vm.getBlockTimestamp()));
-        vm.dumpState(string.concat("dumpStates/", label, ".json"));
-    }
 
     // Requests and processes deposits into every basket
     function _completeRebalance_processDeposits(uint256 numUsers, uint256 entropy) internal {
@@ -872,7 +858,6 @@ contract IntegrationTest is BaseTest {
                 _requestDepositToBasket(user, basketTokens[j], amount);
             }
         }
-        _dumpStateWithTimestamp("multipleBaskets_afterRequestDeposit");
 
         uint64[][] memory targetWeights = new uint64[][](basketTokens.length);
         address[][] memory basketAssets = new address[][](basketTokens.length);
@@ -886,11 +871,10 @@ contract IntegrationTest is BaseTest {
         assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encode(basketTokens, targetWeights, basketAssets)));
-        _dumpStateWithTimestamp("multipleBaskets_depositsRequestsProcessing");
 
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         bm.completeRebalance(new ExternalTrade[](0), basketTokens, targetWeights, basketAssets);
-        _dumpStateWithTimestamp("multipleBaskets_processDeposits_depositsClaimable");
+
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.NOT_STARTED));
     }
 
@@ -993,7 +977,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
 
         ManagedWeightStrategy strategy =
-            ManagedWeightStrategy(deployments.getAddress("Gauntlet V1_ManagedWeightStrategy"));
+            ManagedWeightStrategy(deployments.getAddress(deployments.buildManagedWeightStrategyName("Gauntlet V1")));
         vm.prank(GAUNTLET_STRATEGIST);
         strategy.setTargetWeights(baseBasketBitFlag, newTargetWeights);
 
@@ -1423,7 +1407,7 @@ contract IntegrationTest is BaseTest {
 
     // Gets the price of an asset in USD
     function _getAssetPrice(address asset) internal returns (uint256 price) {
-        eulerRouter = EulerRouter(deployments.getAddress("EulerRouter"));
+        eulerRouter = EulerRouter(deployments.getAddress(deployments.buildEulerRouterName()));
         price = eulerRouter.getQuote(10 ** ERC20(asset).decimals(), asset, USD);
     }
 
@@ -1476,46 +1460,6 @@ contract IntegrationTest is BaseTest {
                 airdrop(IERC20(trade.buyToken), swapContract, buyAmount);
             }
         }
-    }
-
-    // Updates the timestamp of a Pyth oracle response
-    function _updatePythOracleTimeStamp(bytes32 pythPriceFeed) internal {
-        vm.record();
-        IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
-        (bytes32[] memory readSlots,) = vm.accesses(PYTH);
-        // Second read slot contains the timestamp in the last 32 bits
-        // key   "0x28b01e5f9379f2a22698d286ce7faa0c31f6e4041ee32933d99cfe45a4a8ced5":
-        // value "0x0000000000000000071021bc0000003f435df940fffffff80000000067a59cb0",
-        // Where timestamp is 0x67a59cb0
-        // overwrite this by using vm.store(readSlots[1], modified state)
-        uint256 newPublishTime = vm.getBlockTimestamp();
-        bytes32 modifiedStorageData =
-            bytes32((uint256(vm.load(PYTH, readSlots[1])) & ~uint256(0xFFFFFFFF)) | newPublishTime);
-        vm.store(PYTH, readSlots[1], modifiedStorageData);
-
-        // Verify the storage was updated.
-        PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
-        assertEq(res.publishTime, newPublishTime, "PythOracle timestamp was not updated correctly");
-    }
-
-    // Updates the timestamp of a ChainLink oracle response
-    function _updateChainLinkOracleTimeStamp(address chainlinkOracle) internal {
-        address aggregator = IChainlinkAggregatorV3Interface(chainlinkOracle).aggregator();
-        vm.record();
-        IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
-        (bytes32[] memory readSlots,) = vm.accesses(aggregator);
-        // The third slot of the aggregator reads contains the timestamp in the first 32 bits
-        // Format: 0x67a4876b67a48757000000000000000000000000000000000f806f93b728efc0
-        // Where 0x67a4876b is the timestamp
-        uint256 newPublishTime = vm.getBlockTimestamp();
-        bytes32 modifiedStorageData = bytes32(
-            (uint256(vm.load(aggregator, readSlots[2])) & ~uint256(0xFFFFFFFF << 224)) | (newPublishTime << 224)
-        );
-        vm.store(aggregator, readSlots[2], modifiedStorageData);
-
-        // Verify the storage was updated
-        (,,, uint256 updatedTimestamp,) = IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
-        assertEq(updatedTimestamp, newPublishTime, "ChainLink timestamp was not updated correctly");
     }
 
     // Updates the timestamps of all ChainLink oracles

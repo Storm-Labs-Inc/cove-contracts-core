@@ -8,6 +8,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+BASE_STATE_FILE = "00_InitialState_1740551663.json"
 
 def load_json_file(file_path):
     with open(file_path, "r") as file:
@@ -51,7 +52,7 @@ def merge_states(base_state, other_state):
 
 
 def process_folder(folder_path):
-    base_file = "IntegrationTest_setup.json"
+    base_file = BASE_STATE_FILE
     base_file_path = os.path.join(folder_path, base_file)
 
     if not os.path.exists(base_file_path):
