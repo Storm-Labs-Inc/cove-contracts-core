@@ -2,6 +2,10 @@
 
 pragma solidity 0.8.28;
 
+// TODO: Remove reliance on VM cheatcodes to meet the global requirement.
+// Currently using vm.deal, vm.prank, vm.warp, etc. which should be replaced with
+// alternative approaches that don't rely on cheatcodes for frontend testing.
+
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -32,8 +36,8 @@ contract GenerateStatesForFrontend is BaseTest {
     address public tokenSwapProposer = COVE_SILVERBACK_AWS_ACCOUNT;
     address public tokenSwapExecutor = COVE_SILVERBACK_AWS_ACCOUNT;
 
-    uint256 public constant AIRDROP_AMOUNT = 1_000_000;
-    uint256 public constant DEPOSIT_AMOUNT = 10_000;
+    uint256 public constant AIRDROP = 1_000_000;
+    uint256 public constant DEPOSIT = 10_000;
 
     function setUp() public override {
         forkNetworkAt("mainnet", 21_928_744);
@@ -46,8 +50,10 @@ contract GenerateStatesForFrontend is BaseTest {
 
         // Give some eth to user
         vm.deal(user, 100 ether);
+        deal(ETH_WETH, user, AIRDROP * _getOneUnit(ETH_WETH));
+        deal(ETH_USDC, user, AIRDROP * _getOneUnit(ETH_USDC));
 
-        _dumpStateWithTimestamp("BaseState");
+        _dumpStateWithTimestamp("00_InitialState");
     }
 
     function test_generateStates_sucessful_deposit_and_claim_shares() public {
@@ -66,17 +72,17 @@ contract GenerateStatesForFrontend is BaseTest {
         vm.stopPrank();
 
         // 1. Give USDC to user
-        deal(ETH_USDC, user, AIRDROP_AMOUNT * _getOneUnit(ETH_USDC));
-        _dumpStateWithTimestamp("01_accountHasSomeUSDC");
+        deal(ETH_USDC, user, AIRDROP * _getOneUnit(ETH_USDC));
+        _dumpStateWithTimestamp("01_AccountHasBasketAssets");
 
         // 2. Request deposit USDC into basket, add farming plugin
         vm.startPrank(user);
-        uint256 depositAmount = DEPOSIT_AMOUNT * _getOneUnit(ETH_USDC);
+        uint256 depositAmount = DEPOSIT * _getOneUnit(ETH_USDC);
         IERC20(ETH_USDC).approve(basketToken, depositAmount);
         BasketToken(basketToken).requestDeposit(depositAmount, user, user);
         BasketToken(basketToken).addPlugin(farmingPlugin);
         vm.stopPrank();
-        _dumpStateWithTimestamp("02_accountHasRequestedDeposit");
+        _dumpStateWithTimestamp("02_AccountHasPendingDeposit");
 
         // 3. Propose rebalance
         _refreshPriceFeeds();
@@ -84,13 +90,13 @@ contract GenerateStatesForFrontend is BaseTest {
         basketTokens[0] = basketToken;
         vm.prank(rebalanceProposer);
         BasketManager(basketManager).proposeRebalance(basketTokens);
-        _dumpStateWithTimestamp("03_accountHasClaimableBasketTokenShares");
+        _dumpStateWithTimestamp("03_AccountHasClaimableDeposit");
 
         // 4. Claim shares
         uint256 assets = BasketToken(basketToken).maxDeposit(user);
         vm.prank(user);
         BasketToken(basketToken).deposit(assets, user, user);
-        _dumpStateWithTimestamp("04_accountHasBasketTokenShares");
+        _dumpStateWithTimestamp("04_AccountHasBasketTokensWhileRebalancing");
 
         // Generate external trades, execute them, mock cowswap activity, then complete rebalance
         uint64[][] memory targetWeights = _getBasketTagetWeights(basketTokens);
@@ -105,39 +111,91 @@ contract GenerateStatesForFrontend is BaseTest {
         // 5. Complete rebalance, account can now redeem
         _continueAndCompleteRebalance(basketTokens, externalTrades);
         // check rebalance status
-        _dumpStateWithTimestamp("05_protocolHasCompletedRebalance_accountCanProRataRedeem");
+        _dumpStateWithTimestamp("05_AccountHasBasketTokensCanProRataRedeem");
 
-        // 6. Request Redeem
+        // 6. Test account has a pending redeem in basket1
         vm.startPrank(user);
         BasketToken(basketToken).requestRedeem(BasketToken(basketToken).balanceOf(user), user, user);
         vm.stopPrank();
-        _dumpStateWithTimestamp("06_accountHasRequestedRedeem");
+        _dumpStateWithTimestamp("06_AccountHasPendingRedeem");
 
-        vm.warp(vm.getBlockTimestamp() + 1 days);
-
-        // 7. Claim rewards
-        vm.prank(user);
-        assertTrue(FarmingPlugin(farmingPlugin).farmed(user) > 0, "User has no rewards to claim");
-        _dumpStateWithTimestamp("07_accountHasClaimableRewards");
-
-        // Propose rebalance and attempt to complete rebalance until max retries is reached
-        // Trades are not proposed, cycle through complete and propose rebalance until max retries is reached
+        // Propose and complete rebalance to make the redeem claimable
+        vm.warp(vm.getBlockTimestamp() + 1 hours);
         vm.startPrank(rebalanceProposer);
         _refreshPriceFeeds();
         BasketManager(basketManager).proposeRebalance(basketTokens);
+        vm.stopPrank();
+
+        externalTrades[0] = _buildSingleExternalTrade(
+            basketToken, ETH_SDAI, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SDAI)
+        );
+        externalTrades[1] = _buildSingleExternalTrade(
+            basketToken, ETH_SFRAX, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SFRAX)
+        );
+        externalTrades[2] = _buildSingleExternalTrade(
+            basketToken, ETH_SUSDE, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SUSDE)
+        );
+        _continueAndCompleteRebalance(basketTokens, externalTrades);
+
+        // Verify redeem is claimable
+        assertTrue(BasketToken(basketToken).maxRedeem(user) > 0, "User has no claimable redeem");
+        _dumpStateWithTimestamp("07_AccountHasClaimableRedeem");
+
+        // Redeem shares and deposit again
+        vm.startPrank(user);
+        BasketToken(basketToken).redeem(BasketToken(basketToken).maxRedeem(user), user, user);
+        IERC20(ETH_USDC).approve(basketToken, depositAmount);
+        BasketToken(basketToken).requestDeposit(depositAmount, user, user);
+        vm.stopPrank();
+
+        // Propose and complete rebalance then claim the deposit
+        vm.warp(vm.getBlockTimestamp() + 1 hours);
+        _refreshPriceFeeds();
+        vm.prank(rebalanceProposer);
+        BasketManager(basketManager).proposeRebalance(basketTokens);
+        externalTrades[0] =
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, targetWeights[0][1] * depositAmount / 1e18);
+        externalTrades[1] =
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRAX, targetWeights[0][2] * depositAmount / 1e18);
+        externalTrades[2] =
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, targetWeights[0][3] * depositAmount / 1e18);
+        _continueAndCompleteRebalance(basketTokens, externalTrades);
+        vm.prank(user);
+        BasketToken(basketToken).deposit(depositAmount, user, user);
+
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+
+        // 8. Claim rewards
+        vm.prank(user);
+        assertTrue(FarmingPlugin(farmingPlugin).farmed(user) > 0, "User has no rewards to claim");
+        _dumpStateWithTimestamp("08_AccountHasClaimableRewards");
+
+        // Propose rebalance and attempt to complete rebalance until max retries is reached
+        // Trades are not proposed, cycle through complete and propose rebalance until max retries is reached
+        vm.startPrank(user);
+        BasketToken(basketToken).requestRedeem(BasketToken(basketToken).balanceOf(user), user, user);
+        vm.stopPrank();
+
+        _refreshPriceFeeds();
+        vm.startPrank(rebalanceProposer);
+        BasketManager(basketManager).proposeRebalance(basketTokens);
         // Complete rebalance until max retries is reached (3)
         for (uint256 i = 0; i <= BasketManager(basketManager).retryLimit(); i++) {
+            BasketManager(basketManager).retryCount();
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
             _refreshPriceFeeds();
             BasketManager(basketManager).completeRebalance(
-                externalTrades, basketTokens, _getBasketTagetWeights(basketTokens), _getBasketAssets(basketTokens)
+                new ExternalTrade[](0),
+                basketTokens,
+                _getBasketTagetWeights(basketTokens),
+                _getBasketAssets(basketTokens)
             );
         }
         vm.stopPrank();
 
-        // Check that fallback redeeem is now possible
+        // 9. Test account has a failed redeem
         assertTrue(BasketToken(basketToken).claimableFallbackShares(user) > 0, "FallbackShares not claimable");
-        _dumpStateWithTimestamp("08_accountHasClaimableFallbackShares");
+        _dumpStateWithTimestamp("09_AccountHasFailedRedeem");
     }
 
     function _getFromStagingMasterRegistry(bytes32 key) internal view returns (address) {
@@ -224,14 +282,9 @@ contract GenerateStatesForFrontend is BaseTest {
             if (logs[i].topics[0] == keccak256("OrderCreated(address,address,uint256,uint256,uint32,address)")) {
                 address sellToken = address(uint160(uint256(logs[i].topics[1])));
                 address buyToken = address(uint160(uint256(logs[i].topics[2])));
-                console.log("sellToken", sellToken);
-                console.log("buyToken", buyToken);
+                // solhint-disable-next-line no-unused-vars
                 (uint256 sellAmount, uint256 buyAmount, uint32 validTo, address swapContract) =
                     abi.decode(logs[i].data, (uint256, uint256, uint32, address));
-                console.log("sellAmount", sellAmount);
-                console.log("buyAmount", buyAmount);
-                console.log("validTo", validTo);
-                console.log("swapContract", swapContract);
                 // Simulate the trade being executed
                 takeAway(IERC20(sellToken), swapContract, sellAmount);
                 airdrop(IERC20(buyToken), swapContract, buyAmount);
