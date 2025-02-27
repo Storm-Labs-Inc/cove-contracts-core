@@ -32,9 +32,9 @@ contract GenerateStatesForFrontend is BaseTest {
     address public basketToken;
     address public farmingPlugin;
     address public weightStrategy;
-    address public rebalanceProposer = COVE_SILVERBACK_AWS_ACCOUNT;
-    address public tokenSwapProposer = COVE_SILVERBACK_AWS_ACCOUNT;
-    address public tokenSwapExecutor = COVE_SILVERBACK_AWS_ACCOUNT;
+    address public rebalanceProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
+    address public tokenSwapProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
+    address public tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
 
     uint256 public constant AIRDROP = 1_000_000;
     uint256 public constant DEPOSIT = 10_000;
