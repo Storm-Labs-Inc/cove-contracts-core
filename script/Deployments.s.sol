@@ -88,9 +88,9 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 pauser = COVE_DEPLOYER_ADDRESS;
                 manager = COVE_STAGING_OPS_MULTISIG;
                 timelock = getAddress(buildTimelockControllerName());
-                rebalanceProposer = COVE_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapProposer = COVE_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapExecutor = COVE_SILVERBACK_AWS_ACCOUNT;
+                rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
             } else {
                 // Production deploy
                 // TODO: confirm addresses for production
@@ -99,9 +99,9 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 pauser = COVE_DEPLOYER_ADDRESS;
                 manager = COVE_OPS_MULTISIG;
                 timelock = getAddress(buildTimelockControllerName());
-                rebalanceProposer = COVE_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapProposer = COVE_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapExecutor = COVE_SILVERBACK_AWS_ACCOUNT;
+                rebalanceProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
+                tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
             }
         } else {
             // Integration test deploy
