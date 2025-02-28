@@ -124,6 +124,17 @@ contract BasketToken is
     /// @param oldBitFlag The previous bitflag value.
     /// @param newBitFlag The new bitflag value.
     event BitFlagUpdated(uint256 oldBitFlag, uint256 newBitFlag);
+    /// @notice Emitted when the rebalance is prepared.
+    /// @param nextDepositRequestId The next deposit request ID.
+    /// @param nextRedeemRequestId The next redeem request ID.
+    /// @param pendingDeposits The total amount of assets pending deposit.
+    /// @param sharesPendingRedemption The total amount of shares pending redemption.
+    event RebalancePrepared(
+        uint256 nextDepositRequestId,
+        uint256 nextRedeemRequestId,
+        uint256 pendingDeposits,
+        uint256 sharesPendingRedemption
+    );
 
     /// ERRORS ///
     /// @notice Thrown when there are no pending deposits to fulfill.
@@ -495,6 +506,7 @@ contract BasketToken is
         }
 
         _harvestManagementFee(feeBps, feeCollector);
+        emit RebalancePrepared(nextDepositRequestId_, nextRedeemRequestId_, pendingDeposits, sharesPendingRedemption);
     }
 
     /// @notice Fulfills all pending redeem requests. Only callable by the basket manager. Burns the shares which are

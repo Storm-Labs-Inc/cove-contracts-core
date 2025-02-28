@@ -395,6 +395,10 @@ contract BasketTokenTest is BaseTest {
 
         // Call fulfillDeposit
         vm.startPrank(address(basketManager));
+        uint256 nextDepositRequestId = basket.nextDepositRequestId();
+        uint256 nextRedeemRequestId = basket.nextRedeemRequestId();
+        vm.expectEmit();
+        emit BasketToken.RebalancePrepared(nextDepositRequestId, nextRedeemRequestId, totalAmount, 0);
         basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
