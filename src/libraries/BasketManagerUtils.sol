@@ -71,12 +71,14 @@ library BasketManagerUtils {
     event SwapFeeCharged(address indexed asset, uint256 amount);
     /// @notice Emitted when a rebalance is proposed for a set of baskets
     /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is proposed
+    /// @param timestamp Timestamp of the rebalance proposal
     /// @param baskets Array of basket addresses to rebalance
     /// @param proposedTargetWeights Array of target weights for each basket
     /// @param basketAssets Array of assets in each basket
     /// @param basketHash Hash of the basket addresses and target weights for the rebalance
     event RebalanceProposed(
         uint40 indexed epoch,
+        uint256 timestamp,
         address[] baskets,
         uint64[][] proposedTargetWeights,
         address[][] basketAssets,
@@ -217,13 +219,13 @@ library BasketManagerUtils {
             revert MustWaitForRebalanceToComplete();
         }
         // slither-disable-next-line timestamp
-        if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN_SEC) {
+        if (block.timestamp - self.rebalanceStatus.lastActionTimestamp < _REBALANCE_COOLDOWN_SEC) {
             revert TooEarlyToProposeRebalance();
         }
 
         // Effects
         self.rebalanceStatus.basketMask = _createRebalanceBitMask(self, baskets);
-        self.rebalanceStatus.timestamp = uint40(block.timestamp);
+        self.rebalanceStatus.proposalTimestamp = self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
         address assetRegistry = self.assetRegistry;
@@ -302,7 +304,9 @@ library BasketManagerUtils {
         // Effects after Interactions. Target weights require external view calls to respective strategies.
         bytes32 basketHash = keccak256(abi.encode(baskets, basketTargetWeights, basketAssets));
         // slither-disable-next-line reentrancy-events
-        emit RebalanceProposed(self.rebalanceStatus.epoch, baskets, basketTargetWeights, basketAssets, basketHash);
+        emit RebalanceProposed(
+            self.rebalanceStatus.epoch, uint40(block.timestamp), baskets, basketTargetWeights, basketAssets, basketHash
+        );
         self.rebalanceStatus.basketHash = basketHash;
     }
     // solhint-enable code-complexity
@@ -339,7 +343,7 @@ library BasketManagerUtils {
             }
         }
         // Effects
-        status.timestamp = uint40(block.timestamp);
+        status.lastActionTimestamp = uint40(block.timestamp);
         status.status = Status.TOKEN_SWAP_PROPOSED;
         self.rebalanceStatus = status;
         self.externalTradesHash = keccak256(abi.encode(externalTrades));
@@ -386,7 +390,7 @@ library BasketManagerUtils {
         _validateBasketHash(self, baskets, basketTargetWeights, basketAssets);
         // Check if the rebalance was proposed more than 15 minutes ago
         // slither-disable-next-line timestamp
-        if (block.timestamp - self.rebalanceStatus.timestamp < self.stepDelay) {
+        if (block.timestamp - self.rebalanceStatus.lastActionTimestamp < self.stepDelay) {
             revert TooEarlyToCompleteRebalance();
         }
         // if external trades are proposed and executed, finalize them and claim results from the trades
@@ -414,7 +418,7 @@ library BasketManagerUtils {
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
                 self.rebalanceStatus.retryCount = currentRetryCount + 1;
-                self.rebalanceStatus.timestamp = uint40(block.timestamp);
+                self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
                 self.externalTradesHash = bytes32(0);
                 self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
                 return;
@@ -584,7 +588,7 @@ library BasketManagerUtils {
         self.rebalanceStatus.basketHash = bytes32(0);
         self.rebalanceStatus.basketMask = 0;
         self.rebalanceStatus.epoch += 1;
-        self.rebalanceStatus.timestamp = uint40(block.timestamp);
+        self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
         self.externalTradesHash = bytes32(0);
         self.rebalanceStatus.retryCount = 0;

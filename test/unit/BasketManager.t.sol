@@ -600,7 +600,8 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(targetBaskets);
 
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().proposalTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(basketManager.rebalanceStatus().basketMask, 1);
         assertEq(
@@ -628,7 +629,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(baskets);
 
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(
             basketManager.rebalanceStatus().basketHash, keccak256(abi.encode(baskets, weightsPerBasket, basketAssets))
@@ -758,12 +759,12 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
@@ -816,12 +817,12 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
@@ -1205,7 +1206,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
@@ -1357,7 +1358,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time
@@ -1443,7 +1444,7 @@ contract BasketManagerTest is BaseTest {
         RebalanceStatus memory status = basketManager.rebalanceStatus();
 
         assertEq(uint8(status.status), uint8(Status.REBALANCE_PROPOSED));
-        assertEq(status.timestamp, block.timestamp);
+        assertEq(status.lastActionTimestamp, uint40(block.timestamp));
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
@@ -1478,7 +1479,7 @@ contract BasketManagerTest is BaseTest {
         // Verify token swap status
         status = basketManager.rebalanceStatus();
         assertEq(uint8(status.status), uint8(Status.TOKEN_SWAP_PROPOSED));
-        assertEq(status.timestamp, block.timestamp);
+        assertEq(status.lastActionTimestamp, uint40(block.timestamp));
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
@@ -1647,7 +1648,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
 
         // Confirm end state
-        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, uint40(vm.getBlockTimestamp()));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
         return (externalTrades, baskets);
@@ -1711,7 +1712,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
 
         // Confirm end state
-        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, uint40(vm.getBlockTimestamp()));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
 
@@ -2225,7 +2226,7 @@ contract BasketManagerTest is BaseTest {
         vm.prank(tokenswapProposer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
         // Confirm end state
-        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, uint40(vm.getBlockTimestamp()));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
         assertEq(basketManager.externalTradesHash(), keccak256(abi.encode(externalTrades)));
 
@@ -2635,7 +2636,7 @@ contract BasketManagerTest is BaseTest {
         });
         vm.prank(tokenswapProposer);
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
-        assertEq(basketManager.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, uint40(vm.getBlockTimestamp()));
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_PROPOSED));
     }
 
@@ -3221,7 +3222,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(trades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
     }
 
@@ -3957,7 +3958,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.executeTokenSwap(externalTrades, "");
 
         // Assert
-        assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().lastActionTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.TOKEN_SWAP_EXECUTED));
 
         // Simulate the passage of time

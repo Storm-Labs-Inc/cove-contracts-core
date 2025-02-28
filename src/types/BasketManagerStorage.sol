@@ -25,8 +25,10 @@ struct RebalanceStatus {
     uint256 basketMask;
     // Epoch of the rebalance.
     uint40 epoch;
+    // Timestamp of the rebalance proposal.
+    uint40 proposalTimestamp;
     // Timestamp of the last action.
-    uint40 timestamp;
+    uint40 lastActionTimestamp;
     // The number of retries for the current rebalance epoch.
     uint8 retryCount;
     // Status of the rebalance.

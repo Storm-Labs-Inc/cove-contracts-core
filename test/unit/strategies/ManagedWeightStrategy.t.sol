@@ -70,7 +70,8 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketHash: bytes32(0),
                     basketMask: uint256(0),
                     epoch: epoch,
-                    timestamp: uint40(0),
+                    proposalTimestamp: uint40(0),
+                    lastActionTimestamp: uint40(0),
                     retryCount: uint8(0),
                     status: Status.NOT_STARTED
                 })
@@ -120,7 +121,8 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketHash: bytes32(0),
                     basketMask: uint256(0),
                     epoch: epoch,
-                    timestamp: uint40(0),
+                    proposalTimestamp: uint40(0),
+                    lastActionTimestamp: uint40(0),
                     retryCount: uint8(0),
                     status: Status(status)
                 })
@@ -262,7 +264,8 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketHash: bytes32(0),
                     basketMask: uint256(0),
                     epoch: epoch,
-                    timestamp: uint40(0),
+                    proposalTimestamp: uint40(0),
+                    lastActionTimestamp: uint40(0),
                     retryCount: uint8(0),
                     status: Status.NOT_STARTED
                 })

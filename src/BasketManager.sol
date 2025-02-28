@@ -82,7 +82,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Emitted when a token swap is proposed during a rebalance.
     event TokenSwapProposed(uint40 indexed epoch, InternalTrade[] internalTrades, ExternalTrade[] externalTrades);
     /// @notice Emitted when a token swap is executed during a rebalance.
-    event TokenSwapExecuted(uint40 indexed epoch);
+    event TokenSwapExecuted(uint40 indexed epoch, ExternalTrade[] externalTrades);
     /// @notice Emitted when the step delay is set.
     event StepDelaySet(uint40 oldDelay, uint40 newDelay);
     /// @notice Emitted when the retry limit is set.
@@ -418,7 +418,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert ExternalTradesHashMismatch();
         }
         _bmStorage.rebalanceStatus.status = Status.TOKEN_SWAP_EXECUTED;
-        _bmStorage.rebalanceStatus.timestamp = uint40(block.timestamp);
+        _bmStorage.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
 
         // solhint-disable avoid-low-level-calls
         // slither-disable-next-line low-level-calls
@@ -429,7 +429,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert ExecuteTokenSwapFailed();
         }
 
-        emit TokenSwapExecuted(_bmStorage.rebalanceStatus.epoch);
+        emit TokenSwapExecuted(_bmStorage.rebalanceStatus.epoch, externalTrades);
     }
 
     /// @notice Sets the address of the TokenSwapAdapter contract used to execute token swaps.
