@@ -66,6 +66,8 @@ contract BasketToken is
         uint256 totalDepositAssets;
         // Number of shares fulfilled for this deposit request.
         uint256 fulfilledShares;
+        // Flag indicating if the fallback redemption process has been triggered.
+        bool fallbackTriggered;
     }
 
     /// @notice Struct representing a redeem request.
@@ -120,6 +122,12 @@ contract BasketToken is
     /// @param shares The number of shares redeemed.
     /// @param assets The amount of assets returned to the user.
     event RedeemFulfilled(uint256 indexed requestId, uint256 shares, uint256 assets);
+    /// @notice Emitted when a deposit request is triggered in fallback mode.
+    /// @param requestId The unique identifier of the deposit request.
+    event DepositFallbackTriggered(uint256 indexed requestId);
+    /// @notice Emitted when a redemption request is triggered in fallback mode.
+    /// @param requestId The unique identifier of the redemption request.
+    event RedeemFallbackTriggered(uint256 indexed requestId);
     /// @notice Emitted when the bitflag is updated to a new value.
     /// @param oldBitFlag The previous bitflag value.
     /// @param newBitFlag The new bitflag value.
@@ -146,6 +154,8 @@ contract BasketToken is
     error CannotFulfillWithZeroShares();
     /// @notice Thrown when the basket manager attempts to fulfill a redeem request with zero assets.
     error CannotFulfillWithZeroAssets();
+    /// @notice Thrown when attempting to claim fallback assets when none are available.
+    error ZeroClaimableFallbackAssets();
     /// @notice Thrown when attempting to claim fallback shares when none are available.
     error ZeroClaimableFallbackShares();
     /// @notice Thrown when a non-authorized address attempts to request a deposit or redeem on behalf of another user
@@ -161,9 +171,6 @@ contract BasketToken is
     error DepositRequestAlreadyFulfilled();
     /// @notice Thrown when the basket manager attempts to fulfill a redeem request that has already been fulfilled.
     error RedeemRequestAlreadyFulfilled();
-    /// @notice Thrown when the basket manager attempts to trigger the fallback for a redeem request that has already
-    /// been put in fallback state.
-    error RedeemRequestAlreadyFallbacked();
     /// @notice Thrown when attempting to prepare for a new rebalance before the previous epoch's deposit request has
     /// been fulfilled.
     error PreviousDepositRequestNotFulfilled();
@@ -417,16 +424,24 @@ contract BasketToken is
         uint256 currentRequestId = nextDepositRequestId - 2;
         DepositRequestStruct storage depositRequest = _depositRequests[currentRequestId];
         uint256 assets = depositRequest.totalDepositAssets;
+
         if (assets == 0) {
             revert ZeroPendingDeposits();
         }
-        if (shares == 0) {
-            revert CannotFulfillWithZeroShares();
-        }
-        if (depositRequest.fulfilledShares > 0) {
+
+        if (depositRequest.fulfilledShares > 0 || depositRequest.fallbackTriggered) {
             revert DepositRequestAlreadyFulfilled();
         }
+
         // Effects
+        // If shares is zero, trigger fallback internally instead of reverting
+        if (shares == 0) {
+            depositRequest.fallbackTriggered = true;
+            emit DepositFallbackTriggered(currentRequestId);
+            return;
+        }
+
+        // Normal path - fulfill with shares
         depositRequest.fulfilledShares = shares;
         emit DepositFulfilled(currentRequestId, assets, shares);
         _mint(address(this), shares);
@@ -506,20 +521,28 @@ contract BasketToken is
         _onlyBasketManager();
         uint256 currentRequestId = nextRedeemRequestId - 2;
         RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRequestId];
-        uint256 sharesPendingRedemption = redeemRequest.totalRedeemShares;
-        if (sharesPendingRedemption == 0) {
+        uint256 shares = redeemRequest.totalRedeemShares;
+
+        if (shares == 0) {
             revert ZeroPendingRedeems();
         }
-        if (assets == 0) {
-            revert CannotFulfillWithZeroAssets();
-        }
-        if (redeemRequest.fulfilledAssets > 0) {
+
+        if (redeemRequest.fulfilledAssets > 0 || redeemRequest.fallbackTriggered) {
             revert RedeemRequestAlreadyFulfilled();
         }
+
         // Effects
+        // If assets is zero, trigger fallback internally and return
+        if (assets == 0) {
+            redeemRequest.fallbackTriggered = true;
+            emit RedeemFallbackTriggered(currentRequestId);
+            return;
+        }
+
+        // Normal path - redeem request is fulfilled
         redeemRequest.fulfilledAssets = assets;
-        emit RedeemFulfilled(currentRequestId, sharesPendingRedemption, assets);
-        _burn(address(this), sharesPendingRedemption);
+        emit RedeemFulfilled(currentRequestId, shares, assets);
+        _burn(address(this), shares);
         // Interactions
         // slither-disable-next-line arbitrary-send-erc20
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), assets);
@@ -603,25 +626,6 @@ contract BasketToken is
 
     /// FALLBACK REDEEM LOGIC ///
 
-    /// @notice In the event of a failed redemption fulfillment this function is called by the basket manager. Allows
-    /// users to claim their shares back for a redemption in the future and advances the redemption epoch.
-    function fallbackRedeemTrigger() public {
-        _onlyBasketManager();
-        // Check if the redeem is going on. If not, revert
-        uint256 currentRedeemRequestId = nextRedeemRequestId - 2;
-        RedeemRequestStruct storage redeemRequest = _redeemRequests[currentRedeemRequestId];
-        if (redeemRequest.fallbackTriggered) {
-            revert RedeemRequestAlreadyFallbacked();
-        }
-        if (redeemRequest.fulfilledAssets > 0) {
-            revert RedeemRequestAlreadyFulfilled();
-        }
-        if (redeemRequest.totalRedeemShares == 0) {
-            revert ZeroPendingRedeems();
-        }
-        redeemRequest.fallbackTriggered = true;
-    }
-
     /// @notice Claims shares given for a previous redemption request in the event a redemption fulfillment for a
     /// given epoch fails.
     /// @param receiver The address to receive the shares.
@@ -639,10 +643,21 @@ contract BasketToken is
         _transfer(address(this), receiver, shares);
     }
 
-    /// @notice Allows the caller to claim their own fallback shares.
-    /// @return shares The amount of shares claimed.
-    function claimFallbackShares() public returns (uint256 shares) {
-        return claimFallbackShares(msg.sender, msg.sender);
+    /// @notice Claims assets given for a previous deposit request in the event a deposit fulfillment for a
+    /// given epoch fails.
+    /// @param receiver The address to receive the assets.
+    /// @param controller The address of the controller of the deposit request.
+    /// @return assets The amount of assets claimed.
+    function claimFallbackAssets(address receiver, address controller) public returns (uint256 assets) {
+        // Checks
+        _onlySelfOrOperator(controller);
+        assets = claimableFallbackAssets(controller);
+        if (assets == 0) {
+            revert ZeroClaimableFallbackAssets();
+        }
+        // Effects
+        _depositRequests[lastDepositRequestId[controller]].depositAssets[controller] = 0;
+        IERC20(asset()).safeTransfer(receiver, assets);
     }
 
     /// @notice Returns the amount of shares claimable for a given user in the event of a failed redemption
@@ -653,6 +668,17 @@ contract BasketToken is
         RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];
         if (redeemRequest.fallbackTriggered) {
             return redeemRequest.redeemShares[controller];
+        }
+        return 0;
+    }
+
+    /// @notice Returns the amount of assets claimable for a given user in the event of a failed deposit fulfillment.
+    /// @param controller The address of the controller.
+    /// @return assets The amount of assets claimable by the controller.
+    function claimableFallbackAssets(address controller) public view returns (uint256 assets) {
+        DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
+        if (depositRequest.fallbackTriggered) {
+            return depositRequest.depositAssets[controller];
         }
         return 0;
     }
@@ -967,8 +993,15 @@ contract BasketToken is
     /// @notice Returns true if the redemption request's fallback has been triggered.
     /// @param requestId The id of the request.
     /// @return True if the fallback has been triggered, false otherwise.
-    function fallbackTriggered(uint256 requestId) public view returns (bool) {
+    function fallbackRedeemTriggered(uint256 requestId) public view returns (bool) {
         return _redeemRequests[requestId].fallbackTriggered;
+    }
+
+    /// @notice Returns true if the deposit request's fallback has been triggered.
+    /// @param requestId The id of the request.
+    /// @return True if the fallback has been triggered, false otherwise.
+    function fallbackDepositTriggered(uint256 requestId) public view returns (bool) {
+        return _depositRequests[requestId].fallbackTriggered;
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///
