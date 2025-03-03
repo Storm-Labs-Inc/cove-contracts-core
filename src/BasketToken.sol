@@ -68,10 +68,30 @@ contract BasketToken is
         uint256 fulfilledShares;
     }
 
+    /// @notice View-only struct representing a deposit request without internal mappings.
+    /// @dev Used for external access to deposit request data.
+    struct DepositRequestView {
+        // Total amount of assets deposited in this request.
+        uint256 totalDepositAssets;
+        // Number of shares fulfilled for this deposit request.
+        uint256 fulfilledShares;
+    }
+
     /// @notice Struct representing a redeem request.
     struct RedeemRequestStruct {
         // Mapping of controller addresses to their shares to be redeemed.
         mapping(address controller => uint256 shares) redeemShares;
+        // Total number of shares to be redeemed in this request.
+        uint256 totalRedeemShares;
+        // Amount of assets fulfilled for this redeem request.
+        uint256 fulfilledAssets;
+        // Flag indicating if the fallback redemption process has been triggered.
+        bool fallbackTriggered;
+    }
+
+    /// @notice View-only struct representing a redeem request without internal mappings.
+    /// @dev Used for external access to redeem request data.
+    struct RedeemRequestView {
         // Total number of shares to be redeemed in this request.
         uint256 totalRedeemShares;
         // Amount of assets fulfilled for this redeem request.
@@ -987,6 +1007,29 @@ contract BasketToken is
     /// @return True if the fallback has been triggered, false otherwise.
     function fallbackTriggered(uint256 requestId) public view returns (bool) {
         return redeemRequests[requestId].fallbackTriggered;
+    }
+
+    /// @notice Returns the deposit request data for a given requestId without the internal mapping.
+    /// @param requestId The id of the deposit request.
+    /// @return A DepositRequestView struct containing the deposit request data.
+    function getDepositRequest(uint256 requestId) external view returns (DepositRequestView memory) {
+        DepositRequestStruct storage depositRequest_ = depositRequests[requestId];
+        return DepositRequestView({
+            totalDepositAssets: depositRequest_.totalDepositAssets,
+            fulfilledShares: depositRequest_.fulfilledShares
+        });
+    }
+
+    /// @notice Returns the redeem request data for a given requestId without the internal mapping.
+    /// @param requestId The id of the redeem request.
+    /// @return A RedeemRequestView struct containing the redeem request data.
+    function getRedeemRequest(uint256 requestId) external view returns (RedeemRequestView memory) {
+        RedeemRequestStruct storage redeemRequest_ = redeemRequests[requestId];
+        return RedeemRequestView({
+            totalRedeemShares: redeemRequest_.totalRedeemShares,
+            fulfilledAssets: redeemRequest_.fulfilledAssets,
+            fallbackTriggered: redeemRequest_.fallbackTriggered
+        });
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///
