@@ -288,7 +288,9 @@ contract BasketToken is
             }
         }
         // If the user has a claimable deposit request, they must claim it before making a new one
-        if (claimableDepositRequest(userLastDepositRequestId, controller) > 0) {
+        if (
+            claimableDepositRequest(userLastDepositRequestId, controller) > 0 || claimableFallbackAssets(controller) > 0
+        ) {
             revert MustClaimOutstandingDeposit();
         }
         if (AssetRegistry(assetRegistry).hasPausedAssets(bitFlag)) {
@@ -484,7 +486,9 @@ contract BasketToken is
         DepositRequestStruct storage previousDepositRequest = _depositRequests[nextDepositRequestId_ - 2];
         if (previousDepositRequest.totalDepositAssets > 0) {
             if (previousDepositRequest.fulfilledShares == 0) {
-                revert PreviousDepositRequestNotFulfilled();
+                if (!previousDepositRequest.fallbackTriggered) {
+                    revert PreviousDepositRequestNotFulfilled();
+                }
             }
         }
 
