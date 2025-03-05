@@ -59,6 +59,7 @@ contract Constants is CommonBase {
     address public constant ETH_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address public constant ETH_FRAX = 0x853d955aCEf822Db058eb8505911ED77F175b99e;
     address public constant ETH_USDE = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+    address public constant ETH_SFRXUSD = 0xcf62F905562626CfcDD2261162a51fd02Fc9c5b6;
     // PRICE FEEDS
     // USDC/USD
     bytes32 public constant PYTH_USDC_USD_FEED = 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a;
@@ -119,6 +120,9 @@ contract Constants is CommonBase {
     // TODO: pyth price feed not found
     bytes32 public constant PYTH_CBBTC_USD_FEED = 0x2817d7bfe5c64b8ea956e9a26f573ef64e72e4d7891f2d6af9bcc93f7aff9a97;
     address public constant ETH_CHAINLINK_CBBTC_USD_FEED = 0x2665701293fCbEB223D11A08D826563EDcCE423A;
+
+    // sfrxUSD/sUSDe
+    address public constant ETH_CURVE_SFRXUSD_POOL = 0x3BD1017929b43c1414bE2Aca39892590fBa4d6e2;
 
     // COVE
     address public constant COVE_DEPLOYER_ADDRESS = 0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5;

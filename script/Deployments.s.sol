@@ -11,6 +11,8 @@ import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
+
+import { CurveEMAOracle } from "euler-price-oracle/src/adapter/curve/CurveEMAOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 
@@ -660,6 +662,65 @@ contract Deployments is DeployScript, Constants, StdAssertions {
         assertEq(
             getAddress(string.concat(baseAssetName, "_PythOracle")), pythOracle, "Failed to save PythOracle deployment"
         );
+    }
+
+    function _deployCurveEMACrossAdapterForNonUSDPair(
+        string memory assetName,
+        address baseAsset,
+        address curvePool,
+        uint256 priceOracleIndex,
+        address crossAsset,
+        address crossAssetAnchoredOracle
+    )
+        private
+        deployIfMissing(string.concat(assetName, "_CrossAdapter"))
+    {
+        // Deploy CurveEMAOracle first for baseAsset -> crossAsset
+        bytes memory curveEMAOracleContsructorArgs = abi.encode(curvePool, baseAsset, priceOracleIndex);
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        address curveEMAOracle = address(new CurveEMAOracle(curvePool, baseAsset, priceOracleIndex));
+        deployer.save(
+            string.concat(assetName, "_CurveEMAOracle"),
+            curveEMAOracle,
+            "CurveEMAOracle.sol:CurveEMAOracle",
+            curveEMAOracleContsructorArgs,
+            abi.encodePacked(type(CurveEMAOracle).creationCode, curveEMAOracleContsructorArgs)
+        );
+        assertEq(
+            getAddress(string.concat(assetName, "_CurveEMAOracle")),
+            curveEMAOracle,
+            "Failed to save CurveEMAOracle deployment"
+        );
+
+        // Deploy CrossAdapter that chains curveEMAOracle (base->cross) with existing oracle (cross->USD)
+        bytes memory crossAdapterConstructorArgs =
+            abi.encode(baseAsset, crossAsset, USD, curveEMAOracle, crossAssetAnchoredOracle);
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        address crossAdapter =
+            address(new CrossAdapter(baseAsset, crossAsset, USD, curveEMAOracle, crossAssetAnchoredOracle));
+        deployer.save(
+            string.concat(assetName, "_CrossAdapter"),
+            crossAdapter,
+            "CrossAdapter.sol:CrossAdapter",
+            crossAdapterConstructorArgs,
+            abi.encodePacked(type(CrossAdapter).creationCode, crossAdapterConstructorArgs)
+        );
+        assertEq(
+            getAddress(string.concat(assetName, "_CrossAdapter")),
+            crossAdapter,
+            "Failed to save CrossAdapter deployment"
+        );
+
+        // Register with EulerRouter
+        EulerRouter eulerRouter = EulerRouter(getAddress("EulerRouter"));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(baseAsset, USD, crossAdapter);
     }
 
     // Deploys a Chainlink oracle for the given base and quote assets

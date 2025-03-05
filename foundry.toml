@@ -64,7 +64,7 @@ clones-with-immutable-args = { version = "1.1.1", git = "https://github.com/wigh
 token-plugins-upgradeable = { version = "1", git = "https://github.com/Storm-Labs-Inc/token-plugins-upgradeable.git", rev = "439806ce46954563a921059b6d44f792f4375312" }
 solidity-utils = { version = "5.3.0", git = "https://github.com/1inch/solidity-utils.git", rev = "2a69e2ea6c7551cfae4731752a579de9564b263e" }
 farming = { version = "3.2.0", git = "https://github.com/1inch/farming.git", rev = "b4e59e415352d3233ccd3c339d845a1eb2e1139b" }
-euler-price-oracle = { version = "1", git = "https://github.com/euler-xyz/euler-price-oracle.git", rev = "a638a0d7db33cb71cc992d6dcd532082a763db27" }
+euler-price-oracle = { version = "1", git = "https://github.com/euler-xyz/euler-price-oracle.git", rev = "c8f57bcae71df99499a61d0fc92862dd9cf80718" }
 forge-deploy = { version = "1", git = "https://github.com/Abracadabra-money/forge-deploy.git", rev = "a81ce1a5704bbee4686a13209bc17f80132542f9" }
 "lifinance/create3-factory" = { version = "0", git = "https://github.com/lifinance/create3-factory.git", rev = "93b667acda0dafcafb6e193610b421ea003f46a9" }
 
