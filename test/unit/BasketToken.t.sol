@@ -194,7 +194,7 @@ contract BasketTokenTest is BaseTest {
 
     function testFuzz_requestDeposit(uint256 amount, address from) public returns (uint256 requestId) {
         vm.assume(from != address(basket) && from != address(basketManager) && from != address(0));
-        amount = bound(amount, 1, type(uint256).max);
+        vm.assume(amount > 0);
         dummyAsset.mint(from, amount);
 
         _totalAssetsMockCall();
@@ -412,7 +412,7 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.totalPendingDeposits(), 0);
     }
 
-    function testFuzz_fulfillDeposit_triggersFallback(uint256 totalAmount, address from) public {
+    function testFuzz_fulfillDeposit_zeroAmount_triggersFallback(uint256 totalAmount, address from) public {
         testFuzz_requestDeposit(totalAmount, from);
         vm.startPrank(address(basketManager));
         basket.prepareForRebalance(0, feeCollector);
@@ -422,6 +422,7 @@ contract BasketTokenTest is BaseTest {
             true,
             "testFuzz_fulfillDeposit_triggersFallback: Incorrect fallback triggered"
         );
+        vm.stopPrank();
     }
 
     function testFuzz_fulfillDeposit_revertWhen_NoPendingDeposits(
@@ -1015,7 +1016,7 @@ contract BasketTokenTest is BaseTest {
         }
     }
 
-    function testFuzz_fulfillRedeem_zeroAmount(
+    function testFuzz_fulfillRedeem_zeroAmount_triggersFallback(
         uint256 amount,
         uint256 issuedShares
     )
@@ -1538,8 +1539,77 @@ contract BasketTokenTest is BaseTest {
         }
     }
 
+    function testFuzz_claimFallbackAssets(uint256 totalDepositAmount, address from) public {
+        testFuzz_fulfillDeposit_zeroAmount_triggersFallback(totalDepositAmount, from);
+        address user = from;
+        uint256 assetUserBalanceBefore = IERC20(basket.asset()).balanceOf(user);
+        uint256 basketUserBalanceBefore = basket.balanceOf(user);
+        uint256 userClaimable = basket.claimableFallbackAssets(user);
+        assertEq(
+            basket.pendingDepositRequest(basket.lastDepositRequestId(user), user),
+            0,
+            "testFuzz_claimFallbackAssets: Pending deposit request should be zero"
+        );
+        assertEq(
+            basket.claimableFallbackAssets(user),
+            totalDepositAmount,
+            "testFuzz_claimFallbackAssets: Claimable fallback assets should be equal to total deposit amount"
+        );
+
+        // Call claimFallbackAssets
+        vm.prank(user);
+        assertEq(
+            basket.claimFallbackAssets(user, user),
+            userClaimable,
+            "testFuzz_claimFallbackAssets: Claimed assets should be equal to claimable assets"
+        );
+
+        // Check state
+        assertEq(
+            basket.balanceOf(user),
+            basketUserBalanceBefore,
+            "testFuzz_claimFallbackAssets: User's basket token balance should be unchanged"
+        );
+        assertEq(
+            IERC20(basket.asset()).balanceOf(user),
+            assetUserBalanceBefore + totalDepositAmount,
+            "testFuzz_claimFallbackAssets: User's asset balance should increase by total deposit amount"
+        );
+        assertEq(
+            basket.claimableFallbackAssets(user),
+            0,
+            "testFuzz_claimFallbackAssets: Claimable fallback assets should be 0 after claim"
+        );
+    }
+
+    function testFuzz_claimFallbackAssets_revertsWhen_prepareForRebalance_notCalled(
+        uint256 totalDepositAmount,
+        address from
+    )
+        public
+    {
+        testFuzz_requestDeposit(totalDepositAmount, from);
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroClaimableFallbackAssets.selector));
+        vm.prank(from);
+        basket.claimFallbackAssets(from, from);
+    }
+
+    function testFuzz_claimFallbackAssets_revertsWhen_fulfillDeposit_notCalled(
+        uint256 totalDepositAmount,
+        address from
+    )
+        public
+    {
+        testFuzz_requestDeposit(totalDepositAmount, from);
+        vm.prank(address(basketManager));
+        basket.prepareForRebalance(0, feeCollector);
+        vm.expectRevert(abi.encodeWithSelector(BasketToken.ZeroClaimableFallbackAssets.selector));
+        vm.prank(from);
+        basket.claimFallbackAssets(from, from);
+    }
+
     function testFuzz_claimFallbackShares(uint256 totalDepositAmount, uint256 issuedShares) public {
-        testFuzz_fulfillRedeem_zeroAmount(totalDepositAmount, issuedShares);
+        testFuzz_fulfillRedeem_zeroAmount_triggersFallback(totalDepositAmount, issuedShares);
 
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address user = fuzzedUsers[i];

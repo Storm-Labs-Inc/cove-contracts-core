@@ -318,7 +318,9 @@ contract BasketToken is
     /// @return assets The amount of assets pending deposit.
     function pendingDepositRequest(uint256 requestId, address controller) public view returns (uint256 assets) {
         DepositRequestStruct storage depositRequest = _depositRequests[requestId];
-        assets = depositRequest.fulfilledShares == 0 ? depositRequest.depositAssets[controller] : 0;
+        assets = depositRequest.fulfilledShares == 0 && !depositRequest.fallbackTriggered
+            ? depositRequest.depositAssets[controller]
+            : 0;
     }
 
     /// @notice Returns the amount of requested assets in Claimable state for the controller with the given requestId.
