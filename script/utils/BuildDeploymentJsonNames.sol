@@ -37,6 +37,10 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "BasketManager");
     }
 
+    function buildBasketManagerUtilsName() public view returns (string memory) {
+        return string.concat(_buildPrefix(), "BasketManagerUtils");
+    }
+
     function buildBasketTokenImplementationName() public view returns (string memory) {
         return string.concat(_buildPrefix(), "BasketTokenImplementation");
     }
