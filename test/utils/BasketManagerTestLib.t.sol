@@ -4,13 +4,13 @@ pragma solidity 0.8.28;
 import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
 import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { Vm } from "forge-std/Vm.sol";
-
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
-import { BasketManager } from "src/BasketManager.sol";
+import { Vm } from "forge-std/Vm.sol";
 
+import { BasketManager } from "src/BasketManager.sol";
+import { BasketToken } from "src/BasketToken.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
@@ -44,7 +44,7 @@ library BasketManagerTestLib {
 
     /// @notice Validates that all assets in the basket have properly configured oracles
     /// @param basketManager The BasketManager contract to validate
-    function validateConfiguredOracles(BasketManager basketManager) public view {
+    function testLib_validateConfiguredOracles(BasketManager basketManager) public view {
         // Get the EulerRouter from the BasketManager
         EulerRouter eulerRouter = EulerRouter(basketManager.eulerRouter());
 
@@ -64,7 +64,7 @@ library BasketManagerTestLib {
         }
     }
 
-    function updateOracleTimestamps(BasketManager basketManager) internal {
+    function testLib_updateOracleTimestamps(BasketManager basketManager) internal {
         // Get the EulerRouter from the BasketManager
         EulerRouter eulerRouter = EulerRouter(basketManager.eulerRouter());
 
@@ -85,6 +85,32 @@ library BasketManagerTestLib {
         }
     }
 
+    function testLib_getTargetWeights(BasketManager basketManager)
+        internal
+        view
+        returns (uint64[][] memory targetWeights)
+    {
+        address[] memory baskets = basketManager.basketTokens();
+        targetWeights = new uint64[][](baskets.length);
+        for (uint256 i = 0; i < baskets.length; i++) {
+            targetWeights[i] = BasketToken(baskets[i]).getTargetWeights();
+        }
+    }
+
+    function testLib_getTargetWeights(
+        BasketManager,
+        address[] memory baskets
+    )
+        internal
+        view
+        returns (uint64[][] memory targetWeights)
+    {
+        targetWeights = new uint64[][](baskets.length);
+        for (uint256 i = 0; i < baskets.length; i++) {
+            targetWeights[i] = BasketToken(baskets[i]).getTargetWeights();
+        }
+    }
+
     function _updateOracleTimestamp(EulerRouter eulerRouter, address oracle) private {
         // Update the oracle timestamp
         if (_isAnchoredOracle(oracle)) {
@@ -95,6 +121,7 @@ library BasketManagerTestLib {
             _updateOracleTimestamp(eulerRouter, CrossAdapter(oracle).oracleCrossQuote());
         } else if (_isERC4626Oracle(oracle)) {
             // Do nothing
+            return;
         } else if (_isPythOracle(oracle)) {
             _updatePythOracleTimeStamp(PythOracle(oracle).feedId());
         } else if (_isChainlinkOracle(oracle)) {
