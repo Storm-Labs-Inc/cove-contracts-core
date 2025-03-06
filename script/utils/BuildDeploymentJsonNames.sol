@@ -89,6 +89,12 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "AnchoredOracle_", baseSymbol, "-", quoteSymbol);
     }
 
+    function buildCurveEMAOracleName(address base, address quote) public view returns (string memory) {
+        string memory baseSymbol = _getOracleAssetSymbol(base);
+        string memory quoteSymbol = _getOracleAssetSymbol(quote);
+        return string.concat(_buildPrefix(), "CurveEMAOracle_", baseSymbol, "-", quoteSymbol);
+    }
+
     function buildManagedWeightStrategyName(string memory strategyName) public view returns (string memory) {
         return string.concat(_buildPrefix(), "ManagedWeightStrategy_", strategyName);
     }

@@ -340,6 +340,11 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
             );
             _addAssetToAssetRegistry(ETH_RETH);
 
+            // 6. sfrxUSD/sUSDe -> USD
+            _deployCurveEMAOracleCrossAdapterForNonUSDPair(
+                ETH_SFRXUSD, ETH_CURVE_SFRXUSD_POOL, ETH_SUSDE, getAddress("AnchoredOracle_sUSDe-USD")
+            );
+
             // Deploy launch strategies
             _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
 
@@ -678,6 +683,83 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
             vm.broadcast();
         }
         eulerRouter.govSetConfig(asset, USD, anchoredOracle);
+    }
+
+    // Helper function that deploys a CurveEMA Oracle Cross Adapter for an asset/USD pair
+    // using an existing quote oracle address.
+    // The function deploys a CurveEMA Oracle and a Cross Adapter linking the asset to USD via the cross asset,
+    // then registers this adapter configuration with the EulerRouter.
+    function _deployCurveEMAOracleCrossAdapterForNonUSDPair(
+        address base,
+        address pool,
+        address crossAsset,
+        address quoteOracle
+    )
+        private
+        onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
+    {
+        address curveEMAOracle =
+            address(deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool));
+        address crossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Anchored"),
+                base,
+                crossAsset,
+                USD,
+                curveEMAOracle,
+                quoteOracle
+            )
+        );
+        // Register the asset/USD cross adapter
+        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(base, USD, crossAdapter);
+    }
+
+    // Helper function that deploys a CurveEMA Oracle Cross Adapter for an asset/USD pair
+    // by dynamically deploying a Chainlink Quote Oracle based on provided oracle options.
+    // This function first deploys a CurveEMA Oracle, then deploys a new Chainlink Quote Oracle using the options
+    // provided,
+    // deploys a Cross Adapter combining these oracles, and finally registers the adapter with the EulerRouter.
+    function _deployCurveEMAOracleCrossAdapterForNonUSDPair(
+        address base,
+        address pool,
+        address crossAsset,
+        OracleOptions memory quoteOracleOptions
+    )
+        private
+        onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
+    {
+        address curveEMAOracle =
+            address(deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool));
+
+        address quoteOracle = address(
+            deployer.deploy_ChainlinkOracle(
+                buildChainlinkOracleName(crossAsset, USD),
+                crossAsset,
+                USD,
+                quoteOracleOptions.chainlinkPriceFeed,
+                quoteOracleOptions.chainlinkMaxStaleness
+            )
+        );
+        address crossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Anchored"),
+                base,
+                crossAsset,
+                USD,
+                curveEMAOracle,
+                quoteOracle
+            )
+        );
+        // Register the asset/USD cross adapter using EulerRouter
+        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(base, USD, crossAdapter);
     }
 
     // Performs calls to grant permissions once deployment is successful
