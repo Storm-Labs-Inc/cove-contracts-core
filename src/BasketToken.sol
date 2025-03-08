@@ -1065,10 +1065,10 @@ contract BasketToken is
         return ERC20PluginsUpgradeable.balanceOf(account);
     }
 
-    /// @dev Override to use ERC4626's decimals function.
+    /// @dev Override to return 18 decimals.
     /// See {IERC20Metadata-decimals}.
-    function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
-        return ERC4626Upgradeable.decimals();
+    function decimals() public pure override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
+        return 18;
     }
 
     /// @notice External wrapper around Permit2Lib's permit2 function to handle ERC20 permit signatures.
