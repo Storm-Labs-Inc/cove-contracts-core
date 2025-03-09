@@ -398,9 +398,8 @@ contract BasketTokenTest is BaseTest {
         // Call fulfillDeposit
         vm.startPrank(address(basketManager));
         uint256 nextDepositRequestId = basket.nextDepositRequestId();
-        uint256 nextRedeemRequestId = basket.nextRedeemRequestId();
         vm.expectEmit();
-        emit BasketToken.RebalancePrepared(nextDepositRequestId, nextRedeemRequestId, totalAmount, 0);
+        emit BasketToken.DepositRequestQueued(nextDepositRequestId, totalAmount);
         basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
@@ -932,7 +931,10 @@ contract BasketTokenTest is BaseTest {
         basket.deposit(amount, alice);
         basket.requestRedeem(issuedShares / 2, alice, alice);
         vm.stopPrank();
+        uint256 nextRedeemRequestId = basket.nextRedeemRequestId();
         vm.startPrank(address(basketManager));
+        vm.expectEmit();
+        emit BasketToken.RedeemRequestQueued(nextRedeemRequestId, issuedShares / 2);
         basket.prepareForRebalance(0, feeCollector);
         basket.fulfillRedeem(amount);
         vm.expectRevert(BasketToken.MustClaimOutstandingRedeem.selector);
@@ -958,6 +960,8 @@ contract BasketTokenTest is BaseTest {
         assertGt(totalPendingRedeemsBefore, 0, "Total pending redeems should be greater than 0 for this test");
 
         // Call prepareForRebalance and fulfillRedeem
+        vm.expectEmit();
+        emit BasketToken.RedeemRequestQueued(requestId, totalPendingRedeemsBefore);
         vm.prank(address(basketManager));
         basket.prepareForRebalance(0, feeCollector);
 

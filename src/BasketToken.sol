@@ -142,13 +142,17 @@ contract BasketToken is
     /// @param oldBitFlag The previous bitflag value.
     /// @param newBitFlag The new bitflag value.
     event BitFlagUpdated(uint256 oldBitFlag, uint256 newBitFlag);
-    /// @notice Emitted when the rebalance is prepared.
-    /// @param nextDepositRequestId The next deposit request ID.
-    /// @param nextRedeemRequestId The next redeem request ID.
+    /// @notice Emitted when a deposit request is queued and awaiting fulfillment.
+    /// @param depositRequestId The unique identifier of the deposit request.
     /// @param pendingDeposits The total amount of assets pending deposit.
+    event DepositRequestQueued(
+        uint256 depositRequestId, uint256 pendingDeposits
+    );
+    /// @notice Emitted when a redeem request is queued and awaiting fulfillment.
+    /// @param redeemRequestId The unique identifier of the redeem request.
     /// @param pendingShares The total amount of shares pending redemption.
-    event RebalancePrepared(
-        uint256 nextDepositRequestId, uint256 nextRedeemRequestId, uint256 pendingDeposits, uint256 pendingShares
+    event RedeemRequestQueued(
+        uint256 redeemRequestId, uint256 pendingShares
     );
 
     /// ERRORS ///
@@ -512,16 +516,17 @@ contract BasketToken is
         // Get current pending deposits
         pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
         if (pendingDeposits > 0) {
+            emit DepositRequestQueued(nextDepositRequestId_, pendingDeposits);
             nextDepositRequestId = nextDepositRequestId_ + 2;
         }
 
         pendingShares = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
         if (pendingShares > 0) {
+            emit RedeemRequestQueued(nextRedeemRequestId_, pendingShares);
             nextRedeemRequestId = nextRedeemRequestId_ + 2;
         }
 
         _harvestManagementFee(feeBps, feeCollector);
-        emit RebalancePrepared(nextDepositRequestId_, nextRedeemRequestId_, pendingDeposits, pendingShares);
     }
 
     /// @notice Fulfills all pending redeem requests. Only callable by the basket manager. Burns the shares which are
