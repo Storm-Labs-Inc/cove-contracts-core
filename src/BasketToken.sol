@@ -146,12 +146,9 @@ contract BasketToken is
     /// @param nextDepositRequestId The next deposit request ID.
     /// @param nextRedeemRequestId The next redeem request ID.
     /// @param pendingDeposits The total amount of assets pending deposit.
-    /// @param sharesPendingRedemption The total amount of shares pending redemption.
+    /// @param pendingShares The total amount of shares pending redemption.
     event RebalancePrepared(
-        uint256 nextDepositRequestId,
-        uint256 nextRedeemRequestId,
-        uint256 pendingDeposits,
-        uint256 sharesPendingRedemption
+        uint256 nextDepositRequestId, uint256 nextRedeemRequestId, uint256 pendingDeposits, uint256 pendingShares
     );
 
     /// ERRORS ///
@@ -482,13 +479,13 @@ contract BasketToken is
     /// @param feeBps The management fee in basis points to be harvested.
     /// @param feeCollector The address that will receive the harvested management fee.
     /// @return pendingDeposits The total amount of assets pending deposit.
-    /// @return sharesPendingRedemption The total amount of shares pending redemption.
+    /// @return pendingShares The total amount of shares pending redemption.
     function prepareForRebalance(
         uint16 feeBps,
         address feeCollector
     )
         external
-        returns (uint256 pendingDeposits, uint256 sharesPendingRedemption)
+        returns (uint256 pendingDeposits, uint256 pendingShares)
     {
         _onlyBasketManager();
         uint256 nextDepositRequestId_ = nextDepositRequestId;
@@ -518,13 +515,13 @@ contract BasketToken is
             nextDepositRequestId = nextDepositRequestId_ + 2;
         }
 
-        sharesPendingRedemption = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
-        if (sharesPendingRedemption > 0) {
+        pendingShares = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
+        if (pendingShares > 0) {
             nextRedeemRequestId = nextRedeemRequestId_ + 2;
         }
 
         _harvestManagementFee(feeBps, feeCollector);
-        emit RebalancePrepared(nextDepositRequestId_, nextRedeemRequestId_, pendingDeposits, sharesPendingRedemption);
+        emit RebalancePrepared(nextDepositRequestId_, nextRedeemRequestId_, pendingDeposits, pendingShares);
     }
 
     /// @notice Fulfills all pending redeem requests. Only callable by the basket manager. Burns the shares which are
