@@ -246,6 +246,7 @@ contract BasketTokenTest is BaseTest {
 
         // Check state
         assertEq(basket.getDepositRequest(requestId).totalDepositAssets, amount);
+        assertEq(basket.getDepositRequest(requestId).fulfilledShares, 0);
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
         assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(controller), balanceBefore);
@@ -780,6 +781,9 @@ contract BasketTokenTest is BaseTest {
             totalRedeemShares,
             "_testFuzz_requestRedeem: totalRedeemShares mismatch"
         );
+        assertEq(
+            basket.getRedeemRequest(requestId).fulfilledAssets, 0, "_testFuzz_requestRedeem: fulfilledAssets mismatch"
+        );
     }
 
     function _testFuzz_requestRedeem_setOperator(
@@ -1005,6 +1009,11 @@ contract BasketTokenTest is BaseTest {
             "testFuzz_fulfillRedeem: Incorrect basket balance"
         );
         assertEq(basket.totalPendingRedemptions(), 0, "testFuzz_fulfillRedeem: Incorrect total pending redemptions");
+        assertEq(
+            basket.getRedeemRequest(requestId).totalRedeemShares,
+            totalPendingRedeemsBefore,
+            "testFuzz_fulfillRedeem: Incorrect total redeem shares"
+        );
         assertEq(
             basket.getRedeemRequest(requestId).fulfilledAssets,
             fulfillAmount,
