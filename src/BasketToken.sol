@@ -145,15 +145,11 @@ contract BasketToken is
     /// @notice Emitted when a deposit request is queued and awaiting fulfillment.
     /// @param depositRequestId The unique identifier of the deposit request.
     /// @param pendingDeposits The total amount of assets pending deposit.
-    event DepositRequestQueued(
-        uint256 depositRequestId, uint256 pendingDeposits
-    );
+    event DepositRequestQueued(uint256 depositRequestId, uint256 pendingDeposits);
     /// @notice Emitted when a redeem request is queued and awaiting fulfillment.
     /// @param redeemRequestId The unique identifier of the redeem request.
     /// @param pendingShares The total amount of shares pending redemption.
-    event RedeemRequestQueued(
-        uint256 redeemRequestId, uint256 pendingShares
-    );
+    event RedeemRequestQueued(uint256 redeemRequestId, uint256 pendingShares);
 
     /// ERRORS ///
     /// @notice Thrown when there are no pending deposits to fulfill.
