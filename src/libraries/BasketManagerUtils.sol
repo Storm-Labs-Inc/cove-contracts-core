@@ -71,14 +71,12 @@ library BasketManagerUtils {
     event SwapFeeCharged(address indexed asset, uint256 amount);
     /// @notice Emitted when a rebalance is proposed for a set of baskets
     /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is proposed
-    /// @param timestamp Timestamp of the rebalance proposal
     /// @param baskets Array of basket addresses to rebalance
     /// @param proposedTargetWeights Array of target weights for each basket
     /// @param basketAssets Array of assets in each basket
     /// @param basketHash Hash of the basket addresses and target weights for the rebalance
     event RebalanceProposed(
         uint40 indexed epoch,
-        uint256 timestamp,
         address[] baskets,
         uint64[][] proposedTargetWeights,
         address[][] basketAssets,
@@ -305,9 +303,7 @@ library BasketManagerUtils {
         // Effects after Interactions. Target weights require external view calls to respective strategies.
         bytes32 basketHash = keccak256(abi.encode(baskets, basketTargetWeights, basketAssets));
         // slither-disable-next-line reentrancy-events
-        emit RebalanceProposed(
-            self.rebalanceStatus.epoch, uint40(block.timestamp), baskets, basketTargetWeights, basketAssets, basketHash
-        );
+        emit RebalanceProposed(self.rebalanceStatus.epoch, baskets, basketTargetWeights, basketAssets, basketHash);
         self.rebalanceStatus.basketHash = basketHash;
     }
     // solhint-enable code-complexity
