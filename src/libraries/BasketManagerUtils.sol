@@ -225,7 +225,8 @@ library BasketManagerUtils {
 
         // Effects
         self.rebalanceStatus.basketMask = _createRebalanceBitMask(self, baskets);
-        self.rebalanceStatus.proposalTimestamp = self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
+        self.rebalanceStatus.proposalTimestamp = uint40(block.timestamp);
+        self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
         address assetRegistry = self.assetRegistry;
