@@ -471,14 +471,17 @@ contract BasketToken is
         emit BitFlagUpdated(oldBitFlag, bitFlag_);
     }
 
-    /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
-    /// current epoch. Returns the total amount of assets pending deposit and shares pending redemption. This is called
-    /// at the first step of the rebalance process regardless of the presence of any pending deposits or redemptions.
-    /// When there are no pending deposits or redeems, the epoch is not advanced.
-    /// @dev This function also records the total amount of shares pending redemption for the current epoch.
+    /// @notice Prepares the basket token for rebalancing by processing pending deposits and redemptions.
+    /// @dev This function:
+    /// - Verifies previous deposit/redeem requests were fulfilled
+    /// - Advances deposit/redeem epochs if there are pending requests
+    /// - Harvests management fees
+    /// - Can only be called by the basket manager
+    /// - Called at the start of rebalancing regardless of pending requests
+    /// - Does not advance epochs if there are no pending requests
     /// @param feeBps The management fee in basis points to be harvested.
     /// @param feeCollector The address that will receive the harvested management fee.
-    /// @return pendingDeposits The total amount of assets pending deposit.
+    /// @return pendingDeposits The total amount of base assets pending deposit.
     /// @return pendingShares The total amount of shares pending redemption.
     function prepareForRebalance(
         uint16 feeBps,
