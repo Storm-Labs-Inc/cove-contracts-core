@@ -290,6 +290,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         return _bmStorage.weightDeviationLimit;
     }
 
+    /// @notice Returns the address of the asset registry.
+    /// @return Address of the asset registry.
+    function assetRegistry() external view returns (address) {
+        return _bmStorage.assetRegistry;
+    }
+
     /// @notice Returns the address of the strategy registry.
     /// @return Address of the strategy registry.
     function strategyRegistry() external view returns (address) {
@@ -416,7 +422,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert ExternalTradesHashMismatch();
         }
         _bmStorage.rebalanceStatus.status = Status.TOKEN_SWAP_EXECUTED;
-        _bmStorage.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
+        _bmStorage.rebalanceStatus.timestamp = uint40(block.timestamp);
 
         // solhint-disable avoid-low-level-calls
         // slither-disable-next-line low-level-calls

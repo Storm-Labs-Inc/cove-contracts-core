@@ -217,14 +217,14 @@ library BasketManagerUtils {
             revert MustWaitForRebalanceToComplete();
         }
         // slither-disable-next-line timestamp
-        if (block.timestamp - self.rebalanceStatus.lastActionTimestamp < _REBALANCE_COOLDOWN_SEC) {
+        if (block.timestamp - self.rebalanceStatus.timestamp < _REBALANCE_COOLDOWN_SEC) {
             revert TooEarlyToProposeRebalance();
         }
 
         // Effects
         self.rebalanceStatus.basketMask = _createRebalanceBitMask(self, baskets);
         self.rebalanceStatus.proposalTimestamp = uint40(block.timestamp);
-        self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
+        self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
         address assetRegistry = self.assetRegistry;
@@ -340,7 +340,7 @@ library BasketManagerUtils {
             }
         }
         // Effects
-        status.lastActionTimestamp = uint40(block.timestamp);
+        status.timestamp = uint40(block.timestamp);
         status.status = Status.TOKEN_SWAP_PROPOSED;
         self.rebalanceStatus = status;
         self.externalTradesHash = keccak256(abi.encode(externalTrades));
@@ -387,7 +387,7 @@ library BasketManagerUtils {
         _validateBasketHash(self, baskets, basketTargetWeights, basketAssets);
         // Check if the rebalance was proposed more than 15 minutes ago
         // slither-disable-next-line timestamp
-        if (block.timestamp - self.rebalanceStatus.lastActionTimestamp < self.stepDelay) {
+        if (block.timestamp - self.rebalanceStatus.timestamp < self.stepDelay) {
             revert TooEarlyToCompleteRebalance();
         }
         // if external trades are proposed and executed, finalize them and claim results from the trades
@@ -415,7 +415,7 @@ library BasketManagerUtils {
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
                 self.rebalanceStatus.retryCount = currentRetryCount + 1;
-                self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
+                self.rebalanceStatus.timestamp = uint40(block.timestamp);
                 self.externalTradesHash = bytes32(0);
                 self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
                 return;
@@ -586,7 +586,7 @@ library BasketManagerUtils {
         self.rebalanceStatus.basketMask = 0;
         self.rebalanceStatus.epoch = epoch + 1;
         self.rebalanceStatus.proposalTimestamp = uint40(0);
-        self.rebalanceStatus.lastActionTimestamp = uint40(block.timestamp);
+        self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
         self.externalTradesHash = bytes32(0);
         self.rebalanceStatus.retryCount = 0;

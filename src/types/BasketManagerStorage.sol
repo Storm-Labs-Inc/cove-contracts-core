@@ -28,7 +28,7 @@ struct RebalanceStatus {
     // Timestamp of the rebalance proposal.
     uint40 proposalTimestamp;
     // Timestamp of the last action.
-    uint40 lastActionTimestamp;
+    uint40 timestamp;
     // The number of retries for the current rebalance epoch.
     uint8 retryCount;
     // Status of the rebalance.
