@@ -139,11 +139,12 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         // Deploy oracles and strategies for launch asset universe and baskets
         if (shouldBroadcast_) {
             if (isStaging_) {
-                address[] memory basketAssets = new address[](4);
+                address[] memory basketAssets = new address[](5);
                 basketAssets[0] = ETH_USDC;
                 basketAssets[1] = ETH_SDAI;
                 basketAssets[2] = ETH_SFRAX;
                 basketAssets[3] = ETH_SUSDE;
+                basketAssets[4] = ETH_SFRXUSD;
                 // 0. USDC
                 _deployDefaultAnchoredOracleForAsset(
                     ETH_USDC,
@@ -203,7 +204,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 _addAssetToAssetRegistry(ETH_SUSDE);
                 _addAssetToAssetRegistry(ETH_USDE);
 
-                // 6. sfrxUSD/sUSDe -> USD
+                // 4. sfrxUSD/sUSDe -> USD
                 _deployCurveEMAOracleCrossAdapterForNonUSDPair(
                     ETH_SFRXUSD,
                     ETH_CURVE_SFRXUSD_SUSDE_POOL,
@@ -223,11 +224,12 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 // Deploy launch strategy
                 _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet V1");
 
-                uint64[] memory initialWeights = new uint64[](4);
+                uint64[] memory initialWeights = new uint64[](5);
                 initialWeights[0] = 0;
-                initialWeights[1] = 0.7777777777777778e18;
+                initialWeights[1] = 0.6666666666666667e18;
                 initialWeights[2] = 0.1111111111111111e18;
                 initialWeights[3] = 0.1111111111111111e18;
+                initialWeights[4] = 0.1111111111111111e18;
 
                 _setInitialWeightsAndDeployBasketToken(
                     BasketTokenDeployment({
