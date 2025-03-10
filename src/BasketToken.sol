@@ -70,10 +70,28 @@ contract BasketToken is
         bool fallbackTriggered;
     }
 
+    /// @notice Typed tuple for externally viewing DepositRequestStruct without the mapping.
+    struct DepositRequestView {
+        // Total amount of assets deposited in this request.
+        uint256 totalDepositAssets;
+        // Number of shares fulfilled for this deposit request.
+        uint256 fulfilledShares;
+    }
+
     /// @notice Struct representing a redeem request.
     struct RedeemRequestStruct {
         // Mapping of controller addresses to their shares to be redeemed.
         mapping(address controller => uint256 shares) redeemShares;
+        // Total number of shares to be redeemed in this request.
+        uint256 totalRedeemShares;
+        // Amount of assets fulfilled for this redeem request.
+        uint256 fulfilledAssets;
+        // Flag indicating if the fallback redemption process has been triggered.
+        bool fallbackTriggered;
+    }
+
+    /// @notice Typed tuple for externally viewing RedeemRequestStruct without the mapping.
+    struct RedeemRequestView {
         // Total number of shares to be redeemed in this request.
         uint256 totalRedeemShares;
         // Amount of assets fulfilled for this redeem request.
@@ -132,6 +150,14 @@ contract BasketToken is
     /// @param oldBitFlag The previous bitflag value.
     /// @param newBitFlag The new bitflag value.
     event BitFlagUpdated(uint256 oldBitFlag, uint256 newBitFlag);
+    /// @notice Emitted when a deposit request is queued and awaiting fulfillment.
+    /// @param depositRequestId The unique identifier of the deposit request.
+    /// @param pendingDeposits The total amount of assets pending deposit.
+    event DepositRequestQueued(uint256 depositRequestId, uint256 pendingDeposits);
+    /// @notice Emitted when a redeem request is queued and awaiting fulfillment.
+    /// @param redeemRequestId The unique identifier of the redeem request.
+    /// @param pendingShares The total amount of shares pending redemption.
+    event RedeemRequestQueued(uint256 redeemRequestId, uint256 pendingShares);
 
     /// ERRORS ///
     /// @notice Thrown when there are no pending deposits to fulfill.
@@ -464,21 +490,24 @@ contract BasketToken is
         emit BitFlagUpdated(oldBitFlag, bitFlag_);
     }
 
-    /// @notice Called by the basket manager to advance the redeem epoch, preventing any further redeem requests for the
-    /// current epoch. Returns the total amount of assets pending deposit and shares pending redemption. This is called
-    /// at the first step of the rebalance process regardless of the presence of any pending deposits or redemptions.
-    /// When there are no pending deposits or redeems, the epoch is not advanced.
-    /// @dev This function also records the total amount of shares pending redemption for the current epoch.
+    /// @notice Prepares the basket token for rebalancing by processing pending deposits and redemptions.
+    /// @dev This function:
+    /// - Verifies previous deposit/redeem requests were fulfilled
+    /// - Advances deposit/redeem epochs if there are pending requests
+    /// - Harvests management fees
+    /// - Can only be called by the basket manager
+    /// - Called at the start of rebalancing regardless of pending requests
+    /// - Does not advance epochs if there are no pending requests
     /// @param feeBps The management fee in basis points to be harvested.
     /// @param feeCollector The address that will receive the harvested management fee.
-    /// @return pendingDeposits The total amount of assets pending deposit.
-    /// @return sharesPendingRedemption The total amount of shares pending redemption.
+    /// @return pendingDeposits The total amount of base assets pending deposit.
+    /// @return pendingShares The total amount of shares pending redemption.
     function prepareForRebalance(
         uint16 feeBps,
         address feeCollector
     )
         external
-        returns (uint256 pendingDeposits, uint256 sharesPendingRedemption)
+        returns (uint256 pendingDeposits, uint256 pendingShares)
     {
         _onlyBasketManager();
         uint256 nextDepositRequestId_ = nextDepositRequestId;
@@ -507,11 +536,13 @@ contract BasketToken is
         // Get current pending deposits
         pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
         if (pendingDeposits > 0) {
+            emit DepositRequestQueued(nextDepositRequestId_, pendingDeposits);
             nextDepositRequestId = nextDepositRequestId_ + 2;
         }
 
-        sharesPendingRedemption = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
-        if (sharesPendingRedemption > 0) {
+        pendingShares = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
+        if (pendingShares > 0) {
+            emit RedeemRequestQueued(nextRedeemRequestId_, pendingShares);
             nextRedeemRequestId = nextRedeemRequestId_ + 2;
         }
 
@@ -554,13 +585,17 @@ contract BasketToken is
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), assets);
     }
 
-    /// @notice Returns the total amount of assets pending deposit.
+    /// @notice Retrieves the total amount of assets currently pending deposit.
+    /// @dev Once a rebalance is proposed, any pending deposits are processed and this function will return the pending
+    /// deposits of the next epoch.
     /// @return The total pending deposit amount.
     function totalPendingDeposits() public view returns (uint256) {
         return _depositRequests[nextDepositRequestId].totalDepositAssets;
     }
 
     /// @notice Returns the total number of shares pending redemption.
+    /// @dev Once a rebalance is proposed, any pending redemptions are processed and this function will return the
+    /// pending redemptions of the next epoch.
     /// @return The total pending redeem amount.
     function totalPendingRedemptions() public view returns (uint256) {
         return _redeemRequests[nextRedeemRequestId].totalRedeemShares;
@@ -1008,6 +1043,30 @@ contract BasketToken is
     /// @return True if the fallback has been triggered, false otherwise.
     function fallbackDepositTriggered(uint256 requestId) public view returns (bool) {
         return _depositRequests[requestId].fallbackTriggered;
+    }
+
+    /// @notice Returns the deposit request data for a given requestId without the internal mapping.
+    /// @param requestId The id of the deposit request.
+    /// @return A DepositRequestView struct containing the deposit request data.
+    function getDepositRequest(uint256 requestId) external view returns (DepositRequestView memory) {
+        DepositRequestStruct storage depositRequest = _depositRequests[requestId];
+        return DepositRequestView({
+            totalDepositAssets: depositRequest.totalDepositAssets,
+            fulfilledShares: depositRequest.fulfilledShares
+            fallbackTriggered: depositRequest.fallbackTriggered
+        });
+    }
+
+    /// @notice Returns the redeem request data for a given requestId without the internal mapping.
+    /// @param requestId The id of the redeem request.
+    /// @return A RedeemRequestView struct containing the redeem request data.
+    function getRedeemRequest(uint256 requestId) external view returns (RedeemRequestView memory) {
+        RedeemRequestStruct storage redeemRequest = _redeemRequests[requestId];
+        return RedeemRequestView({
+            totalRedeemShares: redeemRequest.totalRedeemShares,
+            fulfilledAssets: redeemRequest.fulfilledAssets,
+            fallbackTriggered: redeemRequest.fallbackTriggered
+        });
     }
 
     //// ERC165 OVERRIDDEN LOGIC ///

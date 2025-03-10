@@ -65,6 +65,8 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
 
     address[] public registryAddressesToAdd;
     bytes32[] public registryNamesToAdd;
+    bytes32[] public registryNamesToUpdate;
+    bytes[] public multicallData;
 
     bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
 
@@ -449,8 +451,9 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Determine feeCollector deployment address
         address feeCollectorAddress = factory.getDeployed(COVE_DEPLOYER_ADDRESS, feeCollectorSalt);
-        BasketManager bm = deployer.deploy_BasketManager(
+        BasketManager bm = deployer.deploy_BasketManager_Custom(
             buildBasketManagerName(),
+            buildBasketManagerUtilsName(),
             basketTokenImplementation,
             getAddress(buildEulerRouterName()),
             getAddress(buildStrategyRegistryName()),
@@ -548,18 +551,31 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
     }
 
     function _finalizeRegistryAdditions() private {
-        bytes[] memory data = new bytes[](registryNamesToAdd.length);
+        // First check if any registry names already exist in the master registry
+        address registry = isStaging ? COVE_STAGING_MASTER_REGISTRY : COVE_MASTER_REGISTRY;
+        multicallData = new bytes[](0);
         for (uint256 i = 0; i < registryNamesToAdd.length; i++) {
-            data[i] = abi.encodeWithSelector(
-                IMasterRegistry.addRegistry.selector, registryNamesToAdd[i], registryAddressesToAdd[i]
-            );
+            try IMasterRegistry(registry).resolveNameToLatestAddress(registryNamesToAdd[i]) returns (address addr) {
+                if (addr != registryAddressesToAdd[i]) {
+                    multicallData.push(
+                        abi.encodeWithSelector(
+                            IMasterRegistry.updateRegistry.selector, registryNamesToAdd[i], registryAddressesToAdd[i]
+                        )
+                    );
+                }
+            } catch {
+                multicallData.push(
+                    abi.encodeWithSelector(
+                        IMasterRegistry.addRegistry.selector, registryNamesToAdd[i], registryAddressesToAdd[i]
+                    )
+                );
+            }
         }
         if (shouldBroadcast) {
             vm.broadcast();
         }
-        address registry = isStaging ? COVE_STAGING_MASTER_REGISTRY : COVE_MASTER_REGISTRY;
 
-        Multicall(registry).multicall(data);
+        Multicall(registry).multicall(multicallData);
     }
 
     // First deploys a pyth oracle and chainlink oracle. Then Deploys an anchored oracle using the two privously

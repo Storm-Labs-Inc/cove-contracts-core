@@ -143,6 +143,7 @@ contract BasketManagerTest is BaseTest {
         );
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
+        assertEq(address(bm.assetRegistry()), assetRegistry_);
         assertEq(address(bm.feeCollector()), feeCollector_);
         assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
         assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
@@ -601,6 +602,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().proposalTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(basketManager.rebalanceStatus().basketMask, 1);
         assertEq(
@@ -758,7 +760,7 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
@@ -816,7 +818,7 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
@@ -1444,6 +1446,7 @@ contract BasketManagerTest is BaseTest {
 
         assertEq(uint8(status.status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(status.timestamp, block.timestamp);
+        assertEq(status.proposalTimestamp, block.timestamp);
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
@@ -1537,6 +1540,8 @@ contract BasketManagerTest is BaseTest {
         // Verify final rebalance status
         status = basketManager.rebalanceStatus();
         assertEq(uint8(status.status), uint8(Status.NOT_STARTED));
+        assertEq(status.timestamp, vm.getBlockTimestamp());
+        assertEq(status.proposalTimestamp, 0);
         assertEq(status.epoch, 1);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, bytes32(0));

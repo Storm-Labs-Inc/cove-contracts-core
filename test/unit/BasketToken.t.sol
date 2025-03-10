@@ -245,6 +245,8 @@ contract BasketTokenTest is BaseTest {
         vm.stopPrank();
 
         // Check state
+        assertEq(basket.getDepositRequest(requestId).totalDepositAssets, amount);
+        assertEq(basket.getDepositRequest(requestId).fulfilledShares, 0);
         assertEq(dummyAsset.balanceOf(from), dummyAssetBalanceBefore - amount);
         assertEq(basket.totalAssets(), totalAssetsBefore);
         assertEq(basket.balanceOf(controller), balanceBefore);
@@ -395,6 +397,9 @@ contract BasketTokenTest is BaseTest {
 
         // Call fulfillDeposit
         vm.startPrank(address(basketManager));
+        uint256 nextDepositRequestId = basket.nextDepositRequestId();
+        vm.expectEmit();
+        emit BasketToken.DepositRequestQueued(nextDepositRequestId, totalAmount);
         basket.prepareForRebalance(0, feeCollector);
         basket.fulfillDeposit(issuedShares);
         vm.stopPrank();
@@ -402,6 +407,8 @@ contract BasketTokenTest is BaseTest {
         // Check state
         assertEq(dummyAsset.balanceOf(address(basketManager)), basketManagerBalanceBefore + totalAmount);
         assertEq(basket.balanceOf(address(basket)), basketBalanceOfBefore + issuedShares);
+        assertEq(basket.getDepositRequest(nextDepositRequestId).totalDepositAssets, totalAmount);
+        assertEq(basket.getDepositRequest(nextDepositRequestId).fulfilledShares, issuedShares);
         assertEq(dummyAsset.balanceOf(address(basket)), 0);
         assertEq(dummyAsset.balanceOf(address(basketManager)), totalAmount);
         for (uint256 i = 0; i < MAX_USERS; ++i) {
@@ -721,6 +728,7 @@ contract BasketTokenTest is BaseTest {
         internal
         returns (uint256 requestId)
     {
+        uint256 totalRedeemShares = 0;
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             address from = fuzzedUsers[i];
             address caller = callers[i];
@@ -734,7 +742,7 @@ contract BasketTokenTest is BaseTest {
             uint256 pendingRedeemRequestBefore = basket.pendingRedeemRequest(basket.lastRedeemRequestId(to), to);
             uint256 totalPendingRedeemsBefore = basket.totalPendingRedemptions();
             uint256 sharesToRedeem = bound(uint256(keccak256(abi.encode(userSharesBefore))), 1, userSharesBefore);
-
+            totalRedeemShares += sharesToRedeem;
             // Approve tokens to be used by the caller
             vm.prank(from);
             basket.approve(caller, sharesToRedeem);
@@ -767,6 +775,14 @@ contract BasketTokenTest is BaseTest {
             assertEq(basket.maxRedeem(from), 0, "_testFuzz_requestRedeem: maxRedeem mismatch");
             assertEq(basket.maxWithdraw(from), 0, "_testFuzz_requestRedeem: maxWithdraw mismatch");
         }
+        assertEq(
+            basket.getRedeemRequest(requestId).totalRedeemShares,
+            totalRedeemShares,
+            "_testFuzz_requestRedeem: totalRedeemShares mismatch"
+        );
+        assertEq(
+            basket.getRedeemRequest(requestId).fulfilledAssets, 0, "_testFuzz_requestRedeem: fulfilledAssets mismatch"
+        );
     }
 
     function _testFuzz_requestRedeem_setOperator(
@@ -915,7 +931,10 @@ contract BasketTokenTest is BaseTest {
         basket.deposit(amount, alice);
         basket.requestRedeem(issuedShares / 2, alice, alice);
         vm.stopPrank();
+        uint256 nextRedeemRequestId = basket.nextRedeemRequestId();
         vm.startPrank(address(basketManager));
+        vm.expectEmit();
+        emit BasketToken.RedeemRequestQueued(nextRedeemRequestId, issuedShares / 2);
         basket.prepareForRebalance(0, feeCollector);
         basket.fulfillRedeem(amount);
         vm.expectRevert(BasketToken.MustClaimOutstandingRedeem.selector);
@@ -941,6 +960,8 @@ contract BasketTokenTest is BaseTest {
         assertGt(totalPendingRedeemsBefore, 0, "Total pending redeems should be greater than 0 for this test");
 
         // Call prepareForRebalance and fulfillRedeem
+        vm.expectEmit();
+        emit BasketToken.RedeemRequestQueued(requestId, totalPendingRedeemsBefore);
         vm.prank(address(basketManager));
         basket.prepareForRebalance(0, feeCollector);
 
@@ -994,6 +1015,17 @@ contract BasketTokenTest is BaseTest {
             basket.balanceOf(address(basket)),
             basketBalanceBefore - totalPendingRedeemsBefore,
             "testFuzz_fulfillRedeem: Incorrect basket balance"
+        );
+        assertEq(basket.totalPendingRedemptions(), 0, "testFuzz_fulfillRedeem: Incorrect total pending redemptions");
+        assertEq(
+            basket.getRedeemRequest(requestId).totalRedeemShares,
+            totalPendingRedeemsBefore,
+            "testFuzz_fulfillRedeem: Incorrect total redeem shares"
+        );
+        assertEq(
+            basket.getRedeemRequest(requestId).fulfilledAssets,
+            fulfillAmount,
+            "testFuzz_fulfillRedeem: Incorrect fulfilled assets"
         );
         for (uint256 i = 0; i < MAX_USERS; ++i) {
             // A redeem request will return a pending balance until claimed
