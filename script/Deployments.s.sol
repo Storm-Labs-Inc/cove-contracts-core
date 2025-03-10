@@ -171,7 +171,6 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                      })
                 );
                 _addAssetToAssetRegistry(ETH_SDAI);
-                _addAssetToAssetRegistry(ETH_DAI);
 
                 // 2. sUSDe
                 _deployDefaultAnchoredOracleForAsset(
@@ -186,7 +185,6 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                      })
                 );
                 _addAssetToAssetRegistry(ETH_SUSDE);
-                _addAssetToAssetRegistry(ETH_USDE);
 
                 // 3. sfrxUSD/sUSDe -> USD
                 _deployCurveEMAOracleCrossAdapterForNonUSDPair(
