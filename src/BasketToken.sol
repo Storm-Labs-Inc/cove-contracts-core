@@ -76,6 +76,8 @@ contract BasketToken is
         uint256 totalDepositAssets;
         // Number of shares fulfilled for this deposit request.
         uint256 fulfilledShares;
+        // Flag indicating if the fallback redemption process has been triggered.
+        bool fallbackTriggered;
     }
 
     /// @notice Struct representing a redeem request.
@@ -1052,7 +1054,7 @@ contract BasketToken is
         DepositRequestStruct storage depositRequest = _depositRequests[requestId];
         return DepositRequestView({
             totalDepositAssets: depositRequest.totalDepositAssets,
-            fulfilledShares: depositRequest.fulfilledShares
+            fulfilledShares: depositRequest.fulfilledShares,
             fallbackTriggered: depositRequest.fallbackTriggered
         });
     }
