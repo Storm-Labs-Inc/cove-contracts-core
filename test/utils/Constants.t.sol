@@ -126,7 +126,7 @@ contract Constants is CommonBase {
     address public constant ETH_CHAINLINK_CBBTC_USD_FEED = 0x2665701293fCbEB223D11A08D826563EDcCE423A;
 
     // sfrxUSD/sUSDe
-    address public constant ETH_CURVE_SFRXUSD_POOL = 0x3BD1017929b43c1414bE2Aca39892590fBa4d6e2;
+    address public constant ETH_CURVE_SFRXUSD_SUSDE_POOL = 0x3BD1017929b43c1414bE2Aca39892590fBa4d6e2;
 
     // COVE
     address public constant COVE_DEPLOYER_ADDRESS = 0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5;

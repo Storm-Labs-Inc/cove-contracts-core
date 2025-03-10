@@ -203,6 +203,23 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 _addAssetToAssetRegistry(ETH_SUSDE);
                 _addAssetToAssetRegistry(ETH_USDE);
 
+                // 6. sfrxUSD/sUSDe -> USD
+                _deployCurveEMAOracleCrossAdapterForNonUSDPair(
+                    ETH_SFRXUSD,
+                    ETH_CURVE_SFRXUSD_SUSDE_POOL,
+                    ETH_SUSDE,
+                    OracleOptions({
+                        pythPriceFeed: PYTH_SUSDE_USD_FEED,
+                        pythMaxStaleness: 30 seconds,
+                        pythMaxConfWidth: 50, //0.5%
+                        chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
+                        chainlinkMaxStaleness: 1 days,
+                        maxDivergence: 0.005e18 // 0.5%
+                     }),
+                    0
+                ); // TODO: confirm price oracle index
+                _addAssetToAssetRegistry(ETH_SFRXUSD);
+
                 // Deploy launch strategy
                 _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet V1");
 
@@ -341,12 +358,6 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 ETH_CHAINLINK_ETH_USD_FEED
             );
             _addAssetToAssetRegistry(ETH_RETH);
-
-            // 6. sfrxUSD/sUSDe -> USD
-            _deployCurveEMAOracleCrossAdapterForNonUSDPair(
-                ETH_SFRXUSD, ETH_CURVE_SFRXUSD_POOL, ETH_SUSDE, getAddress("AnchoredOracle_sUSDe-USD")
-            );
-
             // Deploy launch strategies
             _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
 
@@ -709,16 +720,19 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         address base,
         address pool,
         address crossAsset,
-        address quoteOracle
+        address quoteOracle,
+        uint256 priceOracleIndex,
+        string memory quoteOracleName
     )
         private
         onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
     {
-        address curveEMAOracle =
-            address(deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool));
+        address curveEMAOracle = address(
+            deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool, priceOracleIndex)
+        );
         address crossAdapter = address(
             deployer.deploy_CrossAdapter(
-                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Anchored"),
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", quoteOracleName),
                 base,
                 crossAsset,
                 USD,
@@ -734,24 +748,36 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         eulerRouter.govSetConfig(base, USD, crossAdapter);
     }
 
-    // Helper function that deploys a CurveEMA Oracle Cross Adapter for an asset/USD pair
-    // by dynamically deploying a Chainlink Quote Oracle based on provided oracle options.
-    // This function first deploys a CurveEMA Oracle, then deploys a new Chainlink Quote Oracle using the options
-    // provided,
-    // deploys a Cross Adapter combining these oracles, and finally registers the adapter with the EulerRouter.
+    // Helper function to deploy a CurveEMA Oracle Cross Adapter for an asset/USD pair
+    // first deploys a CurveEMA Oracle, then deploys a Pyth and Chainlink oracles for the cross asset,
+    // then deploys two cross adapters, one using the pyth and one using the chainlink oracle,
+    // then deploys an anchored oracle with the two cross adapters,
+    // finally registers the anchored oracle with the EulerRouter
     function _deployCurveEMAOracleCrossAdapterForNonUSDPair(
         address base,
         address pool,
         address crossAsset,
-        OracleOptions memory quoteOracleOptions
+        OracleOptions memory quoteOracleOptions,
+        uint256 priceOracleIndex
     )
         private
         onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
     {
-        address curveEMAOracle =
-            address(deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool));
-
-        address quoteOracle = address(
+        address curveEMAOracle = address(
+            deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool, priceOracleIndex)
+        );
+        address pythOracle = address(
+            deployer.deploy_PythOracle(
+                buildPythOracleName(crossAsset, USD),
+                PYTH,
+                crossAsset,
+                USD,
+                quoteOracleOptions.pythPriceFeed,
+                quoteOracleOptions.pythMaxStaleness,
+                quoteOracleOptions.pythMaxConfWidth
+            )
+        );
+        address chainlinkOracle = address(
             deployer.deploy_ChainlinkOracle(
                 buildChainlinkOracleName(crossAsset, USD),
                 crossAsset,
@@ -760,14 +786,32 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 quoteOracleOptions.chainlinkMaxStaleness
             )
         );
-        address crossAdapter = address(
+        address primaryCrossAdapter = address(
             deployer.deploy_CrossAdapter(
-                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Anchored"),
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Pyth"),
                 base,
                 crossAsset,
                 USD,
                 curveEMAOracle,
-                quoteOracle
+                pythOracle
+            )
+        );
+        address anchorCrossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "ChainLink"),
+                base,
+                crossAsset,
+                USD,
+                curveEMAOracle,
+                chainlinkOracle
+            )
+        );
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                buildAnchoredOracleName(base, crossAsset),
+                primaryCrossAdapter,
+                anchorCrossAdapter,
+                quoteOracleOptions.maxDivergence
             )
         );
         // Register the asset/USD cross adapter using EulerRouter
@@ -775,7 +819,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         if (shouldBroadcast) {
             vm.broadcast();
         }
-        eulerRouter.govSetConfig(base, USD, crossAdapter);
+        eulerRouter.govSetConfig(base, USD, anchoredOracle);
     }
 
     // Performs calls to grant permissions once deployment is successful

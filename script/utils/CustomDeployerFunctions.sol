@@ -105,12 +105,13 @@ library CustomDeployerFunctions {
         Deployer deployer,
         string memory name,
         address base,
-        address pool
+        address pool,
+        uint256 priceOracleIndex
     )
         internal
         returns (CurveEMAOracle)
     {
-        bytes memory curveEMAOracleContsructorArgs = abi.encode(pool, base, 0); // TODO: check _priceOracleIndex
+        bytes memory curveEMAOracleContsructorArgs = abi.encode(pool, base, priceOracleIndex);
         return CurveEMAOracle(
             DefaultDeployerFunction.deploy(deployer, name, Artifact_CurveEMAOracle, curveEMAOracleContsructorArgs)
         );
