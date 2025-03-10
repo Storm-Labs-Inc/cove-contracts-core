@@ -1446,6 +1446,7 @@ contract BasketManagerTest is BaseTest {
 
         assertEq(uint8(status.status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(status.timestamp, block.timestamp);
+        assertEq(status.proposalTimestamp, block.timestamp);
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
@@ -1539,6 +1540,8 @@ contract BasketManagerTest is BaseTest {
         // Verify final rebalance status
         status = basketManager.rebalanceStatus();
         assertEq(uint8(status.status), uint8(Status.NOT_STARTED));
+        assertEq(status.timestamp, vm.getBlockTimestamp());
+        assertEq(status.proposalTimestamp, 0);
         assertEq(status.epoch, 1);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, bytes32(0));
