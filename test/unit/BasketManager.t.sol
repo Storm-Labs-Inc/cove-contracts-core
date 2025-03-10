@@ -143,6 +143,7 @@ contract BasketManagerTest is BaseTest {
         );
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
+        assertEq(address(bm.assetRegistry()), assetRegistry_);
         assertEq(address(bm.feeCollector()), feeCollector_);
         assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
         assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
