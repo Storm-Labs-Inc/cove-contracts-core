@@ -1444,7 +1444,7 @@ contract BasketManagerTest is BaseTest {
         RebalanceStatus memory status = basketManager.rebalanceStatus();
 
         assertEq(uint8(status.status), uint8(Status.REBALANCE_PROPOSED));
-        assertEq(status.timestamp, uint40(block.timestamp));
+        assertEq(status.timestamp, block.timestamp);
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
@@ -1479,7 +1479,7 @@ contract BasketManagerTest is BaseTest {
         // Verify token swap status
         status = basketManager.rebalanceStatus();
         assertEq(uint8(status.status), uint8(Status.TOKEN_SWAP_PROPOSED));
-        assertEq(status.timestamp, uint40(block.timestamp));
+        assertEq(status.timestamp, block.timestamp);
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));

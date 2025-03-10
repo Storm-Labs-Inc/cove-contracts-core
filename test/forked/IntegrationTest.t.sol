@@ -868,7 +868,7 @@ contract IntegrationTest is BaseTest {
 
         vm.prank(deployments.rebalanceProposer());
         bm.proposeRebalance(basketTokens);
-        assertEq(bm.rebalanceStatus().timestamp, uint40(vm.getBlockTimestamp()));
+        assertEq(bm.rebalanceStatus().timestamp, vm.getBlockTimestamp());
         assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(bm.rebalanceStatus().basketHash, keccak256(abi.encode(basketTokens, targetWeights, basketAssets)));
 
