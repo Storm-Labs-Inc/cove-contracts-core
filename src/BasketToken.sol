@@ -106,9 +106,9 @@ contract BasketToken is
     /// @notice Last redemption request ID per controller.
     mapping(address controller => uint256 requestId) public lastRedeemRequestId;
     /// @dev Deposit requests mapped by request ID. Even IDs are for deposits.
-    mapping(uint256 requestId => DepositRequestStruct) private _depositRequests;
+    mapping(uint256 requestId => DepositRequestStruct) internal _depositRequests;
     /// @dev Redemption requests mapped by request ID. Odd IDs are for redemptions.
-    mapping(uint256 requestId => RedeemRequestStruct) private _redeemRequests;
+    mapping(uint256 requestId => RedeemRequestStruct) internal _redeemRequests;
     /// @notice Address of the BasketManager contract handling deposits and redemptions.
     address public basketManager;
     /// @notice Upcoming deposit request ID.
