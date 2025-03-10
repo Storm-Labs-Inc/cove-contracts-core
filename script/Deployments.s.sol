@@ -719,8 +719,6 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
     // then deploys two cross adapters, one using the pyth and one using the chainlink oracle,
     // then deploys an anchored oracle with the two cross adapters,
     // finally registers the anchored oracle with the EulerRouter.
-    // Note: If oracles already exist for the cross asset pair, the function will use those oracles instead of deploying
-    // new ones.
     function _deployCurveEMAOracleCrossAdapterForNonUSDPair(
         address base,
         address pool,
@@ -734,37 +732,26 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         address curveEMAOracle = address(
             deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool, priceOracleIndex)
         );
-
-        // Check for existing Pyth oracle
-        address pythOracle = getAddress(buildPythOracleName(crossAsset, USD));
-        if (pythOracle == address(0)) {
-            pythOracle = address(
-                deployer.deploy_PythOracle(
-                    buildPythOracleName(crossAsset, USD),
-                    PYTH,
-                    crossAsset,
-                    USD,
-                    quoteOracleOptions.pythPriceFeed,
-                    quoteOracleOptions.pythMaxStaleness,
-                    quoteOracleOptions.pythMaxConfWidth
-                )
-            );
-        }
-
-        // Check for existing Chainlink oracle
-        address chainlinkOracle = getAddress(buildChainlinkOracleName(crossAsset, USD));
-        if (chainlinkOracle == address(0)) {
-            chainlinkOracle = address(
-                deployer.deploy_ChainlinkOracle(
-                    buildChainlinkOracleName(crossAsset, USD),
-                    crossAsset,
-                    USD,
-                    quoteOracleOptions.chainlinkPriceFeed,
-                    quoteOracleOptions.chainlinkMaxStaleness
-                )
-            );
-        }
-
+        address pythOracle = address(
+            deployer.deploy_PythOracle(
+                buildPythOracleName(crossAsset, USD),
+                PYTH,
+                crossAsset,
+                USD,
+                quoteOracleOptions.pythPriceFeed,
+                quoteOracleOptions.pythMaxStaleness,
+                quoteOracleOptions.pythMaxConfWidth
+            )
+        );
+        address chainlinkOracle = address(
+            deployer.deploy_ChainlinkOracle(
+                buildChainlinkOracleName(crossAsset, USD),
+                crossAsset,
+                USD,
+                quoteOracleOptions.chainlinkPriceFeed,
+                quoteOracleOptions.chainlinkMaxStaleness
+            )
+        );
         address primaryCrossAdapter = address(
             deployer.deploy_CrossAdapter(
                 buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Pyth"),
