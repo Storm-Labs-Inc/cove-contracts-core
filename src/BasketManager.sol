@@ -61,8 +61,6 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
     BasketManagerStorage private _bmStorage;
-    /// @notice Mapping of order hashes to their validity status.
-    mapping(bytes32 => bool) public isOrderValid;
 
     /// EVENTS ///
     /// @notice Emitted when the swap fee is set.
