@@ -22,7 +22,7 @@ rev = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce"
 name = "euler-price-oracle"
 version = "1"
 git = "https://github.com/euler-xyz/euler-price-oracle.git"
-rev = "a638a0d7db33cb71cc992d6dcd532082a763db27"
+rev = "c8f57bcae71df99499a61d0fc92862dd9cf80718"
 
 [[dependencies]]
 name = "farming"

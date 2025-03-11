@@ -142,8 +142,8 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 address[] memory basketAssets = new address[](4);
                 basketAssets[0] = ETH_USDC;
                 basketAssets[1] = ETH_SDAI;
-                basketAssets[2] = ETH_SFRAX;
-                basketAssets[3] = ETH_SUSDE;
+                basketAssets[2] = ETH_SUSDE;
+                basketAssets[3] = ETH_SFRXUSD;
                 // 0. USDC
                 _deployDefaultAnchoredOracleForAsset(
                     ETH_USDC,
@@ -171,24 +171,8 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                      })
                 );
                 _addAssetToAssetRegistry(ETH_SDAI);
-                _addAssetToAssetRegistry(ETH_DAI);
 
-                // 2. sFRAX
-                _deployDefaultAnchoredOracleForAsset(
-                    ETH_FRAX,
-                    OracleOptions({
-                        pythPriceFeed: PYTH_FRAX_USD_FEED,
-                        pythMaxStaleness: 30 seconds,
-                        pythMaxConfWidth: 100, //1%
-                        chainlinkPriceFeed: ETH_CHAINLINK_FRAX_USD_FEED,
-                        chainlinkMaxStaleness: 1 days,
-                        maxDivergence: 0.005e18 // 0.5%
-                     })
-                );
-                _addAssetToAssetRegistry(ETH_SFRAX);
-                _addAssetToAssetRegistry(ETH_FRAX);
-
-                // 3. sUSDe
+                // 2. sUSDe
                 _deployDefaultAnchoredOracleForAsset(
                     ETH_USDE,
                     OracleOptions({
@@ -201,7 +185,23 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                      })
                 );
                 _addAssetToAssetRegistry(ETH_SUSDE);
-                _addAssetToAssetRegistry(ETH_USDE);
+
+                // 3. sfrxUSD/sUSDe -> USD
+                _deployCurveEMAOracleCrossAdapterForNonUSDPair(
+                    ETH_SFRXUSD,
+                    ETH_CURVE_SFRXUSD_SUSDE_POOL,
+                    ETH_SUSDE,
+                    OracleOptions({
+                        pythPriceFeed: PYTH_SUSDE_USD_FEED,
+                        pythMaxStaleness: 30 seconds,
+                        pythMaxConfWidth: 50, //0.5%
+                        chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
+                        chainlinkMaxStaleness: 1 days,
+                        maxDivergence: 0.005e18 // 0.5%
+                     }),
+                    1 // SUSDE
+                );
+                _addAssetToAssetRegistry(ETH_SFRXUSD);
 
                 // Deploy launch strategy
                 _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet V1");
@@ -341,7 +341,6 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
                 ETH_CHAINLINK_ETH_USD_FEED
             );
             _addAssetToAssetRegistry(ETH_RETH);
-
             // Deploy launch strategies
             _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
 
@@ -694,6 +693,80 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
             vm.broadcast();
         }
         eulerRouter.govSetConfig(asset, USD, anchoredOracle);
+    }
+
+    // Helper function to deploy a CurveEMA Oracle Cross Adapter for an asset/USD pair
+    // first deploys a CurveEMA Oracle, then deploys a Pyth and Chainlink oracles for the cross asset,
+    // then deploys two cross adapters, one using the pyth and one using the chainlink oracle,
+    // then deploys an anchored oracle with the two cross adapters,
+    // finally registers the anchored oracle with the EulerRouter.
+    function _deployCurveEMAOracleCrossAdapterForNonUSDPair(
+        address base,
+        address pool,
+        address crossAsset,
+        OracleOptions memory quoteOracleOptions,
+        uint256 priceOracleIndex
+    )
+        private
+        onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
+    {
+        address curveEMAOracle = address(
+            deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool, priceOracleIndex)
+        );
+        address pythOracle = address(
+            deployer.deploy_PythOracle(
+                buildPythOracleName(crossAsset, USD),
+                PYTH,
+                crossAsset,
+                USD,
+                quoteOracleOptions.pythPriceFeed,
+                quoteOracleOptions.pythMaxStaleness,
+                quoteOracleOptions.pythMaxConfWidth
+            )
+        );
+        address chainlinkOracle = address(
+            deployer.deploy_ChainlinkOracle(
+                buildChainlinkOracleName(crossAsset, USD),
+                crossAsset,
+                USD,
+                quoteOracleOptions.chainlinkPriceFeed,
+                quoteOracleOptions.chainlinkMaxStaleness
+            )
+        );
+        address primaryCrossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Pyth"),
+                base,
+                crossAsset,
+                USD,
+                curveEMAOracle,
+                pythOracle
+            )
+        );
+        address anchorCrossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "ChainLink"),
+                base,
+                crossAsset,
+                USD,
+                curveEMAOracle,
+                chainlinkOracle
+            )
+        );
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                buildAnchoredOracleName(base, USD),
+                primaryCrossAdapter,
+                anchorCrossAdapter,
+                quoteOracleOptions.maxDivergence
+            )
+        );
+        // Register the asset/USD cross adapter using EulerRouter
+        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(base, USD, anchoredOracle);
     }
 
     // Performs calls to grant permissions once deployment is successful
