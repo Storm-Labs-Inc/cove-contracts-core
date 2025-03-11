@@ -1574,10 +1574,13 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(redeemBaskets);
 
-        // Do not trade anything and process redeems only
+        // Do not trade anything and intentionally enter retry loop
         uint256 retryLimit = basketManager.retryLimit();
+        uint40 epoch = basketManager.rebalanceStatus().epoch;
         for (uint256 i = 0; i < retryLimit; i++) {
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
+            vm.expectEmit();
+            emit BasketManagerUtils.RebalanceRetried(epoch, i + 1);
             basketManager.completeRebalance(
                 new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets
             );
@@ -1587,6 +1590,8 @@ contract BasketManagerTest is BaseTest {
         // rebalancing status
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         vm.expectCall(baskets[0], abi.encodeCall(BasketToken.fulfillRedeem, (redeemAmount)));
+        vm.expectEmit();
+        emit BasketManagerUtils.RebalanceCompleted(epoch);
         basketManager.completeRebalance(new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets);
 
         // Check the base asset balance was reduced
