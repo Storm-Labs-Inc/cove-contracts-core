@@ -83,7 +83,12 @@ library BasketManagerUtils {
         bytes32 basketHash
     );
     /// @notice Emitted when a rebalance is completed.
+    /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is completed
     event RebalanceCompleted(uint40 indexed epoch);
+    /// @notice Emitted when a rebalance is retried.
+    /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is completed
+    /// @param retryCount Number of retries for the current rebalance epoch. On the first retry, this will be 1.
+    event RebalanceRetried(uint40 indexed epoch, uint256 retryCount);
 
     /// ERRORS ///
     /// @dev Reverts when the total supply of a basket token is zero.
@@ -415,6 +420,7 @@ library BasketManagerUtils {
                     self, eulerRouter, baskets, basketTargetWeights, basketAssets, afterTradeAmounts_, totalValue_
                 )
             ) {
+                emit RebalanceRetried(self.rebalanceStatus.epoch, currentRetryCount + 1);
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
                 self.rebalanceStatus.retryCount = currentRetryCount + 1;

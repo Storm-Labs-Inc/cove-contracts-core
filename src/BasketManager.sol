@@ -240,9 +240,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
 
     /// @notice Returns the current rebalance status.
     /// @return Rebalance status struct with the following fields:
-    ///   - basketHash: Hash of the baskets proposed for rebalance.
-    ///   - timestamp: Timestamp of the last action.
-    ///   - status: Status enum of the rebalance.
+    ///   - basketHash: Hash of the baskets and target weights proposed for rebalance
+    ///   - basketMask: Bitmask representing baskets currently being rebalanced
+    ///   - epoch: Epoch of the rebalance
+    ///   - timestamp: Timestamp of the last action
+    ///   - retryCount: Number of retries for the current rebalance epoch
+    ///   - status: Status enum of the rebalance
     function rebalanceStatus() external view returns (RebalanceStatus memory) {
         return _bmStorage.rebalanceStatus;
     }
