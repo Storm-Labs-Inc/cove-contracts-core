@@ -1086,7 +1086,7 @@ contract BasketManagerTest is BaseTest {
 
         // Call completeRebalance to get out of the retry loop
         vm.warp(vm.getBlockTimestamp() + 60 minutes);
-        vm.expectCall(basket, abi.encodeWithSelector(BasketToken.fallbackRedeemTrigger.selector));
+        vm.expectCall(basket, abi.encodeWithSelector(BasketToken.fulfillRedeem.selector, uint256(0)));
         basketManager.completeRebalance(new ExternalTrade[](0), baskets, targetWeights, basketAssets);
 
         // Check the retry count has been reset and we are back to NOT_STARTED status
@@ -3810,7 +3810,7 @@ contract BasketManagerTest is BaseTest {
             vm.mockCall(
                 baskets[i], abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(initialDepositAmounts[i])
             );
-            vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fallbackRedeemTrigger.selector), new bytes(0));
+            vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fulfillRedeem.selector), new bytes(0));
             vm.mockCall(
                 baskets[i],
                 abi.encodeWithSelector(BasketToken.prepareForRebalance.selector),

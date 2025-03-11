@@ -269,9 +269,12 @@ library BasketManagerUtils {
                     pendingDeposits,
                     assets[baseAssetIndex]
                 );
-                balances[baseAssetIndex] += pendingDeposits;
-                totalSupply += newShares;
-                basketValue += pendingDepositValue;
+                // If no new shares are minted, no deposit will be added to the basket
+                if (newShares > 0) {
+                    balances[baseAssetIndex] += pendingDeposits;
+                    totalSupply += newShares;
+                    basketValue += pendingDepositValue;
+                }
             }
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
@@ -636,7 +639,9 @@ library BasketManagerUtils {
                     _USD_ISO_4217_CODE,
                     baseAsset
                 );
-                if (withdrawAmount <= baseAssetBalance) {
+                // Set withdrawAmount to zero if it exceeds baseAssetBalance, otherwise keep it unchanged
+                withdrawAmount = withdrawAmount <= baseAssetBalance ? withdrawAmount : 0;
+                if (withdrawAmount > 0) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[baseAssetIndex]
                         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -644,12 +649,10 @@ library BasketManagerUtils {
                     }
                     // slither-disable-next-line reentrancy-no-eth
                     IERC20(baseAsset).forceApprove(basket, withdrawAmount);
-                    // ERC20.transferFrom is called in BasketToken.fulfillRedeem
-                    // slither-disable-next-line reentrancy-no-eth
-                    BasketToken(basket).fulfillRedeem(withdrawAmount);
-                } else {
-                    BasketToken(basket).fallbackRedeemTrigger();
                 }
+                // ERC20.transferFrom is called in BasketToken.fulfillRedeem
+                // slither-disable-next-line reentrancy-no-eth
+                BasketToken(basket).fulfillRedeem(withdrawAmount);
             }
             unchecked {
                 // Overflow not possible: i is less than baskets.length
@@ -1110,8 +1113,14 @@ library BasketManagerUtils {
         newShares = basketValue > 0
             ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
             : pendingDepositValue;
-        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
+        if (newShares > 0) {
+            // Add the deposit to the basket balance if newShares is positive
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
+        } else {
+            // If newShares is 0, set pendingDepositValue to 0 to indicate rejected deposit, no deposit is minted
+            pendingDepositValue = 0;
+        }
         // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
         BasketToken(basket).fulfillDeposit(newShares);
     }

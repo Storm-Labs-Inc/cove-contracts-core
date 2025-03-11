@@ -23,6 +23,8 @@ import { BasketToken } from "src/BasketToken.sol";
 /// Invariant test configurations are determined in foundry.toml,
 /// allowing for adjustments in call depth and runs to explore contract states effectively.
 contract BasketToken_InvariantTest is StdInvariant, BaseTest {
+    using SafeERC20 for IERC20;
+
     BasketTokenHandler public basketTokenHandler;
 
     // Setup function to initialize the test environment.
@@ -62,6 +64,17 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
             basketTokenHandler.depositsPendingRebalance(),
             basketTokenHandler.basketToken().totalPendingDeposits(),
             "depositsPendingRebalance should match totalPendingDeposits"
+        );
+    }
+
+    function invariant_totalPendingRedemptions() public {
+        if (!basketTokenHandler.initialized()) {
+            return;
+        }
+        assertEq(
+            basketTokenHandler.redeemsPendingRebalance(),
+            basketTokenHandler.basketToken().totalPendingRedemptions(),
+            "redeemsPendingRebalance should match totalPendingRedemptions"
         );
     }
 
@@ -120,8 +133,10 @@ contract BasketTokenHandler is InvariantHandler {
         public
     {
         vm.assume(!initialized);
-        vm.assume(address(strategy_) != address(0));
-        vm.assume(address(assetRegistry_) != address(0));
+        vm.assume(strategy_ != address(0));
+        assumeUnusedAddress(strategy_);
+        vm.assume(assetRegistry_ != address(0));
+        assumeUnusedAddress(assetRegistry_);
 
         // Ensure the assetIndex is within bounds of the assets array.
         assetIndex = bound(assetIndex, 0, assets.length - 1);
@@ -132,6 +147,7 @@ contract BasketTokenHandler is InvariantHandler {
         vm.label(address(basketToken), "basketToken");
 
         basketToken.initialize(asset, name_, symbol_, bitFlag_, strategy_, assetRegistry_);
+        asset.forceApprove(address(basketToken), type(uint256).max);
 
         // Mock the AssetRegistry to simulate that no assets are paused.
         vm.mockCall(
@@ -144,14 +160,46 @@ contract BasketTokenHandler is InvariantHandler {
     // Function to fulfill a deposit request.
     // It assumes the contract is initialized and there are pending deposits to fulfill.
     // This function must not revert to ensure successful transaction executions.
-    function fulfillDeposit(uint256 shares) public {
-        vm.assume(initialized);
-        vm.assume(depositsPendingFulfill > 0);
-        vm.assume(shares > 0 && shares < type(uint256).max / 1e18);
+    function fulfillDeposit(uint256 shares) public useThis {
+        vm.assume(initialized && depositsPendingFulfill > 0 && shares > 0 && shares < type(uint256).max / 1e18);
         console.log("fulfillDeposit: shares=%d", shares);
         basketToken.fulfillDeposit(shares);
         depositsPendingFulfill = 0;
         totalSupply += shares;
+    }
+
+    function fulfillDepositWithZeroShares() public useThis {
+        vm.assume(initialized && depositsPendingFulfill > 0);
+        console.log("fulfillDepositWithZeroShares");
+        basketToken.fulfillDeposit(0);
+
+        uint256 lastDepositRequestId = basketToken.nextDepositRequestId() - 2;
+        assertTrue(
+            basketToken.fallbackDepositTriggered(lastDepositRequestId), "fallbackDepositTriggered should be true"
+        );
+        depositsPendingFulfill = 0;
+    }
+
+    function fulfillRedeem(uint256 fulfilledAssets) public {
+        vm.assume(
+            initialized && redeemsPendingFulfill > 0 && fulfilledAssets > 0
+                && fulfilledAssets < type(uint256).max / 1e18
+        );
+        uint256 currentBalance = IERC20(basketToken.asset()).balanceOf(address(this));
+        deal(basketToken.asset(), address(this), currentBalance + fulfilledAssets);
+        console.log("fulfillRedeem: assets=%d", fulfilledAssets);
+        basketToken.fulfillRedeem(fulfilledAssets);
+        totalSupply -= redeemsPendingFulfill;
+        redeemsPendingFulfill = 0;
+    }
+
+    function fulfillRedeemWithZeroAssets() public useThis {
+        vm.assume(initialized && redeemsPendingFulfill > 0);
+        console.log("fulfillRedeemWithZeroAssets");
+        basketToken.fulfillRedeem(0);
+        uint256 lastRedeemRequestId = basketToken.nextRedeemRequestId() - 2;
+        assertTrue(basketToken.fallbackRedeemTriggered(lastRedeemRequestId), "fallbackRedeemTriggered should be true");
+        redeemsPendingFulfill = 0;
     }
 
     // Use maxDeposit to claim the maximum deposit amount for a user.
@@ -172,6 +220,61 @@ contract BasketTokenHandler is InvariantHandler {
             "balanceOf should increase by depositAmount"
         );
         assertEq(returnedShares, expectedShares, "deposit should return the expected number of shares");
+    }
+
+    function redeem(uint256 userIdx) public useActor(userIdx) {
+        console.log("   redeem: userAddr=%s", currentActor);
+        vm.assume(initialized);
+        uint256 redeemAmount = basketToken.maxRedeem(currentActor);
+        vm.assume(redeemAmount > 0);
+        uint256 assetsBefore = IERC20(basketToken.asset()).balanceOf(currentActor);
+        uint256 returnedAssets = basketToken.redeem(redeemAmount, currentActor, currentActor);
+
+        assertEq(
+            IERC20(basketToken.asset()).balanceOf(currentActor),
+            assetsBefore + returnedAssets,
+            "balanceOf should increase by returnedAssets"
+        );
+    }
+
+    function claimFallbackAssets(uint256 userIdx) public useActor(userIdx) {
+        console.log("   claimFallbackAssets: userAddr=%s", currentActor);
+        vm.assume(initialized);
+        uint256 lastDepositRequestId = basketToken.nextDepositRequestId() - 2;
+        vm.assume(basketToken.fallbackDepositTriggered(lastDepositRequestId));
+        uint256 claimableFallbackAssets = basketToken.claimableFallbackAssets(currentActor);
+        vm.assume(claimableFallbackAssets > 0);
+        uint256 beforeBalance = IERC20(basketToken.asset()).balanceOf(currentActor);
+
+        // Call claimFallbackAssets
+        basketToken.claimFallbackAssets(currentActor, currentActor);
+
+        uint256 afterBalance = IERC20(basketToken.asset()).balanceOf(currentActor);
+        assertEq(
+            afterBalance,
+            beforeBalance + claimableFallbackAssets,
+            "balanceOf should increase by claimableFallbackAssets"
+        );
+    }
+
+    function claimFallbackShares(uint256 userIdx) public useActor(userIdx) {
+        console.log("   claimFallbackShares: userAddr=%s", currentActor);
+        vm.assume(initialized);
+        uint256 lastRedeemRequestId = basketToken.nextRedeemRequestId() - 2;
+        vm.assume(basketToken.fallbackRedeemTriggered(lastRedeemRequestId));
+        uint256 claimableFallbackShares = basketToken.claimableFallbackShares(currentActor);
+        vm.assume(claimableFallbackShares > 0);
+        uint256 beforeBalance = basketToken.balanceOf(currentActor);
+
+        // Call claimFallbackShares
+        basketToken.claimFallbackShares(currentActor, currentActor);
+
+        uint256 afterBalance = basketToken.balanceOf(currentActor);
+        assertEq(
+            afterBalance,
+            beforeBalance + claimableFallbackShares,
+            "balanceOf should increase by claimableFallbackShares"
+        );
     }
 
     // Function to test deposit reversion when using less than the max deposit amount.
@@ -206,7 +309,7 @@ contract BasketTokenHandler is InvariantHandler {
     }
 
     // Function to test preview functions for deposit, mint, redeem, and withdraw always reverting.
-    function previewFunctions_revertWhen_Always(uint256 amount) public {
+    function previewFunctions_revertWhen_Always(uint256 amount) public useThis {
         console.log("   previewFunctions_revertWhen_Always: amount=%d", amount);
         vm.assume(initialized);
 
@@ -235,8 +338,12 @@ contract BasketTokenHandler is InvariantHandler {
         console.log("   requestDeposit: userAddr=%s, depositAmount=%d", currentActor, depositAmount);
         vm.assume(initialized);
         uint256 nextRequestId = basketToken.nextDepositRequestId();
-        vm.assume(basketToken.pendingDepositRequest(nextRequestId - 2, currentActor) == 0);
-        vm.assume(basketToken.maxDeposit(currentActor) == 0);
+        // Only when the user has no pending deposit requests they can deposit
+        // Only when the user has no fallback shares they can deposit
+        vm.assume(
+            depositsPendingFulfill == 0 && basketToken.maxDeposit(currentActor) == 0
+                && basketToken.claimableFallbackAssets(currentActor) == 0
+        );
         depositAmount = bound(depositAmount, 1, type(uint256).max / 1e18);
 
         uint256 before = basketToken.totalPendingDeposits();
@@ -272,11 +379,16 @@ contract BasketTokenHandler is InvariantHandler {
     function requestRedeem(uint256 userIdx, uint256 redeemAmount) public useActor(userIdx) {
         console.log("   requestRedeem: userAddr=%s, redeemAmount=%d", currentActor, redeemAmount);
         vm.assume(initialized);
-        uint256 nextRequestId = basketToken.nextRedeemRequestId();
-        vm.assume(basketToken.pendingRedeemRequest(nextRequestId - 2, currentActor) == 0);
-        vm.assume(basketToken.maxRedeem(currentActor) == 0);
         uint256 userBalance = basketToken.balanceOf(currentActor);
-        vm.assume(userBalance > 0);
+        vm.assume(
+            userBalance > 0 && redeemsPendingFulfill == 0 && basketToken.maxRedeem(currentActor) == 0
+                && basketToken.claimableFallbackShares(currentActor) == 0
+        );
+
+        // Only when the user has positive balance they can redeem
+        // Only when the user has no pending redeem requests they can redeem
+        // Only when the user has no fallback shares they can redeem
+        uint256 nextRequestId = basketToken.nextRedeemRequestId();
         redeemAmount = bound(redeemAmount, 1, userBalance);
 
         uint256 before = basketToken.totalPendingRedemptions();
@@ -303,9 +415,8 @@ contract BasketTokenHandler is InvariantHandler {
     // Function to prepare the BasketToken for a rebalance.
     // It assumes there are no unfulfilled requests from the previous rebalance.
     // The function resets the pending deposit and redeem counters after the rebalance.
-    function prepareForRebalance() public {
-        vm.assume(initialized);
-        vm.assume(depositsPendingFulfill == 0 && redeemsPendingFulfill == 0);
+    function prepareForRebalance() public useThis {
+        vm.assume(initialized && depositsPendingFulfill == 0 && redeemsPendingFulfill == 0);
         console.log("   prepareForRebalance:");
         uint256 nextDepositId = basketToken.nextDepositRequestId();
         uint256 nextRedeemId = basketToken.nextRedeemRequestId();

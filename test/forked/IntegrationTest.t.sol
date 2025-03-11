@@ -801,7 +801,7 @@ contract IntegrationTest is BaseTest {
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
         bm.completeRebalance(externalTrades, basketTokens, newTargetWeightsTotal, basketAssets);
-        assert(basket.fallbackTriggered(redeemRequestId) == true);
+        assert(basket.fallbackRedeemTriggered(redeemRequestId) == true);
 
         uint256 sharesBefore = basket.balanceOf(user);
         vm.prank(user);
