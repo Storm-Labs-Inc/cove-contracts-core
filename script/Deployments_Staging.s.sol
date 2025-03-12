@@ -140,6 +140,6 @@ contract Deployments_Staging is Deployments {
                 COVE_DEPLOYER_ADDRESS
             )
         );
-        _addToMasterRegistryLater("Stables_FarmingPlugin", farmingPlugin);
+        _addToMasterRegistryLater("FP_stgUSD_E20M", farmingPlugin);
     }
 }
