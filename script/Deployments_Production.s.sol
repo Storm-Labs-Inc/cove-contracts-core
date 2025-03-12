@@ -21,7 +21,7 @@ contract Deployments_Staging is Deployments {
         treasury = COVE_COMMUNITY_MULTISIG;
         pauser = COVE_DEPLOYER_ADDRESS;
         manager = COVE_OPS_MULTISIG;
-        timelock = getAddress(buildTimelockControllerName());
+        timelock = getAddressOrRevert(buildTimelockControllerName());
         rebalanceProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
         tokenSwapProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
         tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;

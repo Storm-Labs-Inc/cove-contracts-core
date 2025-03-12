@@ -123,6 +123,11 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         addr = deployer.getAddress(name);
     }
 
+    function getAddressOrRevert(string memory name) public view returns (address addr) {
+        addr = deployer.getAddress(name);
+        require(addr != address(0), string.concat("Deployment ", name, " not found"));
+    }
+
     function _deployCoreContracts() internal {
         address assetRegistry = address(deployer.deploy_AssetRegistry(buildAssetRegistryName(), COVE_DEPLOYER_ADDRESS));
         address strategyRegistry =
@@ -152,7 +157,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         }
         strategy.setTargetWeights(deployment.bitFlag, deployment.initialWeights);
 
-        address basketManager = getAddress(buildBasketManagerName());
+        address basketManager = getAddressOrRevert(buildBasketManagerName());
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -165,12 +170,13 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         );
         deployer.save(buildBasketTokenName(deployment.name), basketToken, "BasketToken.sol:BasketToken");
         require(
-            getAddress(buildBasketTokenName(deployment.name)) == basketToken, "Failed to save BasketToken deployment"
+            getAddressOrRevert(buildBasketTokenName(deployment.name)) == basketToken,
+            "Failed to save BasketToken deployment"
         );
         require(BasketToken(basketToken).bitFlag() == deployment.bitFlag, "Failed to set bitFlag in BasketToken");
         assertEq(
             BasketManager(basketManager).basketAssets(basketToken),
-            AssetRegistry(getAddress(buildAssetRegistryName())).getAssets(deployment.bitFlag),
+            AssetRegistry(getAddressOrRevert(buildAssetRegistryName())).getAssets(deployment.bitFlag),
             "Failed to set basket assets in BasketManager"
         );
     }
@@ -189,9 +195,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             buildBasketManagerName(),
             buildBasketManagerUtilsName(),
             basketTokenImplementation,
-            getAddress(buildEulerRouterName()),
-            getAddress(buildStrategyRegistryName()),
-            getAddress(buildAssetRegistryName()),
+            getAddressOrRevert(buildEulerRouterName()),
+            getAddressOrRevert(buildStrategyRegistryName()),
+            getAddressOrRevert(buildAssetRegistryName()),
             COVE_DEPLOYER_ADDRESS,
             feeCollectorAddress
         );
@@ -214,14 +220,14 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     {
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Prepare constructor arguments for FeeCollector
-        bytes memory constructorArgs = abi.encode(admin, getAddress(buildBasketManagerName()), treasury);
+        bytes memory constructorArgs = abi.encode(admin, getAddressOrRevert(buildBasketManagerName()), treasury);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(FeeCollector).creationCode, constructorArgs);
         feeCollector = address(factory.deploy(feeCollectorSalt, creationBytecode));
         deployer.save(
             buildFeeCollectorName(), feeCollector, "FeeCollector.sol:FeeCollector", constructorArgs, creationBytecode
         );
-        require(getAddress(buildFeeCollectorName()) == feeCollector, "Failed to save FeeCollector deployment");
+        require(getAddressOrRevert(buildFeeCollectorName()) == feeCollector, "Failed to save FeeCollector deployment");
     }
 
     // Deploys cow swap adapter, sets it as the token swap adapter in BasketManager
@@ -233,7 +239,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         address cowSwapCloneImplementation =
             address(deployer.deploy_CoWSwapClone(buildCoWSwapCloneImplementationName()));
         cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter(buildCowSwapAdapterName(), cowSwapCloneImplementation));
-        address basketManager = getAddress(buildBasketManagerName());
+        address basketManager = getAddressOrRevert(buildBasketManagerName());
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -253,7 +259,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             deployer.deploy_ManagedWeightStrategy(
                 buildManagedWeightStrategyName(strategyName),
                 address(COVE_DEPLOYER_ADDRESS),
-                getAddress(buildBasketManagerName())
+                getAddressOrRevert(buildBasketManagerName())
             )
         );
         ManagedWeightStrategy mwStrategy = ManagedWeightStrategy(strategy);
@@ -263,7 +269,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         mwStrategy.grantRole(MANAGER_ROLE, externalManager);
         mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
         mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
-        StrategyRegistry(getAddress(buildStrategyRegistryName())).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
+        StrategyRegistry(getAddressOrRevert(buildStrategyRegistryName())).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
         if (shouldBroadcast) {
             vm.stopBroadcast();
         }
@@ -277,7 +283,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     }
 
     function _addAssetToAssetRegistry(address asset) internal {
-        AssetRegistry assetRegistry = AssetRegistry(getAddress(buildAssetRegistryName()));
+        AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -286,7 +292,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
     function _finalizeRegistryAdditions() internal {
         // First check if any registry names already exist in the master registry
-        address registry = getAddress(buildMasterRegistryName());
+        address registry = getAddressOrRevert(buildMasterRegistryName());
         multicallData = new bytes[](0);
         for (uint256 i = 0; i < registryNamesToAdd.length; i++) {
             try IMasterRegistry(registry).resolveNameToLatestAddress(registryNamesToAdd[i]) returns (address addr) {
@@ -349,7 +355,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             )
         );
         // Register the asset/USD anchored oracle
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -423,7 +429,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             )
         );
         // Register the asset/USD anchored oracle
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -519,7 +525,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             )
         );
         // Register the asset/USD anchored oracle using EulerRouter
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -616,7 +622,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             )
         );
         // Register the asset/USD anchored oracle using EulerRouter
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -629,21 +635,21 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             vm.startBroadcast();
         }
         // AssetRegistry
-        AssetRegistry assetRegistry = AssetRegistry(getAddress(buildAssetRegistryName()));
+        AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
         assetRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
         assetRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
 
         // StrategyRegistry
-        StrategyRegistry strategyRegistry = StrategyRegistry(getAddress(buildStrategyRegistryName()));
+        StrategyRegistry strategyRegistry = StrategyRegistry(getAddressOrRevert(buildStrategyRegistryName()));
         strategyRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
         strategyRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
 
         // EulerRouter
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         eulerRouter.transferGovernance(admin);
 
         // BasketManager
-        BasketManager bm = BasketManager(getAddress(buildBasketManagerName()));
+        BasketManager bm = BasketManager(getAddressOrRevert(buildBasketManagerName()));
         bm.grantRole(MANAGER_ROLE, manager);
         bm.grantRole(REBALANCE_PROPOSER_ROLE, rebalanceProposer);
         bm.grantRole(TOKENSWAP_PROPOSER_ROLE, tokenSwapProposer);
@@ -661,7 +667,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     }
 
     function assetsToBitFlag(address[] memory assets) public view returns (uint256 bitFlag) {
-        return AssetRegistry(getAddress(buildAssetRegistryName())).getAssetsBitFlag(assets);
+        return AssetRegistry(getAddressOrRevert(buildAssetRegistryName())).getAssetsBitFlag(assets);
     }
 
     function _buildPrefix() internal view virtual override returns (string memory) {

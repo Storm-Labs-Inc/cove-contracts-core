@@ -22,7 +22,7 @@ contract Deployments_Staging is Deployments {
         treasury = COVE_STAGING_COMMUNITY_MULTISIG;
         pauser = COVE_DEPLOYER_ADDRESS;
         manager = COVE_STAGING_OPS_MULTISIG;
-        timelock = getAddress(buildTimelockControllerName());
+        timelock = getAddressOrRevert(buildTimelockControllerName());
         rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
         tokenSwapProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
         tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
@@ -122,16 +122,16 @@ contract Deployments_Staging is Deployments {
                 symbol: "stgUSD",
                 rootAsset: ETH_USDC,
                 bitFlag: assetsToBitFlag(basketAssets),
-                strategy: getAddress(buildManagedWeightStrategyName("Gauntlet V1")),
+                strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1")),
                 initialWeights: initialWeights
             })
         );
 
         // Deploy ERC20Mock for farming plugin rewards
-        ERC20Mock mockERC20 = deployer.deploy_ERC20Mock("CoveMockERC20");
+        ERC20Mock mockERC20 = deployer.deploy_ERC20Mock("Staging_CoveMockERC20");
 
         // Deploy farming plugin
-        address basketToken = getAddress(buildBasketTokenName("Stables"));
+        address basketToken = getAddressOrRevert(buildBasketTokenName("Stables"));
         address farmingPlugin = address(
             deployer.deploy_FarmingPlugin(
                 buildFarmingPluginName(basketToken, address(mockERC20)),
