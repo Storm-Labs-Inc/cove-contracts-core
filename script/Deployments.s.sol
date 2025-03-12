@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { ICurvePool } from "euler-price-oracle/src/adapter/curve/ICurvePool.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
@@ -60,7 +62,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     IMasterRegistry public masterRegistry;
 
     bool public shouldBroadcast;
-    bool public isStaging;
 
     address[] public registryAddressesToAdd;
     bytes32[] public registryNamesToAdd;
@@ -285,7 +286,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
     function _finalizeRegistryAdditions() internal {
         // First check if any registry names already exist in the master registry
-        address registry = isStaging ? COVE_STAGING_MASTER_REGISTRY : COVE_MASTER_REGISTRY;
+        address registry = getAddress(buildMasterRegistryName());
         multicallData = new bytes[](0);
         for (uint256 i = 0; i < registryNamesToAdd.length; i++) {
             try IMasterRegistry(registry).resolveNameToLatestAddress(registryNamesToAdd[i]) returns (address addr) {
@@ -438,14 +439,36 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         address base,
         address pool,
         address crossAsset,
-        OracleOptions memory quoteOracleOptions,
-        uint256 priceOracleIndex
+        uint256 baseAssetIndex,
+        uint256 crossAssetIndex,
+        OracleOptions memory quoteOracleOptions
     )
         internal
-        onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
+        onlyIfMissing(buildAnchoredOracleName(base, USD))
     {
+        // Deploy CurveEMA Oracle
+        require(
+            ICurvePool(pool).coins(baseAssetIndex) == base && ICurvePool(pool).coins(crossAssetIndex) == crossAsset,
+            "Incorrect set of base and cross asset indices"
+        );
+        require(baseAssetIndex == 0 || crossAssetIndex == 0, "One of the base or cross asset indices must be 0");
+
+        address curveBase;
+        address curveQuote;
+        uint256 priceOracleIndex;
+        if (baseAssetIndex == 0) {
+            curveQuote = base;
+            curveBase = crossAsset;
+            priceOracleIndex = crossAssetIndex - 1;
+        } else {
+            curveQuote = crossAsset;
+            curveBase = base;
+            priceOracleIndex = baseAssetIndex - 1;
+        }
         address curveEMAOracle = address(
-            deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool, priceOracleIndex)
+            deployer.deploy_CurveEMAOracle(
+                buildCurveEMAOracleName(curveBase, curveQuote), curveBase, pool, priceOracleIndex
+            )
         );
         address pythOracle = address(
             deployer.deploy_PythOracle(
@@ -479,7 +502,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         );
         address anchorCrossAdapter = address(
             deployer.deploy_CrossAdapter(
-                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "ChainLink"),
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Chainlink"),
                 base,
                 crossAsset,
                 USD,
@@ -495,12 +518,109 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 quoteOracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD cross adapter using EulerRouter
+        // Register the asset/USD anchored oracle using EulerRouter
         EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
         eulerRouter.govSetConfig(base, USD, anchoredOracle);
+    }
+
+    function _deployAnchoredOracleWith4626ForAsset(
+        address asset,
+        bool shouldChain4626ForPyth,
+        bool shouldChain4626ForChainlink,
+        OracleOptions memory oracleOptions
+    )
+        internal
+        onlyIfMissing(buildAnchoredOracleName(asset, USD))
+    {
+        address primaryOracle;
+        address underlyingAsset = IERC4626(asset).asset();
+        if (shouldChain4626ForPyth) {
+            address pythOracle = address(
+                deployer.deploy_PythOracle(
+                    buildPythOracleName(underlyingAsset, USD),
+                    PYTH,
+                    underlyingAsset,
+                    USD,
+                    oracleOptions.pythPriceFeed,
+                    oracleOptions.pythMaxStaleness,
+                    oracleOptions.pythMaxConfWidth
+                )
+            );
+            address erc4626Oracle =
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+            primaryOracle = address(
+                deployer.deploy_CrossAdapter(
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "ERC4626", "Pyth"),
+                    underlyingAsset,
+                    asset,
+                    USD,
+                    erc4626Oracle,
+                    pythOracle
+                )
+            );
+        } else {
+            primaryOracle = address(
+                deployer.deploy_PythOracle(
+                    buildPythOracleName(asset, USD),
+                    PYTH,
+                    asset,
+                    USD,
+                    oracleOptions.pythPriceFeed,
+                    oracleOptions.pythMaxStaleness,
+                    oracleOptions.pythMaxConfWidth
+                )
+            );
+        }
+
+        address anchorOracle;
+        if (shouldChain4626ForChainlink) {
+            address chainlinkOracle = address(
+                deployer.deploy_ChainlinkOracle(
+                    buildChainlinkOracleName(underlyingAsset, USD),
+                    underlyingAsset,
+                    USD,
+                    oracleOptions.chainlinkPriceFeed,
+                    oracleOptions.chainlinkMaxStaleness
+                )
+            );
+            address erc4626Oracle =
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+            anchorOracle = address(
+                deployer.deploy_CrossAdapter(
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Chainlink"),
+                    asset,
+                    underlyingAsset,
+                    USD,
+                    erc4626Oracle,
+                    chainlinkOracle
+                )
+            );
+        } else {
+            anchorOracle = address(
+                deployer.deploy_ChainlinkOracle(
+                    buildChainlinkOracleName(asset, USD),
+                    asset,
+                    USD,
+                    oracleOptions.chainlinkPriceFeed,
+                    oracleOptions.chainlinkMaxStaleness
+                )
+            );
+        }
+
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                buildAnchoredOracleName(asset, USD), primaryOracle, anchorOracle, oracleOptions.maxDivergence
+            )
+        );
+        // Register the asset/USD anchored oracle using EulerRouter
+        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(asset, USD, anchoredOracle);
     }
 
     // Performs calls to grant permissions once deployment is successful

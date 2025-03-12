@@ -35,7 +35,9 @@ contract Deployments_Staging is Deployments {
         basketAssets[2] = ETH_SUSDE;
         basketAssets[3] = ETH_SFRXUSD;
 
-        // 0. USDC
+        // 0. USD
+        // Primary: USDC --(Pyth)--> USD
+        // Anchor: USDC --(Chainlink)--> USD
         _deployDefaultAnchoredOracleForAsset(
             ETH_USDC,
             OracleOptions({
@@ -50,10 +52,14 @@ contract Deployments_Staging is Deployments {
         _addAssetToAssetRegistry(ETH_USDC);
 
         // 1. sDAI
-        _deployDefaultAnchoredOracleForAsset(
-            ETH_DAI,
+        // Primary: sDAI --(Pyth)--> USD
+        // Anchor: sDAI --(4626)--> DAI --(Chainlink)--> USD
+        _deployAnchoredOracleWith4626ForAsset(
+            ETH_SDAI,
+            false,
+            true,
             OracleOptions({
-                pythPriceFeed: PYTH_DAI_USD_FEED,
+                pythPriceFeed: PYTH_SDAI_USD_FEED,
                 pythMaxStaleness: 30 seconds,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_DAI_USD_FEED,
@@ -64,10 +70,14 @@ contract Deployments_Staging is Deployments {
         _addAssetToAssetRegistry(ETH_SDAI);
 
         // 2. sUSDe
-        _deployDefaultAnchoredOracleForAsset(
+        // Primary: sUSDe --(Pyth)--> USD
+        // Anchor: sUSDe --(4626)--> USDe --(Chainlink)--> USD
+        _deployAnchoredOracleWith4626ForAsset(
             ETH_SUSDE,
+            false,
+            true,
             OracleOptions({
-                pythPriceFeed: PYTH_USDE_USD_FEED,
+                pythPriceFeed: PYTH_SUSDE_USD_FEED,
                 pythMaxStaleness: 30 seconds,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
@@ -77,11 +87,15 @@ contract Deployments_Staging is Deployments {
         );
         _addAssetToAssetRegistry(ETH_SUSDE);
 
-        // 3. sfrxUSD/sUSDe -> USD
+        // 3. sfrxUSD
+        // Primary: sfrxUSD --(CurveEMA)--> sUSDe --(Pyth)--> USD
+        // Anchor: sfrxUSD --(CurveEMA)--> sUSDe --(Chainlink)--> USD
         _deployCurveEMAOracleCrossAdapterForNonUSDPair(
             ETH_SFRXUSD,
             ETH_CURVE_SFRXUSD_SUSDE_POOL,
             ETH_SUSDE,
+            0, // sfrxUSD is the first coin in the pool
+            1, // sUSDe is the second coin in the pool
             OracleOptions({
                 pythPriceFeed: PYTH_SUSDE_USD_FEED,
                 pythMaxStaleness: 30 seconds,
@@ -89,8 +103,7 @@ contract Deployments_Staging is Deployments {
                 chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
-             }),
-            1 // SUSDE
+             })
         );
         _addAssetToAssetRegistry(ETH_SFRXUSD);
 
@@ -99,9 +112,9 @@ contract Deployments_Staging is Deployments {
 
         uint64[] memory initialWeights = new uint64[](4);
         initialWeights[0] = 0;
-        initialWeights[1] = 0.7777777777777778e18;
-        initialWeights[2] = 0.1111111111111111e18;
-        initialWeights[3] = 0.1111111111111111e18;
+        initialWeights[1] = 0.3333333333333334e18;
+        initialWeights[2] = 0.3333333333333333e18;
+        initialWeights[3] = 0.3333333333333333e18;
 
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
