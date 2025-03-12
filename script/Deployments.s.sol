@@ -19,7 +19,6 @@ import { BuildDeploymentJsonNames } from "./utils/BuildDeploymentJsonNames.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { Constants } from "test/utils/Constants.t.sol";
-import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 struct BasketTokenDeployment {
     // BasketToken initialize arguments
@@ -45,7 +44,7 @@ struct OracleOptions {
 }
 
 // TODO: ensure calls without forge-deploy are broadcasted correctly with vm.broadcast
-contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJsonNames {
+abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
@@ -68,61 +67,17 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
     bytes32[] public registryNamesToUpdate;
     bytes[] public multicallData;
 
-    bytes32 private constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
+    bytes32 internal constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
 
     // Called from DeployScript's run() function.
     function deploy() public virtual {
-        _deploy(true, keccak256(bytes(vm.envString("DEPLOYMENT_ENV"))) == keccak256("staging"));
+        deploy(true);
     }
 
-    // Called from Integration Test
     function deploy(bool shouldBroadcast_) public {
-        _deploy(shouldBroadcast_, false);
-    }
-
-    function _setPermissionedAddresses(bool shouldBroadcast_, bool isStaging_) internal {
-        // Set permissioned addresses
-        if (shouldBroadcast_) {
-            if (isStaging_) {
-                // Staging deploy
-                admin = COVE_STAGING_COMMUNITY_MULTISIG;
-                treasury = COVE_STAGING_COMMUNITY_MULTISIG;
-                pauser = COVE_DEPLOYER_ADDRESS;
-                manager = COVE_STAGING_OPS_MULTISIG;
-                timelock = getAddress(buildTimelockControllerName());
-                rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
-            } else {
-                // Production deploy
-                // TODO: confirm addresses for production
-                admin = COVE_COMMUNITY_MULTISIG;
-                treasury = COVE_COMMUNITY_MULTISIG;
-                pauser = COVE_DEPLOYER_ADDRESS;
-                manager = COVE_OPS_MULTISIG;
-                timelock = getAddress(buildTimelockControllerName());
-                rebalanceProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
-                tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
-            }
-        } else {
-            // Integration test deploy
-            admin = COVE_OPS_MULTISIG;
-            treasury = COVE_OPS_MULTISIG;
-            pauser = COVE_OPS_MULTISIG;
-            manager = COVE_OPS_MULTISIG;
-            timelock = COVE_OPS_MULTISIG;
-            rebalanceProposer = COVE_OPS_MULTISIG;
-            tokenSwapProposer = COVE_OPS_MULTISIG;
-            tokenSwapExecutor = COVE_OPS_MULTISIG;
-        }
-    }
-
-    function _deploy(bool shouldBroadcast_, bool isStaging_) internal {
         labelKnownAddresses();
         shouldBroadcast = shouldBroadcast_;
-        isStaging = isStaging_;
-        _setPermissionedAddresses(shouldBroadcast_, isStaging_);
+        _setPermissionedAddresses();
 
         // Start the prank if not in production
         if (!shouldBroadcast) {
@@ -137,232 +92,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         _deployCoreContracts();
 
         // Deploy oracles and strategies for launch asset universe and baskets
-        if (shouldBroadcast_) {
-            if (isStaging_) {
-                address[] memory basketAssets = new address[](4);
-                basketAssets[0] = ETH_USDC;
-                basketAssets[1] = ETH_SDAI;
-                basketAssets[2] = ETH_SUSDE;
-                basketAssets[3] = ETH_SFRXUSD;
-                // 0. USDC
-                _deployDefaultAnchoredOracleForAsset(
-                    ETH_USDC,
-                    OracleOptions({
-                        pythPriceFeed: PYTH_USDC_USD_FEED,
-                        pythMaxStaleness: 30 seconds,
-                        pythMaxConfWidth: 50, //0.5%
-                        chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
-                        chainlinkMaxStaleness: 1 days,
-                        maxDivergence: 0.005e18 // 0.5%
-                     })
-                );
-                _addAssetToAssetRegistry(ETH_USDC);
-
-                // 1. sDAI
-                _deployDefaultAnchoredOracleForAsset(
-                    ETH_DAI,
-                    OracleOptions({
-                        pythPriceFeed: PYTH_DAI_USD_FEED,
-                        pythMaxStaleness: 30 seconds,
-                        pythMaxConfWidth: 50, //0.5%
-                        chainlinkPriceFeed: ETH_CHAINLINK_DAI_USD_FEED,
-                        chainlinkMaxStaleness: 1 days,
-                        maxDivergence: 0.005e18 // 0.5%
-                     })
-                );
-                _addAssetToAssetRegistry(ETH_SDAI);
-
-                // 2. sUSDe
-                _deployDefaultAnchoredOracleForAsset(
-                    ETH_USDE,
-                    OracleOptions({
-                        pythPriceFeed: PYTH_USDE_USD_FEED,
-                        pythMaxStaleness: 30 seconds,
-                        pythMaxConfWidth: 50, //0.5%
-                        chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
-                        chainlinkMaxStaleness: 1 days,
-                        maxDivergence: 0.005e18 // 0.5%
-                     })
-                );
-                _addAssetToAssetRegistry(ETH_SUSDE);
-
-                // 3. sfrxUSD/sUSDe -> USD
-                _deployCurveEMAOracleCrossAdapterForNonUSDPair(
-                    ETH_SFRXUSD,
-                    ETH_CURVE_SFRXUSD_SUSDE_POOL,
-                    ETH_SUSDE,
-                    OracleOptions({
-                        pythPriceFeed: PYTH_SUSDE_USD_FEED,
-                        pythMaxStaleness: 30 seconds,
-                        pythMaxConfWidth: 50, //0.5%
-                        chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
-                        chainlinkMaxStaleness: 1 days,
-                        maxDivergence: 0.005e18 // 0.5%
-                     }),
-                    1 // SUSDE
-                );
-                _addAssetToAssetRegistry(ETH_SFRXUSD);
-
-                // Deploy launch strategy
-                _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet V1");
-
-                uint64[] memory initialWeights = new uint64[](4);
-                initialWeights[0] = 0;
-                initialWeights[1] = 0.7777777777777778e18;
-                initialWeights[2] = 0.1111111111111111e18;
-                initialWeights[3] = 0.1111111111111111e18;
-
-                _setInitialWeightsAndDeployBasketToken(
-                    BasketTokenDeployment({
-                        name: "Stables",
-                        symbol: "stgUSD",
-                        rootAsset: ETH_USDC,
-                        bitFlag: assetsToBitFlag(basketAssets),
-                        strategy: getAddress(buildManagedWeightStrategyName("Gauntlet V1")),
-                        initialWeights: initialWeights
-                    })
-                );
-
-                // Deploy ERC20Mock for farming plugin rewards
-                ERC20Mock mockERC20 = deployer.deploy_ERC20Mock("CoveMockERC20");
-
-                // Deploy farming plugin
-                address basketToken = getAddress(buildBasketTokenName("Stables"));
-                address farmingPlugin = address(
-                    deployer.deploy_FarmingPlugin(
-                        buildFarmingPluginName(basketToken, address(mockERC20)),
-                        basketToken,
-                        address(mockERC20),
-                        COVE_DEPLOYER_ADDRESS
-                    )
-                );
-                _addToMasterRegistryLater("Stables_FarmingPlugin", farmingPlugin);
-            } else {
-                revert("Production is not configured for deployment yet");
-            }
-        } else {
-            // For integration test purposes
-            address[] memory basketAssets = new address[](6);
-            basketAssets[0] = ETH_WETH;
-            basketAssets[1] = ETH_SUSDE;
-            basketAssets[2] = ETH_WEETH;
-            basketAssets[3] = ETH_EZETH;
-            basketAssets[4] = ETH_RSETH;
-            basketAssets[5] = ETH_RETH;
-
-            // 0. WETH
-            _deployDefaultAnchoredOracleForAsset(
-                ETH_WETH,
-                OracleOptions({
-                    pythPriceFeed: PYTH_ETH_USD_FEED, // TODO: confirm WETH vs ETH oracle
-                    pythMaxStaleness: 15 minutes,
-                    pythMaxConfWidth: 100,
-                    chainlinkPriceFeed: ETH_CHAINLINK_ETH_USD_FEED, // TODO: confirm WETH vs ETH oracle
-                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                    maxDivergence: 0.5e18
-                })
-            );
-            _addAssetToAssetRegistry(ETH_WETH);
-
-            // 1. SUSDE
-            _deployDefaultAnchoredOracleForAsset(
-                ETH_SUSDE,
-                OracleOptions({
-                    pythPriceFeed: PYTH_SUSDE_USD_FEED,
-                    pythMaxStaleness: 15 minutes,
-                    pythMaxConfWidth: 100,
-                    chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
-                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                    maxDivergence: 0.5e18
-                })
-            );
-            _addAssetToAssetRegistry(ETH_SUSDE);
-
-            // 2. weETH/ETH -> USD
-            _deployChainlinkCrossAdapterForNonUSDPair(
-                ETH_WEETH,
-                OracleOptions({
-                    pythPriceFeed: PYTH_WEETH_USD_FEED,
-                    pythMaxStaleness: 15 minutes,
-                    pythMaxConfWidth: 100,
-                    chainlinkPriceFeed: ETH_CHAINLINK_WEETH_ETH_FEED,
-                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                    maxDivergence: 0.5e18
-                }),
-                ETH,
-                ETH_CHAINLINK_ETH_USD_FEED
-            );
-            _addAssetToAssetRegistry(ETH_WEETH);
-
-            // 3. ezETH/ETH -> USD
-            _deployChainlinkCrossAdapterForNonUSDPair(
-                ETH_EZETH,
-                OracleOptions({
-                    pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to ezETH feed once found
-                    pythMaxStaleness: 15 minutes,
-                    pythMaxConfWidth: 100,
-                    chainlinkPriceFeed: ETH_CHAINLINK_EZETH_ETH_FEED,
-                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                    maxDivergence: 0.5e18
-                }),
-                ETH,
-                ETH_CHAINLINK_ETH_USD_FEED
-            );
-            _addAssetToAssetRegistry(ETH_EZETH);
-
-            // 4. rsETH/ETH -> USD
-            _deployChainlinkCrossAdapterForNonUSDPair(
-                ETH_RSETH,
-                OracleOptions({
-                    pythPriceFeed: PYTH_WEETH_USD_FEED, // TODO: change to rsETH feed once found
-                    pythMaxStaleness: 15 minutes,
-                    pythMaxConfWidth: 100,
-                    chainlinkPriceFeed: ETH_CHAINLINK_RSETH_ETH_FEED,
-                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                    maxDivergence: 0.5e18
-                }),
-                ETH,
-                ETH_CHAINLINK_ETH_USD_FEED
-            );
-            _addAssetToAssetRegistry(ETH_RSETH);
-
-            // 5. rETH/ETH -> USD
-            _deployChainlinkCrossAdapterForNonUSDPair(
-                ETH_RETH,
-                OracleOptions({
-                    pythPriceFeed: PYTH_RETH_USD_FEED,
-                    pythMaxStaleness: 15 minutes,
-                    pythMaxConfWidth: 100,
-                    chainlinkPriceFeed: ETH_CHAINLINK_RETH_ETH_FEED,
-                    chainlinkMaxStaleness: 1 days, // TODO: confirm staleness duration
-                    maxDivergence: 0.5e18
-                }),
-                ETH,
-                ETH_CHAINLINK_ETH_USD_FEED
-            );
-            _addAssetToAssetRegistry(ETH_RETH);
-            // Deploy launch strategies
-            _deployManagedStrategy(GAUNTLET_STRATEGIST, "Gauntlet V1"); // TODO: confirm strategy name
-
-            uint64[] memory initialWeights = new uint64[](6); // TODO: confirm initial weights with Guantlet
-            initialWeights[0] = 1e18;
-            initialWeights[1] = 0;
-            initialWeights[2] = 0;
-            initialWeights[3] = 0;
-            initialWeights[4] = 0;
-            initialWeights[5] = 0;
-
-            _setInitialWeightsAndDeployBasketToken(
-                BasketTokenDeployment({
-                    name: "Gauntlet All Asset", // TODO: confirm basket name. Will be prefixed with "CoveBasket "
-                    symbol: "gWETH", // TODO: confirm basket symbol. Will be prefixed with "cvt"
-                    rootAsset: ETH_WETH, // TODO: confirm root asset
-                    bitFlag: assetsToBitFlag(basketAssets),
-                    strategy: getAddress(buildManagedWeightStrategyName("Gauntlet V1")), // TODO: confirm strategy
-                    initialWeights: initialWeights
-                })
-            );
-        }
+        _deployNonCoreContracts();
 
         // Add all collected registry names to master registry
         _finalizeRegistryAdditions();
@@ -376,6 +106,10 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         }
     }
 
+    function _setPermissionedAddresses() internal virtual { }
+
+    function _deployNonCoreContracts() internal virtual { }
+
     modifier onlyIfMissing(string memory name) {
         if (getAddress(name) != address(0)) {
             return;
@@ -388,7 +122,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         addr = deployer.getAddress(name);
     }
 
-    function _deployCoreContracts() private {
+    function _deployCoreContracts() internal {
         address assetRegistry = address(deployer.deploy_AssetRegistry(buildAssetRegistryName(), COVE_DEPLOYER_ADDRESS));
         address strategyRegistry =
             address(deployer.deploy_StrategyRegistry(buildStrategyRegistryName(), COVE_DEPLOYER_ADDRESS));
@@ -407,7 +141,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment)
-        private
+        internal
         onlyIfMissing(buildBasketTokenName(deployment.name))
     {
         // Set initial weights for the strategy
@@ -442,7 +176,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
 
     // Deploys basket manager given a fee collector salt which must be used to deploy the fee collector using CREATE3.
     function _deployBasketManager(bytes32 feeCollectorSalt)
-        private
+        internal
         onlyIfMissing(buildBasketManagerName())
         returns (address)
     {
@@ -473,7 +207,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
 
     // Uses CREATE3 to deploy a fee collector contract. Salt must be the same given to the basket manager deploy.
     function _deployFeeCollector(bytes32 feeCollectorSalt)
-        private
+        internal
         onlyIfMissing(buildFeeCollectorName())
         returns (address feeCollector)
     {
@@ -491,7 +225,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
 
     // Deploys cow swap adapter, sets it as the token swap adapter in BasketManager
     function _deployAndSetCowSwapAdapter()
-        private
+        internal
         onlyIfMissing(buildCowSwapAdapterName())
         returns (address cowSwapAdapter)
     {
@@ -510,7 +244,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         address externalManager,
         string memory strategyName
     )
-        private
+        internal
         onlyIfMissing(buildManagedWeightStrategyName(strategyName))
         returns (address strategy)
     {
@@ -534,14 +268,14 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         }
     }
 
-    function _addToMasterRegistryLater(string memory name, address addr) private {
+    function _addToMasterRegistryLater(string memory name, address addr) internal {
         // Check if name fits in bytes32
         require(bytes(name).length <= 32, "Name is too long");
         registryNamesToAdd.push(bytes32(bytes(name)));
         registryAddressesToAdd.push(addr);
     }
 
-    function _addAssetToAssetRegistry(address asset) private {
+    function _addAssetToAssetRegistry(address asset) internal {
         AssetRegistry assetRegistry = AssetRegistry(getAddress(buildAssetRegistryName()));
         if (shouldBroadcast) {
             vm.broadcast();
@@ -549,7 +283,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         assetRegistry.addAsset(asset);
     }
 
-    function _finalizeRegistryAdditions() private {
+    function _finalizeRegistryAdditions() internal {
         // First check if any registry names already exist in the master registry
         address registry = isStaging ? COVE_STAGING_MASTER_REGISTRY : COVE_MASTER_REGISTRY;
         multicallData = new bytes[](0);
@@ -584,7 +318,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         address asset,
         OracleOptions memory oracleOptions
     )
-        private
+        internal
         onlyIfMissing(buildAnchoredOracleName(asset, USD))
     {
         // Save the deployment to the array
@@ -637,7 +371,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         address crossAsset,
         address chainlinkCrossFeed
     )
-        private
+        internal
         onlyIfMissing(buildAnchoredOracleName(asset, crossAsset))
     {
         address primary = address(
@@ -707,7 +441,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         OracleOptions memory quoteOracleOptions,
         uint256 priceOracleIndex
     )
-        private
+        internal
         onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
     {
         address curveEMAOracle = address(
@@ -770,7 +504,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
     }
 
     // Performs calls to grant permissions once deployment is successful
-    function _cleanPermissions() private {
+    function _cleanPermissions() internal {
         if (shouldBroadcast) {
             vm.startBroadcast();
         }
@@ -810,13 +544,7 @@ contract Deployments is DeployScript, Constants, StdAssertions, BuildDeploymentJ
         return AssetRegistry(getAddress(buildAssetRegistryName())).getAssetsBitFlag(assets);
     }
 
-    function _buildPrefix() internal view override returns (string memory) {
-        if (shouldBroadcast && !isStaging) {
-            return "";
-        } else if (shouldBroadcast && isStaging) {
-            return "Staging_";
-        } else {
-            return "Test_";
-        }
+    function _buildPrefix() internal view virtual override returns (string memory) {
+        return "DEFAULT_";
     }
 }
