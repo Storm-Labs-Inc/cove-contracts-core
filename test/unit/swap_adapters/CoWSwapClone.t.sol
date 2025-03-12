@@ -92,9 +92,11 @@ contract CoWSwapCloneTest is Test {
         vm.expectCall(
             sellToken, abi.encodeWithSelector(IERC20(sellToken).approve.selector, _VAULT_RELAYER, type(uint256).max)
         );
-        // Check that the OrderCreated event was emitted correctly
+        // Check that the CoWSwapCloneCreated event was emitted correctly
         vm.expectEmit();
-        emit CoWSwapClone.OrderCreated(sellToken, buyToken, sellAmount, minBuyAmount, validTo, receiver, operator);
+        emit CoWSwapClone.CoWSwapCloneCreated(
+            sellToken, buyToken, sellAmount, minBuyAmount, validTo, receiver, operator
+        );
         CoWSwapClone(clone).initialize();
         uint256 allowanceAfter = IERC20(sellToken).allowance(address(clone), _VAULT_RELAYER);
         assertEq(allowanceAfter, type(uint256).max, "Allowance should be max after initialization");

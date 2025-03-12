@@ -51,7 +51,7 @@ contract CoWSwapClone is IERC1271, Clone {
     /// @param validTo The timestamp until which the order is valid.
     /// @param receiver The address that will receive the bought tokens.
     /// @param operator The address of the operator allowed to manage the trade.
-    event OrderCreated(
+    event CoWSwapCloneCreated(
         address indexed sellToken,
         address indexed buyToken,
         uint256 sellAmount,
@@ -75,7 +75,9 @@ contract CoWSwapClone is IERC1271, Clone {
     /// @dev This function should be called after the clone is deployed to set up the necessary token approvals.
     function initialize() external payable {
         IERC20(sellToken()).forceApprove(_VAULT_RELAYER, type(uint256).max);
-        emit OrderCreated(sellToken(), buyToken(), sellAmount(), minBuyAmount(), validTo(), receiver(), operator());
+        emit CoWSwapCloneCreated(
+            sellToken(), buyToken(), sellAmount(), minBuyAmount(), validTo(), receiver(), operator()
+        );
     }
 
     /// @notice Validates the signature of an order. The order is considered valid if the order digest matches the
