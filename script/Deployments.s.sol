@@ -112,7 +112,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     function _deployNonCoreContracts() internal virtual { }
 
     modifier onlyIfMissing(string memory name) {
-        if (getAddress(name) != address(0)) {
+        address addr = getAddress(name);
+        if (addr != address(0)) {
             return;
         }
         _;
@@ -133,17 +134,17 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         address strategyRegistry =
             address(deployer.deploy_StrategyRegistry(buildStrategyRegistryName(), COVE_DEPLOYER_ADDRESS));
         address eulerRouter = address(deployer.deploy_EulerRouter(buildEulerRouterName(), EVC, COVE_DEPLOYER_ADDRESS));
-        address basketManager = _deployBasketManager(_FEE_COLLECTOR_SALT);
-        address feeCollector = _deployFeeCollector(_FEE_COLLECTOR_SALT);
-        address cowSwapAdapter = _deployAndSetCowSwapAdapter();
+        _deployBasketManager(_FEE_COLLECTOR_SALT);
+        _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        _deployAndSetCowSwapAdapter();
 
         // Add all core contract names to the collection
         _addToMasterRegistryLater("AssetRegistry", assetRegistry);
         _addToMasterRegistryLater("StrategyRegistry", strategyRegistry);
         _addToMasterRegistryLater("EulerRouter", eulerRouter);
-        _addToMasterRegistryLater("BasketManager", basketManager);
-        _addToMasterRegistryLater("FeeCollector", feeCollector);
-        _addToMasterRegistryLater("CowSwapAdapter", cowSwapAdapter);
+        _addToMasterRegistryLater("BasketManager", getAddressOrRevert(buildBasketManagerName()));
+        _addToMasterRegistryLater("FeeCollector", getAddressOrRevert(buildFeeCollectorName()));
+        _addToMasterRegistryLater("CowSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment)
@@ -223,6 +224,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         bytes memory constructorArgs = abi.encode(admin, getAddressOrRevert(buildBasketManagerName()), treasury);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(FeeCollector).creationCode, constructorArgs);
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
         feeCollector = address(factory.deploy(feeCollectorSalt, creationBytecode));
         deployer.save(
             buildFeeCollectorName(), feeCollector, "FeeCollector.sol:FeeCollector", constructorArgs, creationBytecode
@@ -284,6 +288,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
     function _addAssetToAssetRegistry(address asset) internal {
         AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
+        if (assetRegistry.getAssetStatus(asset) != AssetRegistry.AssetStatus.DISABLED) {
+            return;
+        }
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -311,11 +318,13 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 );
             }
         }
-        if (shouldBroadcast) {
-            vm.broadcast();
-        }
 
-        Multicall(registry).multicall(multicallData);
+        if (multicallData.length > 0) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            Multicall(registry).multicall(multicallData);
+        }
     }
 
     // First deploys a pyth oracle and chainlink oracle. Then Deploys an anchored oracle using the two privously
@@ -636,30 +645,38 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         }
         // AssetRegistry
         AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
-        assetRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        assetRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        if (assetRegistry.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            assetRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            assetRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
 
         // StrategyRegistry
         StrategyRegistry strategyRegistry = StrategyRegistry(getAddressOrRevert(buildStrategyRegistryName()));
-        strategyRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        strategyRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        if (strategyRegistry.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            strategyRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            strategyRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
 
         // EulerRouter
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
-        eulerRouter.transferGovernance(admin);
+        if (eulerRouter.governor() == COVE_DEPLOYER_ADDRESS) {
+            eulerRouter.transferGovernance(admin);
+        }
 
         // BasketManager
         BasketManager bm = BasketManager(getAddressOrRevert(buildBasketManagerName()));
-        bm.grantRole(MANAGER_ROLE, manager);
-        bm.grantRole(REBALANCE_PROPOSER_ROLE, rebalanceProposer);
-        bm.grantRole(TOKENSWAP_PROPOSER_ROLE, tokenSwapProposer);
-        bm.grantRole(TOKENSWAP_EXECUTOR_ROLE, tokenSwapExecutor);
-        bm.grantRole(TIMELOCK_ROLE, timelock);
-        bm.grantRole(PAUSER_ROLE, pauser);
-        bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
-        bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
-        bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        if (bm.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            bm.grantRole(MANAGER_ROLE, manager);
+            bm.grantRole(REBALANCE_PROPOSER_ROLE, rebalanceProposer);
+            bm.grantRole(TOKENSWAP_PROPOSER_ROLE, tokenSwapProposer);
+            bm.grantRole(TOKENSWAP_EXECUTOR_ROLE, tokenSwapExecutor);
+            bm.grantRole(TIMELOCK_ROLE, timelock);
+            bm.grantRole(PAUSER_ROLE, pauser);
+            bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+            bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
+            bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
 
         if (shouldBroadcast) {
             vm.stopBroadcast();
