@@ -13,7 +13,7 @@
     "slither": "pnpm run build:slither && slither . --ignore-compile",
     "slither-upgradeability": "for f in $(grep -l -r \"openzeppelin-upgradeable\" src); do c=$(echo \"${f##*/}\" | cut -f 1 -d \".\"); echo \"$c\"; slither-check-upgradeability $f $c; echo; done",
     "semgrep": "semgrep --config p/smart-contracts --exclude deps/ src/",
-    "deployLocal": "DEPLOYMENT_CONTEXT=1-fork forge script script/Deployments.s.sol --rpc-url http://localhost:8545 --broadcast --sender 0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5 -vvv --unlocked && ./forge-deploy sync;",
+    "deployLocal": "DEPLOYMENT_CONTEXT=1-fork forge script script/Deployments_Staging.s.sol --rpc-url http://localhost:8545 --broadcast --sender 0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5 -vvv --unlocked && ./forge-deploy sync;",
     "forge-deploy:clean": "rm -rf deployments/1-fork/*",
     "forge-deploy:build": "cd dependencies/forge-deploy-1 && cargo build --release && cp target/release/forge-deploy ../../forge-deploy",
     "lint": "pnpm run lint:sol && pnpm run prettier:check",
