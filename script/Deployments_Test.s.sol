@@ -145,7 +145,7 @@ contract Deployments_Test is Deployments {
                 symbol: "gWETH", // TODO: confirm basket symbol. Will be prefixed with "cvt"
                 rootAsset: ETH_WETH, // TODO: confirm root asset
                 bitFlag: assetsToBitFlag(basketAssets),
-                strategy: getAddress(buildManagedWeightStrategyName("Gauntlet V1")), // TODO: confirm strategy
+                strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1")), // TODO: confirm strategy
                 initialWeights: initialWeights
             })
         );

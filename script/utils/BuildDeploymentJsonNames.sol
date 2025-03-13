@@ -133,8 +133,12 @@ abstract contract BuildDeploymentJsonNames is Constants {
             quoteSymbol,
             "_",
             baseOracleType,
-            "_",
+            "-",
             crossOracleType
         );
+    }
+
+    function buildMasterRegistryName() public view returns (string memory) {
+        return string.concat(_buildPrefix(), "MasterRegistry");
     }
 }

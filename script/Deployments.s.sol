@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { ICurvePool } from "euler-price-oracle/src/adapter/curve/ICurvePool.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
@@ -60,7 +62,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     IMasterRegistry public masterRegistry;
 
     bool public shouldBroadcast;
-    bool public isStaging;
 
     address[] public registryAddressesToAdd;
     bytes32[] public registryNamesToAdd;
@@ -111,7 +112,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     function _deployNonCoreContracts() internal virtual { }
 
     modifier onlyIfMissing(string memory name) {
-        if (getAddress(name) != address(0)) {
+        address addr = getAddress(name);
+        if (addr != address(0)) {
             return;
         }
         _;
@@ -122,22 +124,27 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         addr = deployer.getAddress(name);
     }
 
+    function getAddressOrRevert(string memory name) public view returns (address addr) {
+        addr = deployer.getAddress(name);
+        require(addr != address(0), string.concat("Deployment ", name, " not found"));
+    }
+
     function _deployCoreContracts() internal {
         address assetRegistry = address(deployer.deploy_AssetRegistry(buildAssetRegistryName(), COVE_DEPLOYER_ADDRESS));
         address strategyRegistry =
             address(deployer.deploy_StrategyRegistry(buildStrategyRegistryName(), COVE_DEPLOYER_ADDRESS));
         address eulerRouter = address(deployer.deploy_EulerRouter(buildEulerRouterName(), EVC, COVE_DEPLOYER_ADDRESS));
-        address basketManager = _deployBasketManager(_FEE_COLLECTOR_SALT);
-        address feeCollector = _deployFeeCollector(_FEE_COLLECTOR_SALT);
-        address cowSwapAdapter = _deployAndSetCowSwapAdapter();
+        _deployBasketManager(_FEE_COLLECTOR_SALT);
+        _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        _deployAndSetCowSwapAdapter();
 
         // Add all core contract names to the collection
         _addToMasterRegistryLater("AssetRegistry", assetRegistry);
         _addToMasterRegistryLater("StrategyRegistry", strategyRegistry);
         _addToMasterRegistryLater("EulerRouter", eulerRouter);
-        _addToMasterRegistryLater("BasketManager", basketManager);
-        _addToMasterRegistryLater("FeeCollector", feeCollector);
-        _addToMasterRegistryLater("CowSwapAdapter", cowSwapAdapter);
+        _addToMasterRegistryLater("BasketManager", getAddressOrRevert(buildBasketManagerName()));
+        _addToMasterRegistryLater("FeeCollector", getAddressOrRevert(buildFeeCollectorName()));
+        _addToMasterRegistryLater("CowSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
     }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment)
@@ -151,7 +158,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         }
         strategy.setTargetWeights(deployment.bitFlag, deployment.initialWeights);
 
-        address basketManager = getAddress(buildBasketManagerName());
+        address basketManager = getAddressOrRevert(buildBasketManagerName());
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -164,12 +171,13 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         );
         deployer.save(buildBasketTokenName(deployment.name), basketToken, "BasketToken.sol:BasketToken");
         require(
-            getAddress(buildBasketTokenName(deployment.name)) == basketToken, "Failed to save BasketToken deployment"
+            getAddressOrRevert(buildBasketTokenName(deployment.name)) == basketToken,
+            "Failed to save BasketToken deployment"
         );
         require(BasketToken(basketToken).bitFlag() == deployment.bitFlag, "Failed to set bitFlag in BasketToken");
         assertEq(
             BasketManager(basketManager).basketAssets(basketToken),
-            AssetRegistry(getAddress(buildAssetRegistryName())).getAssets(deployment.bitFlag),
+            AssetRegistry(getAddressOrRevert(buildAssetRegistryName())).getAssets(deployment.bitFlag),
             "Failed to set basket assets in BasketManager"
         );
     }
@@ -188,9 +196,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             buildBasketManagerName(),
             buildBasketManagerUtilsName(),
             basketTokenImplementation,
-            getAddress(buildEulerRouterName()),
-            getAddress(buildStrategyRegistryName()),
-            getAddress(buildAssetRegistryName()),
+            getAddressOrRevert(buildEulerRouterName()),
+            getAddressOrRevert(buildStrategyRegistryName()),
+            getAddressOrRevert(buildAssetRegistryName()),
             COVE_DEPLOYER_ADDRESS,
             feeCollectorAddress
         );
@@ -213,14 +221,17 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     {
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Prepare constructor arguments for FeeCollector
-        bytes memory constructorArgs = abi.encode(admin, getAddress(buildBasketManagerName()), treasury);
+        bytes memory constructorArgs = abi.encode(admin, getAddressOrRevert(buildBasketManagerName()), treasury);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(FeeCollector).creationCode, constructorArgs);
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
         feeCollector = address(factory.deploy(feeCollectorSalt, creationBytecode));
         deployer.save(
             buildFeeCollectorName(), feeCollector, "FeeCollector.sol:FeeCollector", constructorArgs, creationBytecode
         );
-        require(getAddress(buildFeeCollectorName()) == feeCollector, "Failed to save FeeCollector deployment");
+        require(getAddressOrRevert(buildFeeCollectorName()) == feeCollector, "Failed to save FeeCollector deployment");
     }
 
     // Deploys cow swap adapter, sets it as the token swap adapter in BasketManager
@@ -232,7 +243,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         address cowSwapCloneImplementation =
             address(deployer.deploy_CoWSwapClone(buildCoWSwapCloneImplementationName()));
         cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter(buildCowSwapAdapterName(), cowSwapCloneImplementation));
-        address basketManager = getAddress(buildBasketManagerName());
+        address basketManager = getAddressOrRevert(buildBasketManagerName());
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -252,7 +263,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             deployer.deploy_ManagedWeightStrategy(
                 buildManagedWeightStrategyName(strategyName),
                 address(COVE_DEPLOYER_ADDRESS),
-                getAddress(buildBasketManagerName())
+                getAddressOrRevert(buildBasketManagerName())
             )
         );
         ManagedWeightStrategy mwStrategy = ManagedWeightStrategy(strategy);
@@ -262,7 +273,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         mwStrategy.grantRole(MANAGER_ROLE, externalManager);
         mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
         mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
-        StrategyRegistry(getAddress(buildStrategyRegistryName())).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
+        StrategyRegistry(getAddressOrRevert(buildStrategyRegistryName())).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
         if (shouldBroadcast) {
             vm.stopBroadcast();
         }
@@ -276,7 +287,10 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     }
 
     function _addAssetToAssetRegistry(address asset) internal {
-        AssetRegistry assetRegistry = AssetRegistry(getAddress(buildAssetRegistryName()));
+        AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
+        if (assetRegistry.getAssetStatus(asset) != AssetRegistry.AssetStatus.DISABLED) {
+            return;
+        }
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -285,7 +299,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
     function _finalizeRegistryAdditions() internal {
         // First check if any registry names already exist in the master registry
-        address registry = isStaging ? COVE_STAGING_MASTER_REGISTRY : COVE_MASTER_REGISTRY;
+        address registry = getAddressOrRevert(buildMasterRegistryName());
         multicallData = new bytes[](0);
         for (uint256 i = 0; i < registryNamesToAdd.length; i++) {
             try IMasterRegistry(registry).resolveNameToLatestAddress(registryNamesToAdd[i]) returns (address addr) {
@@ -304,11 +318,13 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 );
             }
         }
-        if (shouldBroadcast) {
-            vm.broadcast();
-        }
 
-        Multicall(registry).multicall(multicallData);
+        if (multicallData.length > 0) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            Multicall(registry).multicall(multicallData);
+        }
     }
 
     // First deploys a pyth oracle and chainlink oracle. Then Deploys an anchored oracle using the two privously
@@ -348,7 +364,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             )
         );
         // Register the asset/USD anchored oracle
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -422,7 +438,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             )
         );
         // Register the asset/USD anchored oracle
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
@@ -438,14 +454,36 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         address base,
         address pool,
         address crossAsset,
-        OracleOptions memory quoteOracleOptions,
-        uint256 priceOracleIndex
+        uint256 baseAssetIndex,
+        uint256 crossAssetIndex,
+        OracleOptions memory quoteOracleOptions
     )
         internal
-        onlyIfMissing(buildCurveEMAOracleName(base, crossAsset))
+        onlyIfMissing(buildAnchoredOracleName(base, USD))
     {
+        // Deploy CurveEMA Oracle
+        require(
+            ICurvePool(pool).coins(baseAssetIndex) == base && ICurvePool(pool).coins(crossAssetIndex) == crossAsset,
+            "Incorrect set of base and cross asset indices"
+        );
+        require(baseAssetIndex == 0 || crossAssetIndex == 0, "One of the base or cross asset indices must be 0");
+
+        address curveBase;
+        address curveQuote;
+        uint256 priceOracleIndex;
+        if (baseAssetIndex == 0) {
+            curveQuote = base;
+            curveBase = crossAsset;
+            priceOracleIndex = crossAssetIndex - 1;
+        } else {
+            curveQuote = crossAsset;
+            curveBase = base;
+            priceOracleIndex = baseAssetIndex - 1;
+        }
         address curveEMAOracle = address(
-            deployer.deploy_CurveEMAOracle(buildCurveEMAOracleName(base, crossAsset), base, pool, priceOracleIndex)
+            deployer.deploy_CurveEMAOracle(
+                buildCurveEMAOracleName(curveBase, curveQuote), curveBase, pool, priceOracleIndex
+            )
         );
         address pythOracle = address(
             deployer.deploy_PythOracle(
@@ -479,7 +517,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         );
         address anchorCrossAdapter = address(
             deployer.deploy_CrossAdapter(
-                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "ChainLink"),
+                buildCrossAdapterName(base, crossAsset, USD, "CurveEMA", "Chainlink"),
                 base,
                 crossAsset,
                 USD,
@@ -495,12 +533,109 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 quoteOracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD cross adapter using EulerRouter
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
+        // Register the asset/USD anchored oracle using EulerRouter
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         if (shouldBroadcast) {
             vm.broadcast();
         }
         eulerRouter.govSetConfig(base, USD, anchoredOracle);
+    }
+
+    function _deployAnchoredOracleWith4626ForAsset(
+        address asset,
+        bool shouldChain4626ForPyth,
+        bool shouldChain4626ForChainlink,
+        OracleOptions memory oracleOptions
+    )
+        internal
+        onlyIfMissing(buildAnchoredOracleName(asset, USD))
+    {
+        address primaryOracle;
+        address underlyingAsset = IERC4626(asset).asset();
+        if (shouldChain4626ForPyth) {
+            address pythOracle = address(
+                deployer.deploy_PythOracle(
+                    buildPythOracleName(underlyingAsset, USD),
+                    PYTH,
+                    underlyingAsset,
+                    USD,
+                    oracleOptions.pythPriceFeed,
+                    oracleOptions.pythMaxStaleness,
+                    oracleOptions.pythMaxConfWidth
+                )
+            );
+            address erc4626Oracle =
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+            primaryOracle = address(
+                deployer.deploy_CrossAdapter(
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "ERC4626", "Pyth"),
+                    underlyingAsset,
+                    asset,
+                    USD,
+                    erc4626Oracle,
+                    pythOracle
+                )
+            );
+        } else {
+            primaryOracle = address(
+                deployer.deploy_PythOracle(
+                    buildPythOracleName(asset, USD),
+                    PYTH,
+                    asset,
+                    USD,
+                    oracleOptions.pythPriceFeed,
+                    oracleOptions.pythMaxStaleness,
+                    oracleOptions.pythMaxConfWidth
+                )
+            );
+        }
+
+        address anchorOracle;
+        if (shouldChain4626ForChainlink) {
+            address chainlinkOracle = address(
+                deployer.deploy_ChainlinkOracle(
+                    buildChainlinkOracleName(underlyingAsset, USD),
+                    underlyingAsset,
+                    USD,
+                    oracleOptions.chainlinkPriceFeed,
+                    oracleOptions.chainlinkMaxStaleness
+                )
+            );
+            address erc4626Oracle =
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+            anchorOracle = address(
+                deployer.deploy_CrossAdapter(
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Chainlink"),
+                    asset,
+                    underlyingAsset,
+                    USD,
+                    erc4626Oracle,
+                    chainlinkOracle
+                )
+            );
+        } else {
+            anchorOracle = address(
+                deployer.deploy_ChainlinkOracle(
+                    buildChainlinkOracleName(asset, USD),
+                    asset,
+                    USD,
+                    oracleOptions.chainlinkPriceFeed,
+                    oracleOptions.chainlinkMaxStaleness
+                )
+            );
+        }
+
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                buildAnchoredOracleName(asset, USD), primaryOracle, anchorOracle, oracleOptions.maxDivergence
+            )
+        );
+        // Register the asset/USD anchored oracle using EulerRouter
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        eulerRouter.govSetConfig(asset, USD, anchoredOracle);
     }
 
     // Performs calls to grant permissions once deployment is successful
@@ -509,31 +644,39 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             vm.startBroadcast();
         }
         // AssetRegistry
-        AssetRegistry assetRegistry = AssetRegistry(getAddress(buildAssetRegistryName()));
-        assetRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        assetRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
+        if (assetRegistry.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            assetRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            assetRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
 
         // StrategyRegistry
-        StrategyRegistry strategyRegistry = StrategyRegistry(getAddress(buildStrategyRegistryName()));
-        strategyRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        strategyRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        StrategyRegistry strategyRegistry = StrategyRegistry(getAddressOrRevert(buildStrategyRegistryName()));
+        if (strategyRegistry.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            strategyRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            strategyRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
 
         // EulerRouter
-        EulerRouter eulerRouter = EulerRouter(getAddress(buildEulerRouterName()));
-        eulerRouter.transferGovernance(admin);
+        EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
+        if (eulerRouter.governor() == COVE_DEPLOYER_ADDRESS) {
+            eulerRouter.transferGovernance(admin);
+        }
 
         // BasketManager
-        BasketManager bm = BasketManager(getAddress(buildBasketManagerName()));
-        bm.grantRole(MANAGER_ROLE, manager);
-        bm.grantRole(REBALANCE_PROPOSER_ROLE, rebalanceProposer);
-        bm.grantRole(TOKENSWAP_PROPOSER_ROLE, tokenSwapProposer);
-        bm.grantRole(TOKENSWAP_EXECUTOR_ROLE, tokenSwapExecutor);
-        bm.grantRole(TIMELOCK_ROLE, timelock);
-        bm.grantRole(PAUSER_ROLE, pauser);
-        bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
-        bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
-        bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        BasketManager bm = BasketManager(getAddressOrRevert(buildBasketManagerName()));
+        if (bm.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            bm.grantRole(MANAGER_ROLE, manager);
+            bm.grantRole(REBALANCE_PROPOSER_ROLE, rebalanceProposer);
+            bm.grantRole(TOKENSWAP_PROPOSER_ROLE, tokenSwapProposer);
+            bm.grantRole(TOKENSWAP_EXECUTOR_ROLE, tokenSwapExecutor);
+            bm.grantRole(TIMELOCK_ROLE, timelock);
+            bm.grantRole(PAUSER_ROLE, pauser);
+            bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+            bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
+            bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
 
         if (shouldBroadcast) {
             vm.stopBroadcast();
@@ -541,7 +684,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     }
 
     function assetsToBitFlag(address[] memory assets) public view returns (uint256 bitFlag) {
-        return AssetRegistry(getAddress(buildAssetRegistryName())).getAssetsBitFlag(assets);
+        return AssetRegistry(getAddressOrRevert(buildAssetRegistryName())).getAssetsBitFlag(assets);
     }
 
     function _buildPrefix() internal view virtual override returns (string memory) {
