@@ -2,6 +2,7 @@
 
 pragma solidity 0.8.28;
 
+import { IERC2612 } from "@openzeppelin/contracts/interfaces/IERC2612.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -34,23 +35,23 @@ contract Permit2Test is BaseTest {
         );
     }
 
-    function testFuzz_multicallPermit_requestDeposit(uint256 amount) public {
+    // Testing for ERC-2612 compatible tokens, without using Permit2
+    function testFuzz_multicallPermit_requestDeposit_erc2612(uint256 amount) public {
         amount = bound(amount, 1, type(uint160).max);
         (address from, uint256 key) = makeAddrAndKey("bob");
 
         address asset = BasketToken(basket).asset();
         deal(asset, from, amount);
 
-        // Permit transfer
-        vm.prank(from);
-        IERC20(asset).approve(ETH_PERMIT2, _MAX_UINT256);
+        // No direct approval exists
+        assertEq(IERC20(asset).allowance(from, address(basket)), 0);
 
-        (,, uint48 currentNonce) = IPermit2(ETH_PERMIT2).allowance(from, asset, address(basket));
         uint256 deadline = vm.getBlockTimestamp() + 1000;
-        (uint8 v, bytes32 r, bytes32 s) =
-            _generatePermitSignature(asset, from, key, address(basket), amount, currentNonce, deadline);
 
-        // Use multicall to call permit and requestDeposit
+        // Generate the ERC-2612 signature
+        (uint8 v, bytes32 r, bytes32 s) = _generatePermitSignature(asset, from, key, address(basket), amount, deadline);
+
+        // Use multicall to call permit2 and requestDeposit
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeWithSelector(
             BasketToken.permit2.selector, IERC20(address(asset)), from, address(basket), amount, deadline, v, r, s
@@ -59,27 +60,29 @@ contract Permit2Test is BaseTest {
         vm.prank(from);
         basket.multicall(data);
 
-        // Check state
+        // Check state and verify it worked without doing any approval tx.
         assertEq(basket.pendingDepositRequest(2, from), amount);
     }
 
-    // Testing for non-permit tokens
-    function testFuzz_multicallPermit_requestDeposit_approve(uint256 amount) public {
+    // Testing for non-permit tokens, using Permit2
+    function testFuzz_multicallPermit_requestDeposit_permit2(uint256 amount) public {
         amount = bound(amount, 1, type(uint160).max);
         (address from, uint256 key) = makeAddrAndKey("bob");
 
         address asset = BasketToken(basket2).asset();
         deal(asset, from, amount);
 
-        // Permit transfer
+        // Allow Permit2 to spend the asset
         vm.prank(from);
         IERC20(asset).approve(ETH_PERMIT2, _MAX_UINT256);
 
-        (,, uint48 currentNonce) = IPermit2(ETH_PERMIT2).allowance(from, asset, address(basket2));
         uint256 deadline = vm.getBlockTimestamp() + 1000;
+
+        // Generate the Permit2 signature
         (uint8 v, bytes32 r, bytes32 s) =
-            _generatePermit2Signature(asset, key, address(basket2), amount, currentNonce, deadline);
-        // Use multicall to call permit and requestDeposit
+            _generatePermit2Signature(asset, from, key, address(basket2), amount, deadline);
+
+        // Use multicall to call permit2 and requestDeposit
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeWithSelector(
             BasketToken.permit2.selector, IERC20(address(asset)), from, address(basket2), amount, deadline, v, r, s

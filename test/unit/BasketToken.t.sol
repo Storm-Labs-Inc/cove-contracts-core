@@ -2492,15 +2492,8 @@ contract BasketTokenTest is BaseTest {
         uint256 value = 1000 ether;
         address basketToken = address(basket);
 
-        (uint8 v, bytes32 r, bytes32 s) = _generatePermitSignatureAndLog(
-            basketToken,
-            testAccount,
-            testAccountPK,
-            spender,
-            value,
-            IERC20Permit(basketToken).nonces(testAccount),
-            _MAX_UINT256
-        );
+        (uint8 v, bytes32 r, bytes32 s) =
+            _generatePermitSignatureAndLog(basketToken, testAccount, testAccountPK, spender, value, _MAX_UINT256);
 
         IERC20Permit(basketToken).permit(testAccount, spender, value, _MAX_UINT256, v, r, s);
         assertEq(IERC20(basketToken).allowance(testAccount, spender), value);
@@ -2509,15 +2502,8 @@ contract BasketTokenTest is BaseTest {
         spender = address(0xbeef);
         value = 2000 ether;
 
-        (v, r, s) = _generatePermitSignatureAndLog(
-            basketToken,
-            testAccount,
-            testAccountPK,
-            spender,
-            value,
-            IERC20Permit(basket).nonces(testAccount),
-            _MAX_UINT256
-        );
+        (v, r, s) =
+            _generatePermitSignatureAndLog(basketToken, testAccount, testAccountPK, spender, value, _MAX_UINT256);
 
         IERC20Permit(basketToken).permit(testAccount, spender, value, _MAX_UINT256, v, r, s);
         assertEq(IERC20(basketToken).allowance(testAccount, spender), value);
