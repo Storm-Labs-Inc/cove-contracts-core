@@ -32,19 +32,19 @@ contract GenerateStatesForFrontend is BaseTest {
     address public basketToken;
     address public farmingPlugin;
     address public weightStrategy;
-    address public rebalanceProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
-    address public tokenSwapProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
-    address public tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
+    address public rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+    address public tokenSwapProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+    address public tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
 
     uint256 public constant AIRDROP = 1_000_000;
     uint256 public constant DEPOSIT = 10_000;
 
     function setUp() public override {
-        forkNetworkAt("mainnet", 21_928_744);
+        forkNetworkAt("mainnet", 22_045_979);
         basketManager = _getFromStagingMasterRegistry("BasketManager");
         basketToken = BasketManager(basketManager).basketTokens()[0];
         weightStrategy = BasketToken(basketToken).strategy();
-        farmingPlugin = _getFromStagingMasterRegistry("Staging_Stables_FarmingPlugin");
+        farmingPlugin = _getFromStagingMasterRegistry("FP_stgUSD_E20M");
         super.setUp();
         labelKnownAddresses();
 
@@ -104,10 +104,9 @@ contract GenerateStatesForFrontend is BaseTest {
         externalTrades[0] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, depositAmount * targetWeights[0][1] / 1e18);
         externalTrades[1] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRAX, depositAmount * targetWeights[0][2] / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, depositAmount * targetWeights[0][2] / 1e18);
         externalTrades[2] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, depositAmount * targetWeights[0][3] / 1e18);
-
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRXUSD, depositAmount * targetWeights[0][3] / 1e18);
         // 5. Complete rebalance, account can now redeem
         _continueAndCompleteRebalance(basketTokens, externalTrades);
         // check rebalance status
@@ -130,10 +129,10 @@ contract GenerateStatesForFrontend is BaseTest {
             basketToken, ETH_SDAI, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SDAI)
         );
         externalTrades[1] = _buildSingleExternalTrade(
-            basketToken, ETH_SFRAX, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SFRAX)
+            basketToken, ETH_SUSDE, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SUSDE)
         );
         externalTrades[2] = _buildSingleExternalTrade(
-            basketToken, ETH_SUSDE, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SUSDE)
+            basketToken, ETH_SFRXUSD, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SFRXUSD)
         );
         _continueAndCompleteRebalance(basketTokens, externalTrades);
 
@@ -156,7 +155,7 @@ contract GenerateStatesForFrontend is BaseTest {
         externalTrades[0] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, targetWeights[0][1] * depositAmount / 1e18);
         externalTrades[1] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRAX, targetWeights[0][2] * depositAmount / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRXUSD, targetWeights[0][2] * depositAmount / 1e18);
         externalTrades[2] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, targetWeights[0][3] * depositAmount / 1e18);
         _continueAndCompleteRebalance(basketTokens, externalTrades);
