@@ -1,6 +1,19 @@
 export const abi = [
   {
     type: "function",
+    name: "aggregator",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
     name: "decimals",
     inputs: [],
     outputs: [

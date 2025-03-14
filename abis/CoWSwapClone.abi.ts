@@ -141,32 +141,7 @@ export const abi = [
   },
   {
     type: "event",
-    name: "OrderClaimed",
-    inputs: [
-      {
-        name: "operator",
-        type: "address",
-        indexed: true,
-        internalType: "address"
-      },
-      {
-        name: "claimedSellAmount",
-        type: "uint256",
-        indexed: false,
-        internalType: "uint256"
-      },
-      {
-        name: "claimedBuyAmount",
-        type: "uint256",
-        indexed: false,
-        internalType: "uint256"
-      }
-    ],
-    anonymous: false
-  },
-  {
-    type: "event",
-    name: "OrderCreated",
+    name: "CoWSwapCloneCreated",
     inputs: [
       {
         name: "sellToken",
@@ -209,6 +184,31 @@ export const abi = [
         type: "address",
         indexed: false,
         internalType: "address"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "OrderClaimed",
+    inputs: [
+      {
+        name: "operator",
+        type: "address",
+        indexed: true,
+        internalType: "address"
+      },
+      {
+        name: "claimedSellAmount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      },
+      {
+        name: "claimedBuyAmount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
       }
     ],
     anonymous: false
