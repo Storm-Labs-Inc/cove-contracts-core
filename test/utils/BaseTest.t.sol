@@ -186,24 +186,25 @@ abstract contract BaseTest is Test, Constants {
         uint256 approvalFromPrivKey,
         address approvalTo,
         uint256 amount,
-        uint256 nonce,
         uint256 deadline
     )
         internal
         view
         returns (uint8 v, bytes32 r, bytes32 s)
     {
+        // Use ERC-2612's domain separator from the token contract
+        bytes32 domain = IERC20Permit(token).DOMAIN_SEPARATOR();
+        uint256 nonce = IERC20Permit(token).nonces(approvalFrom);
+        bytes32 msgHash = keccak256(abi.encode(PERMIT_TYPEHASH, approvalFrom, approvalTo, amount, nonce, deadline));
+
+        // Sign the hashed message with the given domain following EIP-712 signature format
         (v, r, s) = vm.sign(
             approvalFromPrivKey, // user's private key
             keccak256(
                 abi.encodePacked(
                     "\x19\x01", // EIP-712 encoding
-                    IERC20Permit(token).DOMAIN_SEPARATOR(),
-                    // Frontend should use deadline with enough buffer and with the correct nonce
-                    // keccak256(abi.encode(PERMIT_TYPEHASH, user, address(router), depositAmount,
-                    // sourceToken.nonces(user),
-                    // block.timestamp + 100_000))
-                    keccak256(abi.encode(PERMIT_TYPEHASH, approvalFrom, approvalTo, amount, nonce, deadline))
+                    domain,
+                    msgHash
                 )
             )
         );
@@ -215,7 +216,6 @@ abstract contract BaseTest is Test, Constants {
         uint256 ownerPrivateKey,
         address spender,
         uint256 value,
-        uint256 nonce,
         uint256 deadline
     )
         internal
@@ -234,9 +234,9 @@ abstract contract BaseTest is Test, Constants {
         console.log("  Owner: ", owner);
         console.log("  Spender: ", address(0xbeef));
         console.log("  Value: ", uint256(1000 ether));
-        console.log("  Nonce: ", nonce);
+        console.log("  Nonce: ", IERC20Permit(token).nonces(owner));
         console.log("  Deadline: ", _MAX_UINT256);
-        (v, r, s) = _generatePermitSignature(token, owner, ownerPrivateKey, spender, value, nonce, deadline);
+        (v, r, s) = _generatePermitSignature(token, owner, ownerPrivateKey, spender, value, deadline);
         console.log("");
         console.log("Generated signature: ");
         console.log("  v: ", v);
@@ -246,16 +246,19 @@ abstract contract BaseTest is Test, Constants {
 
     function _generatePermit2Signature(
         address token,
+        address approvalFrom,
         uint256 approvalFromPrivKey,
         address approvalTo,
         uint256 amount,
-        uint256 nonce,
         uint256 deadline
     )
         internal
         view
         returns (uint8 v, bytes32 r, bytes32 s)
     {
+        // Use Permit2's domain separator
+        bytes32 domain = IAllowanceTransfer(ETH_PERMIT2).DOMAIN_SEPARATOR();
+        (,, uint48 nonce) = IAllowanceTransfer(ETH_PERMIT2).allowance(approvalFrom, token, approvalTo);
         bytes32 permitHash = keccak256(
             abi.encode(
                 _PERMIT_DETAILS_TYPEHASH,
@@ -268,12 +271,14 @@ abstract contract BaseTest is Test, Constants {
             )
         );
         bytes32 msgHash = keccak256(abi.encode(_PERMIT_SINGLE_TYPEHASH, permitHash, approvalTo, deadline));
+
+        // Sign the hashed message with the given domain following EIP-712 signature format
         (v, r, s) = vm.sign(
             approvalFromPrivKey, // user's private key
             keccak256(
                 abi.encodePacked(
                     "\x19\x01", // EIP-712 encoding
-                    IAllowanceTransfer(ETH_PERMIT2).DOMAIN_SEPARATOR(),
+                    domain,
                     msgHash
                 )
             )
