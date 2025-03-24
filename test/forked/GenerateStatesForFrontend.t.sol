@@ -6,24 +6,20 @@ pragma solidity 0.8.28;
 // Currently using vm.deal, vm.prank, vm.warp, etc. which should be replaced with
 // alternative approaches that don't rely on cheatcodes for frontend testing.
 
+import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { console } from "forge-std/console.sol";
-import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
-import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
-
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
-import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
+import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 contract GenerateStatesForFrontend is BaseTest {
     // Account used for testing
@@ -32,19 +28,21 @@ contract GenerateStatesForFrontend is BaseTest {
     address public basketToken;
     address public farmingPlugin;
     address public weightStrategy;
-    address public rebalanceProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
-    address public tokenSwapProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
-    address public tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
+    address public rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+    address public tokenSwapProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+    address public tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
 
     uint256 public constant AIRDROP = 1_000_000;
     uint256 public constant DEPOSIT = 10_000;
 
     function setUp() public override {
-        forkNetworkAt("mainnet", 21_928_744);
+        // https://etherscan.io/block/22046527
+        // 14th March 2025, targets staging deployment reaplcing sFRAX with sfrxUSD
+        forkNetworkAt("mainnet", 22_046_527);
         basketManager = _getFromStagingMasterRegistry("BasketManager");
         basketToken = BasketManager(basketManager).basketTokens()[0];
         weightStrategy = BasketToken(basketToken).strategy();
-        farmingPlugin = _getFromStagingMasterRegistry("Staging_Stables_FarmingPlugin");
+        farmingPlugin = _getFromStagingMasterRegistry("FP_stgUSD_E20M");
         super.setUp();
         labelKnownAddresses();
 
@@ -104,9 +102,9 @@ contract GenerateStatesForFrontend is BaseTest {
         externalTrades[0] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, depositAmount * targetWeights[0][1] / 1e18);
         externalTrades[1] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRAX, depositAmount * targetWeights[0][2] / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, depositAmount * targetWeights[0][2] / 1e18);
         externalTrades[2] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, depositAmount * targetWeights[0][3] / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRXUSD, depositAmount * targetWeights[0][3] / 1e18);
 
         // 5. Complete rebalance, account can now redeem
         _continueAndCompleteRebalance(basketTokens, externalTrades);
@@ -130,10 +128,10 @@ contract GenerateStatesForFrontend is BaseTest {
             basketToken, ETH_SDAI, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SDAI)
         );
         externalTrades[1] = _buildSingleExternalTrade(
-            basketToken, ETH_SFRAX, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SFRAX)
+            basketToken, ETH_SUSDE, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SUSDE)
         );
         externalTrades[2] = _buildSingleExternalTrade(
-            basketToken, ETH_SUSDE, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SUSDE)
+            basketToken, ETH_SFRXUSD, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SFRXUSD)
         );
         _continueAndCompleteRebalance(basketTokens, externalTrades);
 
@@ -156,9 +154,9 @@ contract GenerateStatesForFrontend is BaseTest {
         externalTrades[0] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, targetWeights[0][1] * depositAmount / 1e18);
         externalTrades[1] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRAX, targetWeights[0][2] * depositAmount / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, targetWeights[0][2] * depositAmount / 1e18);
         externalTrades[2] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, targetWeights[0][3] * depositAmount / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRXUSD, targetWeights[0][3] * depositAmount / 1e18);
         _continueAndCompleteRebalance(basketTokens, externalTrades);
         vm.prank(user);
         BasketToken(basketToken).deposit(depositAmount, user, user);
@@ -210,12 +208,10 @@ contract GenerateStatesForFrontend is BaseTest {
         _updatePythOracleTimeStamp(PYTH_SUSDE_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_USDC_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_SDAI_USD_FEED);
-        _updatePythOracleTimeStamp(PYTH_FRAX_USD_FEED);
 
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_SUSDE_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDC_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_DAI_USD_FEED);
-        _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_FRAX_USD_FEED);
     }
 
     function _getBasketTagetWeights(address[] memory basketTokens) internal view returns (uint64[][] memory) {
