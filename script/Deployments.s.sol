@@ -618,13 +618,16 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     /// @notice Registers an anchored oracle for an asset/USD pair with the EulerRouter if its not already registered
     function _registerAnchoredOracleWithEulerRouter(address asset, address oracle) internal {
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
-        if (eulerRouter.getConfiguredOracle(asset, USD) != oracle) {
+        address configuredOracle = eulerRouter.getConfiguredOracle(asset, USD);
+        console.log("Previously configured oracle for %s/USD: %s", asset, configuredOracle);
+        if (configuredOracle != oracle) {
+            console.log("Registering anchored oracle for %s/USD with oracle %s", asset, oracle);
             if (shouldBroadcast) {
                 vm.broadcast();
             }
             eulerRouter.govSetConfig(asset, USD, oracle);
         } else {
-            console.log("Anchored oracle for asset/USD already registered");
+            console.log("Anchored oracle for %s/USD already registered correctly", asset);
         }
     }
 
