@@ -8,6 +8,7 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { ICurvePool } from "euler-price-oracle/src/adapter/curve/ICurvePool.sol";
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
+import { console } from "forge-std/console.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
@@ -330,13 +331,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     // First deploys a pyth oracle and chainlink oracle. Then Deploys an anchored oracle using the two privously
     // deployed oracles.
     // Enable the anchored oracle for the given asset and USD
-    function _deployDefaultAnchoredOracleForAsset(
-        address asset,
-        OracleOptions memory oracleOptions
-    )
-        internal
-        onlyIfMissing(buildAnchoredOracleName(asset, USD))
-    {
+    function _deployDefaultAnchoredOracleForAsset(address asset, OracleOptions memory oracleOptions) internal {
         // Save the deployment to the array
         address primary = address(
             deployer.deploy_PythOracle(
@@ -363,12 +358,16 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 buildAnchoredOracleName(asset, USD), primary, anchor, oracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle
+        // Register the asset/USD anchored oracle if its not already registered
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
-        if (shouldBroadcast) {
-            vm.broadcast();
+        if (eulerRouter.getConfiguredOracle(asset, USD) != anchoredOracle) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            eulerRouter.govSetConfig(asset, USD, anchoredOracle);
+        } else {
+            console.log("Anchored oracle for asset/USD already registered");
         }
-        eulerRouter.govSetConfig(asset, USD, anchoredOracle);
     }
 
     // A helper function that does the following (in order):
@@ -437,12 +436,16 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 buildAnchoredOracleName(asset, crossAsset), primary, crossAdapter, oracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle
+        // Register the asset/USD anchored oracle if its not already registered
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
-        if (shouldBroadcast) {
-            vm.broadcast();
+        if (eulerRouter.getConfiguredOracle(asset, USD) != anchoredOracle) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            eulerRouter.govSetConfig(asset, USD, anchoredOracle);
+        } else {
+            console.log("Anchored oracle for asset/USD already registered");
         }
-        eulerRouter.govSetConfig(asset, USD, anchoredOracle);
     }
 
     // Helper function to deploy a CurveEMA Oracle Cross Adapter for an asset/USD pair
@@ -459,7 +462,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         OracleOptions memory quoteOracleOptions
     )
         internal
-        onlyIfMissing(buildAnchoredOracleName(base, USD))
     {
         // Deploy CurveEMA Oracle
         require(
@@ -533,12 +535,16 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 quoteOracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle using EulerRouter
+        // Register the asset/USD anchored oracle using EulerRouter if its not already registered
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
-        if (shouldBroadcast) {
-            vm.broadcast();
+        if (eulerRouter.getConfiguredOracle(base, USD) != anchoredOracle) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            eulerRouter.govSetConfig(base, USD, anchoredOracle);
+        } else {
+            console.log("Anchored oracle for asset/USD already registered");
         }
-        eulerRouter.govSetConfig(base, USD, anchoredOracle);
     }
 
     function _deployAnchoredOracleWith4626ForAsset(
@@ -548,7 +554,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         OracleOptions memory oracleOptions
     )
         internal
-        onlyIfMissing(buildAnchoredOracleName(asset, USD))
     {
         address primaryOracle;
         address underlyingAsset = IERC4626(asset).asset();
@@ -630,12 +635,16 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 buildAnchoredOracleName(asset, USD), primaryOracle, anchorOracle, oracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle using EulerRouter
+        // Register the asset/USD anchored oracle using EulerRouter if its not already registered
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
-        if (shouldBroadcast) {
-            vm.broadcast();
+        if (eulerRouter.getConfiguredOracle(asset, USD) != anchoredOracle) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            eulerRouter.govSetConfig(asset, USD, anchoredOracle);
+        } else {
+            console.log("Anchored oracle for asset/USD already registered");
         }
-        eulerRouter.govSetConfig(asset, USD, anchoredOracle);
     }
 
     // Performs calls to grant permissions once deployment is successful
