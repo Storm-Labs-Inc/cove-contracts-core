@@ -34,7 +34,8 @@ contract ChainedERC4626Oracle is BaseAdapter {
     /// @notice Constructor for the ChainedERC4626Oracle contract
     /// @param _initialVault The starting ERC4626 vault in the chain
     /// @param _targetAsset The final underlying asset to reach
-    constructor(IERC4626 _initialVault, address _targetAsset) {
+    // slither-disable-next-line locked-ether
+    constructor(IERC4626 _initialVault, address _targetAsset) payable {
         uint256 chainLength = 0;
 
         // Start with the initial vault
@@ -48,16 +49,15 @@ contract ChainedERC4626Oracle is BaseAdapter {
 
             try IERC4626(currentVault).asset() returns (address asset) {
                 currentAsset = asset;
+                ++chainLength;
 
                 // Check if we've reached the target asset
                 if (currentAsset == _targetAsset) {
-                    chainLength++;
                     break;
                 }
 
                 // Try to treat the asset as another vault
                 currentVault = currentAsset;
-                chainLength++;
             } catch {
                 revert TargetAssetNotReached();
             }
@@ -91,19 +91,26 @@ contract ChainedERC4626Oracle is BaseAdapter {
         bool inverse = ScaleUtils.getDirectionOrRevert(_base, base, _quote, quote);
 
         if (inAmount == 0) return 0;
+        uint256 length = vaults.length;
 
         if (!inverse) {
             // Convert from vault shares to final asset
             uint256 amount = inAmount;
-            for (uint256 i = 0; i < vaults.length; i++) {
+            for (uint256 i = 0; i < length;) {
                 amount = IERC4626(vaults[i]).convertToAssets(amount);
+                unchecked {
+                    ++i;
+                }
             }
             return amount;
         } else {
             // Convert from final asset to vault shares
             uint256 amount = inAmount;
-            for (uint256 i = vaults.length; i > 0; i--) {
-                amount = IERC4626(vaults[i - 1]).convertToShares(amount);
+            for (uint256 i = length; i > 0;) {
+                unchecked {
+                    --i;
+                }
+                amount = IERC4626(vaults[i]).convertToShares(amount);
             }
             return amount;
         }

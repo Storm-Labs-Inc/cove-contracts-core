@@ -162,20 +162,13 @@ contract ChainedERC4626OracleTest is BaseTest {
         assertEq(actualShares, expectedShares);
     }
 
-    function test_getQuote_revertWhen_unsupportedTokens() public {
-        address randomAddress = address(0x123);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PriceOracleErrors.PriceOracle_NotSupported.selector, randomAddress, address(mockBaseAsset)
-            )
-        );
-        mockOracle.getQuote(1e18, randomAddress, address(mockBaseAsset));
+    function test_getQuote_revertWhen_unsupportedTokens(uint256 amount, address base, address quote) public {
+        vm.assume(base != address(mockBaseAsset) && base != address(mockVault3));
+        vm.assume(quote != address(mockBaseAsset) && quote != address(mockVault3));
+        vm.expectRevert(abi.encodeWithSelector(PriceOracleErrors.PriceOracle_NotSupported.selector, base, quote));
+        mockOracle.getQuote(amount, base, quote);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PriceOracleErrors.PriceOracle_NotSupported.selector, address(mockVault3), randomAddress
-            )
-        );
-        mockOracle.getQuote(1e18, address(mockVault3), randomAddress);
+        vm.expectRevert(abi.encodeWithSelector(PriceOracleErrors.PriceOracle_NotSupported.selector, quote, base));
+        mockOracle.getQuote(amount, quote, base);
     }
 }
