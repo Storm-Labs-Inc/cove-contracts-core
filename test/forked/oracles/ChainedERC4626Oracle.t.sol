@@ -60,6 +60,28 @@ contract ChainedERC4626OracleTest is BaseTest {
         new ChainedERC4626Oracle(IERC4626(address(mockVault3)), randomAsset);
     }
 
+    function test_constructor_revertWhen_chainTooLong() public {
+        // Create a chain of 11 vaults to exceed max length of 10
+        ERC4626Mock[] memory mockVaults = new ERC4626Mock[](11);
+
+        // First vault uses mockBaseAsset as underlying
+        mockVaults[0] = new ERC4626Mock(IERC20(address(mockBaseAsset)), "Mock Vault 0", "mVLT0", 18);
+
+        // Create chain where each vault uses previous vault as underlying
+        for (uint256 i = 1; i < 11; i++) {
+            mockVaults[i] = new ERC4626Mock(
+                IERC20(address(mockVaults[i - 1])),
+                string.concat("Mock Vault ", vm.toString(i)),
+                string.concat("mVLT", vm.toString(i)),
+                18
+            );
+        }
+
+        // Try to create oracle with longest chain - should revert
+        vm.expectRevert(ChainedERC4626Oracle.ChainTooLong.selector);
+        new ChainedERC4626Oracle(IERC4626(address(mockVaults[10])), address(mockBaseAsset));
+    }
+
     // Mock Chain Tests
     function test_constructor_passWhen_mockChainDiscovered() public {
         // Verify the chain was properly discovered
