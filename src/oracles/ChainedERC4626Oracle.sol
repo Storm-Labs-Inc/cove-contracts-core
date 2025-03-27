@@ -45,11 +45,14 @@ contract ChainedERC4626Oracle is BaseAdapter {
         // Build the chain
         while (chainLength < _MAX_CHAIN_LENGTH) {
             if (currentVault == address(0)) revert InvalidVaultChain();
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             vaults.push(currentVault);
 
             try IERC4626(currentVault).asset() returns (address asset) {
                 currentAsset = asset;
-                ++chainLength;
+                unchecked {
+                    ++chainLength;
+                }
 
                 // Check if we've reached the target asset
                 if (currentAsset == _targetAsset) {
@@ -97,6 +100,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
             // Convert from vault shares to final asset
             uint256 amount = inAmount;
             for (uint256 i = 0; i < length;) {
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 amount = IERC4626(vaults[i]).convertToAssets(amount);
                 unchecked {
                     ++i;
@@ -110,6 +114,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
                 unchecked {
                     --i;
                 }
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 amount = IERC4626(vaults[i]).convertToShares(amount);
             }
             return amount;
