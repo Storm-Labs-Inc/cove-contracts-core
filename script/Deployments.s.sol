@@ -358,7 +358,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 buildAnchoredOracleName(asset, USD), primary, anchor, oracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle if its not already registered
+        // Register the asset/USD anchored oracle if it's not already registered
         _registerAnchoredOracleWithEulerRouter(asset, anchoredOracle);
     }
 
@@ -428,7 +428,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 buildAnchoredOracleName(asset, crossAsset), primary, crossAdapter, oracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle if its not already registered
+        // Register the asset/USD anchored oracle if it's not already registered
         _registerAnchoredOracleWithEulerRouter(asset, anchoredOracle);
     }
 
@@ -519,7 +519,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 quoteOracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle using EulerRouter if its not already registered
+        // Register the asset/USD anchored oracle using EulerRouter if it's not already registered
         _registerAnchoredOracleWithEulerRouter(base, anchoredOracle);
     }
 
@@ -611,11 +611,11 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 buildAnchoredOracleName(asset, USD), primaryOracle, anchorOracle, oracleOptions.maxDivergence
             )
         );
-        // Register the asset/USD anchored oracle using EulerRouter if its not already registered
+        // Register the asset/USD anchored oracle using EulerRouter if it's not already registered
         _registerAnchoredOracleWithEulerRouter(asset, anchoredOracle);
     }
 
-    /// @notice Registers an anchored oracle for an asset/USD pair with the EulerRouter if its not already registered
+    /// @notice Registers an anchored oracle for an asset/USD pair with the EulerRouter if it's not already registered
     function _registerAnchoredOracleWithEulerRouter(address asset, address oracle) internal {
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
         address configuredOracle = eulerRouter.getConfiguredOracle(asset, USD);
