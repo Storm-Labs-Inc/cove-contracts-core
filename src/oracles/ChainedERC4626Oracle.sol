@@ -23,9 +23,11 @@ contract ChainedERC4626Oracle is BaseAdapter {
     /// @notice The array of vaults in the chain
     address[] public vaults;
 
-    /// @notice Custom errors
+    /// @notice Thrown when a vault in the chain is invalid (zero address)
     error InvalidVaultChain();
+    /// @notice Thrown when the vault chain is either empty or exceeds the maximum allowed length
     error ChainTooLong();
+    /// @notice Thrown when the chain cannot reach the target asset (e.g., invalid vault sequence)
     error TargetAssetNotReached();
 
     /// @notice Maximum allowed length for the vault chain
@@ -50,6 +52,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
 
             try IERC4626(currentVault).asset() returns (address asset) {
                 currentAsset = asset;
+                // Safe to use unchecked as chainLength is bounded by _MAX_CHAIN_LENGTH (10)
                 unchecked {
                     ++chainLength;
                 }
@@ -102,6 +105,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
             for (uint256 i = 0; i < length;) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 amount = IERC4626(vaults[i]).convertToAssets(amount);
+                // Safe to use unchecked as i is bounded by length (which is bounded by _MAX_CHAIN_LENGTH)
                 unchecked {
                     ++i;
                 }
@@ -111,6 +115,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
             // Convert from final asset to vault shares
             uint256 amount = inAmount;
             for (uint256 i = length; i > 0;) {
+                // Safe to use unchecked as i is always > 0 in the loop condition
                 unchecked {
                     --i;
                 }
