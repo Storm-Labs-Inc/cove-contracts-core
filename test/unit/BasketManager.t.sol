@@ -143,6 +143,7 @@ contract BasketManagerTest is BaseTest {
         );
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
+        assertEq(address(bm.assetRegistry()), assetRegistry_);
         assertEq(address(bm.feeCollector()), feeCollector_);
         assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
         assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
@@ -601,6 +602,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().proposalTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(basketManager.rebalanceStatus().basketMask, 1);
         assertEq(
@@ -758,7 +760,7 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
@@ -816,7 +818,7 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
@@ -1084,7 +1086,7 @@ contract BasketManagerTest is BaseTest {
 
         // Call completeRebalance to get out of the retry loop
         vm.warp(vm.getBlockTimestamp() + 60 minutes);
-        vm.expectCall(basket, abi.encodeWithSelector(BasketToken.fallbackRedeemTrigger.selector));
+        vm.expectCall(basket, abi.encodeWithSelector(BasketToken.fulfillRedeem.selector, uint256(0)));
         basketManager.completeRebalance(new ExternalTrade[](0), baskets, targetWeights, basketAssets);
 
         // Check the retry count has been reset and we are back to NOT_STARTED status
@@ -1444,6 +1446,7 @@ contract BasketManagerTest is BaseTest {
 
         assertEq(uint8(status.status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(status.timestamp, block.timestamp);
+        assertEq(status.proposalTimestamp, block.timestamp);
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
@@ -1537,6 +1540,8 @@ contract BasketManagerTest is BaseTest {
         // Verify final rebalance status
         status = basketManager.rebalanceStatus();
         assertEq(uint8(status.status), uint8(Status.NOT_STARTED));
+        assertEq(status.timestamp, vm.getBlockTimestamp());
+        assertEq(status.proposalTimestamp, 0);
         assertEq(status.epoch, 1);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, bytes32(0));
@@ -1569,10 +1574,13 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(redeemBaskets);
 
-        // Do not trade anything and process redeems only
+        // Do not trade anything and intentionally enter retry loop
         uint256 retryLimit = basketManager.retryLimit();
+        uint40 epoch = basketManager.rebalanceStatus().epoch;
         for (uint256 i = 0; i < retryLimit; i++) {
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
+            vm.expectEmit();
+            emit BasketManagerUtils.RebalanceRetried(epoch, i + 1);
             basketManager.completeRebalance(
                 new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets
             );
@@ -1582,6 +1590,8 @@ contract BasketManagerTest is BaseTest {
         // rebalancing status
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         vm.expectCall(baskets[0], abi.encodeCall(BasketToken.fulfillRedeem, (redeemAmount)));
+        vm.expectEmit();
+        emit BasketManagerUtils.RebalanceCompleted(epoch);
         basketManager.completeRebalance(new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets);
 
         // Check the base asset balance was reduced
@@ -3805,7 +3815,7 @@ contract BasketManagerTest is BaseTest {
             vm.mockCall(
                 baskets[i], abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(initialDepositAmounts[i])
             );
-            vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fallbackRedeemTrigger.selector), new bytes(0));
+            vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fulfillRedeem.selector), new bytes(0));
             vm.mockCall(
                 baskets[i],
                 abi.encodeWithSelector(BasketToken.prepareForRebalance.selector),

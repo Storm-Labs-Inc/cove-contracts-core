@@ -50,6 +50,19 @@
   },
   {
     "type": "function",
+    "name": "assetRegistry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "basketAssets",
     "inputs": [
       {
@@ -560,25 +573,6 @@
   },
   {
     "type": "function",
-    "name": "isOrderValid",
-    "inputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "managementFee",
     "inputs": [
       {
@@ -796,6 +790,11 @@
           },
           {
             "name": "epoch",
+            "type": "uint40",
+            "internalType": "uint40"
+          },
+          {
+            "name": "proposalTimestamp",
             "type": "uint40",
             "internalType": "uint40"
           },
@@ -1419,6 +1418,51 @@
         "type": "uint40",
         "indexed": true,
         "internalType": "uint40"
+      },
+      {
+        "name": "externalTrades",
+        "type": "tuple[]",
+        "indexed": false,
+        "internalType": "struct ExternalTrade[]",
+        "components": [
+          {
+            "name": "sellToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "buyToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "sellAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "minAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "basketTradeOwnership",
+            "type": "tuple[]",
+            "internalType": "struct BasketTradeOwnership[]",
+            "components": [
+              {
+                "name": "basket",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "tradeOwnership",
+                "type": "uint96",
+                "internalType": "uint96"
+              }
+            ]
+          }
+        ]
       }
     ],
     "anonymous": false
@@ -1722,5 +1766,370 @@
     "type": "error",
     "name": "ZeroTokenTransfer",
     "inputs": []
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "fromBasket",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sellToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "buyToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "toBasket",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "sellAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxAmount",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct InternalTrade",
+        "name": "internalTrade",
+        "type": "tuple"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "buyAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "InternalTradeSettled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint40",
+        "name": "epoch",
+        "type": "uint40"
+      }
+    ],
+    "name": "RebalanceCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint40",
+        "name": "epoch",
+        "type": "uint40"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "baskets",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64[][]",
+        "name": "proposedTargetWeights",
+        "type": "uint64[][]"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[][]",
+        "name": "basketAssets",
+        "type": "address[][]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "basketHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "RebalanceProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint40",
+        "name": "epoch",
+        "type": "uint40"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "retryCount",
+        "type": "uint256"
+      }
+    ],
+    "name": "RebalanceRetried",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "SwapFeeCharged",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AssetListEmpty",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AssetNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AssetNotFoundInBasket",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BaseAssetMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BasketTokenAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BasketTokenMaxExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BasketTokenNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BasketsMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CannotBurnMoreSharesThanTotalSupply",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CannotProposeEmptyTrades",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CompleteTokenSwapFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ElementIndexNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ExternalTradeMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ExternalTradeSlippage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FailedDeployment",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IncorrectTradeTokenAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "balance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "needed",
+        "type": "uint256"
+      }
+    ],
+    "name": "InsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InternalTradeMinMaxAmountNotReached",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoRebalanceInProgress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OwnershipSumMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RebalanceNotRequired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "StrategyRegistryDoesNotSupportStrategy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TargetWeightsNotMet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TooEarlyToCompleteRebalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TooEarlyToProposeRebalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroBurnedShares",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sellToken",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "buyToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "sellAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "buyAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "validTo",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "swapContract",
+        "type": "address"
+      }
+    ],
+    "name": "OrderCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sellToken",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "buyToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "claimedSellAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "claimedBuyAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "swapContract",
+        "type": "address"
+      }
+    ],
+    "name": "TokenSwapCompleted",
+    "type": "event"
   }
 ]

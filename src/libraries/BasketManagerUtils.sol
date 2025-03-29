@@ -83,7 +83,12 @@ library BasketManagerUtils {
         bytes32 basketHash
     );
     /// @notice Emitted when a rebalance is completed.
+    /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is completed
     event RebalanceCompleted(uint40 indexed epoch);
+    /// @notice Emitted when a rebalance is retried.
+    /// @param epoch Unique identifier for the rebalance, incremented each time a rebalance is completed
+    /// @param retryCount Number of retries for the current rebalance epoch. On the first retry, this will be 1.
+    event RebalanceRetried(uint40 indexed epoch, uint256 retryCount);
 
     /// ERRORS ///
     /// @dev Reverts when the total supply of a basket token is zero.
@@ -223,6 +228,7 @@ library BasketManagerUtils {
 
         // Effects
         self.rebalanceStatus.basketMask = _createRebalanceBitMask(self, baskets);
+        self.rebalanceStatus.proposalTimestamp = uint40(block.timestamp);
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
 
@@ -268,9 +274,12 @@ library BasketManagerUtils {
                     pendingDeposits,
                     assets[baseAssetIndex]
                 );
-                balances[baseAssetIndex] += pendingDeposits;
-                totalSupply += newShares;
-                basketValue += pendingDepositValue;
+                // If no new shares are minted, no deposit will be added to the basket
+                if (newShares > 0) {
+                    balances[baseAssetIndex] += pendingDeposits;
+                    totalSupply += newShares;
+                    basketValue += pendingDepositValue;
+                }
             }
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
@@ -411,9 +420,10 @@ library BasketManagerUtils {
                     self, eulerRouter, baskets, basketTargetWeights, basketAssets, afterTradeAmounts_, totalValue_
                 )
             ) {
+                emit RebalanceRetried(self.rebalanceStatus.epoch, ++currentRetryCount);
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
-                self.rebalanceStatus.retryCount = currentRetryCount + 1;
+                self.rebalanceStatus.retryCount = currentRetryCount;
                 self.rebalanceStatus.timestamp = uint40(block.timestamp);
                 self.externalTradesHash = bytes32(0);
                 self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
@@ -583,7 +593,8 @@ library BasketManagerUtils {
         uint40 epoch = self.rebalanceStatus.epoch;
         self.rebalanceStatus.basketHash = bytes32(0);
         self.rebalanceStatus.basketMask = 0;
-        self.rebalanceStatus.epoch += 1;
+        self.rebalanceStatus.epoch = epoch + 1;
+        self.rebalanceStatus.proposalTimestamp = uint40(0);
         self.rebalanceStatus.timestamp = uint40(block.timestamp);
         self.rebalanceStatus.status = Status.NOT_STARTED;
         self.externalTradesHash = bytes32(0);
@@ -634,7 +645,9 @@ library BasketManagerUtils {
                     _USD_ISO_4217_CODE,
                     baseAsset
                 );
-                if (withdrawAmount <= baseAssetBalance) {
+                // Set withdrawAmount to zero if it exceeds baseAssetBalance, otherwise keep it unchanged
+                withdrawAmount = withdrawAmount <= baseAssetBalance ? withdrawAmount : 0;
+                if (withdrawAmount > 0) {
                     unchecked {
                         // Overflow not possible: withdrawAmount is less than or equal to balances[baseAssetIndex]
                         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
@@ -642,12 +655,10 @@ library BasketManagerUtils {
                     }
                     // slither-disable-next-line reentrancy-no-eth
                     IERC20(baseAsset).forceApprove(basket, withdrawAmount);
-                    // ERC20.transferFrom is called in BasketToken.fulfillRedeem
-                    // slither-disable-next-line reentrancy-no-eth
-                    BasketToken(basket).fulfillRedeem(withdrawAmount);
-                } else {
-                    BasketToken(basket).fallbackRedeemTrigger();
                 }
+                // ERC20.transferFrom is called in BasketToken.fulfillRedeem
+                // slither-disable-next-line reentrancy-no-eth
+                BasketToken(basket).fulfillRedeem(withdrawAmount);
             }
             unchecked {
                 // Overflow not possible: i is less than baskets.length
@@ -1108,8 +1119,14 @@ library BasketManagerUtils {
         newShares = basketValue > 0
             ? FixedPointMathLib.fullMulDiv(pendingDepositValue, totalSupply, basketValue)
             : pendingDepositValue;
-        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-        self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
+        if (newShares > 0) {
+            // Add the deposit to the basket balance if newShares is positive
+            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            self.basketBalanceOf[basket][baseAssetAddress] = baseAssetBalance + pendingDeposit;
+        } else {
+            // If newShares is 0, set pendingDepositValue to 0 to indicate rejected deposit, no deposit is minted
+            pendingDepositValue = 0;
+        }
         // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
         BasketToken(basket).fulfillDeposit(newShares);
     }

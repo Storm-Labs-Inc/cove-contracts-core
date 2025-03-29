@@ -10,6 +10,8 @@ import { Vm } from "forge-std/Vm.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
+
+import { CurveEMAOracle } from "euler-price-oracle/src/adapter/curve/CurveEMAOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
@@ -18,6 +20,7 @@ import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 string constant Artifact_PythOracle = "PythOracle.sol:PythOracle";
 string constant Artifact_ChainlinkOracle = "ChainlinkOracle.sol:ChainlinkOracle";
+string constant Artifact_CurveEMAOracle = "CurveEMAOracle.sol:CurveEMAOracle";
 string constant Artifact_CrossAdapter = "CrossAdapter.sol:CrossAdapter";
 string constant Artifact_FarmingPlugin = "FarmingPlugin.sol:FarmingPlugin";
 string constant Artifact_TimelockController = "TimelockController.sol:TimelockController";
@@ -96,6 +99,22 @@ library CustomDeployerFunctions {
     {
         bytes memory args = abi.encode(base, quote, feed, maxStaleness);
         return ChainlinkOracle(DefaultDeployerFunction.deploy(deployer, name, Artifact_ChainlinkOracle, args, options));
+    }
+
+    function deploy_CurveEMAOracle(
+        Deployer deployer,
+        string memory name,
+        address base,
+        address pool,
+        uint256 priceOracleIndex
+    )
+        internal
+        returns (CurveEMAOracle)
+    {
+        bytes memory curveEMAOracleContsructorArgs = abi.encode(pool, base, priceOracleIndex);
+        return CurveEMAOracle(
+            DefaultDeployerFunction.deploy(deployer, name, Artifact_CurveEMAOracle, curveEMAOracleContsructorArgs)
+        );
     }
 
     function deploy_CrossAdapter(

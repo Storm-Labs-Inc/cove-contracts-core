@@ -191,11 +191,22 @@ export const abi = [
   },
   {
     type: "function",
-    name: "claimFallbackShares",
-    inputs: [],
+    name: "claimFallbackAssets",
+    inputs: [
+      {
+        name: "receiver",
+        type: "address",
+        internalType: "address"
+      },
+      {
+        name: "controller",
+        type: "address",
+        internalType: "address"
+      }
+    ],
     outputs: [
       {
-        name: "shares",
+        name: "assets",
         type: "uint256",
         internalType: "uint256"
       }
@@ -235,6 +246,25 @@ export const abi = [
         type: "uint256",
         internalType: "uint256"
       },
+      {
+        name: "controller",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    outputs: [
+      {
+        name: "assets",
+        type: "uint256",
+        internalType: "uint256"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "claimableFallbackAssets",
+    inputs: [
       {
         name: "controller",
         type: "address",
@@ -342,7 +372,7 @@ export const abi = [
         internalType: "uint8"
       }
     ],
-    stateMutability: "view"
+    stateMutability: "pure"
   },
   {
     type: "function",
@@ -442,14 +472,26 @@ export const abi = [
   },
   {
     type: "function",
-    name: "fallbackRedeemTrigger",
-    inputs: [],
-    outputs: [],
-    stateMutability: "nonpayable"
+    name: "fallbackDepositTriggered",
+    inputs: [
+      {
+        name: "requestId",
+        type: "uint256",
+        internalType: "uint256"
+      }
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bool",
+        internalType: "bool"
+      }
+    ],
+    stateMutability: "view"
   },
   {
     type: "function",
-    name: "fallbackTriggered",
+    name: "fallbackRedeemTriggered",
     inputs: [
       {
         name: "requestId",
@@ -501,6 +543,78 @@ export const abi = [
         name: "",
         type: "address[]",
         internalType: "address[]"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getDepositRequest",
+    inputs: [
+      {
+        name: "requestId",
+        type: "uint256",
+        internalType: "uint256"
+      }
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        internalType: "struct BasketToken.DepositRequestView",
+        "components": [
+          {
+            name: "totalDepositAssets",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "fulfilledShares",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "fallbackTriggered",
+            type: "bool",
+            internalType: "bool"
+          }
+        ]
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
+    name: "getRedeemRequest",
+    inputs: [
+      {
+        name: "requestId",
+        type: "uint256",
+        internalType: "uint256"
+      }
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        internalType: "struct BasketToken.RedeemRequestView",
+        "components": [
+          {
+            name: "totalRedeemShares",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "fulfilledAssets",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "fallbackTriggered",
+            type: "bool",
+            internalType: "bool"
+          }
+        ]
       }
     ],
     stateMutability: "view"
@@ -1115,7 +1229,7 @@ export const abi = [
         internalType: "uint256"
       },
       {
-        name: "sharesPendingRedemption",
+        name: "pendingShares",
         type: "uint256",
         internalType: "uint256"
       }
@@ -1634,6 +1748,19 @@ export const abi = [
   },
   {
     type: "event",
+    name: "DepositFallbackTriggered",
+    inputs: [
+      {
+        name: "requestId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
     name: "DepositFulfilled",
     inputs: [
       {
@@ -1687,6 +1814,25 @@ export const abi = [
       },
       {
         name: "assets",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "DepositRequestQueued",
+    inputs: [
+      {
+        name: "depositRequestId",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      },
+      {
+        name: "pendingDeposits",
         type: "uint256",
         indexed: false,
         internalType: "uint256"
@@ -1791,6 +1937,19 @@ export const abi = [
   },
   {
     type: "event",
+    name: "RedeemFallbackTriggered",
+    inputs: [
+      {
+        name: "requestId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
     name: "RedeemFulfilled",
     inputs: [
       {
@@ -1844,6 +2003,25 @@ export const abi = [
       },
       {
         name: "assets",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      }
+    ],
+    anonymous: false
+  },
+  {
+    type: "event",
+    name: "RedeemRequestQueued",
+    inputs: [
+      {
+        name: "redeemRequestId",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256"
+      },
+      {
+        name: "pendingShares",
         type: "uint256",
         indexed: false,
         internalType: "uint256"
@@ -2276,11 +2454,6 @@ export const abi = [
   },
   {
     type: "error",
-    name: "RedeemRequestAlreadyFallbacked",
-    inputs: []
-  },
-  {
-    type: "error",
     name: "RedeemRequestAlreadyFulfilled",
     inputs: []
   },
@@ -2313,6 +2486,11 @@ export const abi = [
   {
     type: "error",
     name: "ZeroAmount",
+    inputs: []
+  },
+  {
+    type: "error",
+    name: "ZeroClaimableFallbackAssets",
     inputs: []
   },
   {

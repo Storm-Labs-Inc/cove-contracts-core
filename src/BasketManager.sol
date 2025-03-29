@@ -61,8 +61,6 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// STATE VARIABLES ///
     /// @notice Struct containing the BasketManagerUtils contract and other necessary data.
     BasketManagerStorage private _bmStorage;
-    /// @notice Mapping of order hashes to their validity status.
-    mapping(bytes32 => bool) public isOrderValid;
 
     /// EVENTS ///
     /// @notice Emitted when the swap fee is set.
@@ -82,7 +80,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Emitted when a token swap is proposed during a rebalance.
     event TokenSwapProposed(uint40 indexed epoch, InternalTrade[] internalTrades, ExternalTrade[] externalTrades);
     /// @notice Emitted when a token swap is executed during a rebalance.
-    event TokenSwapExecuted(uint40 indexed epoch);
+    event TokenSwapExecuted(uint40 indexed epoch, ExternalTrade[] externalTrades);
     /// @notice Emitted when the step delay is set.
     event StepDelaySet(uint40 oldDelay, uint40 newDelay);
     /// @notice Emitted when the retry limit is set.
@@ -242,9 +240,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
 
     /// @notice Returns the current rebalance status.
     /// @return Rebalance status struct with the following fields:
-    ///   - basketHash: Hash of the baskets proposed for rebalance.
-    ///   - timestamp: Timestamp of the last action.
-    ///   - status: Status enum of the rebalance.
+    ///   - basketHash: Hash of the baskets and target weights proposed for rebalance
+    ///   - basketMask: Bitmask representing baskets currently being rebalanced
+    ///   - epoch: Epoch of the rebalance
+    ///   - timestamp: Timestamp of the last action
+    ///   - retryCount: Number of retries for the current rebalance epoch
+    ///   - status: Status enum of the rebalance
     function rebalanceStatus() external view returns (RebalanceStatus memory) {
         return _bmStorage.rebalanceStatus;
     }
@@ -290,6 +291,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @return Maximum weight deviation.
     function weightDeviationLimit() external view returns (uint256) {
         return _bmStorage.weightDeviationLimit;
+    }
+
+    /// @notice Returns the address of the asset registry.
+    /// @return Address of the asset registry.
+    function assetRegistry() external view returns (address) {
+        return _bmStorage.assetRegistry;
     }
 
     /// @notice Returns the address of the strategy registry.
@@ -429,7 +436,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert ExecuteTokenSwapFailed();
         }
 
-        emit TokenSwapExecuted(_bmStorage.rebalanceStatus.epoch);
+        emit TokenSwapExecuted(_bmStorage.rebalanceStatus.epoch, externalTrades);
     }
 
     /// @notice Sets the address of the TokenSwapAdapter contract used to execute token swaps.
