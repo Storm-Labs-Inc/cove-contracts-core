@@ -69,8 +69,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     bytes32[] public registryNamesToUpdate;
     bytes[] public multicallData;
 
-    bytes32 internal constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
-
     // Called from DeployScript's run() function.
     function deploy() public virtual {
         deploy(true);
@@ -135,8 +133,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         address strategyRegistry =
             address(deployer.deploy_StrategyRegistry(buildStrategyRegistryName(), COVE_DEPLOYER_ADDRESS));
         address eulerRouter = address(deployer.deploy_EulerRouter(buildEulerRouterName(), EVC, COVE_DEPLOYER_ADDRESS));
-        _deployBasketManager(_FEE_COLLECTOR_SALT);
-        _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        _deployBasketManager(_feeCollectorSalt());
+        _deployFeeCollector(_feeCollectorSalt());
         _deployAndSetCowSwapAdapter();
 
         // Add all core contract names to the collection
@@ -147,6 +145,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _addToMasterRegistryLater("FeeCollector", getAddressOrRevert(buildFeeCollectorName()));
         _addToMasterRegistryLater("CowSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
     }
+
+    function _feeCollectorSalt() internal view virtual returns (bytes32);
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment)
         internal

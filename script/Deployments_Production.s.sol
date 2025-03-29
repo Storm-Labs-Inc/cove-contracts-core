@@ -27,5 +27,9 @@ contract Deployments_Staging is Deployments {
         tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
     }
 
+    function _feeCollectorSalt() internal pure override returns (bytes32) {
+        return keccak256(abi.encodePacked("Production_FeeCollector"));
+    }
+
     function _deployNonCoreContracts() internal override { }
 }

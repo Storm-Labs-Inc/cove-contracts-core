@@ -28,6 +28,10 @@ contract Deployments_Staging is Deployments {
         tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
     }
 
+    function _feeCollectorSalt() internal pure override returns (bytes32) {
+        return keccak256(abi.encodePacked("Staging_FeeCollector_0328"));
+    }
+
     function _deployNonCoreContracts() internal override {
         // Basket assets
         address[] memory basketAssets = new address[](5);
