@@ -18,7 +18,6 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
@@ -182,7 +181,7 @@ contract BasketManagerTest is BaseTest {
             assetRegistry_ = address(0);
         }
 
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         new BasketManager(
             basketTokenImplementation_, eulerRouter_, strategyRegistry_, assetRegistry_, admin_, feeCollector_
         );
@@ -250,7 +249,7 @@ contract BasketManagerTest is BaseTest {
 
     function test_execute_revertWhen_zeroAddress() public {
         bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(timelock);
         basketManager.execute{ value: 1 ether }(address(0), data, 1 ether);
     }
@@ -524,7 +523,7 @@ contract BasketManagerTest is BaseTest {
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
         vm.prank(manager);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategy);
     }
 
@@ -3154,7 +3153,7 @@ contract BasketManagerTest is BaseTest {
     function test_proRataRedeem_revertWhen_ZeroAddress() public {
         address basket = _setupSingleBasketAndMocks();
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(1, 1, address(0));
     }
@@ -3190,7 +3189,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_setTokenSwapAdapter_revertWhen_ZeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(timelock);
         basketManager.setTokenSwapAdapter(address(0));
     }
@@ -3301,7 +3300,7 @@ contract BasketManagerTest is BaseTest {
         (ExternalTrade[] memory trades,) = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
 
         // Execute
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
     }

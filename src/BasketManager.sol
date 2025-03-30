@@ -13,7 +13,6 @@ import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { Rescuable } from "src/Rescuable.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
@@ -91,6 +90,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     event WeightDeviationLimitSet(uint256 oldDeviation, uint256 newDeviation);
 
     /// ERRORS ///
+    /// @notice Thrown when the address is zero.
+    error ZeroAddress();
     /// @notice Thrown when attempting to execute a token swap without first proposing it.
     error TokenSwapNotProposed();
     /// @notice Thrown when the call to `TokenSwapAdapter.executeTokenSwap` fails.
@@ -159,12 +160,12 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         payable
     {
         // Checks
-        if (basketTokenImplementation == address(0)) revert Errors.ZeroAddress();
-        if (eulerRouter_ == address(0)) revert Errors.ZeroAddress();
-        if (strategyRegistry_ == address(0)) revert Errors.ZeroAddress();
-        if (admin == address(0)) revert Errors.ZeroAddress();
-        if (feeCollector_ == address(0)) revert Errors.ZeroAddress();
-        if (assetRegistry_ == address(0)) revert Errors.ZeroAddress();
+        if (basketTokenImplementation == address(0)) revert ZeroAddress();
+        if (eulerRouter_ == address(0)) revert ZeroAddress();
+        if (strategyRegistry_ == address(0)) revert ZeroAddress();
+        if (admin == address(0)) revert ZeroAddress();
+        if (feeCollector_ == address(0)) revert ZeroAddress();
+        if (assetRegistry_ == address(0)) revert ZeroAddress();
 
         // Effects
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -415,7 +416,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         }
         address swapAdapter = _bmStorage.tokenSwapAdapter;
         if (swapAdapter == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         if (externalTrades.length == 0) {
             revert EmptyExternalTrades();
@@ -444,7 +445,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @dev Only callable by the timelock.
     function setTokenSwapAdapter(address tokenSwapAdapter_) external onlyRole(_TIMELOCK_ROLE) {
         if (tokenSwapAdapter_ == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         _revertIfCurrentlyRebalancing();
         emit TokenSwapAdapterSet(_bmStorage.tokenSwapAdapter, tokenSwapAdapter_);
@@ -679,7 +680,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         returns (bytes memory)
     {
         // Checks
-        if (target == address(0)) revert Errors.ZeroAddress();
+        if (target == address(0)) revert ZeroAddress();
         AssetRegistry.AssetStatus status = AssetRegistry(_bmStorage.assetRegistry).getAssetStatus(address(target));
         if (status != AssetRegistry.AssetStatus.DISABLED) {
             revert AssetExistsInUniverse();

@@ -22,7 +22,6 @@ import { MockFeeCollector } from "test/utils/mocks/MockFeeCollector.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 contract BasketTokenTest is BaseTest {
@@ -166,7 +165,7 @@ contract BasketTokenTest is BaseTest {
 
         // Call initialize
         vm.prank(from);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketToken.ZeroAddress.selector);
         token.initialize(ERC20(asset), name, symbol, bitFlag, address(0), assetRegistry_);
     }
 
@@ -188,7 +187,7 @@ contract BasketTokenTest is BaseTest {
 
         // Call initialize
         vm.prank(from);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketToken.ZeroAddress.selector);
         token.initialize(ERC20(asset), name, symbol, bitFlag, strategy, address(0));
     }
 
@@ -319,7 +318,7 @@ contract BasketTokenTest is BaseTest {
     function test_requestDeposit_revertWhen_zeroAmount() public {
         vm.prank(alice);
         dummyAsset.approve(address(basket), 0);
-        vm.expectRevert(Errors.ZeroAmount.selector);
+        vm.expectRevert(BasketToken.ZeroAmount.selector);
         vm.prank(alice);
         basket.requestDeposit(0, alice, alice);
     }
@@ -589,7 +588,7 @@ contract BasketTokenTest is BaseTest {
 
     function testFuzz_deposit_revertsWhen_zeroAmount(address from) public {
         vm.prank(from);
-        vm.expectRevert(Errors.ZeroAmount.selector);
+        vm.expectRevert(BasketToken.ZeroAmount.selector);
         basket.deposit(0, from);
     }
 
@@ -883,7 +882,7 @@ contract BasketTokenTest is BaseTest {
 
     function test_requestRedeem_revertWhen_zeroAmount() public {
         vm.prank(alice);
-        vm.expectRevert(Errors.ZeroAmount.selector);
+        vm.expectRevert(BasketToken.ZeroAmount.selector);
         basket.requestRedeem(0, alice, alice);
     }
 
@@ -1406,7 +1405,7 @@ contract BasketTokenTest is BaseTest {
     }
 
     function test_redeem_revertsWhen_zeroAmount() public {
-        vm.expectRevert(Errors.ZeroAmount.selector);
+        vm.expectRevert(BasketToken.ZeroAmount.selector);
         vm.prank(alice);
         basket.redeem(0, alice, alice);
     }

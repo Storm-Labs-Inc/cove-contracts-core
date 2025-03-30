@@ -5,7 +5,6 @@ pragma solidity 0.8.28;
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
-import { Errors } from "src/libraries/Errors.sol";
 
 contract AssetRegistry_Test is BaseTest {
     AssetRegistry public assetRegistry;
@@ -29,7 +28,7 @@ contract AssetRegistry_Test is BaseTest {
     }
 
     function test_constructor_revertWhen_zeroAddressAdmin() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(AssetRegistry.ZeroAddress.selector);
         assetRegistry = new AssetRegistry(address(0));
     }
 
@@ -164,7 +163,7 @@ contract AssetRegistry_Test is BaseTest {
     }
 
     function test_addAsset_revertWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(AssetRegistry.ZeroAddress.selector);
         vm.prank(users["admin"]);
         assetRegistry.addAsset(address(0));
     }
@@ -210,7 +209,7 @@ contract AssetRegistry_Test is BaseTest {
 
     function testFuzz_setAssetStatus_revertWhen_zeroAddress(uint8 status) public {
         vm.assume(status <= uint8(type(AssetRegistry.AssetStatus).max));
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(AssetRegistry.ZeroAddress.selector);
         vm.prank(users["admin"]);
         assetRegistry.setAssetStatus(address(0), AssetRegistry.AssetStatus(status));
     }

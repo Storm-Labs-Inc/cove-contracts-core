@@ -6,7 +6,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { ClonesWithImmutableArgs } from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
-import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { ExternalTrade } from "src/types/Trades.sol";
@@ -62,11 +61,15 @@ contract CoWSwapAdapter is TokenSwapAdapter {
         address swapContract
     );
 
+    /// ERRORS ///
+    /// @notice Thrown when the address is zero.
+    error ZeroAddress();
+
     /// @notice Constructor to initialize the CoWSwapAdapter with the clone implementation address.
     /// @param cloneImplementation_ The address of the clone implementation contract.
     constructor(address cloneImplementation_) payable {
         if (cloneImplementation_ == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         cloneImplementation = cloneImplementation_;
     }
