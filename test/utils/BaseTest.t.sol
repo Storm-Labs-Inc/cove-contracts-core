@@ -287,7 +287,9 @@ abstract contract BaseTest is Test, Constants {
 
     // Helper function to dump state and log timestamp
     function _dumpStateWithTimestamp(string memory label) internal {
-        vm.dumpState(string.concat("dumpStates/", label, "_", vm.toString(vm.getBlockTimestamp()), ".json"));
+        string memory path = string.concat("dumpStates/", label, "_", vm.toString(vm.getBlockTimestamp()), ".json");
+        console.log("Dumping state: ", path);
+        vm.dumpState(path);
     }
 
     /**

@@ -28,12 +28,26 @@ contract Deployments_Staging is Deployments {
         tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
     }
 
+    function _feeCollectorSalt() internal pure override returns (bytes32) {
+        return keccak256(abi.encodePacked("Staging_FeeCollector_0328"));
+    }
+
     function _deployNonCoreContracts() internal override {
-        address[] memory basketAssets = new address[](4);
+        // Basket assets
+        address[] memory basketAssets = new address[](5);
         basketAssets[0] = ETH_USDC;
         basketAssets[1] = ETH_SDAI;
         basketAssets[2] = ETH_SUSDE;
         basketAssets[3] = ETH_SFRXUSD;
+        basketAssets[4] = ETH_YSYG_YVUSDS_1;
+
+        // Initial weights for respective basket assets
+        uint64[] memory initialWeights = new uint64[](5);
+        initialWeights[0] = 0;
+        initialWeights[1] = 0.25e18;
+        initialWeights[2] = 0.25e18;
+        initialWeights[3] = 0.25e18;
+        initialWeights[4] = 0.25e18;
 
         // 0. USD
         // Primary: USDC --(Pyth)--> USD
@@ -107,15 +121,27 @@ contract Deployments_Staging is Deployments {
         );
         _addAssetToAssetRegistry(ETH_SFRXUSD);
 
+        // 4. ysyG-yvUSDS-1
+        // Primary: ysyG-yvUSDS-1 --(ChainedERC4626)--> USDS --(Pyth)--> USD
+        // Anchor: ysyG-yvUSDS-1 --(ChainedERC4626)--> USDS --(Chainlink)--> USD
+        _deployAnchoredOracleWithChainedERC4626(
+            ETH_YSYG_YVUSDS_1,
+            ETH_USDS,
+            OracleOptions({
+                pythPriceFeed: PYTH_USDS_USD_FEED,
+                pythMaxStaleness: 30 seconds,
+                pythMaxConfWidth: 50, //0.5%
+                chainlinkPriceFeed: ETH_CHAINLINK_USDS_USD_FEED,
+                chainlinkMaxStaleness: 1 days,
+                maxDivergence: 0.005e18 // 0.5%
+             })
+        );
+        _addAssetToAssetRegistry(ETH_YSYG_YVUSDS_1);
+
         // Deploy launch strategy
         _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet V1");
 
-        uint64[] memory initialWeights = new uint64[](4);
-        initialWeights[0] = 0;
-        initialWeights[1] = 0.3333333333333334e18;
-        initialWeights[2] = 0.3333333333333333e18;
-        initialWeights[3] = 0.3333333333333333e18;
-
+        // Set the initial weights for the strategy and deploy basket token
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
                 name: "Stables",

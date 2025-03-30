@@ -69,8 +69,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     bytes32[] public registryNamesToUpdate;
     bytes[] public multicallData;
 
-    bytes32 internal constant _FEE_COLLECTOR_SALT = keccak256(abi.encodePacked("FeeCollector"));
-
     // Called from DeployScript's run() function.
     function deploy() public virtual {
         deploy(true);
@@ -135,8 +133,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         address strategyRegistry =
             address(deployer.deploy_StrategyRegistry(buildStrategyRegistryName(), COVE_DEPLOYER_ADDRESS));
         address eulerRouter = address(deployer.deploy_EulerRouter(buildEulerRouterName(), EVC, COVE_DEPLOYER_ADDRESS));
-        _deployBasketManager(_FEE_COLLECTOR_SALT);
-        _deployFeeCollector(_FEE_COLLECTOR_SALT);
+        _deployBasketManager(_feeCollectorSalt());
+        _deployFeeCollector(_feeCollectorSalt());
         _deployAndSetCowSwapAdapter();
 
         // Add all core contract names to the collection
@@ -147,6 +145,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _addToMasterRegistryLater("FeeCollector", getAddressOrRevert(buildFeeCollectorName()));
         _addToMasterRegistryLater("CowSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
     }
+
+    function _feeCollectorSalt() internal view virtual returns (bytes32);
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment)
         internal
@@ -674,6 +674,85 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         if (shouldBroadcast) {
             vm.stopBroadcast();
         }
+    }
+
+    /// @notice Deploys an anchored oracle using ChainedERC4626Oracle for a chain of ERC4626 vaults
+    /// @param initialVault The starting ERC4626 vault in the chain
+    /// @param targetAsset The final underlying asset to reach
+    /// @param oracleOptions Oracle configuration options for the target asset/USD pair
+    function _deployAnchoredOracleWithChainedERC4626(
+        address initialVault,
+        address targetAsset,
+        OracleOptions memory oracleOptions
+    )
+        internal
+    {
+        // Deploy ChainedERC4626Oracle for price conversion through the vault chain
+        address chainedERC4626Oracle = address(
+            deployer.deploy_ChainedERC4626Oracle(
+                buildChainedERC4626OracleName(initialVault, targetAsset), IERC4626(initialVault), targetAsset
+            )
+        );
+
+        // Deploy Pyth oracle for target asset/USD price
+        address pythOracle = address(
+            deployer.deploy_PythOracle(
+                buildPythOracleName(targetAsset, USD),
+                PYTH,
+                targetAsset,
+                USD,
+                oracleOptions.pythPriceFeed,
+                oracleOptions.pythMaxStaleness,
+                oracleOptions.pythMaxConfWidth
+            )
+        );
+
+        // Deploy Chainlink oracle for target asset/USD price
+        address chainlinkOracle = address(
+            deployer.deploy_ChainlinkOracle(
+                buildChainlinkOracleName(targetAsset, USD),
+                targetAsset,
+                USD,
+                oracleOptions.chainlinkPriceFeed,
+                oracleOptions.chainlinkMaxStaleness
+            )
+        );
+
+        // Deploy Cross Adapters for both oracle combinations
+        address primaryCrossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(initialVault, targetAsset, USD, "ChainedERC4626", "Pyth"),
+                initialVault,
+                targetAsset,
+                USD,
+                chainedERC4626Oracle,
+                pythOracle
+            )
+        );
+
+        address anchorCrossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(initialVault, targetAsset, USD, "ChainedERC4626", "Chainlink"),
+                initialVault,
+                targetAsset,
+                USD,
+                chainedERC4626Oracle,
+                chainlinkOracle
+            )
+        );
+
+        // Deploy Anchored Oracle combining both cross adapters
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                buildAnchoredOracleName(initialVault, USD),
+                primaryCrossAdapter,
+                anchorCrossAdapter,
+                oracleOptions.maxDivergence
+            )
+        );
+
+        // Register the vault/USD anchored oracle using EulerRouter
+        _registerAnchoredOracleWithEulerRouter(initialVault, anchoredOracle);
     }
 
     function assetsToBitFlag(address[] memory assets) public view returns (uint256 bitFlag) {

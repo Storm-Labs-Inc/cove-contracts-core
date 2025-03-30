@@ -60,6 +60,9 @@ contract Constants is CommonBase {
     address public constant ETH_FRAX = 0x853d955aCEf822Db058eb8505911ED77F175b99e;
     address public constant ETH_USDE = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
     address public constant ETH_SFRXUSD = 0xcf62F905562626CfcDD2261162a51fd02Fc9c5b6;
+    address public constant ETH_YSYG_YVUSDS_1 = 0x81f78DeF7a3a8B0F6aABa69925efC69E70239D95;
+    address public constant ETH_USDS = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
+
     // PRICE FEEDS
     // USDC/USD
     bytes32 public constant PYTH_USDC_USD_FEED = 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a;
@@ -127,6 +130,10 @@ contract Constants is CommonBase {
 
     // sfrxUSD/sUSDe
     address public constant ETH_CURVE_SFRXUSD_SUSDE_POOL = 0x3BD1017929b43c1414bE2Aca39892590fBa4d6e2;
+
+    // USDS
+    bytes32 public constant PYTH_USDS_USD_FEED = 0x77f0971af11cc8bac224917275c1bf55f2319ed5c654a1ca955c82fa2d297ea1;
+    address public constant ETH_CHAINLINK_USDS_USD_FEED = 0xfF30586cD0F29eD462364C7e81375FC0C71219b1;
 
     // COVE
     address public constant COVE_DEPLOYER_ADDRESS = 0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5;

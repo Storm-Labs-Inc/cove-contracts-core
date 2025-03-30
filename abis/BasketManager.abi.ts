@@ -5,35 +5,35 @@ export const abi = [
       {
         name: "basketTokenImplementation",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "eulerRouter_",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "strategyRegistry_",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "assetRegistry_",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "admin",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "feeCollector_",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "payable",
+    stateMutability: "payable"
   },
   {
     type: "function",
@@ -43,10 +43,10 @@ export const abi = [
       {
         name: "",
         type: "bytes32",
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -56,10 +56,10 @@ export const abi = [
       {
         name: "",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -68,17 +68,17 @@ export const abi = [
       {
         name: "basket",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "address[]",
-        internalType: "address[]",
-      },
+        internalType: "address[]"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -87,22 +87,22 @@ export const abi = [
       {
         name: "basketToken",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "asset",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -111,17 +111,17 @@ export const abi = [
       {
         name: "basketId",
         type: "bytes32",
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -130,17 +130,17 @@ export const abi = [
       {
         name: "basketToken",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -149,17 +149,17 @@ export const abi = [
       {
         name: "basketToken",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -169,10 +169,10 @@ export const abi = [
       {
         name: "",
         type: "address[]",
-        internalType: "address[]",
-      },
+        internalType: "address[]"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -181,17 +181,17 @@ export const abi = [
       {
         name: "asset",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "collectedFees",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -201,64 +201,64 @@ export const abi = [
         name: "externalTrades",
         type: "tuple[]",
         internalType: "struct ExternalTrade[]",
-        components: [
+        "components": [
           {
             name: "sellToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "buyToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "minAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "basketTradeOwnership",
             type: "tuple[]",
             internalType: "struct BasketTradeOwnership[]",
-            components: [
+            "components": [
               {
                 name: "basket",
                 type: "address",
-                internalType: "address",
+                internalType: "address"
               },
               {
                 name: "tradeOwnership",
                 type: "uint96",
-                internalType: "uint96",
-              },
-            ],
-          },
-        ],
+                internalType: "uint96"
+              }
+            ]
+          }
+        ]
       },
       {
         name: "basketsToRebalance",
         type: "address[]",
-        internalType: "address[]",
+        internalType: "address[]"
       },
       {
         name: "targetWeights",
         type: "uint64[][]",
-        internalType: "uint64[][]",
+        internalType: "uint64[][]"
       },
       {
         name: "basketAssets_",
         type: "address[][]",
-        internalType: "address[][]",
-      },
+        internalType: "address[][]"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -267,37 +267,37 @@ export const abi = [
       {
         name: "basketName",
         type: "string",
-        internalType: "string",
+        internalType: "string"
       },
       {
         name: "symbol",
         type: "string",
-        internalType: "string",
+        internalType: "string"
       },
       {
         name: "baseAsset",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "bitFlag",
         type: "uint256",
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "strategy",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "basket",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "payable",
+    stateMutability: "payable"
   },
   {
     type: "function",
@@ -307,10 +307,10 @@ export const abi = [
       {
         name: "",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -319,27 +319,27 @@ export const abi = [
       {
         name: "target",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "data",
         type: "bytes",
-        internalType: "bytes",
+        internalType: "bytes"
       },
       {
         name: "value",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "bytes",
-        internalType: "bytes",
-      },
+        internalType: "bytes"
+      }
     ],
-    stateMutability: "payable",
+    stateMutability: "payable"
   },
   {
     type: "function",
@@ -349,54 +349,54 @@ export const abi = [
         name: "externalTrades",
         type: "tuple[]",
         internalType: "struct ExternalTrade[]",
-        components: [
+        "components": [
           {
             name: "sellToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "buyToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "minAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "basketTradeOwnership",
             type: "tuple[]",
             internalType: "struct BasketTradeOwnership[]",
-            components: [
+            "components": [
               {
                 name: "basket",
                 type: "address",
-                internalType: "address",
+                internalType: "address"
               },
               {
                 name: "tradeOwnership",
                 type: "uint96",
-                internalType: "uint96",
-              },
-            ],
-          },
-        ],
+                internalType: "uint96"
+              }
+            ]
+          }
+        ]
       },
       {
         name: "data",
         type: "bytes",
-        internalType: "bytes",
-      },
+        internalType: "bytes"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -406,10 +406,10 @@ export const abi = [
       {
         name: "",
         type: "bytes32",
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -419,10 +419,10 @@ export const abi = [
       {
         name: "",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -431,22 +431,22 @@ export const abi = [
       {
         name: "basketToken",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "asset",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -455,17 +455,17 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "bytes32",
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -474,22 +474,22 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "index",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -498,17 +498,17 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -517,17 +517,17 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "address[]",
-        internalType: "address[]",
-      },
+        internalType: "address[]"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -536,16 +536,16 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "account",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -554,22 +554,22 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "account",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "bool",
-        internalType: "bool",
-      },
+        internalType: "bool"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -578,17 +578,17 @@ export const abi = [
       {
         name: "basket",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "uint16",
-        internalType: "uint16",
-      },
+        internalType: "uint16"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -598,17 +598,17 @@ export const abi = [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
     name: "pause",
     inputs: [],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -618,10 +618,10 @@ export const abi = [
       {
         name: "",
         type: "bool",
-        internalType: "bool",
-      },
+        internalType: "bool"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -630,21 +630,21 @@ export const abi = [
       {
         name: "totalSupplyBefore",
         type: "uint256",
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "burnedShares",
         type: "uint256",
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "to",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -653,11 +653,11 @@ export const abi = [
       {
         name: "basketsToRebalance",
         type: "address[]",
-        internalType: "address[]",
-      },
+        internalType: "address[]"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -667,106 +667,106 @@ export const abi = [
         name: "internalTrades",
         type: "tuple[]",
         internalType: "struct InternalTrade[]",
-        components: [
+        "components": [
           {
             name: "fromBasket",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "buyToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "toBasket",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "minAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "maxAmount",
             type: "uint256",
-            internalType: "uint256",
-          },
-        ],
+            internalType: "uint256"
+          }
+        ]
       },
       {
         name: "externalTrades",
         type: "tuple[]",
         internalType: "struct ExternalTrade[]",
-        components: [
+        "components": [
           {
             name: "sellToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "buyToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "minAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "basketTradeOwnership",
             type: "tuple[]",
             internalType: "struct BasketTradeOwnership[]",
-            components: [
+            "components": [
               {
                 name: "basket",
                 type: "address",
-                internalType: "address",
+                internalType: "address"
               },
               {
                 name: "tradeOwnership",
                 type: "uint96",
-                internalType: "uint96",
-              },
-            ],
-          },
-        ],
+                internalType: "uint96"
+              }
+            ]
+          }
+        ]
       },
       {
         name: "basketsToRebalance",
         type: "address[]",
-        internalType: "address[]",
+        internalType: "address[]"
       },
       {
         name: "targetWeights",
         type: "uint64[][]",
-        internalType: "uint64[][]",
+        internalType: "uint64[][]"
       },
       {
         name: "basketAssets_",
         type: "address[][]",
-        internalType: "address[][]",
-      },
+        internalType: "address[][]"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -777,46 +777,46 @@ export const abi = [
         name: "",
         type: "tuple",
         internalType: "struct RebalanceStatus",
-        components: [
+        "components": [
           {
             name: "basketHash",
             type: "bytes32",
-            internalType: "bytes32",
+            internalType: "bytes32"
           },
           {
             name: "basketMask",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "epoch",
             type: "uint40",
-            internalType: "uint40",
+            internalType: "uint40"
           },
           {
             name: "proposalTimestamp",
             type: "uint40",
-            internalType: "uint40",
+            internalType: "uint40"
           },
           {
             name: "timestamp",
             type: "uint40",
-            internalType: "uint40",
+            internalType: "uint40"
           },
           {
             name: "retryCount",
             type: "uint8",
-            internalType: "uint8",
+            internalType: "uint8"
           },
           {
             name: "status",
             type: "uint8",
-            internalType: "enum Status",
-          },
-        ],
-      },
+            internalType: "enum Status"
+          }
+        ]
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -825,16 +825,16 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "callerConfirmation",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -843,21 +843,21 @@ export const abi = [
       {
         name: "token",
         type: "address",
-        internalType: "contract IERC20",
+        internalType: "contract IERC20"
       },
       {
         name: "to",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "balance",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -867,10 +867,10 @@ export const abi = [
       {
         name: "",
         type: "uint8",
-        internalType: "uint8",
-      },
+        internalType: "uint8"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -880,10 +880,10 @@ export const abi = [
       {
         name: "",
         type: "uint8",
-        internalType: "uint8",
-      },
+        internalType: "uint8"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -892,16 +892,16 @@ export const abi = [
       {
         name: "role",
         type: "bytes32",
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "account",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -910,16 +910,16 @@ export const abi = [
       {
         name: "basket",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "managementFee_",
         type: "uint16",
-        internalType: "uint16",
-      },
+        internalType: "uint16"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -928,11 +928,11 @@ export const abi = [
       {
         name: "retryLimit_",
         type: "uint8",
-        internalType: "uint8",
-      },
+        internalType: "uint8"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -941,11 +941,11 @@ export const abi = [
       {
         name: "slippageLimit_",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -954,11 +954,11 @@ export const abi = [
       {
         name: "stepDelay_",
         type: "uint40",
-        internalType: "uint40",
-      },
+        internalType: "uint40"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -967,11 +967,11 @@ export const abi = [
       {
         name: "swapFee_",
         type: "uint16",
-        internalType: "uint16",
-      },
+        internalType: "uint16"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -980,11 +980,11 @@ export const abi = [
       {
         name: "tokenSwapAdapter_",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -993,11 +993,11 @@ export const abi = [
       {
         name: "weightDeviationLimit_",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -1007,10 +1007,10 @@ export const abi = [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -1020,10 +1020,10 @@ export const abi = [
       {
         name: "",
         type: "uint40",
-        internalType: "uint40",
-      },
+        internalType: "uint40"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -1033,10 +1033,10 @@ export const abi = [
       {
         name: "",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -1045,17 +1045,17 @@ export const abi = [
       {
         name: "interfaceId",
         type: "bytes4",
-        internalType: "bytes4",
-      },
+        internalType: "bytes4"
+      }
     ],
     outputs: [
       {
         name: "",
         type: "bool",
-        internalType: "bool",
-      },
+        internalType: "bool"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -1065,10 +1065,10 @@ export const abi = [
       {
         name: "",
         type: "uint16",
-        internalType: "uint16",
-      },
+        internalType: "uint16"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
@@ -1078,17 +1078,17 @@ export const abi = [
       {
         name: "",
         type: "address",
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "function",
     name: "unpause",
     inputs: [],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -1097,16 +1097,16 @@ export const abi = [
       {
         name: "basket",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "bitFlag",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
     outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "nonpayable"
   },
   {
     type: "function",
@@ -1116,10 +1116,10 @@ export const abi = [
       {
         name: "",
         type: "uint256",
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    stateMutability: "view",
+    stateMutability: "view"
   },
   {
     type: "event",
@@ -1129,34 +1129,34 @@ export const abi = [
         name: "basket",
         type: "address",
         indexed: true,
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "oldBitFlag",
         type: "uint256",
         indexed: false,
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "newBitFlag",
         type: "uint256",
         indexed: false,
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "oldId",
         type: "bytes32",
         indexed: false,
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "newId",
         type: "bytes32",
         indexed: false,
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1166,40 +1166,40 @@ export const abi = [
         name: "basket",
         type: "address",
         indexed: true,
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "basketName",
         type: "string",
         indexed: false,
-        internalType: "string",
+        internalType: "string"
       },
       {
         name: "symbol",
         type: "string",
         indexed: false,
-        internalType: "string",
+        internalType: "string"
       },
       {
         name: "baseAsset",
         type: "address",
         indexed: false,
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "bitFlag",
         type: "uint256",
         indexed: false,
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "strategy",
         type: "address",
         indexed: false,
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1209,22 +1209,22 @@ export const abi = [
         name: "basket",
         type: "address",
         indexed: true,
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "oldFee",
         type: "uint16",
         indexed: false,
-        internalType: "uint16",
+        internalType: "uint16"
       },
       {
         name: "newFee",
         type: "uint16",
         indexed: false,
-        internalType: "uint16",
-      },
+        internalType: "uint16"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1234,10 +1234,10 @@ export const abi = [
         name: "account",
         type: "address",
         indexed: false,
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1247,16 +1247,16 @@ export const abi = [
         name: "oldLimit",
         type: "uint8",
         indexed: false,
-        internalType: "uint8",
+        internalType: "uint8"
       },
       {
         name: "newLimit",
         type: "uint8",
         indexed: false,
-        internalType: "uint8",
-      },
+        internalType: "uint8"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1266,22 +1266,22 @@ export const abi = [
         name: "role",
         type: "bytes32",
         indexed: true,
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "previousAdminRole",
         type: "bytes32",
         indexed: true,
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "newAdminRole",
         type: "bytes32",
         indexed: true,
-        internalType: "bytes32",
-      },
+        internalType: "bytes32"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1291,22 +1291,22 @@ export const abi = [
         name: "role",
         type: "bytes32",
         indexed: true,
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "account",
         type: "address",
         indexed: true,
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "sender",
         type: "address",
         indexed: true,
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1316,22 +1316,22 @@ export const abi = [
         name: "role",
         type: "bytes32",
         indexed: true,
-        internalType: "bytes32",
+        internalType: "bytes32"
       },
       {
         name: "account",
         type: "address",
         indexed: true,
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "sender",
         type: "address",
         indexed: true,
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1341,16 +1341,16 @@ export const abi = [
         name: "oldSlippage",
         type: "uint256",
         indexed: false,
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "newSlippage",
         type: "uint256",
         indexed: false,
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1360,16 +1360,16 @@ export const abi = [
         name: "oldDelay",
         type: "uint40",
         indexed: false,
-        internalType: "uint40",
+        internalType: "uint40"
       },
       {
         name: "newDelay",
         type: "uint40",
         indexed: false,
-        internalType: "uint40",
-      },
+        internalType: "uint40"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1379,16 +1379,16 @@ export const abi = [
         name: "oldFee",
         type: "uint16",
         indexed: false,
-        internalType: "uint16",
+        internalType: "uint16"
       },
       {
         name: "newFee",
         type: "uint16",
         indexed: false,
-        internalType: "uint16",
-      },
+        internalType: "uint16"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1398,16 +1398,16 @@ export const abi = [
         name: "oldAdapter",
         type: "address",
         indexed: false,
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "newAdapter",
         type: "address",
         indexed: false,
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1417,55 +1417,55 @@ export const abi = [
         name: "epoch",
         type: "uint40",
         indexed: true,
-        internalType: "uint40",
+        internalType: "uint40"
       },
       {
         name: "externalTrades",
         type: "tuple[]",
         indexed: false,
         internalType: "struct ExternalTrade[]",
-        components: [
+        "components": [
           {
             name: "sellToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "buyToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "minAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "basketTradeOwnership",
             type: "tuple[]",
             internalType: "struct BasketTradeOwnership[]",
-            components: [
+            "components": [
               {
                 name: "basket",
                 type: "address",
-                internalType: "address",
+                internalType: "address"
               },
               {
                 name: "tradeOwnership",
                 type: "uint96",
-                internalType: "uint96",
-              },
-            ],
-          },
-        ],
-      },
+                internalType: "uint96"
+              }
+            ]
+          }
+        ]
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1475,98 +1475,98 @@ export const abi = [
         name: "epoch",
         type: "uint40",
         indexed: true,
-        internalType: "uint40",
+        internalType: "uint40"
       },
       {
         name: "internalTrades",
         type: "tuple[]",
         indexed: false,
         internalType: "struct InternalTrade[]",
-        components: [
+        "components": [
           {
             name: "fromBasket",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "buyToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "toBasket",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "minAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "maxAmount",
             type: "uint256",
-            internalType: "uint256",
-          },
-        ],
+            internalType: "uint256"
+          }
+        ]
       },
       {
         name: "externalTrades",
         type: "tuple[]",
         indexed: false,
         internalType: "struct ExternalTrade[]",
-        components: [
+        "components": [
           {
             name: "sellToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "buyToken",
             type: "address",
-            internalType: "address",
+            internalType: "address"
           },
           {
             name: "sellAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "minAmount",
             type: "uint256",
-            internalType: "uint256",
+            internalType: "uint256"
           },
           {
             name: "basketTradeOwnership",
             type: "tuple[]",
             internalType: "struct BasketTradeOwnership[]",
-            components: [
+            "components": [
               {
                 name: "basket",
                 type: "address",
-                internalType: "address",
+                internalType: "address"
               },
               {
                 name: "tradeOwnership",
                 type: "uint96",
-                internalType: "uint96",
-              },
-            ],
-          },
-        ],
-      },
+                internalType: "uint96"
+              }
+            ]
+          }
+        ]
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1576,10 +1576,10 @@ export const abi = [
         name: "account",
         type: "address",
         indexed: false,
-        internalType: "address",
-      },
+        internalType: "address"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "event",
@@ -1589,21 +1589,21 @@ export const abi = [
         name: "oldDeviation",
         type: "uint256",
         indexed: false,
-        internalType: "uint256",
+        internalType: "uint256"
       },
       {
         name: "newDeviation",
         type: "uint256",
         indexed: false,
-        internalType: "uint256",
-      },
+        internalType: "uint256"
+      }
     ],
-    anonymous: false,
+    anonymous: false
   },
   {
     type: "error",
     name: "AccessControlBadConfirmation",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
@@ -1612,124 +1612,124 @@ export const abi = [
       {
         name: "account",
         type: "address",
-        internalType: "address",
+        internalType: "address"
       },
       {
         name: "neededRole",
         type: "bytes32",
-        internalType: "bytes32",
-      },
-    ],
+        internalType: "bytes32"
+      }
+    ]
   },
   {
     type: "error",
     name: "AssetExistsInUniverse",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "BasketIdAlreadyExists",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "BasketTokenNotFound",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "BitFlagMustBeDifferent",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "BitFlagMustIncludeCurrent",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "BitFlagUnsupportedByStrategy",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "EmptyExternalTrades",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "EnforcedPause",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "EthTransferFailed",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ExecuteTokenSwapFailed",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ExecutionFailed",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ExpectedPause",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ExternalTradesHashMismatch",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "InvalidHash",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "InvalidManagementFee",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "InvalidRetryCount",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "InvalidSlippageLimit",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "InvalidStepDelay",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "InvalidSwapFee",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "InvalidWeightDeviationLimit",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "MustWaitForRebalanceToComplete",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ReentrancyGuardReentrantCall",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
@@ -1738,33 +1738,33 @@ export const abi = [
       {
         name: "token",
         type: "address",
-        internalType: "address",
-      },
-    ],
+        internalType: "address"
+      }
+    ]
   },
   {
     type: "error",
     name: "TokenSwapNotProposed",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "Unauthorized",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ZeroAddress",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ZeroEthTransfer",
-    inputs: [],
+    inputs: []
   },
   {
     type: "error",
     name: "ZeroTokenTransfer",
-    inputs: [],
-  },
+    inputs: []
+  }
 ];
