@@ -3,9 +3,7 @@
 pragma solidity 0.8.28;
 
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
-
 import { BitFlag } from "src/libraries/BitFlag.sol";
-import { Errors } from "src/libraries/Errors.sol";
 
 /// @title AssetRegistry
 /// @dev Manages the registration and status of assets in the system.
@@ -52,6 +50,8 @@ contract AssetRegistry is AccessControlEnumerable {
     event SetAssetStatus(address indexed asset, AssetStatus status);
 
     /// ERRORS ///
+    /// @notice Thrown when the asset address is zero.
+    error ZeroAddress();
     /// @notice Thrown when attempting to add an asset that is already enabled in the registry.
     error AssetAlreadyEnabled();
     /// @notice Thrown when attempting to perform an operation on an asset that is not enabled in the registry.
@@ -67,10 +67,10 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @dev Sets up initial roles for admin and manager
     /// @param admin The address to be granted the DEFAULT_ADMIN_ROLE
     /// @dev Reverts if:
-    ///      - The admin address is zero (Errors.ZeroAddress)
+    ///      - The admin address is zero (ZeroAddress)
     // slither-disable-next-line locked-ether
     constructor(address admin) payable {
-        if (admin == address(0)) revert Errors.ZeroAddress();
+        if (admin == address(0)) revert ZeroAddress();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, admin);
     }
@@ -80,11 +80,11 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @param asset The address of the asset to be added
     /// @dev Reverts if:
     ///      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
-    ///      - The asset address is zero (Errors.ZeroAddress)
+    ///      - The asset address is zero (ZeroAddress)
     ///      - The asset is already enabled (AssetAlreadyEnabled)
     ///      - The maximum number of assets has been reached (MaxAssetsReached)
     function addAsset(address asset) external onlyRole(_MANAGER_ROLE) {
-        if (asset == address(0)) revert Errors.ZeroAddress();
+        if (asset == address(0)) revert ZeroAddress();
         AssetData storage assetData = _assetRegistry[asset];
         if (assetData.indexPlusOne > 0) revert AssetAlreadyEnabled();
         uint256 assetLength = _assetList.length;
@@ -103,11 +103,11 @@ contract AssetRegistry is AccessControlEnumerable {
     /// @param newStatus The new status to set (ENABLED or PAUSED)
     /// @dev Reverts if:
     ///      - The caller doesn't have the MANAGER_ROLE (OpenZeppelin's AccessControl)
-    ///      - The asset address is zero (Errors.ZeroAddress)
+    ///      - The asset address is zero (ZeroAddress)
     ///      - The asset is not enabled in the registry (AssetNotEnabled)
     ///      - The new status is invalid (AssetInvalidStatusUpdate)
     function setAssetStatus(address asset, AssetStatus newStatus) external onlyRole(_MANAGER_ROLE) {
-        if (asset == address(0)) revert Errors.ZeroAddress();
+        if (asset == address(0)) revert ZeroAddress();
         AssetData storage assetData = _assetRegistry[asset];
         uint256 indexPlusOne = assetData.indexPlusOne;
         if (indexPlusOne == 0) revert AssetNotEnabled();
