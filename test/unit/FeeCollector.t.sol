@@ -12,7 +12,6 @@ import { MockBasketManager } from "test/utils/mocks/MockBasketManager.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
-import { Errors } from "src/libraries/Errors.sol";
 
 contract FeeCollectorTest is BaseTest {
     using FixedPointMathLib for uint256;
@@ -58,11 +57,11 @@ contract FeeCollectorTest is BaseTest {
     }
 
     function test_constructor_revertsWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(FeeCollector.ZeroAddress.selector);
         new FeeCollector(address(0), basketManager, treasury);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(FeeCollector.ZeroAddress.selector);
         new FeeCollector(admin, address(0), treasury);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(FeeCollector.ZeroAddress.selector);
         new FeeCollector(admin, basketManager, address(0));
     }
 
@@ -73,7 +72,7 @@ contract FeeCollectorTest is BaseTest {
     }
 
     function test_setProtocolTreasury_revertsWhen_zeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(FeeCollector.ZeroAddress.selector);
         vm.prank(admin);
         feeCollector.setProtocolTreasury(address(0));
     }

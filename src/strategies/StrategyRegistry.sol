@@ -15,7 +15,7 @@ contract StrategyRegistry is AccessControlEnumerable {
     /// @dev Role identifier for weight strategys
     bytes32 private constant _WEIGHT_STRATEGY_ROLE = keccak256("WEIGHT_STRATEGY_ROLE");
 
-    /// @dev Error thrown when an unsupported strategy is used
+    /// @notice Error thrown when an unsupported strategy is used
     error StrategyNotSupported();
 
     /// @notice Constructs the StrategyRegistry contract
