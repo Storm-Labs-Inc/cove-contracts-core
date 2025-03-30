@@ -5,29 +5,32 @@ import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadat
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
-import { console } from "forge-std/console.sol";
 
+import { Test } from "forge-std/Test.sol";
+import { Constants } from "test/utils/Constants.t.sol";
+
+import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { RebalanceStatus } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-import { BasketManagerTestLib } from "test/utils/BasketManagerTestLib.t.sol";
+import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
 
-contract BasketManager_InvariantTest is StdInvariant, BaseTest {
+abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
     using SafeERC20 for IERC20;
-    using BasketManagerTestLib for BasketManager;
+    using BasketManagerValidationLib for BasketManager;
 
     BasketManagerHandler public handler;
 
     // Constants for test configuration
-    uint256 private constant ACTOR_COUNT = 5;
-    uint256 private constant INITIAL_BALANCE = 1_000_000;
-    uint256 private constant DEPOSIT_AMOUNT = 10_000;
+    uint256 internal constant ACTOR_COUNT = 5;
+    uint256 internal constant INITIAL_BALANCE = 1_000_000;
+    uint256 internal constant DEPOSIT_AMOUNT = 10_000;
 
     function setUp() public virtual override {
         super.setUp();
-        forkNetworkAt("mainnet", BLOCK_NUMBER_MAINNET_FORK);
+        forkNetworkAt("mainnet", _getForkBlockNumber());
 
         // Deploy handler with multiple baskets
         BasketManager basketManager = _setupBasketManager();
@@ -37,10 +40,30 @@ contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         // Create and configure handler
         handler = new BasketManagerHandler(basketManager, baskets, assets, ACTOR_COUNT);
 
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = Constants.labelKnownAddresses.selector;
+        excludeSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
+
         targetContract(address(handler));
 
         // Fund test accounts
         _fundActors();
+    }
+
+    function _getForkBlockNumber() internal virtual returns (uint256) {
+        return BLOCK_NUMBER_MAINNET_FORK;
+    }
+
+    function _setupBasketManager() internal virtual returns (BasketManager);
+
+    function _setupBaskets(BasketManager basketManager) internal virtual returns (address[] memory) {
+        // Return array of basket addresses
+        return basketManager.basketTokens();
+    }
+
+    function _setupAssets(BasketManager basketManager) internal virtual returns (address[] memory) {
+        // Return array of asset addresses
+        return AssetRegistry(address(basketManager.assetRegistry())).getAllAssets();
     }
 
     function invariant_basketManagerIsOperational() public {
@@ -50,7 +73,7 @@ contract BasketManager_InvariantTest is StdInvariant, BaseTest {
 
     function invariant_basketBalancesMatchDeposits() public {
         // For each basket, verify total assets match deposits
-        address[] memory baskets = handler.baskets();
+        address[] memory baskets = handler.getBaskets();
         for (uint256 i = 0; i < baskets.length; i++) {
             assertEq(
                 handler.totalDepositsForBasket(baskets[i]),
@@ -73,23 +96,9 @@ contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         );
     }
 
-    function _setupBasketManager() internal virtual returns (BasketManager) {
-        return BasketManager(address(0));
-    }
-
-    function _setupBaskets(BasketManager basketManager) internal virtual returns (address[] memory) {
-        // Return array of basket addresses
-        return basketManager.basketTokens();
-    }
-
-    function _setupAssets(BasketManager basketManager) internal virtual returns (address[] memory) {
-        // Return array of asset addresses
-        return basketManager.assetRegistry().getAllAssets();
-    }
-
     function _fundActors() internal {
-        address[] memory actors = handler.actors();
-        address[] memory assets = handler.assets();
+        address[] memory actors = handler.getActors();
+        address[] memory assets = handler.getAssets();
 
         for (uint256 i = 0; i < actors.length; i++) {
             for (uint256 j = 0; j < assets.length; j++) {
@@ -99,8 +108,9 @@ contract BasketManager_InvariantTest is StdInvariant, BaseTest {
     }
 }
 
-contract BasketManagerHandler is BaseTest {
+contract BasketManagerHandler is Test, Constants {
     using SafeERC20 for IERC20;
+    using BasketManagerValidationLib for BasketManager;
 
     BasketManager public immutable basketManager;
     address[] public baskets;
@@ -138,13 +148,23 @@ contract BasketManagerHandler is BaseTest {
         address basket = baskets[basketIdx % baskets.length];
 
         // Bound amount to the actor's balance
-        amount = bound(amount, 1, IERC20(BasketToken(basket).asset()).balanceOf(actor));
+        uint256 balance = IERC20(BasketToken(basket).asset()).balanceOf(actor);
+        vm.assume(balance > 0);
+        // Assume no pending deposit requests
+        uint256 lastDepositRequestId = BasketToken(basket).lastDepositRequestId(actor);
+        vm.assume(BasketToken(basket).pendingDepositRequest(lastDepositRequestId, actor) == 0);
+        vm.assume(BasketToken(basket).claimableDepositRequest(lastDepositRequestId, actor) == 0);
+        vm.assume(BasketToken(basket).claimableFallbackAssets(actor) == 0);
 
-        vm.startPrank(actor);
+        // Bound amount to the actor's balance
+        amount = bound(amount, 1, balance);
+
         // Perform deposit request logic
-        IERC20(BasketToken(basket).asset()).approve(address(basketManager), amount);
+        address asset = BasketToken(basket).asset();
+        vm.prank(actor);
+        IERC20(asset).approve(address(basket), amount);
+        vm.prank(actor);
         BasketToken(basket).requestDeposit(amount, actor, actor);
-        vm.stopPrank();
 
         depositsPendingRebalance[basket][actor] += amount;
     }
@@ -154,11 +174,19 @@ contract BasketManagerHandler is BaseTest {
         address basket = baskets[basketIdx % baskets.length];
 
         uint256 balance = BasketToken(basket).balanceOf(actor);
+        vm.assume(balance > 0);
+
+        // Assume no pending redeem requests
+        uint256 lastRedeemRequestId = BasketToken(basket).lastRedeemRequestId(actor);
+        vm.assume(BasketToken(basket).pendingRedeemRequest(lastRedeemRequestId, actor) == 0);
+        vm.assume(BasketToken(basket).claimableRedeemRequest(lastRedeemRequestId, actor) == 0);
+        vm.assume(BasketToken(basket).claimableFallbackAssets(actor) == 0);
+
+        // Bound amount to the actor's balance
         amount = bound(amount, 1, balance);
 
-        vm.startPrank(actor);
+        vm.prank(actor);
         BasketToken(basket).requestRedeem(amount, actor, actor);
-        vm.stopPrank();
 
         redeemsPendingRebalance[basket][actor] += amount;
     }
@@ -166,10 +194,11 @@ contract BasketManagerHandler is BaseTest {
     function proposeRebalance() public {
         vm.assume(!isRebalancing);
 
-        vm.startPrank(basketManager.hasRole(REBALANCE_PROPOSER_ROLE));
         basketManager.testLib_updateOracleTimestamps();
+
+        address proposer = basketManager.getRoleMember(REBALANCE_PROPOSER_ROLE, 0);
+        vm.prank(proposer);
         basketManager.proposeRebalance(baskets);
-        vm.stopPrank();
 
         // Update tracking variables
         isRebalancing = true;
@@ -178,14 +207,16 @@ contract BasketManagerHandler is BaseTest {
 
     function proposeTokenSwap(InternalTrade[] memory _internalTrades, ExternalTrade[] memory _externalTrades) public {
         vm.assume(isRebalancing);
+        vm.assume(_internalTrades.length < 10);
+        vm.assume(_externalTrades.length < 10);
 
         // Propose and execute token swaps
-        vm.startPrank(basketManager.hasRole(TOKENSWAP_PROPOSER_ROLE));
         basketManager.testLib_updateOracleTimestamps();
+        address proposer = basketManager.getRoleMember(TOKENSWAP_PROPOSER_ROLE, 0);
+        vm.prank(proposer);
         basketManager.proposeTokenSwap(
             _internalTrades, _externalTrades, rebalancingBaskets, rebalancingTargetWeights, _getBasketAssets()
         );
-        vm.stopPrank();
 
         // Update tracking variables
         internalTrades = _internalTrades;
@@ -193,9 +224,9 @@ contract BasketManagerHandler is BaseTest {
         _rebalanceStatus = basketManager.rebalanceStatus();
 
         // Execute trades
-        vm.startPrank(basketManager.hasRole(TOKENSWAP_EXECUTOR_ROLE));
+        address executor = basketManager.getRoleMember(TOKENSWAP_EXECUTOR_ROLE, 0);
+        vm.prank(executor);
         basketManager.executeTokenSwap(externalTrades, "");
-        vm.stopPrank();
 
         // Simulate trade settlement
         _simulateTradeSettlement(externalTrades);
@@ -205,10 +236,10 @@ contract BasketManagerHandler is BaseTest {
         vm.assume(isRebalancing);
 
         // Wait required delay
-        vm.warp(vm.getTimestamp() + basketManager.stepDelay());
+        vm.warp(vm.getBlockTimestamp() + basketManager.stepDelay());
 
         // Update oracle timestamps
-        BasketManagerTestLib.updateOracleTimestamps(basketManager);
+        basketManager.testLib_updateOracleTimestamps();
 
         basketManager.completeRebalance(
             externalTrades, baskets, basketManager.testLib_getTargetWeights(), _getBasketAssets()
@@ -243,5 +274,17 @@ contract BasketManagerHandler is BaseTest {
 
     function rebalanceStatus() public view returns (RebalanceStatus memory) {
         return _rebalanceStatus;
+    }
+
+    function getActors() public view returns (address[] memory) {
+        return actors;
+    }
+
+    function getAssets() public view returns (address[] memory) {
+        return assets;
+    }
+
+    function getBaskets() public view returns (address[] memory) {
+        return baskets;
     }
 }

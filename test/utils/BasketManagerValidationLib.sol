@@ -6,6 +6,7 @@ import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStruct
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
+import { CurveEMAOracle } from "euler-price-oracle/src/adapter/curve/CurveEMAOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 
@@ -13,13 +14,14 @@ import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
+import { ChainedERC4626Oracle } from "src/oracles/ChainedERC4626Oracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
 
-/// @title BasketManagerTestLib
+/// @title BasketManagerValidationLib
 /// @author Cove
 /// @notice Library for testing the BasketManager contract. Other test contracts should import
 /// this library and use it for BasketManager addresses.
-library BasketManagerTestLib {
+library BasketManagerValidationLib {
     /// @notice Error thrown when an oracle is not configured for an asset
     error OracleNotConfigured(address asset);
     /// @notice Error thrown when an oracle is not an anchored oracle
@@ -44,7 +46,7 @@ library BasketManagerTestLib {
 
     /// @notice Validates that all assets in the basket have properly configured oracles
     /// @param basketManager The BasketManager contract to validate
-    function testLib_validateConfiguredOracles(BasketManager basketManager) public view {
+    function testLib_validateConfiguredOracles(BasketManager basketManager) internal view {
         // Get the EulerRouter from the BasketManager
         EulerRouter eulerRouter = EulerRouter(basketManager.eulerRouter());
 
@@ -126,6 +128,10 @@ library BasketManagerTestLib {
             _updatePythOracleTimeStamp(PythOracle(oracle).feedId());
         } else if (_isChainlinkOracle(oracle)) {
             _updateChainLinkOracleTimeStamp(ChainlinkOracle(oracle).feed());
+        } else if (_isCurveEMAOracle(oracle)) {
+            // Do nothing
+        } else if (_isChainedERC4626Oracle(oracle)) {
+            // Do nothing
         } else {
             revert InvalidOracle(oracle);
         }
@@ -330,6 +336,28 @@ library BasketManagerTestLib {
     function _isChainlinkOracle(address oracle) private view returns (bool) {
         try ChainlinkOracle(oracle).name() returns (string memory name) {
             return keccak256(bytes(name)) == keccak256(bytes("ChainlinkOracle"));
+        } catch {
+            return false;
+        }
+    }
+
+    /// @notice Helper function to check if an oracle is a CurveEMAOracle
+    /// @param oracle The oracle address to check
+    /// @return True if the oracle is a CurveEMAOracle
+    function _isCurveEMAOracle(address oracle) private view returns (bool) {
+        try CurveEMAOracle(oracle).name() returns (string memory name) {
+            return keccak256(bytes(name)) == keccak256(bytes("CurveEMAOracle"));
+        } catch {
+            return false;
+        }
+    }
+
+    /// @notice Helper function to check if an oracle is a ChainedERC4626Oracle
+    /// @param oracle The oracle address to check
+    /// @return True if the oracle is a ChainedERC4626Oracle
+    function _isChainedERC4626Oracle(address oracle) private view returns (bool) {
+        try ChainedERC4626Oracle(oracle).name() returns (string memory name) {
+            return keccak256(bytes(name)) == keccak256(bytes("ChainedERC4626Oracle"));
         } catch {
             return false;
         }
