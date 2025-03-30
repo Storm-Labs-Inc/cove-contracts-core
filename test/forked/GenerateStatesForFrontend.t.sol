@@ -36,9 +36,9 @@ contract GenerateStatesForFrontend is BaseTest {
     uint256 public constant DEPOSIT = 10_000;
 
     function setUp() public override {
-        // https://etherscan.io/block/22046527
-        // 14th March 2025, targets staging deployment reaplcing sFRAX with sfrxUSD
-        forkNetworkAt("mainnet", 22_046_527);
+        // https://etherscan.io/block/22155634
+        // 29th March 2025, targets staging deployment including ysyG-yvUSDS-1
+        forkNetworkAt("mainnet", 22_155_634);
         basketManager = _getFromStagingMasterRegistry("BasketManager");
         basketToken = BasketManager(basketManager).basketTokens()[0];
         weightStrategy = BasketToken(basketToken).strategy();
@@ -98,13 +98,16 @@ contract GenerateStatesForFrontend is BaseTest {
 
         // Generate external trades, execute them, mock cowswap activity, then complete rebalance
         uint64[][] memory targetWeights = _getBasketTagetWeights(basketTokens);
-        ExternalTrade[] memory externalTrades = new ExternalTrade[](3);
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](4);
         externalTrades[0] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, depositAmount * targetWeights[0][1] / 1e18);
         externalTrades[1] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, depositAmount * targetWeights[0][2] / 1e18);
         externalTrades[2] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRXUSD, depositAmount * targetWeights[0][3] / 1e18);
+        externalTrades[3] = _buildSingleExternalTrade(
+            basketToken, ETH_USDC, ETH_YSYG_YVUSDS_1, depositAmount * targetWeights[0][4] / 1e18
+        );
 
         // 5. Complete rebalance, account can now redeem
         _continueAndCompleteRebalance(basketTokens, externalTrades);
@@ -133,6 +136,12 @@ contract GenerateStatesForFrontend is BaseTest {
         externalTrades[2] = _buildSingleExternalTrade(
             basketToken, ETH_SFRXUSD, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SFRXUSD)
         );
+        externalTrades[3] = _buildSingleExternalTrade(
+            basketToken,
+            ETH_YSYG_YVUSDS_1,
+            ETH_USDC,
+            BasketManager(basketManager).basketBalanceOf(basketToken, ETH_YSYG_YVUSDS_1)
+        );
         _continueAndCompleteRebalance(basketTokens, externalTrades);
 
         // Verify redeem is claimable
@@ -157,6 +166,9 @@ contract GenerateStatesForFrontend is BaseTest {
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, targetWeights[0][2] * depositAmount / 1e18);
         externalTrades[2] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SFRXUSD, targetWeights[0][3] * depositAmount / 1e18);
+        externalTrades[3] = _buildSingleExternalTrade(
+            basketToken, ETH_USDC, ETH_YSYG_YVUSDS_1, targetWeights[0][4] * depositAmount / 1e18
+        );
         _continueAndCompleteRebalance(basketTokens, externalTrades);
         vm.prank(user);
         BasketToken(basketToken).deposit(depositAmount, user, user);
@@ -208,10 +220,12 @@ contract GenerateStatesForFrontend is BaseTest {
         _updatePythOracleTimeStamp(PYTH_SUSDE_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_USDC_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_SDAI_USD_FEED);
+        _updatePythOracleTimeStamp(PYTH_USDS_USD_FEED);
 
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_SUSDE_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDC_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_DAI_USD_FEED);
+        _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDS_USD_FEED);
     }
 
     function _getBasketTagetWeights(address[] memory basketTokens) internal view returns (uint64[][] memory) {
@@ -283,7 +297,11 @@ contract GenerateStatesForFrontend is BaseTest {
                     abi.decode(logs[i].data, (uint256, uint256, uint32, address));
                 // Simulate the trade being executed
                 takeAway(IERC20(sellToken), swapContract, sellAmount);
-                airdrop(IERC20(buyToken), swapContract, buyAmount);
+                // ysyG-yvUSDS-1 uses Yearn strategy v3 implementation, which relies on the total supply of the vault
+                // to calculate conversion rate between shares and assets. So we don't adjust the total supply for
+                // ysyG-yvUSDS-1
+                bool adjustTotalSupply = buyToken != ETH_YSYG_YVUSDS_1;
+                airdrop(IERC20(buyToken), swapContract, buyAmount, adjustTotalSupply);
             }
         }
 

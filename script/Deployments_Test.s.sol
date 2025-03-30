@@ -27,6 +27,10 @@ contract Deployments_Test is Deployments {
         tokenSwapExecutor = COVE_OPS_MULTISIG;
     }
 
+    function _feeCollectorSalt() internal pure override returns (bytes32) {
+        return keccak256(abi.encodePacked("Test_FeeCollector"));
+    }
+
     function _deployNonCoreContracts() internal override {
         // For integration test purposes
         address[] memory basketAssets = new address[](6);
