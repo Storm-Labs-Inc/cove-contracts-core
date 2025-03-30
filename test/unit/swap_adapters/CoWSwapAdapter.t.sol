@@ -5,7 +5,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
-import { Errors } from "src/libraries/Errors.sol";
 import { CoWSwapAdapter } from "src/swap_adapters/CoWSwapAdapter.sol";
 import { CoWSwapClone } from "src/swap_adapters/CoWSwapClone.sol";
 import { BasketTradeOwnership, ExternalTrade } from "src/types/Trades.sol";
@@ -34,7 +33,7 @@ contract CoWSwapAdapterTest is BaseTest {
     }
 
     function test_constructor_revertWhen_ZeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(CoWSwapAdapter.ZeroAddress.selector);
         new CoWSwapAdapter(address(0));
     }
 

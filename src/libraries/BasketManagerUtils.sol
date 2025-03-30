@@ -9,7 +9,6 @@ import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { MathUtils } from "src/libraries/MathUtils.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
 import { BasketManagerStorage, RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
@@ -91,57 +90,61 @@ library BasketManagerUtils {
     event RebalanceRetried(uint40 indexed epoch, uint256 retryCount);
 
     /// ERRORS ///
-    /// @dev Reverts when the total supply of a basket token is zero.
+    /// @notice Reverts when the address is zero.
+    error ZeroAddress();
+    /// @notice Reverts when the amount is zero.
+    error ZeroAmount();
+    /// @notice Reverts when the total supply of a basket token is zero.
     error ZeroTotalSupply();
-    /// @dev Reverts when the amount of burned shares is zero.
+    /// @notice Reverts when the amount of burned shares is zero.
     error ZeroBurnedShares();
-    /// @dev Reverts when trying to burn more shares than the total supply.
+    /// @notice Reverts when trying to burn more shares than the total supply.
     error CannotBurnMoreSharesThanTotalSupply();
-    /// @dev Reverts when the requested basket token is not found.
+    /// @notice Reverts when the requested basket token is not found.
     error BasketTokenNotFound();
-    /// @dev Reverts when the requested asset is not found in the basket.
+    /// @notice Reverts when the requested asset is not found in the basket.
     error AssetNotFoundInBasket();
-    /// @dev Reverts when trying to create a basket token that already exists.
+    /// @notice Reverts when trying to create a basket token that already exists.
     error BasketTokenAlreadyExists();
-    /// @dev Reverts when the maximum number of basket tokens has been reached.
+    /// @notice Reverts when the maximum number of basket tokens has been reached.
     error BasketTokenMaxExceeded();
-    /// @dev Reverts when the requested element index is not found.
+    /// @notice Reverts when the requested element index is not found.
     error ElementIndexNotFound();
-    /// @dev Reverts when the strategy registry does not support the given strategy.
+    /// @notice Reverts when the strategy registry does not support the given strategy.
     error StrategyRegistryDoesNotSupportStrategy();
-    /// @dev Reverts when the baskets or target weights do not match the proposed rebalance.
+    /// @notice Reverts when the baskets or target weights do not match the proposed rebalance.
     error BasketsMismatch();
-    /// @dev Reverts when the base asset does not match the given asset.
+    /// @notice Reverts when the base asset does not match the given asset.
     error BaseAssetMismatch();
-    /// @dev Reverts when the asset is not found in the asset registry.
+    /// @notice Reverts when the asset is not found in the asset registry.
     error AssetListEmpty();
-    /// @dev Reverts when a rebalance is in progress and the caller must wait for it to complete.
+    /// @notice Reverts when a rebalance is in progress and the caller must wait for it to complete.
     error MustWaitForRebalanceToComplete();
-    /// @dev Reverts when there is no rebalance in progress.
+    /// @notice Reverts when there is no rebalance in progress.
     error NoRebalanceInProgress();
-    /// @dev Reverts when it is too early to complete the rebalance.
+    /// @notice Reverts when it is too early to complete the rebalance.
     error TooEarlyToCompleteRebalance();
-    /// @dev Reverts when it is too early to propose a rebalance.
+    /// @notice Reverts when it is too early to propose a rebalance.
     error TooEarlyToProposeRebalance();
-    /// @dev Reverts when a rebalance is not required.
+    /// @notice Reverts when a rebalance is not required.
     error RebalanceNotRequired();
-    /// @dev Reverts when the external trade slippage exceeds the allowed limit.
+    /// @notice Reverts when the external trade slippage exceeds the allowed limit.
     error ExternalTradeSlippage();
-    /// @dev Reverts when the target weights are not met.
+    /// @notice Reverts when the target weights are not met.
     error TargetWeightsNotMet();
-    /// @dev Reverts when the minimum or maximum amount is not reached for an internal trade.
+    /// @notice Reverts when the minimum or maximum amount is not reached for an internal trade.
     error InternalTradeMinMaxAmountNotReached();
-    /// @dev Reverts when the trade token amount is incorrect.
+    /// @notice Reverts when the trade token amount is incorrect.
     error IncorrectTradeTokenAmount();
-    /// @dev Reverts when given external trades do not match.
+    /// @notice Reverts when given external trades do not match.
     error ExternalTradeMismatch();
-    /// @dev Reverts when the delegatecall to the tokenswap adapter fails.
+    /// @notice Reverts when the delegatecall to the tokenswap adapter fails.
     error CompleteTokenSwapFailed();
-    /// @dev Reverts when an asset included in a bit flag is not enabled in the asset registry.
+    /// @notice Reverts when an asset included in a bit flag is not enabled in the asset registry.
     error AssetNotEnabled();
-    /// @dev Reverts when no internal or external trades are provided for a rebalance.
+    /// @notice Reverts when no internal or external trades are provided for a rebalance.
     error CannotProposeEmptyTrades();
-    /// @dev Reverts when the sum of tradeOwnerships do not match the _WEIGHT_PRECISION
+    /// @notice Reverts when the sum of tradeOwnerships do not match the _WEIGHT_PRECISION
     error OwnershipSumMismatch();
     /// @dev Reverts when the sell amount of an internal trade is zero.
     error InternalTradeSellAmountZero();
@@ -168,7 +171,7 @@ library BasketManagerUtils {
     {
         // Checks
         if (baseAsset == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         uint256 basketTokensLength = self.basketTokens.length;
         if (basketTokensLength >= _MAX_NUM_OF_BASKET_TOKENS) {
@@ -464,7 +467,7 @@ library BasketManagerUtils {
             revert CannotBurnMoreSharesThanTotalSupply();
         }
         if (to == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         // Revert if the basket is currently rebalancing
         if ((self.rebalanceStatus.basketMask & (1 << self.basketTokenToIndexPlusOne[msg.sender] - 1)) != 0) {

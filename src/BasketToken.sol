@@ -18,7 +18,6 @@ import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { Permit2Lib } from "src/deps/permit2/Permit2Lib.sol";
 import { IERC7540Deposit, IERC7540Operator, IERC7540Redeem } from "src/interfaces/IERC7540.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 
 /// @title BasketToken
@@ -162,6 +161,10 @@ contract BasketToken is
     event RedeemRequestQueued(uint256 redeemRequestId, uint256 pendingShares);
 
     /// ERRORS ///
+    /// @notice Thrown when the asset address is zero.
+    error ZeroAddress();
+    /// @notice Thrown when the amount is zero.
+    error ZeroAmount();
     /// @notice Thrown when there are no pending deposits to fulfill.
     error ZeroPendingDeposits();
     /// @notice Thrown when there are no pending redeems to fulfill.
@@ -229,7 +232,7 @@ contract BasketToken is
         initializer
     {
         if (strategy_ == address(0) || assetRegistry_ == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         basketManager = msg.sender;
         bitFlag = bitFlag_;
@@ -304,7 +307,7 @@ contract BasketToken is
             }
         }
         if (assets == 0) {
-            revert Errors.ZeroAmount();
+            revert ZeroAmount();
         }
         requestId = nextDepositRequestId;
         uint256 userLastDepositRequestId = lastDepositRequestId[controller];
@@ -377,7 +380,7 @@ contract BasketToken is
     function requestRedeem(uint256 shares, address controller, address owner) public returns (uint256 requestId) {
         // Checks
         if (shares == 0) {
-            revert Errors.ZeroAmount();
+            revert ZeroAmount();
         }
         requestId = nextRedeemRequestId;
         // If the user has a pending redeem request in the past, they must wait for it to be fulfilled before making a
@@ -812,7 +815,7 @@ contract BasketToken is
     function deposit(uint256 assets, address receiver, address controller) public returns (uint256 shares) {
         // Checks
         if (assets == 0) {
-            revert Errors.ZeroAmount();
+            revert ZeroAmount();
         }
         _onlySelfOrOperator(controller);
         DepositRequestStruct storage depositRequest = _depositRequests[lastDepositRequestId[controller]];
@@ -911,7 +914,7 @@ contract BasketToken is
     function redeem(uint256 shares, address receiver, address controller) public override returns (uint256 assets) {
         // Checks
         if (shares == 0) {
-            revert Errors.ZeroAmount();
+            revert ZeroAmount();
         }
         _onlySelfOrOperator(controller);
         RedeemRequestStruct storage redeemRequest = _redeemRequests[lastRedeemRequestId[controller]];

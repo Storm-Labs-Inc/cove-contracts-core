@@ -6,7 +6,6 @@ import { Multicall } from "@openzeppelin/contracts/utils/Multicall.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BitFlag } from "src/libraries/BitFlag.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
@@ -32,13 +31,16 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable, Multi
     /// @dev Address of the BasketManager contract associated with this strategy.
     address internal immutable _basketManager;
 
-    /// @dev Error thrown when an unsupported bit flag is provided.
+    /// ERRORS ///
+    /// @notice Error thrown when the address is zero.
+    error ZeroAddress();
+    /// @notice Error thrown when an unsupported bit flag is provided.
     error UnsupportedBitFlag();
-    /// @dev Error thrown when the length of the weights array does not match the number of assets.
+    /// @notice Error thrown when the length of the weights array does not match the number of assets.
     error InvalidWeightsLength();
-    /// @dev Error thrown when the sum of the weights does not equal _WEIGHT_PRECISION (100%).
+    /// @notice Error thrown when the sum of the weights does not equal _WEIGHT_PRECISION (100%).
     error WeightsSumMismatch();
-    /// @dev Error thrown when no target weights are set for the given epoch and bit flag.
+    /// @notice Error thrown when no target weights are set for the given epoch and bit flag.
     error NoTargetWeights();
 
     /// @notice Emitted when target weights are updated.
@@ -54,10 +56,10 @@ contract ManagedWeightStrategy is WeightStrategy, AccessControlEnumerable, Multi
     // slither-disable-next-line locked-ether
     constructor(address admin, address basketManager) payable {
         if (admin == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         if (basketManager == address(0)) {
-            revert Errors.ZeroAddress();
+            revert ZeroAddress();
         }
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(_MANAGER_ROLE, admin);
