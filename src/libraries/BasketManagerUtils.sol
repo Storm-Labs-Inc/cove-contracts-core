@@ -1034,7 +1034,7 @@ library BasketManagerUtils {
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[baskets[i]] - 1;
 
                 // Track running sum for all weights except the last one
-                uint256 runningSum;
+                uint256 runningSum = 0;
                 uint256 lastIndex = numOfAssets - 1;
 
                 // Adjust weights while maintaining 1e18 sum
