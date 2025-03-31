@@ -29,8 +29,8 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
     uint256 internal constant DEPOSIT_AMOUNT = 10_000;
 
     function setUp() public virtual override {
-        super.setUp();
         forkNetworkAt("mainnet", _getForkBlockNumber());
+        super.setUp();
 
         // Deploy handler with multiple baskets
         BasketManager basketManager = _setupBasketManager();
@@ -203,6 +203,13 @@ contract BasketManagerHandler is Test, Constants {
         // Update tracking variables
         isRebalancing = true;
         _rebalanceStatus = basketManager.rebalanceStatus();
+        for (uint256 i = 0; i < baskets.length; i++) {
+            for (uint256 j = 0; j < actors.length; j++) {
+                uint256 depositAmount = depositsPendingRebalance[baskets[i]][actors[j]];
+                depositsPendingRebalance[baskets[i]][actors[j]] = 0;
+                totalDepositsForBasket[baskets[i]] += depositAmount;
+            }
+        }
     }
 
     function proposeTokenSwap(InternalTrade[] memory _internalTrades, ExternalTrade[] memory _externalTrades) public {
