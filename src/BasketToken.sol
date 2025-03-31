@@ -252,18 +252,23 @@ contract BasketToken is
     /// @return The total value of the basket in assets.
     function totalAssets() public view override returns (uint256) {
         address[] memory assets = getAssets();
-        uint256 usdAmount;
+        uint256 usdAmount = 0;
         uint256 assetsLength = assets.length;
 
         BasketManager bm = BasketManager(basketManager);
         EulerRouter eulerRouter = EulerRouter(bm.eulerRouter());
+        address baseAsset = asset();
 
         for (uint256 i = 0; i < assetsLength;) {
-            // slither-disable-start calls-loop
-            uint256 assetBalance = bm.basketBalanceOf(address(this), assets[i]);
-            // Rounding direction: down
-            usdAmount += eulerRouter.getQuote(assetBalance, assets[i], _USD_ISO_4217_CODE);
-            // slither-disable-end calls-loop
+            if (assets[i] != baseAsset) {
+                // slither-disable-start calls-loop
+                uint256 assetBalance = bm.basketBalanceOf(address(this), assets[i]);
+                if (assetBalance > 0) {
+                    // Rounding direction: down
+                    usdAmount += eulerRouter.getQuote(assetBalance, assets[i], _USD_ISO_4217_CODE);
+                }
+                // slither-disable-end calls-loop
+            }
 
             unchecked {
                 // Overflow not possible: i is less than assetsLength
@@ -271,7 +276,8 @@ contract BasketToken is
             }
         }
 
-        return eulerRouter.getQuote(usdAmount, _USD_ISO_4217_CODE, asset());
+        return eulerRouter.getQuote(usdAmount, _USD_ISO_4217_CODE, baseAsset)
+            + bm.basketBalanceOf(address(this), baseAsset);
     }
 
     /// @notice Returns the target weights for the given epoch.

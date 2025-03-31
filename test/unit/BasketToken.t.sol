@@ -2046,7 +2046,7 @@ contract BasketTokenTest is BaseTest {
         _totalAssetsMockCall();
 
         // Check that the actual total assets matches the expected value
-        assertEq(basket.totalAssets(), 1e18, "Total assets should match expected");
+        assertEq(basket.totalAssets(), 2e18, "Total assets should match expected");
     }
 
     function testFuzz_getAssets(address[] memory assets) public {
@@ -2058,44 +2058,42 @@ contract BasketTokenTest is BaseTest {
     }
 
     function _totalAssetsMockCall() public {
+        // Mock the eulerRouter address
+        address eulerRouter = address(0x123);
+        address baseAsset = basket.asset();
         // Mock the call to assetRegistry to return a list of assets
         address[] memory assets = new address[](1);
-        assets[0] = address(0x1);
+        assets[0] = baseAsset;
         vm.mockCall(
             basket.assetRegistry(), abi.encodeCall(AssetRegistry.getAssets, (basket.bitFlag())), abi.encode(assets)
         );
-
-        uint256 assetBalance = 1e18; // Assume each asset has a balance of 1 token
+        vm.mockCall(basket.basketManager(), abi.encodeCall(BasketManager.eulerRouter, ()), abi.encode(eulerRouter));
+        uint256 usdSum = 0;
+        for (uint256 i = 0; i < assets.length; i++) {
+            uint256 assetBalance = 1e18;
+            vm.mockCall(
+                basket.basketManager(),
+                abi.encodeCall(BasketManager.basketBalanceOf, (address(basket), assets[i])),
+                abi.encode(assetBalance)
+            );
+            if (assets[i] != baseAsset) {
+                uint256 usdQuote = 1e18;
+                vm.mockCall(
+                    eulerRouter,
+                    abi.encodeCall(EulerRouter.getQuote, (assetBalance, assets[i], USD)),
+                    abi.encode(usdQuote)
+                );
+                usdSum += usdQuote;
+            }
+        }
+        // Assume sum of the value of non base asset wrt base asset is 1e18
+        uint256 expectedTotalAssets = 1e18;
         vm.mockCall(
-            basket.basketManager(),
-            abi.encodeCall(BasketManager.basketBalanceOf, (address(basket), address(0x1))),
-            abi.encode(assetBalance)
-        );
-
-        uint256 quote = 2e18; // Assume each asset is worth 2 USD
-        vm.mockCall(
-            basket.basketManager(),
-            abi.encodeCall(BasketManager.eulerRouter, ()),
-            abi.encode(address(0x123)) // Mock the eulerRouter address
-        );
-        vm.mockCall(
-            address(0x123), // Use the mocked eulerRouter address
-            abi.encodeCall(EulerRouter.getQuote, (assetBalance, address(0x1), USD)),
-            abi.encode(quote)
-        );
-
-        // Convert the expected total value to the basket's asset
-        uint256 expectedTotalAssets = 1e18; // Assume the basket asset is worth 1 USD
-        vm.mockCall(
-            basket.basketManager(),
-            abi.encodeCall(BasketManager.eulerRouter, ()),
-            abi.encode(address(0x123)) // Mock the eulerRouter address
-        );
-        vm.mockCall(
-            address(0x123), // Use the mocked eulerRouter address
-            abi.encodeCall(EulerRouter.getQuote, (quote, USD, basket.asset())),
+            eulerRouter, // Use the mocked eulerRouter address
+            abi.encodeCall(EulerRouter.getQuote, (usdSum, USD, baseAsset)),
             abi.encode(expectedTotalAssets)
         );
+        // The expected total assets is 2e18 (1e18 non base asset + 1e18 base asset)
     }
 
     function testFuzz_harvestManagementFee1Year(
