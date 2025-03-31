@@ -673,6 +673,20 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
     }
 
+    function test_proposeRebalance_revertWhen_ZeroTotalSupply() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+
+        // Mock total supply to be 0
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 0));
+
+        vm.expectRevert(BasketManagerUtils.ZeroTotalSupply.selector);
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(targetBaskets);
+    }
+
     function test_proposeRebalance_processesDeposits_revertWhen_paused() public {
         address basket = _setupSingleBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
