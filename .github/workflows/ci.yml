@@ -190,7 +190,6 @@ jobs:
 
   coverage:
     name: Coverage
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout repository
