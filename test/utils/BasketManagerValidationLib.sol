@@ -16,6 +16,7 @@ import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkA
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ChainedERC4626Oracle } from "src/oracles/ChainedERC4626Oracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
+import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
 /// @title BasketManagerValidationLib
 /// @author Cove
@@ -111,6 +112,94 @@ library BasketManagerValidationLib {
         for (uint256 i = 0; i < baskets.length; i++) {
             targetWeights[i] = BasketToken(baskets[i]).getTargetWeights();
         }
+    }
+
+    function testLib_needsRebalance(
+        BasketManager basketManager,
+        address[] memory baskets
+    )
+        internal
+        view
+        returns (bool)
+    {
+        for (uint256 i = 0; i < baskets.length; i++) {
+            if (testLib_needsRebalance(basketManager, baskets[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function testLib_needsRebalance(BasketManager basketManager) internal view returns (bool) {
+        address[] memory baskets = basketManager.basketTokens();
+        for (uint256 i = 0; i < baskets.length; i++) {
+            if (testLib_needsRebalance(basketManager, baskets[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function testLib_needsRebalance(BasketManager basketManager, address basket) internal view returns (bool) {
+        // Only if the basket rebalance status is NOT_STARTED
+        if (basketManager.rebalanceStatus().status != Status.NOT_STARTED) {
+            return false;
+        }
+
+        // Check if there is pending deposit, if so return true
+        if (BasketToken(basket).totalPendingDeposits() > 0) {
+            return true;
+        }
+
+        // Check if there is pending withdrawal, if so return true
+        if (BasketToken(basket).totalPendingRedemptions() > 0) {
+            return true;
+        }
+
+        // Check if the target weights have met
+        uint64[] memory targetWeights = BasketToken(basket).getTargetWeights();
+
+        // Calculate the current weights
+        address[] memory assets = basketManager.basketAssets(basket);
+        uint256[] memory usdValues = new uint256[](assets.length);
+        for (uint256 i = 0; i < assets.length; i++) {
+            // get balances
+            uint256 balance = basketManager.basketBalanceOf(basket, assets[i]);
+            uint256 usdValue = EulerRouter(basketManager.eulerRouter()).getQuote(balance, assets[i], USD);
+            usdValues[i] = usdValue;
+        }
+
+        // Calculate the total USD value of the basket
+        uint256 totalUsdValue = 0;
+        for (uint256 i = 0; i < usdValues.length; i++) {
+            totalUsdValue += usdValues[i];
+        }
+        if (totalUsdValue == 0) {
+            return false;
+        }
+
+        // Calculate the current weights
+        uint64[] memory currentWeights = new uint64[](assets.length);
+        uint256 remainingSum = 1e18;
+        for (uint256 i = 0; i < assets.length - 1; i++) {
+            currentWeights[i] = uint64(usdValues[i] * 1e18 / totalUsdValue);
+            remainingSum -= currentWeights[i];
+        }
+        currentWeights[assets.length - 1] = uint64(remainingSum);
+
+        // Check if the target weights have met
+        for (uint256 i = 0; i < targetWeights.length; i++) {
+            // Check if the weight difference exceeds the configured weightDeviationLimit
+            uint256 weightDiff = targetWeights[i] > currentWeights[i]
+                ? targetWeights[i] - currentWeights[i]
+                : currentWeights[i] - targetWeights[i];
+            if (weightDiff > basketManager.weightDeviationLimit()) {
+                return true;
+            }
+        }
+
+        // If non of the above conditions are met, return false
+        return false;
     }
 
     function _updateOracleTimestamp(EulerRouter eulerRouter, address oracle) private {

@@ -28,6 +28,10 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
     uint256 internal constant INITIAL_BALANCE = 1_000_000;
     uint256 internal constant DEPOSIT_AMOUNT = 10_000;
 
+    ///////////////////////
+    // SETUP
+    ///////////////////////
+
     function setUp() public virtual override {
         forkNetworkAt("mainnet", _getForkBlockNumber());
         super.setUp();
@@ -66,6 +70,10 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         return AssetRegistry(address(basketManager.assetRegistry())).getAllAssets();
     }
 
+    ///////////////////////
+    // INVARIANTS
+    ///////////////////////
+
     function invariant_basketManagerIsOperational() public {
         // Check if BasketManager is not paused
         assertTrue(!handler.basketManager().paused(), "BasketManager should not be paused");
@@ -95,6 +103,10 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
             "Rebalance status should be consistent"
         );
     }
+
+    ///////////////////////
+    // HELPERS
+    ///////////////////////
 
     function _fundActors() internal {
         address[] memory actors = handler.getActors();
@@ -193,6 +205,7 @@ contract BasketManagerHandler is Test, Constants {
 
     function proposeRebalance() public {
         vm.assume(!isRebalancing);
+        vm.assume(basketManager.testLib_needsRebalance(baskets));
 
         basketManager.testLib_updateOracleTimestamps();
 
