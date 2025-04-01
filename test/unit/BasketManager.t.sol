@@ -673,6 +673,20 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
     }
 
+    function test_proposeRebalance_revertWhen_ZeroTotalSupply() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+
+        // Mock total supply to be 0
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 0));
+
+        vm.expectRevert(BasketManagerUtils.ZeroTotalSupply.selector);
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(targetBaskets);
+    }
+
     function test_proposeRebalance_processesDeposits_revertWhen_paused() public {
         address basket = _setupSingleBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
@@ -714,21 +728,19 @@ contract BasketManagerTest is BaseTest {
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, _targetWeights, basketAssets);
 
         vm.warp(vm.getBlockTimestamp() + 1 weeks + 1);
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
-        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
+        vm.mockCall(
+            targetBaskets[1], abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000)
+        );
+        vm.mockCall(targetBaskets[1], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(targetBaskets);
 
         // Simulate the passage of time
         vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
-        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
-        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillRedeem.selector), new bytes(0));
         vm.mockCall(rootAsset, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
-        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, _targetWeights, basketAssets);
     }
 
