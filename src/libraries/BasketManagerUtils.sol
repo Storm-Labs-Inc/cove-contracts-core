@@ -294,6 +294,10 @@ library BasketManagerUtils {
                     basketValue += pendingDepositValue;
                 }
             }
+            // No need to rebalance if the total supply is 0 even after processing pending deposits
+            if (totalSupply == 0) {
+                revert ZeroTotalSupply();
+            }
             uint256 requiredWithdrawValue = 0;
             // Pre-process pending redemptions
             if (pendingRedeems > 0) {
@@ -1076,16 +1080,20 @@ library BasketManagerUtils {
             // nosemgrep: solidity.performance.array-length-outside-loop.array-length-outside-loop
             uint256 proposedTargetWeightsLength = proposedTargetWeights.length;
             for (uint256 j = 0; j < proposedTargetWeightsLength;) {
-                uint256 assetValueInUSD = 0;
-                if (slot.basketBalances[i][j] > 0) {
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    assetValueInUSD = eulerRouter.getQuote(slot.basketBalances[i][j], assets[j], _USD_ISO_4217_CODE);
-                }
-                // Rounding direction: down
-                uint256 afterTradeWeight =
-                    FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, slot.totalValues[i]);
-                if (MathUtils.diff(adjustedTargetWeights[j], afterTradeWeight) > weightDeviationLimit) {
-                    return false;
+                // If the total value of the basket is 0, we can't calculate the weight.
+                // So we assume the target weight is met.
+                if (slot.totalValues[i] != 0) {
+                    uint256 assetValueInUSD = 0;
+                    if (slot.basketBalances[i][j] > 0) {
+                        // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                        assetValueInUSD = eulerRouter.getQuote(slot.basketBalances[i][j], assets[j], _USD_ISO_4217_CODE);
+                    }
+                    // Rounding direction: down
+                    uint256 afterTradeWeight =
+                        FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, slot.totalValues[i]);
+                    if (MathUtils.diff(adjustedTargetWeights[j], afterTradeWeight) > weightDeviationLimit) {
+                        return false;
+                    }
                 }
                 unchecked {
                     // Overflow not possible: j is bounded by proposedTargetWeightsLength
