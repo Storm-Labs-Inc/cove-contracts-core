@@ -275,9 +275,11 @@ contract BasketToken is
                 ++i;
             }
         }
-
-        return eulerRouter.getQuote(usdAmount, _USD_ISO_4217_CODE, baseAsset)
-            + bm.basketBalanceOf(address(this), baseAsset);
+        uint256 totalBaseAssetBalance = bm.basketBalanceOf(address(this), baseAsset);
+        if (usdAmount > 0) {
+            totalBaseAssetBalance += eulerRouter.getQuote(usdAmount, _USD_ISO_4217_CODE, baseAsset);
+        }
+        return totalBaseAssetBalance;
     }
 
     /// @notice Returns the target weights for the given epoch.

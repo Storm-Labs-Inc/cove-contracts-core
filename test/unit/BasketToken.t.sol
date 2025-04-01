@@ -1183,6 +1183,47 @@ contract BasketTokenTest is BaseTest {
                 "testFuzz_prepareForRebalance: Pending redeem requests should be >0 after prepareForRebalance"
             );
         }
+
+        return requestId;
+    }
+
+    function testFuzz_prepareForRebalance(
+        uint256 totalDepositAmount,
+        uint256 issuedShares,
+        uint16 feeBps,
+        uint256 timesHarvested
+    )
+        public
+    {
+        // Assume shares are available to be harvested
+        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
+        vm.assume(timesHarvested > 0 && timesHarvested <= 365);
+        vm.assume(issuedShares > 1e4 && issuedShares < (type(uint256).max / (feeBps * timesHarvested)) / 1e18);
+        vm.assume((feeBps * issuedShares / 1e4) / timesHarvested > 1);
+
+        // First harvest sets the date to start accruing rewards for the feeCollector
+        testFuzz_deposit(totalDepositAmount, issuedShares);
+        assertEq(basket.balanceOf(feeCollector), 0);
+
+        uint256 timePerHarvest = uint256(365 days) / timesHarvested;
+        uint256 startTimestamp = vm.getBlockTimestamp();
+        vm.startPrank(address(basketManager));
+
+        // Harvest the fee multiple times
+        for (uint256 i = 1; i < timesHarvested; i++) {
+            uint256 elapsedTime = i * timePerHarvest;
+            vm.warp(startTimestamp + elapsedTime);
+            basket.prepareForRebalance(feeBps, feeCollector);
+        }
+
+        // Warp to the end of the year
+        vm.warp(startTimestamp + 365 days);
+        basket.prepareForRebalance(feeBps, feeCollector);
+
+        uint256 balance = basket.balanceOf(feeCollector);
+        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
+        // expected dust from rounding
+        assertApproxEqAbs(balance, expected, 366);
     }
 
     function test_prepareForRebalance_returnsZeroWhen_ZeroPendingRedeems() public {
@@ -2046,7 +2087,127 @@ contract BasketTokenTest is BaseTest {
         _totalAssetsMockCall();
 
         // Check that the actual total assets matches the expected value
-        assertEq(basket.totalAssets(), 2e18, "Total assets should match expected");
+        assertEq(basket.totalAssets(), 1e18, "Total assets should match expected");
+    }
+
+    /**
+     * @notice Fuzzes the totalAssets function with various inputs
+     * @param assetCount Number of assets to include (bounded to a reasonable range)
+     * @param includeBaseAsset Whether to include the base asset in the list
+     * @param seed Random seed for generating asset addresses
+     */
+    function testFuzz_totalAssetsWithMockData(uint8 assetCount, bool includeBaseAsset, uint256 seed) public {
+        // Bound asset count to a reasonable range
+        assetCount = uint8(bound(assetCount, 1, 10));
+
+        // Setup test arrays
+        address[] memory assets = new address[](assetCount);
+        uint256[] memory balances = new uint256[](assetCount);
+
+        // Calculate how many non-base assets we'll have
+        uint256 nonBaseAssetCount = includeBaseAsset ? assetCount - 1 : assetCount;
+        uint256[] memory usdPrices = new uint256[](nonBaseAssetCount);
+
+        address baseAsset = basket.asset();
+        uint256 baseAssetBalance = 0;
+        uint256 nonBaseAssetIndex = 0;
+
+        // Set up assets array
+        for (uint256 i = 0; i < assetCount; i++) {
+            // Use deterministic but different addresses based on seed and index
+            if (includeBaseAsset && i == 0) {
+                assets[i] = baseAsset;
+                balances[i] = uint256(keccak256(abi.encode(seed, "baseBalance"))) % 1000e18;
+                baseAssetBalance = balances[i];
+            } else {
+                // Generate a unique address for each non-base asset
+                assets[i] = address(uint160(uint256(keccak256(abi.encode(seed, i, "addr")))));
+                // Ensure it's not the same as the base asset
+                if (assets[i] == baseAsset) {
+                    assets[i] = address(uint160(uint256(uint160(assets[i])) + 1));
+                }
+
+                // Generate random balance between 0 and 1000e18
+                balances[i] = uint256(keccak256(abi.encode(seed, i, "balance"))) % 1000e18;
+
+                // Generate random USD price for this asset
+                usdPrices[nonBaseAssetIndex] = uint256(keccak256(abi.encode(seed, i, "price"))) % 2000e18;
+                nonBaseAssetIndex++;
+            }
+        }
+
+        // Also add the base asset balance if it wasn't included in the asset list
+        if (!includeBaseAsset) {
+            baseAssetBalance = uint256(keccak256(abi.encode(seed, "baseBalance"))) % 1000e18;
+        }
+
+        // Base asset return value (conversion from USD to base asset)
+        uint256 baseAssetReturnValue = uint256(keccak256(abi.encode(seed, "baseReturn"))) % 500e18;
+
+        // Setup everything to mock the totalAssets function
+        address eulerRouter = address(0x123);
+
+        // Mock the asset registry call to return the provided assets
+        vm.mockCall(
+            basket.assetRegistry(), abi.encodeCall(AssetRegistry.getAssets, (basket.bitFlag())), abi.encode(assets)
+        );
+
+        // Mock the router address
+        vm.mockCall(basket.basketManager(), abi.encodeCall(BasketManager.eulerRouter, ()), abi.encode(eulerRouter));
+
+        // Mock the base asset balance explicitly
+        vm.mockCall(
+            basket.basketManager(),
+            abi.encodeCall(BasketManager.basketBalanceOf, (address(basket), baseAsset)),
+            abi.encode(baseAssetBalance)
+        );
+
+        // Mock the individual asset balances and price quotes
+        uint256 usdSum = 0;
+        uint256 usdPriceIndex = 0;
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            // Skip the base asset as we've already mocked it
+            if (assets[i] == baseAsset) {
+                continue;
+            }
+
+            // Mock balance call for this asset
+            vm.mockCall(
+                basket.basketManager(),
+                abi.encodeCall(BasketManager.basketBalanceOf, (address(basket), assets[i])),
+                abi.encode(balances[i])
+            );
+
+            // If non-base asset with balance > 0, mock the USD quote and add to usdSum
+            if (balances[i] > 0) {
+                vm.mockCall(
+                    eulerRouter,
+                    abi.encodeCall(EulerRouter.getQuote, (balances[i], assets[i], USD)),
+                    abi.encode(usdPrices[usdPriceIndex])
+                );
+
+                usdSum += usdPrices[usdPriceIndex];
+                usdPriceIndex++;
+            }
+        }
+
+        // Mock the USD to base asset conversion if needed
+        uint256 expectedTotal;
+        if (usdSum > 0) {
+            vm.mockCall(
+                eulerRouter,
+                abi.encodeCall(EulerRouter.getQuote, (usdSum, USD, baseAsset)),
+                abi.encode(baseAssetReturnValue)
+            );
+            expectedTotal = baseAssetBalance + baseAssetReturnValue;
+        } else {
+            expectedTotal = baseAssetBalance;
+        }
+
+        // Call the function and verify the result
+        uint256 actualTotal = basket.totalAssets();
+        assertEq(actualTotal, expectedTotal, "Total assets should match expected value");
     }
 
     function testFuzz_getAssets(address[] memory assets) public {
@@ -2094,6 +2255,84 @@ contract BasketTokenTest is BaseTest {
             abi.encode(expectedTotalAssets)
         );
         // The expected total assets is 2e18 (1e18 non base asset + 1e18 base asset)
+    }
+
+    /**
+     * @notice Creates mock calls for the totalAssets function with configurable assets and prices
+     * @param mockAssets Array of asset addresses to include in calculation
+     * @param assetBalances Array of balances for each asset
+     * @param usdPrices Array of USD prices for non-base assets
+     * @param baseAssetReturnValue The final value to return for the base asset conversion
+     * @return expectedTotal The expected total assets value that will be returned by totalAssets()
+     */
+    function _mockTotalAssets(
+        address[] memory mockAssets,
+        uint256[] memory assetBalances,
+        uint256[] memory usdPrices,
+        uint256 baseAssetReturnValue
+    )
+        public
+        returns (uint256 expectedTotal)
+    {
+        require(mockAssets.length > 0, "Assets array must not be empty");
+        require(mockAssets.length == assetBalances.length, "Assets and balances arrays must have same length");
+
+        address eulerRouter = address(0x123);
+        address baseAsset = basket.asset();
+        uint256 baseAssetBalance = 0;
+        uint256 usdSum = 0;
+        uint256 usdPriceIndex = 0;
+
+        // Mock the asset registry call to return the provided assets
+        vm.mockCall(
+            basket.assetRegistry(), abi.encodeCall(AssetRegistry.getAssets, (basket.bitFlag())), abi.encode(mockAssets)
+        );
+
+        // Mock the router address
+        vm.mockCall(basket.basketManager(), abi.encodeCall(BasketManager.eulerRouter, ()), abi.encode(eulerRouter));
+
+        // Mock the individual asset balances and price quotes
+        for (uint256 i = 0; i < mockAssets.length; i++) {
+            // Mock balance call for this asset
+            vm.mockCall(
+                basket.basketManager(),
+                abi.encodeCall(BasketManager.basketBalanceOf, (address(basket), mockAssets[i])),
+                abi.encode(assetBalances[i])
+            );
+
+            if (mockAssets[i] == baseAsset) {
+                // If this is the base asset, add to baseAssetBalance
+                baseAssetBalance = assetBalances[i];
+            } else {
+                // If non-base asset with balance > 0, mock the USD quote and add to usdSum
+                if (assetBalances[i] > 0) {
+                    require(usdPriceIndex < usdPrices.length, "Not enough USD prices provided");
+
+                    vm.mockCall(
+                        eulerRouter,
+                        abi.encodeCall(EulerRouter.getQuote, (assetBalances[i], mockAssets[i], USD)),
+                        abi.encode(usdPrices[usdPriceIndex])
+                    );
+
+                    usdSum += usdPrices[usdPriceIndex];
+                    usdPriceIndex++;
+                }
+            }
+        }
+
+        // Mock the USD to base asset conversion if needed
+        if (usdSum > 0) {
+            vm.mockCall(
+                eulerRouter,
+                abi.encodeCall(EulerRouter.getQuote, (usdSum, USD, baseAsset)),
+                abi.encode(baseAssetReturnValue)
+            );
+            expectedTotal = baseAssetBalance + baseAssetReturnValue;
+        } else {
+            expectedTotal = baseAssetBalance;
+        }
+
+        return expectedTotal;
     }
 
     function testFuzz_harvestManagementFee1Year(
@@ -2291,45 +2530,6 @@ contract BasketTokenTest is BaseTest {
         uint256 balance = basket.balanceOf(feeCollector);
         // Fee is unaffected by malicious user
         assertEq(balance, expected);
-    }
-
-    function testFuzz_prepareForRebalance(
-        uint256 totalDepositAmount,
-        uint256 issuedShares,
-        uint16 feeBps,
-        uint256 timesHarvested
-    )
-        public
-    {
-        // Assume shares are available to be harvested
-        vm.assume(feeBps > 0 && feeBps <= MAX_MANAGEMENT_FEE);
-        vm.assume(timesHarvested > 0 && timesHarvested <= 365);
-        vm.assume(issuedShares > 1e4 && issuedShares < (type(uint256).max / (feeBps * timesHarvested)) / 1e18);
-        vm.assume((feeBps * issuedShares / 1e4) / timesHarvested > 1);
-
-        // First harvest sets the date to start accruing rewards for the feeCollector
-        testFuzz_deposit(totalDepositAmount, issuedShares);
-        assertEq(basket.balanceOf(feeCollector), 0);
-
-        uint256 timePerHarvest = uint256(365 days) / timesHarvested;
-        uint256 startTimestamp = vm.getBlockTimestamp();
-        vm.startPrank(address(basketManager));
-
-        // Harvest the fee multiple times
-        for (uint256 i = 1; i < timesHarvested; i++) {
-            uint256 elapsedTime = i * timePerHarvest;
-            vm.warp(startTimestamp + elapsedTime);
-            basket.prepareForRebalance(feeBps, feeCollector);
-        }
-
-        // Warp to the end of the year
-        vm.warp(startTimestamp + 365 days);
-        basket.prepareForRebalance(feeBps, feeCollector);
-
-        uint256 balance = basket.balanceOf(feeCollector);
-        uint256 expected = FixedPointMathLib.fullMulDiv(issuedShares, feeBps, 1e4 - feeBps);
-        // expected dust from rounding
-        assertApproxEqAbs(balance, expected, 366);
     }
 
     function testFuzz_prepareForRebalance_CorrectCalculationWithTreasuryWithdraw(
