@@ -6,13 +6,19 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 
+import { VmSafe } from "forge-std/Vm.sol";
+import { console } from "forge-std/console.sol";
+
 import { Test } from "forge-std/Test.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
+
+import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { RebalanceStatus } from "src/types/BasketManagerStorage.sol";
+import { Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
@@ -104,6 +110,10 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         );
     }
 
+    function invariant_retryCountWithinLimit() public {
+        assertLt(handler.basketManager().retryCount(), 10, "Retry count should be within limit");
+    }
+
     ///////////////////////
     // HELPERS
     ///////////////////////
@@ -155,6 +165,19 @@ contract BasketManagerHandler is Test, Constants {
         }
     }
 
+    ///////////////////////
+    // Time Fuzzing
+    ///////////////////////
+    function warpBy(uint256 secondsToSkip) public {
+        console.log("warpBy", secondsToSkip);
+        vm.assume(secondsToSkip <= 3 hours);
+        vm.warp(vm.getBlockTimestamp() + secondsToSkip);
+    }
+
+    ///////////////////////
+    // BasketToken Fuzzing
+    ///////////////////////
+
     function requestDeposit(uint256 actorIdx, uint256 basketIdx, uint256 amount) public {
         address actor = actors[actorIdx % actors.length];
         address basket = baskets[basketIdx % baskets.length];
@@ -181,6 +204,25 @@ contract BasketManagerHandler is Test, Constants {
         depositsPendingRebalance[basket][actor] += amount;
     }
 
+    function deposit(uint256 actorIdx, uint256 basketIdx, uint256 amount) public {
+        address actor = actors[actorIdx % actors.length];
+        address basket = baskets[basketIdx % baskets.length];
+
+        uint256 maxDeposit = BasketToken(basket).maxDeposit(actor);
+        vm.assume(maxDeposit > 0);
+        amount = bound(amount, 0, maxDeposit - 1);
+
+        vm.prank(actor);
+        try BasketToken(basket).deposit(amount, actor, actor) {
+            assertTrue(false, "Expected reversion");
+        } catch {
+            // Expected reversion
+        }
+
+        vm.prank(actor);
+        BasketToken(basket).deposit(maxDeposit, actor, actor);
+    }
+
     function requestRedeem(uint256 actorIdx, uint256 basketIdx, uint256 amount) public {
         address actor = actors[actorIdx % actors.length];
         address basket = baskets[basketIdx % baskets.length];
@@ -192,7 +234,7 @@ contract BasketManagerHandler is Test, Constants {
         uint256 lastRedeemRequestId = BasketToken(basket).lastRedeemRequestId(actor);
         vm.assume(BasketToken(basket).pendingRedeemRequest(lastRedeemRequestId, actor) == 0);
         vm.assume(BasketToken(basket).claimableRedeemRequest(lastRedeemRequestId, actor) == 0);
-        vm.assume(BasketToken(basket).claimableFallbackAssets(actor) == 0);
+        vm.assume(BasketToken(basket).claimableFallbackShares(actor) == 0);
 
         // Bound amount to the actor's balance
         amount = bound(amount, 1, balance);
@@ -203,11 +245,41 @@ contract BasketManagerHandler is Test, Constants {
         redeemsPendingRebalance[basket][actor] += amount;
     }
 
+    function redeem(uint256 actorIdx, uint256 basketIdx, uint256 amount) public {
+        address actor = actors[actorIdx % actors.length];
+        address basket = baskets[basketIdx % baskets.length];
+
+        uint256 maxRedeem = BasketToken(basket).maxRedeem(actor);
+        vm.assume(maxRedeem > 0);
+        amount = bound(amount, 0, maxRedeem - 1);
+
+        vm.prank(actor);
+        try BasketToken(basket).redeem(amount, actor, actor) {
+            assertTrue(false, "Expected reversion");
+        } catch {
+            // Expected reversion
+        }
+
+        vm.prank(actor);
+        BasketToken(basket).redeem(maxRedeem, actor, actor);
+    }
+
+    ///////////////////////
+    // BasketManager Fuzzing
+    ///////////////////////
+
     function proposeRebalance() public {
         vm.assume(!isRebalancing);
-        vm.assume(basketManager.testLib_needsRebalance(baskets));
 
+        // If a rebalance has ever been proposed, the step delay must have passed
+        if (
+            basketManager.rebalanceStatus().epoch != 0
+                || (basketManager.rebalanceStatus().epoch == 0 && basketManager.rebalanceStatus().retryCount > 0)
+        ) {
+            vm.assume(basketManager.rebalanceStatus().timestamp + 1 hours <= vm.getBlockTimestamp());
+        }
         basketManager.testLib_updateOracleTimestamps();
+        vm.assume(basketManager.testLib_needsRebalance(baskets));
 
         address proposer = basketManager.getRoleMember(REBALANCE_PROPOSER_ROLE, 0);
         vm.prank(proposer);
@@ -256,18 +328,43 @@ contract BasketManagerHandler is Test, Constants {
         vm.assume(isRebalancing);
 
         // Wait required delay
-        vm.warp(vm.getBlockTimestamp() + basketManager.stepDelay());
+        vm.assume(basketManager.rebalanceStatus().timestamp > 0);
+        vm.assume(basketManager.rebalanceStatus().timestamp + basketManager.stepDelay() <= vm.getBlockTimestamp());
 
         // Update oracle timestamps
         basketManager.testLib_updateOracleTimestamps();
 
+        vm.recordLogs();
         basketManager.completeRebalance(
             externalTrades, baskets, basketManager.testLib_getTargetWeights(), _getBasketAssets()
         );
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            for (uint256 j = 0; j < logs[i].topics.length; j++) {
+                if (logs[i].topics[j] == keccak256("RebalanceCompleted(uint40)")) {
+                    isRebalancing = false;
+                }
+            }
+        }
 
         // Update tracking variables
-        isRebalancing = false;
         _rebalanceStatus = basketManager.rebalanceStatus();
+    }
+
+    function revertsWhenStepDelayIsNotMet() public {
+        // Get the last action timestamp
+        uint256 lastActionTimestamp = basketManager.rebalanceStatus().timestamp;
+        vm.assume(lastActionTimestamp > 0);
+        // Only if the step delay has not passed
+        vm.assume(lastActionTimestamp + basketManager.stepDelay() > vm.getBlockTimestamp());
+
+        try basketManager.completeRebalance(
+            externalTrades, baskets, basketManager.testLib_getTargetWeights(), _getBasketAssets()
+        ) {
+            assertTrue(false, "Expected reversion");
+        } catch {
+            // Expected reversion
+        }
     }
 
     function _getBasketAssets() internal view returns (address[][] memory) {
