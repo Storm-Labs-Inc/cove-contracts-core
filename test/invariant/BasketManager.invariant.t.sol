@@ -287,6 +287,9 @@ contract BasketManagerHandler is Test, Constants {
 
         // Update tracking variables
         isRebalancing = true;
+        rebalancingBaskets = baskets;
+        rebalancingTargetWeights = basketManager.testLib_getTargetWeights(baskets);
+        rebalancingBasketAssets = basketManager.testLib_getBasketAssets(baskets);
         _rebalanceStatus = basketManager.rebalanceStatus();
         for (uint256 i = 0; i < baskets.length; i++) {
             for (uint256 j = 0; j < actors.length; j++) {
@@ -297,17 +300,18 @@ contract BasketManagerHandler is Test, Constants {
         }
     }
 
-    function proposeTokenSwap(InternalTrade[] memory _internalTrades, ExternalTrade[] memory _externalTrades) public {
-        vm.assume(isRebalancing);
-        vm.assume(_internalTrades.length < 10);
-        vm.assume(_externalTrades.length < 10);
+    function proposeTokenSwap() public {
+        vm.assume(basketManager.rebalanceStatus().status == Status.REBALANCE_PROPOSED);
+        basketManager.testLib_updateOracleTimestamps();
+        (InternalTrade[] memory _internalTrades, ExternalTrade[] memory _externalTrades) =
+            basketManager.testLib_generateInternalAndExternalTrades(baskets);
+        vm.assume(_internalTrades.length > 0 || _externalTrades.length > 0);
 
         // Propose and execute token swaps
-        basketManager.testLib_updateOracleTimestamps();
         address proposer = basketManager.getRoleMember(TOKENSWAP_PROPOSER_ROLE, 0);
         vm.prank(proposer);
         basketManager.proposeTokenSwap(
-            _internalTrades, _externalTrades, rebalancingBaskets, rebalancingTargetWeights, _getBasketAssets()
+            _internalTrades, _externalTrades, rebalancingBaskets, rebalancingTargetWeights, rebalancingBasketAssets
         );
 
         // Update tracking variables
@@ -318,7 +322,7 @@ contract BasketManagerHandler is Test, Constants {
         // Execute trades
         address executor = basketManager.getRoleMember(TOKENSWAP_EXECUTOR_ROLE, 0);
         vm.prank(executor);
-        basketManager.executeTokenSwap(externalTrades, "");
+        basketManager.executeTokenSwap(_externalTrades, "");
 
         // Simulate trade settlement
         _simulateTradeSettlement(externalTrades);
@@ -335,14 +339,18 @@ contract BasketManagerHandler is Test, Constants {
         basketManager.testLib_updateOracleTimestamps();
 
         vm.recordLogs();
-        basketManager.completeRebalance(
-            externalTrades, baskets, basketManager.testLib_getTargetWeights(), _getBasketAssets()
-        );
+        basketManager.completeRebalance(externalTrades, baskets, rebalancingTargetWeights, rebalancingBasketAssets);
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
         for (uint256 i = 0; i < logs.length; i++) {
             for (uint256 j = 0; j < logs[i].topics.length; j++) {
                 if (logs[i].topics[j] == keccak256("RebalanceCompleted(uint40)")) {
                     isRebalancing = false;
+                    rebalancingBaskets = new address[](0);
+                    rebalancingTargetWeights = new uint64[][](0);
+                    rebalancingBasketAssets = new address[][](0);
+                } else if (logs[i].topics[j] == keccak256("RedeemFulfilled(uint256,uint256,uint256)")) {
+                    (, uint256 _assets) = abi.decode(logs[i].data, (uint256, uint256));
+                    totalDepositsForBasket[logs[i].emitter] -= _assets;
                 }
             }
         }
@@ -358,9 +366,8 @@ contract BasketManagerHandler is Test, Constants {
         // Only if the step delay has not passed
         vm.assume(lastActionTimestamp + basketManager.stepDelay() > vm.getBlockTimestamp());
 
-        try basketManager.completeRebalance(
-            externalTrades, baskets, basketManager.testLib_getTargetWeights(), _getBasketAssets()
-        ) {
+        try basketManager.completeRebalance(externalTrades, baskets, rebalancingTargetWeights, rebalancingBasketAssets)
+        {
             assertTrue(false, "Expected reversion");
         } catch {
             // Expected reversion
