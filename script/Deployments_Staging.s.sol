@@ -108,8 +108,8 @@ contract Deployments_Staging is Deployments {
             ETH_SFRXUSD,
             ETH_CURVE_SFRXUSD_SUSDE_POOL,
             ETH_USDE,
-            0,
-            1,
+            0, // sfrxUSD is the first coin in the pool, but the oracle uses frxUSD price
+            1, // sUSDe is the second coin in the pool, but the oracle uses USDe price
             OracleOptions({
                 pythPriceFeed: PYTH_USDE_USD_FEED,
                 pythMaxStaleness: 30 seconds,
