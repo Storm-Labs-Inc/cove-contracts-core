@@ -54,7 +54,9 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     ) {
         // The EMA oracle returns a price quoted in `coins[0]`.
         uint256 baseIndex = 0;
-        unchecked {
+        if (_priceOracleIndex == type(uint256).max) {
+            baseIndex = 1;
+        } else {
             baseIndex = _priceOracleIndex + 1;
         }
         address baseCoin = ICurvePool(_pool).coins(baseIndex);
