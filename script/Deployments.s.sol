@@ -624,7 +624,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     /// @param baseAssetIndex Index of underlying asset in curve pool coins array
     /// @param crossAssetIndex Index of cross asset in curve pool coins array
     /// @param oracleOptions Options for crossAsset/USD price feeds
-    function _deployAnchoredOracleWith4626CurveEMAOracle(
+    function _deployAnchoredOracleWith4626CurveEMAOracleUnderlying(
         address asset, // e.g., sfrxUSD (ERC4626)
         address curvePool, // Pool containing underlyingAsset and crossAsset
         address crossAsset, // e.g., USDE
@@ -636,14 +636,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     {
         // --- 1. Get Underlying Asset ---
         address underlyingAsset = IERC4626(asset).asset(); // e.g., frxUSD
-        require(
-            ICurvePool(curvePool).coins(baseAssetIndex) == underlyingAsset
-                && ICurvePool(curvePool).coins(crossAssetIndex) == crossAsset,
-            "Incorrect set of base and cross asset indices"
-        );
 
         // --- 2. Deploy Individual Oracles ---
-
         // 2a. ERC4626 Oracle (asset -> underlyingAsset)
         address erc4626Oracle =
             address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, underlyingAsset), IERC4626(asset)));
@@ -664,8 +658,14 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             priceOracleIndex = baseAssetIndex - 1;
         }
         address curveEMAOracle = address(
-            deployer.deploy_CurveEMAOracle(
-                buildCurveEMAOracleName(curveBase, curveQuote), curveBase, curvePool, priceOracleIndex
+            deployer.deploy_CurveEMAOracleUnderlying(
+                buildCurveEMAOracleUnderlyingName(curveBase, curveQuote),
+                curvePool,
+                curveBase,
+                curveQuote,
+                priceOracleIndex,
+                true, // isBaseUnderlying
+                true // isQuoteUnderlying
             )
         );
 

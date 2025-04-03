@@ -104,7 +104,7 @@ contract Deployments_Staging is Deployments {
         // 3. sfrxUSD
         // Primary: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Pyth)--> USD
         // Anchor: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Chainlink)--> USD
-        _deployAnchoredOracleWith4626CurveEMAOracle(
+        _deployAnchoredOracleWith4626CurveEMAOracleUnderlying(
             ETH_SFRXUSD,
             ETH_CURVE_SFRXUSD_SUSDE_POOL,
             ETH_USDE,

@@ -68,7 +68,7 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         vm.label(ETH_CURVE_SFRXUSD_SUSDE_POOL, "SFRXUSD_SUSDE_POOL");
         vm.label(ETH_USDE, "USDE");
         vm.label(ETH_FRXUSD, "FRXUSD");
-        vm.label(address(frxusdUsdeOracle), "frxUSD/USDe Oracle");
+        vm.label(address(frxusdUsdeOracle), "USDe/frxUSD Oracle");
     }
 
     // --- Constructor Tests ---

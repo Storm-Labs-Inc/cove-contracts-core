@@ -99,6 +99,12 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "CurveEMAOracle_", baseSymbol, "-", quoteSymbol);
     }
 
+    function buildCurveEMAOracleUnderlyingName(address base, address quote) public view returns (string memory) {
+        string memory baseSymbol = _getOracleAssetSymbol(base);
+        string memory quoteSymbol = _getOracleAssetSymbol(quote);
+        return string.concat(_buildPrefix(), "CurveEMAOracleUnderlying_", baseSymbol, "-", quoteSymbol);
+    }
+
     function buildChainedERC4626OracleName(
         address initialVault,
         address targetAsset
