@@ -29,7 +29,7 @@ contract Deployments_Staging is Deployments {
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {
-        return keccak256(abi.encodePacked("Staging_FeeCollector_0328"));
+        return keccak256(abi.encodePacked("Staging_FeeCollector_0403"));
     }
 
     function _deployNonCoreContracts() internal override {
