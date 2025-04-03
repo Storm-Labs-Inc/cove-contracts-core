@@ -615,6 +615,136 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _registerAnchoredOracleWithEulerRouter(asset, anchoredOracle);
     }
 
+    /// @notice Deploys an anchored oracle with a 4626 vault and a CurveEMA oracle for assets that need to be priced
+    /// through a curve pool
+    /// @dev This function supports pricing paths like: sfrxUSD -(4626)-> frxUSD -(curve ema)-> USDE-(pyth/CL) -> USD
+    /// @param asset The ERC4626 vault asset to price (e.g., sfrxUSD)
+    /// @param curvePool The Curve pool containing the underlying asset and cross asset
+    /// @param crossAsset The asset to cross-price through (e.g., USDE)
+    /// @param baseAssetIndex Index of underlying asset in curve pool coins array
+    /// @param crossAssetIndex Index of cross asset in curve pool coins array
+    /// @param oracleOptions Options for crossAsset/USD price feeds
+    function _deployAnchoredOracleWith4626CurveEMAOracle(
+        address asset, // e.g., sfrxUSD (ERC4626)
+        address curvePool, // Pool containing underlyingAsset and crossAsset
+        address crossAsset, // e.g., USDE
+        uint256 baseAssetIndex, // Index of underlyingAsset in curve pool coins array
+        uint256 crossAssetIndex, // Index of crossAsset in curve pool coins array
+        OracleOptions memory oracleOptions // Options for crossAsset/USD feeds
+    )
+        internal
+    {
+        // --- 1. Get Underlying Asset ---
+        address underlyingAsset = IERC4626(asset).asset(); // e.g., frxUSD
+        require(
+            ICurvePool(curvePool).coins(baseAssetIndex) == underlyingAsset
+                && ICurvePool(curvePool).coins(crossAssetIndex) == crossAsset,
+            "Incorrect set of base and cross asset indices"
+        );
+
+        // --- 2. Deploy Individual Oracles ---
+
+        // 2a. ERC4626 Oracle (asset -> underlyingAsset)
+        address erc4626Oracle =
+            address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, underlyingAsset), IERC4626(asset)));
+
+        // 2b. CurveEMA Oracle (underlyingAsset -> crossAsset)
+        address curveBase;
+        address curveQuote;
+        uint256 priceOracleIndex;
+        if (baseAssetIndex == 0) {
+            // underlyingAsset is index 0
+            curveQuote = underlyingAsset;
+            curveBase = crossAsset;
+            priceOracleIndex = crossAssetIndex - 1;
+        } else {
+            // crossAsset is index 0
+            curveQuote = crossAsset;
+            curveBase = underlyingAsset;
+            priceOracleIndex = baseAssetIndex - 1;
+        }
+        address curveEMAOracle = address(
+            deployer.deploy_CurveEMAOracle(
+                buildCurveEMAOracleName(curveBase, curveQuote), curveBase, curvePool, priceOracleIndex
+            )
+        );
+
+        // 2c. Pyth Oracle (crossAsset -> USD)
+        address pythOracleCrossUSD = address(
+            deployer.deploy_PythOracle(
+                buildPythOracleName(crossAsset, USD),
+                PYTH,
+                crossAsset,
+                USD,
+                oracleOptions.pythPriceFeed,
+                oracleOptions.pythMaxStaleness,
+                oracleOptions.pythMaxConfWidth
+            )
+        );
+
+        // 2d. Chainlink Oracle (crossAsset -> USD)
+        address chainlinkOracleCrossUSD = address(
+            deployer.deploy_ChainlinkOracle(
+                buildChainlinkOracleName(crossAsset, USD),
+                crossAsset,
+                USD,
+                oracleOptions.chainlinkPriceFeed,
+                oracleOptions.chainlinkMaxStaleness
+            )
+        );
+
+        // --- 3. Deploy Intermediate Cross Adapter (asset -> crossAsset) ---
+        address assetToCrossAssetAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(asset, underlyingAsset, crossAsset, "ERC4626", "CurveEMA"),
+                asset,
+                underlyingAsset,
+                crossAsset,
+                erc4626Oracle,
+                curveEMAOracle
+            )
+        );
+
+        // --- 4. Deploy Final Cross Adapters (asset -> USD) ---
+
+        // 4a. Primary: asset -> crossAsset -> USD (via Pyth)
+        address primaryCrossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(asset, crossAsset, USD, "CrossAdapter", "Pyth"),
+                asset,
+                crossAsset,
+                USD,
+                assetToCrossAssetAdapter,
+                pythOracleCrossUSD
+            )
+        );
+
+        // 4b. Anchor: asset -> crossAsset -> USD (via Chainlink)
+        address anchorCrossAdapter = address(
+            deployer.deploy_CrossAdapter(
+                buildCrossAdapterName(asset, crossAsset, USD, "CrossAdapter", "Chainlink"),
+                asset,
+                crossAsset,
+                USD,
+                assetToCrossAssetAdapter,
+                chainlinkOracleCrossUSD
+            )
+        );
+
+        // --- 5. Deploy Anchored Oracle (asset -> USD) ---
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                buildAnchoredOracleName(asset, USD),
+                primaryCrossAdapter,
+                anchorCrossAdapter,
+                oracleOptions.maxDivergence
+            )
+        );
+
+        // --- 6. Register the final oracle ---
+        _registerAnchoredOracleWithEulerRouter(asset, anchoredOracle);
+    }
+
     /// @notice Registers an anchored oracle for an asset/USD pair with the EulerRouter if it's not already registered
     function _registerAnchoredOracleWithEulerRouter(address asset, address oracle) internal {
         EulerRouter eulerRouter = EulerRouter(getAddressOrRevert(buildEulerRouterName()));
