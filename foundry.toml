@@ -32,8 +32,9 @@ max_test_rejects = 1_000_000 # Number of times `vm.assume` can fail
 runs = 50
 
 [profile.default.invariant]
+show_metrics = true
 call_override = false # Override unsafe external calls to perform reentrancy checks
-depth = 20            # Number of calls executed in one run
+depth = 50            # Number of calls executed in one run
 fail_on_revert = true
 runs = 20
 
