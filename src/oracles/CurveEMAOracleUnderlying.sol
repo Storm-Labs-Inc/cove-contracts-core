@@ -41,7 +41,7 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     /// @dev The quote is always `pool.coins[0]`.
     /// If `priceOracleIndex` is `type(uint256).max`, then the adapter will call the non-indexed price method
     /// `price_oracle()`
-    /// WARNING: Some StableSwap-NG pools deployed before Dec-12-2023 have a known oracle vulerability.
+    /// WARNING: Some StableSwap-NG pools deployed before Dec-12-2023 have a known oracle vulnerability.
     /// See (https://docs.curve.fi/stableswap-exchange/stableswap-ng/pools/oracles/#price-oracles) for more details.
     /// Additionally, verify that the pool has enough liquidity before deploying this adapter.
     constructor(
@@ -51,7 +51,9 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
         uint256 _priceOracleIndex,
         bool isBaseUnderlying,
         bool isQuoteUnderlying
-    ) {
+    )
+        payable
+    {
         // The EMA oracle returns a price quoted in `coins[0]`.
         uint256 baseIndex = 0;
         if (_priceOracleIndex == type(uint256).max) {

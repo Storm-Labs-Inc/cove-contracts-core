@@ -167,8 +167,8 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
 
     // --- getQuote Tests (WETH/USDT) ---
 
-    function testFuzz_getQuote_passWhen_convertingBaseToQuote_wethUsdt(uint96 amountIn) public {
-        uint256 inAmount = uint256(amountIn); // Use uint96 to limit input size reasonably
+    function testFuzz_getQuote_passWhen_convertingBaseToQuote_wethUsdt(uint96 amount96) public {
+        uint256 inAmount = uint256(amount96); // Use uint96 to limit input size reasonably
         vm.assume(inAmount > 0);
 
         // price_oracle gives price of WETH (coins[2]) in USDT (coins[0])
@@ -180,8 +180,8 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         assertEq(actualOut, expectedOut);
     }
 
-    function testFuzz_getQuote_passWhen_convertingQuoteToBase_wethUsdt(uint96 amountIn) public {
-        uint256 inAmount = uint256(amountIn); // Use uint96 to limit input size reasonably
+    function testFuzz_getQuote_passWhen_convertingQuoteToBase_wethUsdt(uint96 amount96) public {
+        uint256 inAmount = uint256(amount96); // Use uint96 to limit input size reasonably
         vm.assume(inAmount > 0);
 
         // price_oracle gives price of USDT (coins[0]) in WETH (coins[2])
@@ -194,8 +194,8 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
 
     // --- getQuote Tests (frxUSD/USDe) ---
 
-    function testFuzz_getQuote_passWhen_convertingBaseToQuote_frxusdUsde(uint96 amountIn) public {
-        uint256 inAmount = uint256(amountIn); // Use uint96 to limit input size reasonably
+    function testFuzz_getQuote_passWhen_convertingBaseToQuote_frxusdUsde(uint96 amount96) public {
+        uint256 inAmount = uint256(amount96); // Use uint96 to limit input size reasonably
         vm.assume(inAmount > 0);
 
         // price_oracle gives price of USDE (coins[1]) in frxUSD (coins[0])
@@ -207,8 +207,8 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         assertEq(actualOut, expectedOut);
     }
 
-    function testFuzz_getQuote_passWhen_convertingQuoteToBase_frxusdUsde(uint96 amountIn) public {
-        uint256 inAmount = uint256(amountIn); // Use uint96 to limit input size reasonably
+    function testFuzz_getQuote_passWhen_convertingQuoteToBase_frxusdUsde(uint96 amount96) public {
+        uint256 inAmount = uint256(amount96); // Use uint96 to limit input size reasonably
         vm.assume(inAmount > 0);
 
         // price_oracle gives price of USDE (coins[1]) in frxUSD (coins[0])
@@ -236,8 +236,8 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         }
     }
 
-    function testFuzz_getQuote_revertWhen_invalidBaseOrQuote(uint96 amountIn, address invalidAddress) public {
-        uint256 amount = uint256(amountIn);
+    function testFuzz_getQuote_revertWhen_invalidBaseOrQuote(uint96 amount96, address invalidAddress) public {
+        uint256 amount = uint256(amount96);
         // Ensure invalidAddress is not one of the valid tokens for either oracle
         vm.assume(invalidAddress != address(0));
         vm.assume(invalidAddress != TRICRYPTO_WETH);
