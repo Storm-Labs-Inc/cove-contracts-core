@@ -80,10 +80,14 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
     // INVARIANTS
     ///////////////////////
 
-    // Verify BasketManager remains operational and not paused during testing
-    function invariant_basketManagerIsOperational() public {
-        // Check if BasketManager is not paused
-        assertTrue(!handler.basketManager().paused(), "BasketManager should not be paused");
+    // Verify ghost variable isPaused matches actual BasketManager paused state
+    function invariant_pauseStateConsistency() public {
+        // Check if ghost variable isPaused matches actual paused state
+        assertEq(
+            handler.basketManager().paused(),
+            handler.isPaused(),
+            "Ghost variable isPaused out of sync with actual paused state"
+        );
     }
 
     // Verify asset conservation: sum of basket balances equals actual token balance when not in rebalance
@@ -304,6 +308,27 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         }
     }
 
+    function invariant_completeRebalance_revertsWhen_StepDelayIsNotMet() public {
+        // Get the last action timestamp
+        BasketManager basketManager = handler.basketManager();
+        uint256 lastActionTimestamp = basketManager.rebalanceStatus().timestamp;
+        if (lastActionTimestamp > 0) {
+            // Only if the step delay has not passed
+            if (lastActionTimestamp + basketManager.stepDelay() > vm.getBlockTimestamp()) {
+                try basketManager.completeRebalance(
+                    handler.externalTrades(),
+                    handler.rebalancingBaskets(),
+                    handler.rebalancingTargetWeights(),
+                    handler.rebalancingBasketAssets()
+                ) {
+                    assertTrue(false, "Expected reversion");
+                } catch {
+                    // Expected reversion
+                }
+            }
+        }
+    }
+
     ///////////////////////
     // HELPERS
     ///////////////////////
@@ -329,19 +354,20 @@ contract BasketManagerHandler is Test, Constants {
     address[] public assets;
     address[] public actors;
 
-    // State tracking
+    // Ghost variables
     mapping(address => mapping(address => uint256)) public depositsPendingRebalance;
     mapping(address => mapping(address => uint256)) public redeemsPendingRebalance;
     mapping(address => uint256) public totalDepositsForBasket;
     bool public isRebalancing;
+    bool public isPaused;
 
     // Rebalance state tracking
     RebalanceStatus private _rebalanceStatus;
-    InternalTrade[] public internalTrades;
-    ExternalTrade[] public externalTrades;
-    address[] public rebalancingBaskets;
-    uint64[][] public rebalancingTargetWeights;
-    address[][] public rebalancingBasketAssets;
+    InternalTrade[] private _internalTrades;
+    ExternalTrade[] private _externalTrades;
+    address[] private _rebalancingBaskets;
+    uint64[][] private _rebalancingTargetWeights;
+    address[][] private _rebalancingBasketAssets;
 
     constructor(BasketManager _basketManager, address[] memory _baskets, address[] memory _assets, uint256 actorCount) {
         basketManager = _basketManager;
@@ -460,6 +486,7 @@ contract BasketManagerHandler is Test, Constants {
 
     function proposeRebalance() public {
         vm.assume(!isRebalancing);
+        vm.assume(!isPaused);
 
         // If a rebalance has ever been proposed, the step delay must have passed
         if (
@@ -477,9 +504,9 @@ contract BasketManagerHandler is Test, Constants {
 
         // Update tracking variables
         isRebalancing = true;
-        rebalancingBaskets = baskets;
-        rebalancingTargetWeights = basketManager.testLib_getTargetWeights(baskets);
-        rebalancingBasketAssets = basketManager.testLib_getBasketAssets(baskets);
+        _rebalancingBaskets = baskets;
+        _rebalancingTargetWeights = basketManager.testLib_getTargetWeights(baskets);
+        _rebalancingBasketAssets = basketManager.testLib_getBasketAssets(baskets);
         _rebalanceStatus = basketManager.rebalanceStatus();
         for (uint256 i = 0; i < baskets.length; i++) {
             for (uint256 j = 0; j < actors.length; j++) {
@@ -492,35 +519,41 @@ contract BasketManagerHandler is Test, Constants {
 
     function proposeTokenSwap() public {
         vm.assume(basketManager.rebalanceStatus().status == Status.REBALANCE_PROPOSED);
+        vm.assume(!isPaused);
+
         basketManager.testLib_updateOracleTimestamps();
-        (InternalTrade[] memory _internalTrades, ExternalTrade[] memory _externalTrades) =
-            basketManager.testLib_generateInternalAndExternalTrades(baskets);
-        vm.assume(_internalTrades.length > 0 || _externalTrades.length > 0);
+        (InternalTrade[] memory newInternalTrades, ExternalTrade[] memory newExternalTrades) =
+            basketManager.testLib_generateInternalAndExternalTrades(_rebalancingBaskets);
+        vm.assume(newInternalTrades.length > 0 || newExternalTrades.length > 0);
 
         // Propose and execute token swaps
         address proposer = basketManager.getRoleMember(TOKENSWAP_PROPOSER_ROLE, 0);
         vm.prank(proposer);
         basketManager.proposeTokenSwap(
-            _internalTrades, _externalTrades, rebalancingBaskets, rebalancingTargetWeights, rebalancingBasketAssets
+            newInternalTrades,
+            newExternalTrades,
+            _rebalancingBaskets,
+            _rebalancingTargetWeights,
+            _rebalancingBasketAssets
         );
 
         // Update tracking variables
-        internalTrades = _internalTrades;
-        externalTrades = _externalTrades;
+        _internalTrades = newInternalTrades;
+        _externalTrades = newExternalTrades;
         _rebalanceStatus = basketManager.rebalanceStatus();
 
         // Execute trades
         address executor = basketManager.getRoleMember(TOKENSWAP_EXECUTOR_ROLE, 0);
         vm.prank(executor);
-        basketManager.executeTokenSwap(_externalTrades, "");
+        basketManager.executeTokenSwap(newExternalTrades, "");
 
         // Simulate trade settlement
-        _simulateTradeSettlement(externalTrades);
+        _simulateTradeSettlement(newExternalTrades);
     }
 
     function completeRebalance() public {
         vm.assume(isRebalancing);
-
+        vm.assume(!isPaused);
         // Wait required delay
         vm.assume(basketManager.rebalanceStatus().timestamp > 0);
         vm.assume(basketManager.rebalanceStatus().timestamp + basketManager.stepDelay() <= vm.getBlockTimestamp());
@@ -529,15 +562,17 @@ contract BasketManagerHandler is Test, Constants {
         basketManager.testLib_updateOracleTimestamps();
 
         vm.recordLogs();
-        basketManager.completeRebalance(externalTrades, baskets, rebalancingTargetWeights, rebalancingBasketAssets);
+        basketManager.completeRebalance(
+            _externalTrades, _rebalancingBaskets, _rebalancingTargetWeights, _rebalancingBasketAssets
+        );
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
         for (uint256 i = 0; i < logs.length; i++) {
             for (uint256 j = 0; j < logs[i].topics.length; j++) {
                 if (logs[i].topics[j] == keccak256("RebalanceCompleted(uint40)")) {
                     isRebalancing = false;
-                    rebalancingBaskets = new address[](0);
-                    rebalancingTargetWeights = new uint64[][](0);
-                    rebalancingBasketAssets = new address[][](0);
+                    _rebalancingBaskets = new address[](0);
+                    _rebalancingTargetWeights = new uint64[][](0);
+                    _rebalancingBasketAssets = new address[][](0);
                 } else if (logs[i].topics[j] == keccak256("RedeemFulfilled(uint256,uint256,uint256)")) {
                     (, uint256 _assets) = abi.decode(logs[i].data, (uint256, uint256));
                     totalDepositsForBasket[logs[i].emitter] -= _assets;
@@ -549,27 +584,24 @@ contract BasketManagerHandler is Test, Constants {
         _rebalanceStatus = basketManager.rebalanceStatus();
     }
 
-    function revertsWhenStepDelayIsNotMet() public {
-        // Get the last action timestamp
-        uint256 lastActionTimestamp = basketManager.rebalanceStatus().timestamp;
-        vm.assume(lastActionTimestamp > 0);
-        // Only if the step delay has not passed
-        vm.assume(lastActionTimestamp + basketManager.stepDelay() > vm.getBlockTimestamp());
+    function pause() public {
+        vm.assume(!isPaused);
 
-        try basketManager.completeRebalance(externalTrades, baskets, rebalancingTargetWeights, rebalancingBasketAssets)
-        {
-            assertTrue(false, "Expected reversion");
-        } catch {
-            // Expected reversion
-        }
+        address pauser = basketManager.getRoleMember(PAUSER_ROLE, 0);
+        vm.prank(pauser);
+        basketManager.pause();
+
+        isPaused = true;
     }
 
-    function _getBasketAssets() internal view returns (address[][] memory) {
-        address[][] memory basketAssets = new address[][](baskets.length);
-        for (uint256 i = 0; i < baskets.length; i++) {
-            basketAssets[i] = BasketToken(baskets[i]).getAssets();
-        }
-        return basketAssets;
+    function unpause() public {
+        vm.assume(isPaused);
+
+        address admin = basketManager.getRoleMember(DEFAULT_ADMIN_ROLE, 0);
+        vm.prank(admin);
+        basketManager.unpause();
+
+        isPaused = false;
     }
 
     function _simulateTradeSettlement(ExternalTrade[] memory trades) internal {
@@ -600,5 +632,25 @@ contract BasketManagerHandler is Test, Constants {
 
     function getBaskets() public view returns (address[] memory) {
         return baskets;
+    }
+
+    function internalTrades() public view returns (InternalTrade[] memory) {
+        return _internalTrades;
+    }
+
+    function externalTrades() public view returns (ExternalTrade[] memory) {
+        return _externalTrades;
+    }
+
+    function rebalancingBaskets() public view returns (address[] memory) {
+        return _rebalancingBaskets;
+    }
+
+    function rebalancingTargetWeights() public view returns (uint64[][] memory) {
+        return _rebalancingTargetWeights;
+    }
+
+    function rebalancingBasketAssets() public view returns (address[][] memory) {
+        return _rebalancingBasketAssets;
     }
 }
