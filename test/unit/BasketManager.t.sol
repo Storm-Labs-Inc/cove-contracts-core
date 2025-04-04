@@ -2256,6 +2256,16 @@ contract BasketManagerTest is BaseTest {
         uint256 netBuyAmount = buyAmount - buyAmount.fullMulDiv(swapFee, 2e4);
 
         assertEq(
+            basketManager.collectedSwapFees(rootAsset),
+            swapFeeAmount,
+            "collectedSwapFees did not increase by swapFeeAmount"
+        );
+        assertEq(
+            basketManager.collectedSwapFees(params.pairAsset),
+            buyAmount - netBuyAmount,
+            "collectedSwapFees did not increase by swapFeeAmount"
+        );
+        assertEq(
             basketManager.basketBalanceOf(baskets[0], rootAsset),
             basket0RootAssetBalanceOfBefore - internalTrades[0].sellAmount,
             "fromBasket balance of sellToken did not decrease by sellAmount"
