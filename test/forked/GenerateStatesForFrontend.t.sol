@@ -12,7 +12,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { Vm } from "forge-std/Vm.sol";
-
+import { console } from "forge-std/console.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
@@ -37,8 +37,8 @@ contract GenerateStatesForFrontend is BaseTest {
 
     function setUp() public override {
         // https://etherscan.io/block/22155634
-        // 29th March 2025, targets staging deployment including ysyG-yvUSDS-1
-        forkNetworkAt("mainnet", 22_155_634);
+        // 4th April 2025, targets staging deployment with updated CurveEMAOracleUnderlying
+        forkNetworkAt("mainnet", 22_196_382);
         basketManager = _getFromStagingMasterRegistry("BasketManager");
         basketToken = BasketManager(basketManager).basketTokens()[0];
         weightStrategy = BasketToken(basketToken).strategy();
@@ -221,11 +221,15 @@ contract GenerateStatesForFrontend is BaseTest {
         _updatePythOracleTimeStamp(PYTH_USDC_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_SDAI_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_USDS_USD_FEED);
+        _updatePythOracleTimeStamp(PYTH_FRAX_USD_FEED);
+        _updatePythOracleTimeStamp(PYTH_USDE_USD_FEED);
 
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_SUSDE_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDC_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_DAI_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDS_USD_FEED);
+        _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_FRAX_USD_FEED);
+        _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDE_USD_FEED);
     }
 
     function _getBasketTagetWeights(address[] memory basketTokens) internal view returns (uint64[][] memory) {
