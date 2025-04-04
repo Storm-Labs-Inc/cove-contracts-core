@@ -90,6 +90,22 @@ contract BasketToken_InvariantTest is StdInvariant, BaseTest {
             "totalSupply should match totalSupply"
         );
     }
+
+    function invariant_requestIdProgression() public {
+        if (!basketTokenHandler.initialized()) {
+            return;
+        }
+        uint256 nextDepositRequestId = basketTokenHandler.basketToken().nextDepositRequestId();
+        uint256 nextRedeemRequestId = basketTokenHandler.basketToken().nextRedeemRequestId();
+
+        // Check deposit request ID progression
+        assertTrue(nextDepositRequestId >= 2, "nextDepositRequestId should be >= 2");
+        assertTrue(nextDepositRequestId % 2 == 0, "nextDepositRequestId should be even");
+
+        // Check redeem request ID progression
+        assertTrue(nextRedeemRequestId >= 3, "nextRedeemRequestId should be >= 3");
+        assertTrue(nextRedeemRequestId % 2 == 1, "nextRedeemRequestId should be odd");
+    }
 }
 
 /// @title BasketTokenHandler for Invariant Tests

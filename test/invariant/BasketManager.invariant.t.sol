@@ -80,12 +80,13 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
     // INVARIANTS
     ///////////////////////
 
-    // BasketManager Invariants
+    // Verify BasketManager remains operational and not paused during testing
     function invariant_basketManagerIsOperational() public {
         // Check if BasketManager is not paused
         assertTrue(!handler.basketManager().paused(), "BasketManager should not be paused");
     }
 
+    // Verify asset conservation: sum of basket balances equals actual token balance when not in rebalance
     function invariant_assetConservation() public {
         // Skip if currently in the middle of a rebalance process
         if (handler.basketManager().rebalanceStatus().status != Status.NOT_STARTED) {
@@ -116,6 +117,9 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         }
     }
 
+    // Verify basket total assets match total deposits for each basket. Assumes no trades have been made.
+    // TODO: is this ghost variable tracking invariant helpful? How do we track this across each trade and rebalances?
+    // Unsure what to compare totalAssets() to across each trade and rebalance.
     function invariant_basketBalancesMatchDeposits() public {
         // For each basket, verify total assets match deposits
         address[] memory baskets = handler.getBaskets();
@@ -128,24 +132,13 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         }
     }
 
+    // Verify oracle configurations remain valid and return non-zero values
     function invariant_oraclePathsAreValid() public {
         // Verify oracle configurations remain valid
         handler.basketManager().testLib_validateConfiguredOracles();
     }
 
-    function invariant_rebalanceStateIsConsistent() public {
-        assertEq(
-            keccak256(abi.encode(handler.basketManager().rebalanceStatus())),
-            keccak256(abi.encode(handler.rebalanceStatus())),
-            "Rebalance status should be consistent"
-        );
-    }
-
-    function invariant_retryCountWithinLimit() public {
-        assertLt(handler.basketManager().retryCount(), 10, "Retry count should be within limit");
-    }
-
-    // Basket Registration Consistency
+    // Verify basket registration consistency: count, indices, and mapping integrity
     function invariant_basketRegistrationConsistency() public {
         BasketManager basketManager = handler.basketManager();
 
@@ -159,65 +152,134 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         }
     }
 
-    // Configuration Bounds Check
+    // Verify basket registration consistency for known baskets and their basketIds
+    function invariant_knownBasketRegistrationConsistency() public {
+        BasketManager basketManager = handler.basketManager();
+        address[] memory baskets = basketManager.basketTokens();
+
+        // Check each basket
+        for (uint256 i = 0; i < baskets.length; i++) {
+            address basket = baskets[i];
+
+            // Get basket's bitFlag and strategy
+            uint256 bitFlag = BasketToken(basket).bitFlag();
+            address strategy = BasketToken(basket).strategy();
+
+            // Calculate expected basketId
+            bytes32 basketId = keccak256(abi.encodePacked(bitFlag, strategy));
+
+            // Verify basketIdToAddress mapping is correct
+            assertEq(basketManager.basketIdToAddress(basketId), basket, "BasketId to address mapping mismatch");
+
+            // Verify basket has valid index by checking if basketTokenToIndex() doesn't revert
+            // If the basket is not properly registered, this will revert with BasketTokenNotFound
+            uint256 index = basketManager.basketTokenToIndex(basket);
+            assertTrue(index < type(uint256).max, "Basket has invalid index"); // Always true if above doesn't revert
+        }
+
+        // Additional check: Verify all known basketIds point to baskets with valid indices
+        // This is a more comprehensive check that ensures no "orphaned" basketIds exist
+        for (uint256 i = 0; i < baskets.length; i++) {
+            address basket = baskets[i];
+            uint256 bitFlag = BasketToken(basket).bitFlag();
+            address strategy = BasketToken(basket).strategy();
+            bytes32 basketId = keccak256(abi.encodePacked(bitFlag, strategy));
+
+            address registeredBasket = basketManager.basketIdToAddress(basketId);
+            if (registeredBasket != address(0)) {
+                // This will revert with BasketTokenNotFound if the basket is not properly registered
+                uint256 index = basketManager.basketTokenToIndex(registeredBasket);
+                assertTrue(index < type(uint256).max, "Known basket has invalid index"); // Always true if above doesn't
+                    // revert
+            }
+        }
+    }
+
+    // Verify BasketManager configurations are within intended hardcoded bounds
     function invariant_configurationBounds() public {
         BasketManager basketManager = handler.basketManager();
 
         // Check swap fee is within bounds
-        assertTrue(basketManager.swapFee() <= 500, "Swap fee exceeds maximum");
+        assertTrue(basketManager.swapFee() <= MAX_SWAP_FEE, "Swap fee exceeds maximum");
 
         // Check step delay is within bounds
         uint40 stepDelay = basketManager.stepDelay();
-        assertTrue(stepDelay >= 1 minutes, "Step delay below minimum");
-        assertTrue(stepDelay <= 60 minutes, "Step delay above maximum");
+        assertTrue(stepDelay >= MIN_STEP_DELAY, "Step delay below minimum");
+        assertTrue(stepDelay <= MAX_STEP_DELAY, "Step delay above maximum");
 
         // Check retry limit is within bounds
-        assertTrue(basketManager.retryLimit() <= 10, "Retry limit exceeds maximum");
+        assertTrue(basketManager.retryLimit() <= MAX_RETRIES, "Retry limit exceeds maximum");
 
         // Check slippage limit is within bounds
-        assertTrue(basketManager.slippageLimit() <= 0.5e18, "Slippage limit exceeds maximum");
+        assertTrue(basketManager.slippageLimit() <= MAX_SLIPPAGE_LIMIT, "Slippage limit exceeds maximum");
 
         // Check weight deviation limit is within bounds
-        assertTrue(basketManager.weightDeviationLimit() <= 0.5e18, "Weight deviation limit exceeds maximum");
+        assertTrue(
+            basketManager.weightDeviationLimit() <= MAX_WEIGHT_DEVIATION_LIMIT, "Weight deviation limit exceeds maximum"
+        );
 
         // Check management fee for each basket is within bounds
         address[] memory baskets = basketManager.basketTokens();
         for (uint256 i = 0; i < baskets.length; i++) {
-            assertTrue(basketManager.managementFee(baskets[i]) <= 3000, "Management fee exceeds maximum");
+            assertTrue(basketManager.managementFee(baskets[i]) <= MAX_MANAGEMENT_FEE, "Management fee exceeds maximum");
         }
     }
 
-    // Rebalance Status Validity
+    // Verify rebalance status validity: retry count, basket mask, trade hashes, and timestamps
     function invariant_rebalanceStatusValidity() public {
         BasketManager basketManager = handler.basketManager();
         RebalanceStatus memory status = basketManager.rebalanceStatus();
 
+        assertEq(
+            keccak256(abi.encode(status)),
+            keccak256(abi.encode(handler.rebalanceStatus())),
+            "Rebalance status should be consistent"
+        );
+
         // Check retry count does not exceed limit
         assertTrue(status.retryCount <= basketManager.retryLimit(), "Retry count exceeds limit");
 
-        // Check basket mask is non-zero if in rebalance
-        if (status.status != Status.NOT_STARTED) {
-            assertTrue(
-                status.basketMask != 0 || basketManager.basketTokens().length == 0,
-                "Basket mask is zero during active rebalance"
+        // Status-specific validations
+        if (status.status == Status.NOT_STARTED) {
+            // When not started, all state should be reset
+            assertEq(status.proposalTimestamp, 0, "Proposal timestamp should be zero outside of rebalance");
+            assertEq(status.retryCount, 0, "Retry count should be zero outside of rebalance");
+            assertEq(status.basketMask, 0, "Basket mask should be zero outside of rebalance");
+            assertEq(status.basketHash, bytes32(0), "Basket hash should be zero outside of rebalance");
+            assertEq(
+                basketManager.externalTradesHash(), bytes32(0), "External trades hash should be zero when not started"
             );
-        }
-
-        // Check external trades hash is non-zero in appropriate states
-        if (status.status == Status.TOKEN_SWAP_PROPOSED || status.status == Status.TOKEN_SWAP_EXECUTED) {
+            if (status.epoch == 0 && status.retryCount == 0) {
+                assertEq(status.timestamp, 0, "Timestamp should be zero when not started");
+            }
+            if (status.timestamp > 0) {
+                assertTrue(
+                    status.epoch > 0 || status.retryCount > 0,
+                    "Epoch or retry count should be non-zero when timestamp is non-zero"
+                );
+            }
+        } else {
+            // Active rebalance validations
+            assertTrue(status.basketMask != 0, "Basket mask is not zero during active rebalance");
+            assertTrue(status.basketHash != bytes32(0), "Basket hash is not zero during active rebalance");
+            assertTrue(status.proposalTimestamp != 0, "Proposal timestamp should be non-zero during rebalance");
             assertTrue(
-                basketManager.externalTradesHash() != bytes32(0),
-                "External trades hash is zero when it should be non-zero"
+                status.timestamp >= status.proposalTimestamp, "Timestamp should not be before proposal timestamp"
             );
-        }
 
-        // Check basket hash is non-zero in appropriate states
-        if (status.status >= Status.REBALANCE_PROPOSED) {
-            assertTrue(status.basketHash != bytes32(0), "Basket hash is zero during active rebalance");
+            // Status-specific external trades hash checks
+            if (status.status == Status.TOKEN_SWAP_PROPOSED || status.status == Status.TOKEN_SWAP_EXECUTED) {
+                // Technically, the external trades could be empty if only internal trades are proposed
+                // However the resulting hash should still be non-zero as hash of zero bytes is non-zero
+                assertTrue(
+                    basketManager.externalTradesHash() != bytes32(0),
+                    "External trades hash should be non-zero after trade proposal"
+                );
+            }
         }
     }
 
-    // Asset Index Consistency
+    // Verify asset index consistency and base asset index validity for each basket
     function invariant_assetIndexConsistency() public {
         BasketManager basketManager = handler.basketManager();
         address[] memory baskets = basketManager.basketTokens();
@@ -235,7 +297,7 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
 
             // Check base asset index is valid and matches
             uint256 baseAssetIndex = basketManager.basketTokenToBaseAssetIndex(basket);
-            assertTrue(baseAssetIndex < assets.length, "Base asset index out of bounds");
+            assertLt(baseAssetIndex, assets.length, "Base asset index out of bounds");
 
             // Verify base asset in BasketToken matches the asset at baseAssetIndex
             assertEq(BasketToken(basket).asset(), assets[baseAssetIndex], "Base asset mismatch");
