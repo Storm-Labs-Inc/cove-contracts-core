@@ -141,7 +141,7 @@ jobs:
         run: |
           forge --version
           pnpm build
-          forge test -vvv --no-match-path "test/invariant/"
+          forge test -vvv --no-match-path "test/invariant/**"
         env:
           # make fuzzing semi-deterministic to avoid noisy gas cost estimation
           # due to non-deterministic fuzzing (but still use pseudo-random fuzzing seeds)
@@ -163,7 +163,7 @@ jobs:
         run: |
           forge --version
           pnpm build
-          forge test -vvv --match-path "test/invariant/"
+          forge test -vvv --match-path "test/invariant/**"
         env:
           FOUNDRY_FUZZ_SEED: 0x${{ github.event.pull_request.base.sha || github.sha }}
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
