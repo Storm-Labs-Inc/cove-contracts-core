@@ -80,9 +80,40 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
     // INVARIANTS
     ///////////////////////
 
+    // BasketManager Invariants
     function invariant_basketManagerIsOperational() public {
         // Check if BasketManager is not paused
         assertTrue(!handler.basketManager().paused(), "BasketManager should not be paused");
+    }
+
+    function invariant_assetConservation() public {
+        // Skip if currently in the middle of a rebalance process
+        if (handler.basketManager().rebalanceStatus().status != Status.NOT_STARTED) {
+            return;
+        }
+
+        // Check each asset
+        address[] memory assets = handler.getAssets();
+        for (uint256 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
+            uint256 totalBasketBalances = 0;
+
+            // Sum up the balances across all baskets
+            address[] memory baskets = handler.getBaskets();
+            for (uint256 j = 0; j < baskets.length; j++) {
+                totalBasketBalances += handler.basketManager().basketBalanceOf(baskets[j], asset);
+            }
+
+            // Since collectedSwapFees is not directly accessible (it's private), we can't check it directly
+            // in this invariant test. We rely on the internal accounting to be correct.
+
+            // Verify conservation: sum of basket balances = actual balance when not in rebalance
+            assertEq(
+                totalBasketBalances,
+                IERC20(asset).balanceOf(address(handler.basketManager())),
+                "Asset conservation violated for asset"
+            );
+        }
     }
 
     function invariant_basketBalancesMatchDeposits() public {
@@ -112,6 +143,103 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
 
     function invariant_retryCountWithinLimit() public {
         assertLt(handler.basketManager().retryCount(), 10, "Retry count should be within limit");
+    }
+
+    // Basket Registration Consistency
+    function invariant_basketRegistrationConsistency() public {
+        BasketManager basketManager = handler.basketManager();
+
+        // Check that numOfBasketTokens matches basketTokens.length
+        assertEq(basketManager.numOfBasketTokens(), basketManager.basketTokens().length, "Basket token count mismatch");
+
+        // Check that each basket's index is correct
+        address[] memory baskets = basketManager.basketTokens();
+        for (uint256 i = 0; i < baskets.length; i++) {
+            assertEq(basketManager.basketTokenToIndex(baskets[i]), i, "Basket token index mismatch");
+        }
+    }
+
+    // Configuration Bounds Check
+    function invariant_configurationBounds() public {
+        BasketManager basketManager = handler.basketManager();
+
+        // Check swap fee is within bounds
+        assertTrue(basketManager.swapFee() <= 500, "Swap fee exceeds maximum");
+
+        // Check step delay is within bounds
+        uint40 stepDelay = basketManager.stepDelay();
+        assertTrue(stepDelay >= 1 minutes, "Step delay below minimum");
+        assertTrue(stepDelay <= 60 minutes, "Step delay above maximum");
+
+        // Check retry limit is within bounds
+        assertTrue(basketManager.retryLimit() <= 10, "Retry limit exceeds maximum");
+
+        // Check slippage limit is within bounds
+        assertTrue(basketManager.slippageLimit() <= 0.5e18, "Slippage limit exceeds maximum");
+
+        // Check weight deviation limit is within bounds
+        assertTrue(basketManager.weightDeviationLimit() <= 0.5e18, "Weight deviation limit exceeds maximum");
+
+        // Check management fee for each basket is within bounds
+        address[] memory baskets = basketManager.basketTokens();
+        for (uint256 i = 0; i < baskets.length; i++) {
+            assertTrue(basketManager.managementFee(baskets[i]) <= 3000, "Management fee exceeds maximum");
+        }
+    }
+
+    // Rebalance Status Validity
+    function invariant_rebalanceStatusValidity() public {
+        BasketManager basketManager = handler.basketManager();
+        RebalanceStatus memory status = basketManager.rebalanceStatus();
+
+        // Check retry count does not exceed limit
+        assertTrue(status.retryCount <= basketManager.retryLimit(), "Retry count exceeds limit");
+
+        // Check basket mask is non-zero if in rebalance
+        if (status.status != Status.NOT_STARTED) {
+            assertTrue(
+                status.basketMask != 0 || basketManager.basketTokens().length == 0,
+                "Basket mask is zero during active rebalance"
+            );
+        }
+
+        // Check external trades hash is non-zero in appropriate states
+        if (status.status == Status.TOKEN_SWAP_PROPOSED || status.status == Status.TOKEN_SWAP_EXECUTED) {
+            assertTrue(
+                basketManager.externalTradesHash() != bytes32(0),
+                "External trades hash is zero when it should be non-zero"
+            );
+        }
+
+        // Check basket hash is non-zero in appropriate states
+        if (status.status >= Status.REBALANCE_PROPOSED) {
+            assertTrue(status.basketHash != bytes32(0), "Basket hash is zero during active rebalance");
+        }
+    }
+
+    // Asset Index Consistency
+    function invariant_assetIndexConsistency() public {
+        BasketManager basketManager = handler.basketManager();
+        address[] memory baskets = basketManager.basketTokens();
+
+        for (uint256 i = 0; i < baskets.length; i++) {
+            address basket = baskets[i];
+            address[] memory assets = basketManager.basketAssets(basket);
+
+            for (uint256 j = 0; j < assets.length; j++) {
+                address asset = assets[j];
+
+                // Check that getAssetIndexInBasket returns the correct index
+                assertEq(basketManager.getAssetIndexInBasket(basket, asset), j, "Asset index mismatch");
+            }
+
+            // Check base asset index is valid and matches
+            uint256 baseAssetIndex = basketManager.basketTokenToBaseAssetIndex(basket);
+            assertTrue(baseAssetIndex < assets.length, "Base asset index out of bounds");
+
+            // Verify base asset in BasketToken matches the asset at baseAssetIndex
+            assertEq(BasketToken(basket).asset(), assets[baseAssetIndex], "Base asset mismatch");
+        }
     }
 
     ///////////////////////
