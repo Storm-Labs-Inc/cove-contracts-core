@@ -339,6 +339,13 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         return _bmStorage.basketAssets[basket];
     }
 
+    /// @notice Returns the collected swap fees for the given asset.
+    /// @param asset Address of the asset.
+    /// @return Collected swap fees.
+    function collectedSwapFees(address asset) external view returns (uint256) {
+        return _bmStorage.collectedSwapFees[asset];
+    }
+
     /// @notice Creates a new basket token with the given parameters.
     /// @param basketName Name of the basket.
     /// @param symbol Symbol of the basket.
