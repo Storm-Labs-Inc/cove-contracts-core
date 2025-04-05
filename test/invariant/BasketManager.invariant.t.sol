@@ -384,9 +384,9 @@ contract BasketManagerHandler is Test, Constants {
     ///////////////////////
     // Time Fuzzing
     ///////////////////////
-    function warpBy(uint256 secondsToSkip) public {
+    function warpBy(uint64 secondsToSkip) public {
         console.log("warpBy", secondsToSkip);
-        vm.assume(secondsToSkip <= 3 hours);
+        secondsToSkip = uint64(bound(secondsToSkip, 15 minutes, 3 hours));
         vm.warp(vm.getBlockTimestamp() + secondsToSkip);
     }
 
