@@ -9,6 +9,7 @@ import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { CurveEMAOracle } from "euler-price-oracle/src/adapter/curve/CurveEMAOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+import { IPriceOracle } from "euler-price-oracle/src/interfaces/IPriceOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 
@@ -234,7 +235,7 @@ library BasketManagerValidationLib {
         for (uint256 i = 0; i < assets.length; i++) {
             // get balances
             uint256 balance = basketManager.basketBalanceOf(basket, assets[i]);
-            uint256 usdValue = EulerRouter(basketManager.eulerRouter()).getQuote(balance, assets[i], USD);
+            uint256 usdValue = _getPrimaryOracleQuote(EulerRouter(basketManager.eulerRouter()), balance, assets[i], USD);
             usdValues[i] = usdValue;
         }
 
@@ -332,7 +333,7 @@ library BasketManagerValidationLib {
 
             for (uint256 j = 0; j < assets.length; j++) {
                 uint256 balance = basketManager.basketBalanceOf(basket, assets[j]);
-                slot.usdValues[j] = eulerRouter.getQuote(balance, assets[j], USD);
+                slot.usdValues[j] = _getPrimaryOracleQuote(eulerRouter, balance, assets[j], USD);
                 slot.totalValue += slot.usdValues[j];
                 console.log(
                     string.concat(
@@ -369,9 +370,9 @@ library BasketManagerValidationLib {
                     slot.totalValue - slot.redemptionValue, targetWeights[slot.baseAssetIndex], 1e18
                 );
                 slot.baseAssetNeededForRedemption =
-                    eulerRouter.getQuote(slot.redemptionValue, USD, assets[slot.baseAssetIndex]);
+                    _getPrimaryOracleQuote(eulerRouter, slot.redemptionValue, USD, assets[slot.baseAssetIndex]);
                 slot.baseAssetTotalTarget = slot.baseAssetNeededForRedemption
-                    + eulerRouter.getQuote(slot.baseAssetTargetValue, USD, assets[slot.baseAssetIndex]);
+                    + _getPrimaryOracleQuote(eulerRouter, slot.baseAssetTargetValue, USD, assets[slot.baseAssetIndex]);
 
                 console.log("Base asset target value (excl. redemptions):", slot.baseAssetTargetValue);
                 console.log("Base asset needed for redemptions:", slot.baseAssetNeededForRedemption);
@@ -447,7 +448,7 @@ library BasketManagerValidationLib {
                             FixedPointMathLib.fullMulDiv(slot.targetValue, slot.currentAmount, slot.currentValue);
                     } else if (slot.targetValue > 0) {
                         // If current value is 0 but target is not, use price to calculate target amount
-                        slot.targetAmount = eulerRouter.getQuote(slot.targetValue, USD, assets[j]);
+                        slot.targetAmount = _getPrimaryOracleQuote(eulerRouter, slot.targetValue, USD, assets[j]);
                     }
 
                     console.log(
@@ -644,10 +645,12 @@ library BasketManagerValidationLib {
                 if (slot.deficitAsset != address(0)) {
                     // Calculate trade parameters
                     slot.sellAmount = slot.surplusDeficits[i].surplus;
-                    slot.sellValueUSD = eulerRouter.getQuote(slot.sellAmount, slot.surplusDeficits[i].asset, USD);
+                    slot.sellValueUSD =
+                        _getPrimaryOracleQuote(eulerRouter, slot.sellAmount, slot.surplusDeficits[i].asset, USD);
 
                     // Apply a 0.5% slippage for min amount (99.5% of expected)
-                    slot.expectedBuyAmount = eulerRouter.getQuote(slot.sellValueUSD, USD, slot.deficitAsset);
+                    slot.expectedBuyAmount =
+                        _getPrimaryOracleQuote(eulerRouter, slot.sellValueUSD, USD, slot.deficitAsset);
                     slot.minBuyAmount = slot.expectedBuyAmount * 995 / 1000;
 
                     console.log(
@@ -725,6 +728,23 @@ library BasketManagerValidationLib {
         console.log("=== End of trade generation ===\n");
 
         return (internalTradesResult, externalTradesResult);
+    }
+
+    function _getPrimaryOracleQuote(
+        EulerRouter eulerRouter,
+        uint256 amount,
+        address base,
+        address quote
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        address anchoredOracle = eulerRouter.getConfiguredOracle(base, quote);
+        if (anchoredOracle == address(0)) {
+            revert OracleNotConfigured(base);
+        }
+        return IPriceOracle(AnchoredOracle(anchoredOracle).primaryOracle()).getQuote(amount, base, quote);
     }
 
     function _updateOracleTimestamp(EulerRouter eulerRouter, address oracle) private {
