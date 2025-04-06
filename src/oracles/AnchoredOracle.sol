@@ -28,6 +28,9 @@ contract AnchoredOracle is BaseAdapter {
     /// @notice The maximum divergence allowed, denominated in _WAD.
     uint256 public immutable maxDivergence;
 
+    /// @notice Reverts when the input amount is too large to scale without overflow.
+    error AnchoredOracle_ScalingOverflow();
+
     /// @notice Deploys an AnchoredOracle contract.
     /// @param _primaryOracle The address of the primary oracle used for obtaining price quotes.
     /// @param _anchorOracle The address of the anchor oracle used for validating price quotes.
@@ -58,15 +61,38 @@ contract AnchoredOracle is BaseAdapter {
     /// @param quote The token against which the price is measured.
     /// @return The price quote from the `primaryOracle`.
     function _getQuote(uint256 inAmount, address base, address quote) internal view override returns (uint256) {
-        uint256 primaryOutAmount = IPriceOracle(primaryOracle).getQuote(inAmount, base, quote);
-        uint256 anchorOutAmount = IPriceOracle(anchorOracle).getQuote(inAmount, base, quote);
+        // Get the initial quote from the primary oracle
+        uint256 originalPrimaryOutAmount = IPriceOracle(primaryOracle).getQuote(inAmount, base, quote);
 
-        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryOutAmount, _WAD - maxDivergence, _WAD);
-        uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryOutAmount, _WAD + maxDivergence, _WAD);
-        if (anchorOutAmount < lowerBound || anchorOutAmount > upperBound) {
+        uint256 primaryToCheck;
+        uint256 anchorToCheck;
+
+        // If the initial primary output is very small, scale the input to get better precision for the check
+        if (originalPrimaryOutAmount < _WAD) {
+            // Prevent overflow when scaling the input amount
+            if (inAmount > type(uint256).max / _WAD) {
+                revert AnchoredOracle_ScalingOverflow();
+            }
+            uint256 scaledInAmount = inAmount * _WAD;
+
+            // Get quotes using the scaled input amount
+            primaryToCheck = IPriceOracle(primaryOracle).getQuote(scaledInAmount, base, quote);
+            anchorToCheck = IPriceOracle(anchorOracle).getQuote(scaledInAmount, base, quote);
+        } else {
+            // If the initial primary output is large enough, use original amounts for the check
+            primaryToCheck = originalPrimaryOutAmount;
+            anchorToCheck = IPriceOracle(anchorOracle).getQuote(inAmount, base, quote);
+        }
+
+        // Perform the bounds check using the potentially scaled values
+        uint256 lowerBound = FixedPointMathLib.fullMulDivUp(primaryToCheck, _WAD - maxDivergence, _WAD);
+        uint256 upperBound = FixedPointMathLib.fullMulDiv(primaryToCheck, _WAD + maxDivergence, _WAD);
+
+        if (anchorToCheck < lowerBound || anchorToCheck > upperBound) {
             revert Errors.PriceOracle_InvalidAnswer();
         }
 
-        return primaryOutAmount;
+        // Return the original output amount
+        return originalPrimaryOutAmount;
     }
 }
