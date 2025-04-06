@@ -229,6 +229,24 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         }
     }
 
+    // Verify variable links are correct
+    function invariant_variableLink() public {
+        BasketManager basketManager = handler.basketManager();
+        address[] memory baskets = basketManager.basketTokens();
+
+        for (uint256 i = 0; i < baskets.length; i++) {
+            address basket = baskets[i];
+            // Check Asset Registry link
+            assertEq(
+                BasketToken(basket).assetRegistry(),
+                address(basketManager.assetRegistry()),
+                "Basket asset registry mismatch"
+            );
+            // Check Basket Manager link
+            assertEq(BasketToken(basket).basketManager(), address(basketManager), "Basket manager address mismatch");
+        }
+    }
+
     // Verify rebalance status validity: retry count, basket mask, trade hashes, and timestamps
     function invariant_rebalanceStatusValidity() public {
         BasketManager basketManager = handler.basketManager();
