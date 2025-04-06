@@ -19,6 +19,6 @@ contract MockPriceOracle {
     }
 
     function _calcQuote(uint256 inAmount, address base, address quote) internal view returns (uint256) {
-        return FixedPointMathLib.fullMulDivUp(inAmount, prices[base][quote], 1e18);
+        return FixedPointMathLib.fullMulDiv(inAmount, prices[base][quote], 1e18);
     }
 }
