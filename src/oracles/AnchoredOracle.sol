@@ -28,6 +28,7 @@ contract AnchoredOracle is BaseAdapter {
     /// @notice The maximum divergence allowed, denominated in _WAD.
     uint256 public immutable maxDivergence;
 
+    /// @notice Reverts when the input amount is too large to scale without overflow.
     error AnchoredOracle_ScalingOverflow();
 
     /// @notice Deploys an AnchoredOracle contract.

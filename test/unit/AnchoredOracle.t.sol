@@ -225,4 +225,16 @@ contract AnchoredOracleTest is BaseTest {
             oracle.getQuote(inAmount, base, quote);
         }
     }
+
+    function testFuzz_getQuote_revertWhen_AnchoredOracle_ScalingOverflow(
+        uint256 inAmount,
+        address base,
+        address quote
+    )
+        public
+    {
+        inAmount = bound(inAmount, type(uint256).max / _WAD + 1, type(uint256).max);
+        vm.expectRevert(AnchoredOracle.AnchoredOracle_ScalingOverflow.selector);
+        oracle.getQuote(inAmount, base, quote);
+    }
 }
