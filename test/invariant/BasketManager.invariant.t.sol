@@ -403,7 +403,6 @@ contract BasketManagerHandler is Test, Constants {
     // Time Fuzzing
     ///////////////////////
     function warpBy(uint64 secondsToSkip) public {
-        console.log("warpBy", secondsToSkip);
         secondsToSkip = uint64(bound(secondsToSkip, 15 minutes, 3 hours));
         vm.warp(vm.getBlockTimestamp() + secondsToSkip);
     }
@@ -444,6 +443,7 @@ contract BasketManagerHandler is Test, Constants {
 
         uint256 maxDeposit = BasketToken(basket).maxDeposit(actor);
         vm.assume(maxDeposit > 0);
+
         amount = bound(amount, 0, maxDeposit - 1);
 
         vm.prank(actor);
@@ -455,6 +455,17 @@ contract BasketManagerHandler is Test, Constants {
 
         vm.prank(actor);
         BasketToken(basket).deposit(maxDeposit, actor, actor);
+    }
+
+    function claimFallbackAssets(uint256 actorIdx, uint256 basketIdx) public {
+        address actor = actors[actorIdx % actors.length];
+        address basket = baskets[basketIdx % baskets.length];
+
+        uint256 claimableFallbackAssets = BasketToken(basket).claimableFallbackAssets(actor);
+        vm.assume(claimableFallbackAssets > 0);
+
+        vm.prank(actor);
+        BasketToken(basket).claimFallbackAssets(actor, actor);
     }
 
     function requestRedeem(uint256 actorIdx, uint256 basketIdx, uint256 amount) public {
@@ -485,6 +496,7 @@ contract BasketManagerHandler is Test, Constants {
 
         uint256 maxRedeem = BasketToken(basket).maxRedeem(actor);
         vm.assume(maxRedeem > 0);
+
         amount = bound(amount, 0, maxRedeem - 1);
 
         vm.prank(actor);
@@ -496,6 +508,17 @@ contract BasketManagerHandler is Test, Constants {
 
         vm.prank(actor);
         BasketToken(basket).redeem(maxRedeem, actor, actor);
+    }
+
+    function claimFallbackShares(uint256 actorIdx, uint256 basketIdx) public {
+        address actor = actors[actorIdx % actors.length];
+        address basket = baskets[basketIdx % baskets.length];
+
+        uint256 claimableFallbackShares = BasketToken(basket).claimableFallbackShares(actor);
+        vm.assume(claimableFallbackShares > 0);
+
+        vm.prank(actor);
+        BasketToken(basket).claimFallbackShares(actor, actor);
     }
 
     ///////////////////////
