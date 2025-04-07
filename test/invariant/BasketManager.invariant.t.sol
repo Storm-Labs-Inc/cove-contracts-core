@@ -17,6 +17,7 @@ import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
+import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { RebalanceStatus } from "src/types/BasketManagerStorage.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
@@ -586,10 +587,19 @@ contract BasketManagerHandler is Test, Constants {
         // Execute trades
         address executor = basketManager.getRoleMember(TOKENSWAP_EXECUTOR_ROLE, 0);
         vm.prank(executor);
+        vm.recordLogs();
         basketManager.executeTokenSwap(newExternalTrades, "");
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        address[] memory swapContracts = new address[](newExternalTrades.length);
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("OrderCreated(address,address,uint256,uint256,uint32,address)")) {
+                (,,, address swapContract) = abi.decode(logs[i].data, (uint256, uint256, uint32, address));
+                swapContracts[i] = swapContract;
+            }
+        }
 
         // Simulate trade settlement
-        _simulateTradeSettlement(newExternalTrades);
+        _simulateTradeSettlement(newExternalTrades, swapContracts);
     }
 
     function completeRebalance() public {
@@ -645,16 +655,79 @@ contract BasketManagerHandler is Test, Constants {
         isPaused = false;
     }
 
-    function _simulateTradeSettlement(ExternalTrade[] memory trades) internal {
-        // Simulate successful settlement of external trades
+    ///////////////////////
+    // ManagedWeightStrategy Fuzzing
+    ///////////////////////
+
+    function setTargetWeights(uint256 basketIdx, uint256 seed) public {
+        address basket = baskets[basketIdx % baskets.length];
+        address weightStrategy = BasketToken(basket).strategy();
+        uint256 bitFlag = BasketToken(basket).bitFlag();
+        vm.assume(weightStrategy != address(0));
+
+        address[] memory _assets = BasketToken(basket).getAssets();
+        uint64[] memory targetWeights = new uint64[](_assets.length);
+        uint256 remainingWeight = 1e18;
+
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (i == assets.length - 1) {
+                targetWeights[i] = uint64(remainingWeight);
+            } else {
+                uint256 maxWeight = remainingWeight - (assets.length - i - 1);
+                uint256 weight = bound(uint256(keccak256(abi.encode(seed, i))), 1, maxWeight);
+                targetWeights[i] = uint64(weight);
+                remainingWeight -= weight;
+            }
+        }
+
+        address manager = ManagedWeightStrategy(weightStrategy).getRoleMember(MANAGER_ROLE, 0);
+        vm.prank(manager);
+        ManagedWeightStrategy(weightStrategy).setTargetWeights(bitFlag, targetWeights);
+    }
+
+    ///////////////////////
+    // Helper functions
+    ///////////////////////
+
+    function _simulateTradeSettlement(ExternalTrade[] memory trades, address[] memory swapContracts) internal {
+        // Simulate successful settlement of external trades by CoWSwap
         for (uint256 i = 0; i < trades.length; i++) {
             // Transfer tokens to simulate trade execution
-            IERC20(trades[i].sellToken).safeTransfer(address(basketManager), trades[i].sellAmount);
-            deal(trades[i].buyToken, address(basketManager), trades[i].minAmount);
+            _takeAway(IERC20(trades[i].sellToken), swapContracts[i], trades[i].sellAmount);
+            _airdrop(IERC20(trades[i].buyToken), swapContracts[i], trades[i].minAmount);
         }
     }
 
-    // Getters for test contract
+    /// @notice Airdrop an asset to an address with a given amount
+    /// @dev This function should only be used for ERC20s that have totalSupply storage slot
+    /// @param _asset address of the asset to airdrop
+    /// @param _to address to airdrop to
+    /// @param _amount amount to airdrop
+    function _airdrop(IERC20 _asset, address _to, uint256 _amount, bool adjust) internal {
+        uint256 balanceBefore = _asset.balanceOf(_to);
+        deal(address(_asset), _to, balanceBefore + _amount, adjust);
+    }
+
+    function _airdrop(IERC20 _asset, address _to, uint256 _amount) internal {
+        _airdrop(_asset, _to, _amount, true);
+    }
+
+    /// @notice Take an asset away from an address with a given amount
+    /// @param _asset address of the asset to take away
+    /// @param _from address to take away from
+    /// @param _amount amount to take away
+    function _takeAway(IERC20 _asset, address _from, uint256 _amount) internal {
+        uint256 balanceBefore = _asset.balanceOf(_from);
+        if (balanceBefore < _amount) {
+            revert("BaseTest:takeAway(): Insufficient balance");
+        }
+        deal(address(_asset), _from, balanceBefore - _amount);
+    }
+
+    ///////////////////////
+    // Getters
+    ///////////////////////
+
     function decimals(address token) public view returns (uint8) {
         return IERC20Metadata(token).decimals();
     }
