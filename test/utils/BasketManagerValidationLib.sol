@@ -283,7 +283,8 @@ library BasketManagerValidationLib {
     /// @return externalTradesResult Array of external trades needed from DEXs or other external sources
     function testLib_generateInternalAndExternalTrades(
         BasketManager basketManager,
-        address[] memory baskets
+        address[] memory baskets,
+        uint64[][] memory allTargetWeights
     )
         internal
         view
@@ -304,12 +305,165 @@ library BasketManagerValidationLib {
             slot.totalPairs += assets.length;
             console.log(
                 string.concat(
-                    "Basket", vm.toString(i), ":", vm.toString(baskets[i]), "has assets:", vm.toString(assets.length)
+                    "Basket ",
+                    vm.toString(i),
+                    " : ",
+                    vm.toString(baskets[i]),
+                    " has assets: ",
+                    vm.toString(assets.length)
                 )
             );
         }
-        console.log("Total basket-asset pairs:", slot.totalPairs);
+        console.log("Total basket-asset pairs: ", slot.totalPairs);
 
+        testLib_compareCurrentAndTargetWeights(basketManager, baskets, allTargetWeights);
+
+        // Calculate surplus and deficit for each asset in each basket
+        slot = testLib_calculateSurplusAndDeficit(basketManager, eulerRouter, baskets, allTargetWeights, slot);
+
+        // Generate internal trades
+        slot = testLib_generateInternalTrades(slot);
+
+        // Generate external trades
+        slot = testLib_generateExternalTrades(eulerRouter, slot);
+
+        // Return the final trade arrays
+        internalTradesResult = slot.internalTrades;
+        externalTradesResult = slot.externalTrades;
+
+        console.log("\n=== Trade generation summary ===");
+        console.log("Internal trades: ", internalTradesResult.length);
+        console.log("External trades: ", externalTradesResult.length);
+        console.log("=== End of trade generation ===\n");
+
+        return (internalTradesResult, externalTradesResult);
+    }
+
+    function testLib_compareCurrentAndTargetWeights(
+        BasketManager basketManager,
+        address[] memory baskets,
+        uint64[][] memory allTargetWeights
+    )
+        internal
+        view
+    {
+        console.log("\n=== Comparing Current vs Target Weights ===");
+
+        // Get the EulerRouter from the BasketManager
+        EulerRouter eulerRouter = EulerRouter(basketManager.eulerRouter());
+
+        for (uint256 i = 0; i < baskets.length; i++) {
+            address basket = baskets[i];
+            address[] memory assets = basketManager.basketAssets(basket);
+            uint64[] memory targetWeights = allTargetWeights[i];
+            uint256 pendingRedeems = 0;
+            if (basketManager.rebalanceStatus().status == Status.NOT_STARTED) {
+                pendingRedeems = BasketToken(basket).totalPendingRedemptions();
+            } else {
+                pendingRedeems = BasketToken(basket).getRedeemRequest(BasketToken(basket).nextRedeemRequestId() - 2)
+                    .totalRedeemShares;
+            }
+
+            console.log(string.concat("Basket: ", vm.toString(basket)));
+
+            // Calculate total USD value of the basket
+            uint256 totalValue = 0;
+            uint256[] memory assetValues = new uint256[](assets.length);
+
+            for (uint256 j = 0; j < assets.length; j++) {
+                uint256 balance = basketManager.basketBalanceOf(basket, assets[j]);
+                assetValues[j] = _getPrimaryOracleQuote(eulerRouter, balance, assets[j], USD);
+                totalValue += assetValues[j];
+            }
+            // Calculate adjusted target weights accounting for pending redeems
+            uint64[] memory adjustedTargetWeights = new uint64[](assets.length);
+
+            if (pendingRedeems > 0) {
+                uint256 totalSupply = BasketToken(basket).totalSupply();
+                uint256 remainingSupply = totalSupply - pendingRedeems;
+
+                // Track running sum for all weights except the last one
+                uint256 runningSum = 0;
+                uint256 lastIndex = assets.length - 1;
+
+                // Get base asset index
+                uint256 baseAssetIndex = basketManager.basketTokenToBaseAssetIndex(basket);
+
+                // Adjust weights while maintaining 1e18 sum
+                for (uint256 j = 0; j < assets.length; j++) {
+                    if (j == lastIndex) {
+                        // Use remainder for the last weight to ensure exact 1e18 sum
+                        adjustedTargetWeights[j] = uint64(1e18 - runningSum);
+                    } else if (j == baseAssetIndex) {
+                        // Increase base asset weight by adding extra weight from pending redeems
+                        adjustedTargetWeights[j] = uint64(
+                            FixedPointMathLib.fullMulDiv(
+                                FixedPointMathLib.fullMulDiv(remainingSupply, targetWeights[j], 1e18) + pendingRedeems,
+                                1e18,
+                                totalSupply
+                            )
+                        );
+                        runningSum += adjustedTargetWeights[j];
+                    } else {
+                        // Scale down other weights proportionally
+                        adjustedTargetWeights[j] =
+                            uint64(FixedPointMathLib.fullMulDiv(remainingSupply, targetWeights[j], totalSupply));
+                        runningSum += adjustedTargetWeights[j];
+                    }
+                }
+            } else {
+                // If no pending redeems, use original target weights
+                adjustedTargetWeights = targetWeights;
+            }
+
+            // Calculate and log current weights vs adjusted target weights
+            for (uint256 j = 0; j < assets.length; j++) {
+                uint256 currentWeight = totalValue > 0 ? (assetValues[j] * 1e18 / totalValue) : 0;
+                uint256 targetWeight = adjustedTargetWeights[j];
+
+                console.log(
+                    string.concat(
+                        "Asset: ",
+                        vm.toString(assets[j]),
+                        " Current Weight: ",
+                        vm.toString(currentWeight),
+                        " (",
+                        vm.toString(currentWeight / 1e16),
+                        "%) Redeem Adjusted Target Weight: ",
+                        vm.toString(targetWeight),
+                        " (",
+                        vm.toString(targetWeight / 1e16),
+                        "%) Original Target Weight: ",
+                        vm.toString(targetWeights[j]),
+                        " (",
+                        vm.toString(targetWeights[j] / 1e16),
+                        "%)"
+                    )
+                );
+            }
+            console.log("---");
+        }
+        console.log("=== End of Weight Comparison ===\n");
+    }
+
+    /// @notice Calculates surplus and deficit for each asset in each basket
+    /// @param basketManager The BasketManager contract
+    /// @param eulerRouter The EulerRouter contract
+    /// @param baskets Array of basket addresses
+    /// @param allTargetWeights Target weights for each basket
+    /// @param slot The working variables slot
+    /// @return Updated slot with surplus and deficit information
+    function testLib_calculateSurplusAndDeficit(
+        BasketManager basketManager,
+        EulerRouter eulerRouter,
+        address[] memory baskets,
+        uint64[][] memory allTargetWeights,
+        TestLibGenerateTradesSlot memory slot
+    )
+        internal
+        view
+        returns (TestLibGenerateTradesSlot memory)
+    {
         // Create arrays to store surplus and deficit information for each asset in each basket
         slot.surplusDeficits = new SurplusDeficit[](slot.totalPairs);
         slot.surplusDeficitCount = 0;
@@ -320,12 +474,14 @@ library BasketManagerValidationLib {
             console.log("\n--- Processing basket ---", basket);
 
             address[] memory assets = basketManager.basketAssets(basket);
-            uint64[] memory targetWeights = BasketToken(basket).getTargetWeights();
+            uint64[] memory targetWeights = allTargetWeights[i];
 
             // Get the base asset index for this basket
             slot.baseAssetIndex = basketManager.basketTokenToBaseAssetIndex(basket);
             slot.baseAsset = assets[slot.baseAssetIndex];
-            console.log("Base asset:", slot.baseAsset, "index:", slot.baseAssetIndex);
+            console.log(
+                string.concat("Base asset: ", vm.toString(slot.baseAsset), " index: ", vm.toString(slot.baseAssetIndex))
+            );
 
             // Calculate total USD value of the basket and base asset requirements for redemptions
             slot.totalValue = 0;
@@ -337,33 +493,41 @@ library BasketManagerValidationLib {
                 slot.totalValue += slot.usdValues[j];
                 console.log(
                     string.concat(
-                        "Asset",
+                        "Asset ",
                         vm.toString(j),
-                        ":",
+                        " : ",
                         vm.toString(assets[j]),
-                        "Balance:",
+                        " Balance: ",
                         vm.toString(balance),
-                        "USD Value:",
+                        " USD Value: ",
                         vm.toString(slot.usdValues[j])
                     )
                 );
             }
-            console.log("Total basket USD value:", slot.totalValue);
+            console.log("Total basket USD value: ", slot.totalValue);
 
             // Handle pending redemptions - need to set aside base asset
-            slot.pendingRedeems = BasketToken(basket).totalPendingRedemptions();
+            // Assumes the rebalance cycle has already started, thus we use the nextRedeemRequestId - 2
+            // Only if the basket rebalance status is NOT_STARTED
+            if (basketManager.rebalanceStatus().status == Status.NOT_STARTED) {
+                slot.pendingRedeems = BasketToken(basket).totalPendingRedemptions();
+            } else {
+                slot.pendingRedeems = BasketToken(basket).getRedeemRequest(
+                    BasketToken(basket).nextRedeemRequestId() - 2
+                ).totalRedeemShares;
+            }
             slot.totalSupply = BasketToken(basket).totalSupply();
             slot.redemptionValue = 0;
 
-            console.log("Pending redemptions:", slot.pendingRedeems);
-            console.log("Total supply:", slot.totalSupply);
+            console.log("Pending redemptions: ", slot.pendingRedeems);
+            console.log("Total supply: ", slot.totalSupply);
 
             if (slot.pendingRedeems > 0 && slot.totalSupply > 0) {
                 console.log("--- Processing redemptions ---");
                 // Calculate the USD value needed for redemptions
                 slot.redemptionValue =
                     FixedPointMathLib.fullMulDiv(slot.totalValue, slot.pendingRedeems, slot.totalSupply);
-                console.log("Redemption USD value:", slot.redemptionValue);
+                console.log("Redemption USD value: ", slot.redemptionValue);
 
                 // Adjust the target value for base asset to account for redemptions
                 slot.baseAssetTargetValue = FixedPointMathLib.fullMulDiv(
@@ -374,9 +538,9 @@ library BasketManagerValidationLib {
                 slot.baseAssetTotalTarget = slot.baseAssetNeededForRedemption
                     + _getPrimaryOracleQuote(eulerRouter, slot.baseAssetTargetValue, USD, assets[slot.baseAssetIndex]);
 
-                console.log("Base asset target value (excl. redemptions):", slot.baseAssetTargetValue);
-                console.log("Base asset needed for redemptions:", slot.baseAssetNeededForRedemption);
-                console.log("Base asset total target:", slot.baseAssetTotalTarget);
+                console.log("Base asset target value (excl. redemptions): ", slot.baseAssetTargetValue);
+                console.log("Base asset needed for redemptions: ", slot.baseAssetNeededForRedemption);
+                console.log("Base asset total target: ", slot.baseAssetTotalTarget);
 
                 // Record surplus/deficit for base asset considering redemptions
                 slot.currentBaseAssetAmount = basketManager.basketBalanceOf(basket, slot.baseAsset);
@@ -389,7 +553,7 @@ library BasketManagerValidationLib {
                         currentAmount: slot.currentBaseAssetAmount,
                         targetAmount: slot.baseAssetTotalTarget
                     });
-                    console.log("Base asset SURPLUS:", slot.currentBaseAssetAmount - slot.baseAssetTotalTarget);
+                    console.log("Base asset SURPLUS: ", slot.currentBaseAssetAmount - slot.baseAssetTotalTarget);
                 } else if (slot.currentBaseAssetAmount < slot.baseAssetTotalTarget) {
                     slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
                         basket: basket,
@@ -399,7 +563,7 @@ library BasketManagerValidationLib {
                         currentAmount: slot.currentBaseAssetAmount,
                         targetAmount: slot.baseAssetTotalTarget
                     });
-                    console.log("Base asset DEFICIT:", slot.baseAssetTotalTarget - slot.currentBaseAssetAmount);
+                    console.log("Base asset DEFICIT: ", slot.baseAssetTotalTarget - slot.currentBaseAssetAmount);
                 } else {
                     slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
                         basket: basket,
@@ -415,7 +579,7 @@ library BasketManagerValidationLib {
 
                 // Adjust total value to account for redemptions
                 slot.totalValue -= slot.redemptionValue;
-                console.log("Adjusted total USD value (excl. redemptions):", slot.totalValue);
+                console.log("Adjusted total USD value (excl. redemptions): ", slot.totalValue);
             }
 
             // Calculate surplus/deficit for non-base assets
@@ -428,13 +592,13 @@ library BasketManagerValidationLib {
 
                     console.log(
                         string.concat(
-                            "Asset",
+                            "Asset ",
                             vm.toString(assets[j]),
-                            "Target weight:",
+                            " Target weight: ",
                             vm.toString(targetWeights[j]),
-                            "Target USD value:",
+                            " Target USD value: ",
                             vm.toString(slot.targetValue),
-                            "Current USD value:",
+                            " Current USD value: ",
                             vm.toString(slot.currentValue)
                         )
                     );
@@ -453,11 +617,11 @@ library BasketManagerValidationLib {
 
                     console.log(
                         string.concat(
-                            "Asset",
+                            "Asset ",
                             vm.toString(assets[j]),
-                            "Current amount:",
+                            " Current amount: ",
                             vm.toString(slot.currentAmount),
-                            "Target amount:",
+                            " Target amount: ",
                             vm.toString(slot.targetAmount)
                         )
                     );
@@ -471,7 +635,7 @@ library BasketManagerValidationLib {
                             currentAmount: slot.currentAmount,
                             targetAmount: slot.targetAmount
                         });
-                        console.log("Asset", assets[j], "SURPLUS:", slot.currentAmount - slot.targetAmount);
+                        console.log("Asset ", assets[j], " SURPLUS: ", slot.currentAmount - slot.targetAmount);
                     } else if (slot.currentAmount < slot.targetAmount) {
                         slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
                             basket: basket,
@@ -481,7 +645,7 @@ library BasketManagerValidationLib {
                             currentAmount: slot.currentAmount,
                             targetAmount: slot.targetAmount
                         });
-                        console.log("Asset", assets[j], "DEFICIT:", slot.targetAmount - slot.currentAmount);
+                        console.log("Asset ", assets[j], " DEFICIT: ", slot.targetAmount - slot.currentAmount);
                     } else {
                         slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
                             basket: basket,
@@ -491,15 +655,26 @@ library BasketManagerValidationLib {
                             currentAmount: slot.currentAmount,
                             targetAmount: slot.targetAmount
                         });
-                        console.log("Asset", assets[j], "BALANCED");
+                        console.log("Asset ", assets[j], " BALANCED");
                     }
                     slot.surplusDeficitCount++;
                 }
             }
         }
 
+        return slot;
+    }
+
+    /// @notice Generates internal trades between baskets
+    /// @param slot The working variables slot with surplus/deficit information
+    /// @return Updated slot with internal trades
+    function testLib_generateInternalTrades(TestLibGenerateTradesSlot memory slot)
+        internal
+        view
+        returns (TestLibGenerateTradesSlot memory)
+    {
         console.log("\n=== Generating internal trades ===");
-        console.log("Total surplus/deficit records:", slot.surplusDeficitCount);
+        console.log("Total surplus/deficit records: ", slot.surplusDeficitCount);
 
         // Count how many internal trades we need to generate
         slot.potentialInternalTradeCount = 0;
@@ -517,7 +692,7 @@ library BasketManagerValidationLib {
             }
         }
 
-        console.log("Potential internal trades:", slot.potentialInternalTradeCount);
+        console.log("Potential internal trades: ", slot.potentialInternalTradeCount);
 
         // Generate internal trades - match surplus of one basket with deficit of another
         slot.internalTrades = new InternalTrade[](slot.potentialInternalTradeCount);
@@ -579,7 +754,7 @@ library BasketManagerValidationLib {
             }
         }
 
-        console.log("Generated internal trades:", slot.internalTradeCount);
+        console.log("Generated internal trades: ", slot.internalTradeCount);
 
         // Resize internal trades array to actual count
         if (slot.internalTradeCount < slot.potentialInternalTradeCount) {
@@ -593,120 +768,128 @@ library BasketManagerValidationLib {
             );
         }
 
+        return slot;
+    }
+
+    /// @notice Generates external trades for remaining imbalances
+    /// @param eulerRouter The EulerRouter contract
+    /// @param slot The working variables slot with updated surplus/deficit after internal trades
+    /// @return Updated slot with external trades
+    function testLib_generateExternalTrades(
+        EulerRouter eulerRouter,
+        TestLibGenerateTradesSlot memory slot
+    )
+        internal
+        view
+        returns (TestLibGenerateTradesSlot memory)
+    {
         console.log("\n=== Generating external trades ===");
 
         // Count remaining surplus/deficit for external trades
+        // For each basket, we'll use surplus assets to cover deficits of other assets
         slot.externalTradeCount = 0;
+
+        // First pass: Calculate total number of potential trades
         for (uint256 i = 0; i < slot.surplusDeficitCount; i++) {
-            if (slot.surplusDeficits[i].surplus > 0) {
-                slot.externalTradeCount++;
-                console.log(
-                    string.concat(
-                        "Basket",
-                        vm.toString(slot.surplusDeficits[i].basket),
-                        "still has surplus of asset",
-                        vm.toString(slot.surplusDeficits[i].asset),
-                        ":",
-                        vm.toString(slot.surplusDeficits[i].surplus)
-                    )
-                );
+            if (slot.surplusDeficits[i].deficit > 0) {
+                // For each deficit, we need to find surplus assets in the same basket
+                for (uint256 j = 0; j < slot.surplusDeficitCount; j++) {
+                    if (
+                        slot.surplusDeficits[j].surplus > 0
+                            && slot.surplusDeficits[i].basket == slot.surplusDeficits[j].basket
+                    ) {
+                        slot.externalTradeCount++;
+                    }
+                }
             }
         }
 
-        console.log("Potential external trades:", slot.externalTradeCount);
+        console.log("Potential external trades: ", slot.externalTradeCount);
 
         // Generate external trades for remaining imbalances
         slot.externalTrades = new ExternalTrade[](slot.externalTradeCount);
         slot.currentExternalTrade = 0;
 
+        // Second pass: Generate actual trades
         for (uint256 i = 0; i < slot.surplusDeficitCount && slot.currentExternalTrade < slot.externalTradeCount; i++) {
-            if (slot.surplusDeficits[i].surplus > 0) {
-                // Find a deficit asset in the same basket to trade with
-                slot.deficitAsset = address(0);
-                slot.deficitAmount = 0;
+            if (slot.surplusDeficits[i].deficit > 0) {
+                // Calculate USD value of deficit
+                uint256 deficitValueUSD = _getPrimaryOracleQuote(
+                    eulerRouter, slot.surplusDeficits[i].deficit, slot.surplusDeficits[i].asset, USD
+                );
 
-                for (uint256 j = 0; j < slot.surplusDeficitCount; j++) {
+                // Find surplus assets in the same basket to cover this deficit
+                for (uint256 j = 0; j < slot.surplusDeficitCount && deficitValueUSD > 0; j++) {
                     if (
-                        slot.surplusDeficits[j].deficit > 0
+                        slot.surplusDeficits[j].surplus > 0
                             && slot.surplusDeficits[i].basket == slot.surplusDeficits[j].basket
                     ) {
-                        slot.deficitAsset = slot.surplusDeficits[j].asset;
-                        slot.deficitAmount = slot.surplusDeficits[j].deficit;
-                        console.log(
-                            "Found deficit asset",
-                            slot.deficitAsset,
-                            "in the same basket with deficit",
-                            slot.deficitAmount
+                        // Calculate how much of the surplus we need to use
+                        uint256 surplusValueUSD = _getPrimaryOracleQuote(
+                            eulerRouter, slot.surplusDeficits[j].surplus, slot.surplusDeficits[j].asset, USD
                         );
-                        break;
+
+                        // Use either the full surplus or just enough to cover the deficit
+                        uint256 usedSurplusValueUSD =
+                            surplusValueUSD > deficitValueUSD ? deficitValueUSD : surplusValueUSD;
+
+                        // Calculate actual amounts to trade
+                        slot.sellAmount =
+                            _getPrimaryOracleQuote(eulerRouter, usedSurplusValueUSD, USD, slot.surplusDeficits[j].asset);
+
+                        slot.expectedBuyAmount =
+                            _getPrimaryOracleQuote(eulerRouter, usedSurplusValueUSD, USD, slot.surplusDeficits[i].asset);
+
+                        // Apply 0.5% slippage
+                        slot.minBuyAmount = slot.expectedBuyAmount * 995 / 1000;
+
+                        // Create trade ownership
+                        slot.tradeOwnerships = new BasketTradeOwnership[](1);
+                        slot.singleOwnership = BasketTradeOwnership({
+                            basket: slot.surplusDeficits[i].basket,
+                            tradeOwnership: uint96(1e18)
+                        });
+                        slot.tradeOwnerships[0] = slot.singleOwnership;
+
+                        // Create external trade
+                        slot.externalTrades[slot.currentExternalTrade] = ExternalTrade({
+                            sellToken: slot.surplusDeficits[j].asset,
+                            buyToken: slot.surplusDeficits[i].asset,
+                            sellAmount: slot.sellAmount,
+                            minAmount: slot.minBuyAmount,
+                            basketTradeOwnership: slot.tradeOwnerships
+                        });
+
+                        console.log(
+                            string.concat(
+                                "EXTERNAL TRADE ",
+                                vm.toString(slot.currentExternalTrade),
+                                " Basket: ",
+                                vm.toString(slot.surplusDeficits[i].basket),
+                                " Sells: ",
+                                vm.toString(slot.surplusDeficits[j].asset),
+                                " Sell Amount: ",
+                                vm.toString(slot.sellAmount),
+                                " Buys: ",
+                                vm.toString(slot.surplusDeficits[i].asset),
+                                " Min Buy Amount: ",
+                                vm.toString(slot.minBuyAmount)
+                            )
+                        );
+
+                        slot.currentExternalTrade++;
+
+                        // Update remaining surplus and deficit
+                        slot.surplusDeficits[j].surplus -= slot.sellAmount;
+                        deficitValueUSD -= usedSurplusValueUSD;
+                        slot.surplusDeficits[i].deficit =
+                            _getPrimaryOracleQuote(eulerRouter, deficitValueUSD, USD, slot.surplusDeficits[i].asset);
                     }
-                }
-
-                if (slot.deficitAsset != address(0)) {
-                    // Calculate trade parameters
-                    slot.sellAmount = slot.surplusDeficits[i].surplus;
-                    slot.sellValueUSD =
-                        _getPrimaryOracleQuote(eulerRouter, slot.sellAmount, slot.surplusDeficits[i].asset, USD);
-
-                    // Apply a 0.5% slippage for min amount (99.5% of expected)
-                    slot.expectedBuyAmount =
-                        _getPrimaryOracleQuote(eulerRouter, slot.sellValueUSD, USD, slot.deficitAsset);
-                    slot.minBuyAmount = slot.expectedBuyAmount * 995 / 1000;
-
-                    console.log(
-                        string.concat(
-                            "EXTERNAL TRADE PARAMS: Sell",
-                            vm.toString(slot.sellAmount),
-                            "of",
-                            vm.toString(slot.surplusDeficits[i].asset),
-                            "USD value:",
-                            vm.toString(slot.sellValueUSD),
-                            "Buy min",
-                            vm.toString(slot.minBuyAmount),
-                            "of",
-                            vm.toString(slot.deficitAsset)
-                        )
-                    );
-
-                    // Create BasketTradeOwnership array with single element
-                    slot.tradeOwnerships = new BasketTradeOwnership[](1);
-                    slot.singleOwnership = BasketTradeOwnership({
-                        basket: slot.surplusDeficits[i].basket,
-                        tradeOwnership: uint96(1e18) // 100% ownership
-                     });
-                    slot.tradeOwnerships[0] = slot.singleOwnership;
-
-                    // Create external trade
-                    slot.externalTrades[slot.currentExternalTrade] = ExternalTrade({
-                        sellToken: slot.surplusDeficits[i].asset,
-                        buyToken: slot.deficitAsset,
-                        sellAmount: slot.sellAmount,
-                        minAmount: slot.minBuyAmount,
-                        basketTradeOwnership: slot.tradeOwnerships
-                    });
-
-                    console.log(
-                        string.concat(
-                            "EXTERNAL TRADE",
-                            vm.toString(slot.currentExternalTrade),
-                            "Basket:",
-                            vm.toString(slot.surplusDeficits[i].basket),
-                            "Sells:",
-                            vm.toString(slot.surplusDeficits[i].asset),
-                            "Buys:",
-                            vm.toString(slot.deficitAsset)
-                        )
-                    );
-
-                    slot.currentExternalTrade++;
-
-                    // Update surplus/deficit
-                    slot.surplusDeficits[i].surplus = 0;
                 }
             }
         }
 
-        console.log("Generated external trades:", slot.currentExternalTrade);
+        console.log("Generated external trades: ", slot.currentExternalTrade);
 
         // Resize external trades array to actual count
         if (slot.currentExternalTrade < slot.externalTradeCount) {
@@ -715,19 +898,12 @@ library BasketManagerValidationLib {
                 rightSizedExternalTrades[i] = slot.externalTrades[i];
             }
             slot.externalTrades = rightSizedExternalTrades;
-            console.log("Resized external trades array from", slot.externalTradeCount, "to", slot.currentExternalTrade);
+            console.log(
+                "Resized external trades array from ", slot.externalTradeCount, " to ", slot.currentExternalTrade
+            );
         }
 
-        // Return the final trade arrays
-        internalTradesResult = slot.internalTrades;
-        externalTradesResult = slot.externalTrades;
-
-        console.log("\n=== Trade generation summary ===");
-        console.log("Internal trades:", internalTradesResult.length);
-        console.log("External trades:", externalTradesResult.length);
-        console.log("=== End of trade generation ===\n");
-
-        return (internalTradesResult, externalTradesResult);
+        return slot;
     }
 
     function _getPrimaryOracleQuote(

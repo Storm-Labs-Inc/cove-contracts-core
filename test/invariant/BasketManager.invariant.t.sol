@@ -565,7 +565,7 @@ contract BasketManagerHandler is Test, Constants {
 
         basketManager.testLib_updateOracleTimestamps();
         (InternalTrade[] memory newInternalTrades, ExternalTrade[] memory newExternalTrades) =
-            basketManager.testLib_generateInternalAndExternalTrades(_rebalancingBaskets);
+            basketManager.testLib_generateInternalAndExternalTrades(_rebalancingBaskets, _rebalancingTargetWeights);
         vm.assume(newInternalTrades.length > 0 || newExternalTrades.length > 0);
 
         // Propose and execute token swaps
@@ -591,10 +591,11 @@ contract BasketManagerHandler is Test, Constants {
         basketManager.executeTokenSwap(newExternalTrades, "");
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
         address[] memory swapContracts = new address[](newExternalTrades.length);
+        uint256 swapContractCount = 0;
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == keccak256("OrderCreated(address,address,uint256,uint256,uint32,address)")) {
                 (,,, address swapContract) = abi.decode(logs[i].data, (uint256, uint256, uint32, address));
-                swapContracts[i] = swapContract;
+                swapContracts[swapContractCount++] = swapContract;
             }
         }
 
