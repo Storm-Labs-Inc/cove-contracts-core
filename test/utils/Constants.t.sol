@@ -60,6 +60,7 @@ contract Constants is CommonBase {
     address public constant ETH_FRAX = 0x853d955aCEf822Db058eb8505911ED77F175b99e;
     address public constant ETH_USDE = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
     address public constant ETH_SFRXUSD = 0xcf62F905562626CfcDD2261162a51fd02Fc9c5b6;
+    address public constant ETH_FRXUSD = 0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29;
     address public constant ETH_YSYG_YVUSDS_1 = 0x81f78DeF7a3a8B0F6aABa69925efC69E70239D95;
     address public constant ETH_USDS = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
 

@@ -29,7 +29,7 @@ contract Deployments_Staging is Deployments {
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {
-        return keccak256(abi.encodePacked("Staging_FeeCollector_0328"));
+        return keccak256(abi.encodePacked("Staging_FeeCollector_0403"));
     }
 
     function _deployNonCoreContracts() internal override {
@@ -102,19 +102,19 @@ contract Deployments_Staging is Deployments {
         _addAssetToAssetRegistry(ETH_SUSDE);
 
         // 3. sfrxUSD
-        // Primary: sfrxUSD --(CurveEMA)--> sUSDe --(Pyth)--> USD
-        // Anchor: sfrxUSD --(CurveEMA)--> sUSDe --(Chainlink)--> USD
-        _deployCurveEMAOracleCrossAdapterForNonUSDPair(
+        // Primary: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Pyth)--> USD
+        // Anchor: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Chainlink)--> USD
+        _deployAnchoredOracleWith4626CurveEMAOracleUnderlying(
             ETH_SFRXUSD,
             ETH_CURVE_SFRXUSD_SUSDE_POOL,
-            ETH_SUSDE,
-            0, // sfrxUSD is the first coin in the pool
-            1, // sUSDe is the second coin in the pool
+            ETH_USDE,
+            0, // sfrxUSD is the first coin in the pool, but the oracle uses frxUSD price
+            1, // sUSDe is the second coin in the pool, but the oracle uses USDe price
             OracleOptions({
-                pythPriceFeed: PYTH_SUSDE_USD_FEED,
+                pythPriceFeed: PYTH_USDE_USD_FEED,
                 pythMaxStaleness: 30 seconds,
                 pythMaxConfWidth: 50, //0.5%
-                chainlinkPriceFeed: ETH_CHAINLINK_SUSDE_USD_FEED,
+                chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
              })
