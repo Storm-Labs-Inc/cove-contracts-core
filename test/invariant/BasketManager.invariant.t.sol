@@ -601,6 +601,7 @@ contract BasketManagerHandler is Test, Constants {
 
         // Simulate trade settlement
         _simulateTradeSettlement(newExternalTrades, swapContracts);
+        _rebalanceStatus = basketManager.rebalanceStatus();
     }
 
     function completeRebalance() public {
