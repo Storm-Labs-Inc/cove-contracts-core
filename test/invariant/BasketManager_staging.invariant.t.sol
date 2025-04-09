@@ -6,7 +6,7 @@ import { BasketManager_InvariantTest } from "test/invariant/BasketManager.invari
 
 contract Staging_BasketManager_InvariantTest is BasketManager_InvariantTest {
     function _getForkBlockNumber() internal override returns (uint256) {
-        return 22_155_634;
+        return 22_231_495;
     }
 
     function _setupBasketManager() internal override returns (BasketManager) {
