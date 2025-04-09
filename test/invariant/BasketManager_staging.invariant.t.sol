@@ -10,6 +10,6 @@ contract Staging_BasketManager_InvariantTest is BasketManager_InvariantTest {
     }
 
     function _setupBasketManager() internal override returns (BasketManager) {
-        return BasketManager(address(0xda845ffb8203fd844a55911304F24FCE5CCb62b4));
+        return BasketManager(address(0xb87b81037957f421503565ef3C330423B8804246));
     }
 }
