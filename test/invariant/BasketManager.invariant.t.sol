@@ -383,6 +383,10 @@ contract BasketManagerHandler is Test, Constants {
         for (uint256 i = 0; i < actorCount; i++) {
             actors[i] = address(uint160(uint256(keccak256(abi.encode("actor", i)))));
         }
+
+        _rebalanceStatus = basketManager.rebalanceStatus();
+        isRebalancing = _rebalanceStatus.status != Status.NOT_STARTED;
+        isPaused = basketManager.paused();
     }
 
     ///////////////////////
