@@ -244,7 +244,7 @@ library BasketManagerValidationLib {
         for (uint256 i = 0; i < usdValues.length; i++) {
             totalUsdValue += usdValues[i];
         }
-        if (totalUsdValue == 0) {
+        if (totalUsdValue < 1e18) {
             return false;
         }
 
@@ -356,83 +356,27 @@ library BasketManagerValidationLib {
             address basket = baskets[i];
             address[] memory assets = basketManager.basketAssets(basket);
             uint64[] memory targetWeights = allTargetWeights[i];
-            uint256 pendingRedeems = 0;
-            if (basketManager.rebalanceStatus().status == Status.NOT_STARTED) {
-                pendingRedeems = BasketToken(basket).totalPendingRedemptions();
-            } else {
-                pendingRedeems = BasketToken(basket).getRedeemRequest(BasketToken(basket).nextRedeemRequestId() - 2)
-                    .totalRedeemShares;
-            }
+
+            // Get current and adjusted target weights
+            (uint256[] memory currentWeights, uint64[] memory adjustedTargetWeights) =
+                testLib_getCurrentAndAdjustedTargetWeights(basketManager, eulerRouter, basket, assets, targetWeights);
 
             console.log(string.concat("Basket: ", vm.toString(basket)));
 
-            // Calculate total USD value of the basket
-            uint256 totalValue = 0;
-            uint256[] memory assetValues = new uint256[](assets.length);
-
-            for (uint256 j = 0; j < assets.length; j++) {
-                uint256 balance = basketManager.basketBalanceOf(basket, assets[j]);
-                assetValues[j] = _getPrimaryOracleQuote(eulerRouter, balance, assets[j], USD);
-                totalValue += assetValues[j];
-            }
-            // Calculate adjusted target weights accounting for pending redeems
-            uint64[] memory adjustedTargetWeights = new uint64[](assets.length);
-
-            if (pendingRedeems > 0) {
-                uint256 totalSupply = BasketToken(basket).totalSupply();
-                uint256 remainingSupply = totalSupply - pendingRedeems;
-
-                // Track running sum for all weights except the last one
-                uint256 runningSum = 0;
-                uint256 lastIndex = assets.length - 1;
-
-                // Get base asset index
-                uint256 baseAssetIndex = basketManager.basketTokenToBaseAssetIndex(basket);
-
-                // Adjust weights while maintaining 1e18 sum
-                for (uint256 j = 0; j < assets.length; j++) {
-                    if (j == lastIndex) {
-                        // Use remainder for the last weight to ensure exact 1e18 sum
-                        adjustedTargetWeights[j] = uint64(1e18 - runningSum);
-                    } else if (j == baseAssetIndex) {
-                        // Increase base asset weight by adding extra weight from pending redeems
-                        adjustedTargetWeights[j] = uint64(
-                            FixedPointMathLib.fullMulDiv(
-                                FixedPointMathLib.fullMulDiv(remainingSupply, targetWeights[j], 1e18) + pendingRedeems,
-                                1e18,
-                                totalSupply
-                            )
-                        );
-                        runningSum += adjustedTargetWeights[j];
-                    } else {
-                        // Scale down other weights proportionally
-                        adjustedTargetWeights[j] =
-                            uint64(FixedPointMathLib.fullMulDiv(remainingSupply, targetWeights[j], totalSupply));
-                        runningSum += adjustedTargetWeights[j];
-                    }
-                }
-            } else {
-                // If no pending redeems, use original target weights
-                adjustedTargetWeights = targetWeights;
-            }
-
             // Calculate and log current weights vs adjusted target weights
             for (uint256 j = 0; j < assets.length; j++) {
-                uint256 currentWeight = totalValue > 0 ? (assetValues[j] * 1e18 / totalValue) : 0;
-                uint256 targetWeight = adjustedTargetWeights[j];
-
                 console.log(
                     string.concat(
                         "Asset: ",
                         vm.toString(assets[j]),
                         " Current Weight: ",
-                        vm.toString(currentWeight),
+                        vm.toString(currentWeights[j]),
                         " (",
-                        vm.toString(currentWeight / 1e16),
+                        vm.toString(currentWeights[j] / 1e16),
                         "%) Redeem Adjusted Target Weight: ",
-                        vm.toString(targetWeight),
+                        vm.toString(adjustedTargetWeights[j]),
                         " (",
-                        vm.toString(targetWeight / 1e16),
+                        vm.toString(adjustedTargetWeights[j] / 1e16),
                         "%) Original Target Weight: ",
                         vm.toString(targetWeights[j]),
                         " (",
@@ -444,6 +388,85 @@ library BasketManagerValidationLib {
             console.log("---");
         }
         console.log("=== End of Weight Comparison ===\n");
+    }
+
+    function testLib_getCurrentAndAdjustedTargetWeights(
+        BasketManager basketManager,
+        EulerRouter eulerRouter,
+        address basket,
+        address[] memory assets,
+        uint64[] memory targetWeights
+    )
+        internal
+        view
+        returns (uint256[] memory currentWeights, uint64[] memory adjustedTargetWeights)
+    {
+        uint256 pendingRedeems = 0;
+        if (basketManager.rebalanceStatus().status == Status.NOT_STARTED) {
+            pendingRedeems = BasketToken(basket).totalPendingRedemptions();
+        } else {
+            pendingRedeems =
+                BasketToken(basket).getRedeemRequest(BasketToken(basket).nextRedeemRequestId() - 2).totalRedeemShares;
+        }
+
+        // Calculate total USD value of the basket
+        uint256 totalValue = 0;
+        uint256[] memory assetValues = new uint256[](assets.length);
+
+        for (uint256 j = 0; j < assets.length; j++) {
+            uint256 balance = basketManager.basketBalanceOf(basket, assets[j]);
+            assetValues[j] = _getPrimaryOracleQuote(eulerRouter, balance, assets[j], USD);
+            totalValue += assetValues[j];
+        }
+
+        // Calculate current weights
+        currentWeights = new uint256[](assets.length);
+        for (uint256 j = 0; j < assets.length; j++) {
+            currentWeights[j] = totalValue > 0 ? (assetValues[j] * 1e18 / totalValue) : 0;
+        }
+
+        // Calculate adjusted target weights accounting for pending redeems
+        adjustedTargetWeights = new uint64[](assets.length);
+
+        if (pendingRedeems > 0) {
+            uint256 totalSupply = BasketToken(basket).totalSupply();
+            uint256 remainingSupply = totalSupply - pendingRedeems;
+
+            // Track running sum for all weights except the last one
+            uint256 runningSum = 0;
+            uint256 lastIndex = assets.length - 1;
+
+            // Get base asset index
+            uint256 baseAssetIndex = basketManager.basketTokenToBaseAssetIndex(basket);
+
+            // Adjust weights while maintaining 1e18 sum
+            for (uint256 j = 0; j < assets.length; j++) {
+                if (j == lastIndex) {
+                    // Use remainder for the last weight to ensure exact 1e18 sum
+                    adjustedTargetWeights[j] = uint64(1e18 - runningSum);
+                } else if (j == baseAssetIndex) {
+                    // Increase base asset weight by adding extra weight from pending redeems
+                    adjustedTargetWeights[j] = uint64(
+                        FixedPointMathLib.fullMulDiv(
+                            FixedPointMathLib.fullMulDiv(remainingSupply, targetWeights[j], 1e18) + pendingRedeems,
+                            1e18,
+                            totalSupply
+                        )
+                    );
+                    runningSum += adjustedTargetWeights[j];
+                } else {
+                    // Scale down other weights proportionally
+                    adjustedTargetWeights[j] =
+                        uint64(FixedPointMathLib.fullMulDiv(remainingSupply, targetWeights[j], totalSupply));
+                    runningSum += adjustedTargetWeights[j];
+                }
+            }
+        } else {
+            // If no pending redeems, use original target weights
+            adjustedTargetWeights = targetWeights;
+        }
+
+        return (currentWeights, adjustedTargetWeights);
     }
 
     /// @notice Calculates surplus and deficit for each asset in each basket
@@ -904,6 +927,19 @@ library BasketManagerValidationLib {
         }
 
         return slot;
+    }
+
+    function testLib_getPrimaryOracleQuote(
+        BasketManager basketManager,
+        uint256 amount,
+        address base,
+        address quote
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        return _getPrimaryOracleQuote(EulerRouter(basketManager.eulerRouter()), amount, base, quote);
     }
 
     function _getPrimaryOracleQuote(

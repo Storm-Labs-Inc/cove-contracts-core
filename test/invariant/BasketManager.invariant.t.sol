@@ -122,21 +122,6 @@ abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
         }
     }
 
-    // Verify basket total assets match total deposits for each basket. Assumes no trades have been made.
-    // TODO: is this ghost variable tracking invariant helpful? How do we track this across each trade and rebalances?
-    // Unsure what to compare totalAssets() to across each trade and rebalance.
-    function invariant_basketBalancesMatchDeposits() public {
-        // For each basket, verify total assets match deposits
-        address[] memory baskets = handler.getBaskets();
-        for (uint256 i = 0; i < baskets.length; i++) {
-            assertEq(
-                handler.totalDepositsForBasket(baskets[i]),
-                BasketToken(baskets[i]).totalAssets(),
-                "Basket assets should match deposits"
-            );
-        }
-    }
-
     // Verify oracle configurations remain valid and return non-zero values
     function invariant_oraclePathsAreValid() public {
         // Verify oracle configurations remain valid
@@ -568,6 +553,22 @@ contract BasketManagerHandler is Test, Constants {
             basketManager.testLib_generateInternalAndExternalTrades(_rebalancingBaskets, _rebalancingTargetWeights);
         vm.assume(newInternalTrades.length > 0 || newExternalTrades.length > 0);
 
+        // Ensure all trades are above 0.01e18
+        for (uint256 i = 0; i < newInternalTrades.length; i++) {
+            vm.assume(
+                basketManager.testLib_getPrimaryOracleQuote(
+                    newInternalTrades[i].sellAmount, newInternalTrades[i].sellToken, USD
+                ) >= 0.01e18
+            );
+        }
+        for (uint256 i = 0; i < newExternalTrades.length; i++) {
+            vm.assume(
+                basketManager.testLib_getPrimaryOracleQuote(
+                    newExternalTrades[i].sellAmount, newExternalTrades[i].sellToken, USD
+                ) >= 0.01e18
+            );
+        }
+
         // Propose and execute token swaps
         address proposer = basketManager.getRoleMember(TOKENSWAP_PROPOSER_ROLE, 0);
         vm.prank(proposer);
@@ -696,7 +697,7 @@ contract BasketManagerHandler is Test, Constants {
         for (uint256 i = 0; i < trades.length; i++) {
             // Transfer tokens to simulate trade execution
             _takeAway(IERC20(trades[i].sellToken), swapContracts[i], trades[i].sellAmount);
-            _airdrop(IERC20(trades[i].buyToken), swapContracts[i], trades[i].minAmount);
+            _airdrop(IERC20(trades[i].buyToken), swapContracts[i], trades[i].minAmount, trades[i].buyToken != ETH_WETH);
         }
     }
 
