@@ -20,6 +20,12 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
     address constant TRICRYPTO_WBTC = ETH_WBTC; // coins[1] = base1, priceOracleIndex = 0
     address constant TRICRYPTO_WETH = ETH_WETH; // coins[2] = base2, priceOracleIndex = 1
 
+    // crvUSD/USDC pool
+    address constant CRVUSD_USDC_POOL = 0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E;
+    address constant CRVUSD = 0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E; // coins[1] = base
+    address constant USDC = ETH_USDC; // coins[0] = quote
+    uint256 constant CRVUSD_USDC_PRICE_INDEX = type(uint256).max; // Use price_oracle()
+
     // --- State Variables ---
 
     // Tricrypto WETH/USDT Oracle
@@ -33,6 +39,11 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
     ICurvePool internal frxusdUsdePool = ICurvePool(ETH_CURVE_SFRXUSD_SUSDE_POOL);
     Scale internal frxUsdeScale;
     uint256 constant FRXUSD_USDE_PRICE_INDEX = 0;
+
+    // CRVUSD/USDC Oracle
+    CurveEMAOracleUnderlying public crvusdUsdcOracle;
+    ICurvePool internal crvusdUsdcPool = ICurvePool(CRVUSD_USDC_POOL);
+    Scale internal crvusdUsdcScale;
 
     // --- Setup ---
 
@@ -69,6 +80,21 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         vm.label(ETH_USDE, "USDE");
         vm.label(ETH_FRXUSD, "FRXUSD");
         vm.label(address(frxusdUsdeOracle), "USDe/frxUSD Oracle");
+
+        // --- Deploy CRVUSD/USDC Oracle ---
+        crvusdUsdcOracle = new CurveEMAOracleUnderlying(
+            CRVUSD_USDC_POOL, // _pool
+            CRVUSD, // _base (crvUSD)
+            USDC, // _quote (USDC)
+            CRVUSD_USDC_PRICE_INDEX, // _priceOracleIndex (max)
+            false, // isBaseUnderlying
+            false // isQuoteUnderlying
+        );
+        crvusdUsdcScale = ScaleUtils.calcScale(18, 6, 18); // crvUSD (18), USDC (6), output (18)
+        vm.label(CRVUSD_USDC_POOL, "CRVUSD_USDC_POOL");
+        vm.label(CRVUSD, "CRVUSD");
+        vm.label(USDC, "USDC");
+        vm.label(address(crvusdUsdcOracle), "CRVUSD/USDC Oracle");
     }
 
     // --- Constructor Tests ---
@@ -87,6 +113,13 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         assertEq(frxusdUsdeOracle.quote(), ETH_FRXUSD);
         assertEq(frxusdUsdeOracle.priceOracleIndex(), FRXUSD_USDE_PRICE_INDEX);
         assertEq(frxusdUsdeOracle.name(), "CurveEMAOracle");
+
+        // CRVUSD/USDC Oracle
+        assertEq(crvusdUsdcOracle.pool(), CRVUSD_USDC_POOL);
+        assertEq(crvusdUsdcOracle.base(), CRVUSD);
+        assertEq(crvusdUsdcOracle.quote(), USDC);
+        assertEq(crvusdUsdcOracle.priceOracleIndex(), CRVUSD_USDC_PRICE_INDEX);
+        assertEq(crvusdUsdcOracle.name(), "CurveEMAOracle");
     }
 
     function test_constructor_revertWhen_baseAssetMismatch_noUnderlying() public {
@@ -165,6 +198,23 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         );
     }
 
+    function test_constructor_passWhen_maxIndex_noUnderlying() public {
+        // Test constructor works with max index when no underlying involved
+        new CurveEMAOracleUnderlying(CRVUSD_USDC_POOL, CRVUSD, USDC, CRVUSD_USDC_PRICE_INDEX, false, false);
+    }
+
+    function test_constructor_revertWhen_baseAssetMismatch_maxIndex_noUnderlying() public {
+        // Provide USDC instead of CRVUSD for base with max index
+        vm.expectRevert(CurveEMAOracleUnderlying.BaseAssetMismatch.selector);
+        new CurveEMAOracleUnderlying(CRVUSD_USDC_POOL, USDC, USDC, CRVUSD_USDC_PRICE_INDEX, false, false);
+    }
+
+    function test_constructor_revertWhen_quoteAssetMismatch_maxIndex_noUnderlying() public {
+        // Provide CRVUSD instead of USDC for quote with max index
+        vm.expectRevert(CurveEMAOracleUnderlying.QuoteAssetMismatch.selector);
+        new CurveEMAOracleUnderlying(CRVUSD_USDC_POOL, CRVUSD, CRVUSD, CRVUSD_USDC_PRICE_INDEX, false, false);
+    }
+
     // --- getQuote Tests (WETH/USDT) ---
 
     function testFuzz_getQuote_passWhen_convertingBaseToQuote_wethUsdt(uint96 amount96) public {
@@ -221,6 +271,35 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         assertEq(actualOut, expectedOut);
     }
 
+    // --- getQuote Tests (CRVUSD/USDC) ---
+
+    function testFuzz_getQuote_passWhen_convertingBaseToQuote_crvusdUsdc(uint96 amount96) public {
+        uint256 inAmount = uint256(amount96); // Use uint96 to limit input size reasonably
+        vm.assume(inAmount > 0);
+
+        // price_oracle() gives price of CRVUSD (coins[1]) in USDC (coins[0])
+        uint256 unitPrice = crvusdUsdcPool.price_oracle();
+        uint256 expectedOut = ScaleUtils.calcOutAmount(inAmount, unitPrice, crvusdUsdcScale, false); // false = not
+            // inverse
+        uint256 actualOut = crvusdUsdcOracle.getQuote(inAmount, CRVUSD, USDC);
+
+        // Allow some tolerance due to EMA and potential slight depeg
+        assertApproxEqAbs(actualOut, expectedOut, 1e4); // Tolerance for USDC (6 decimals)
+    }
+
+    function testFuzz_getQuote_passWhen_convertingQuoteToBase_crvusdUsdc(uint96 amount96) public {
+        uint256 inAmount = uint256(amount96); // Use uint96 to limit input size reasonably
+        vm.assume(inAmount > 0);
+
+        // price_oracle() gives price of CRVUSD (coins[1]) in USDC (coins[0])
+        uint256 unitPrice = crvusdUsdcPool.price_oracle();
+        uint256 expectedOut = ScaleUtils.calcOutAmount(inAmount, unitPrice, crvusdUsdcScale, true); // true = inverse
+        uint256 actualOut = crvusdUsdcOracle.getQuote(inAmount, USDC, CRVUSD);
+
+        // Allow some tolerance due to division in unit price calculation and EMA
+        assertApproxEqAbs(actualOut, expectedOut, 1e16); // Tolerance for CRVUSD (18 decimals)
+    }
+
     // --- General getQuote Tests ---
 
     function test_getQuote_passWhen_zeroAmount(address base, address quote) public {
@@ -234,6 +313,11 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         if ((base == ETH_USDE && quote == ETH_FRXUSD) || (base == ETH_FRXUSD && quote == ETH_USDE)) {
             assertEq(frxusdUsdeOracle.getQuote(0, base, quote), 0);
         }
+
+        // Test CRVUSD/USDC oracle
+        if ((base == CRVUSD && quote == USDC) || (base == USDC && quote == CRVUSD)) {
+            assertEq(crvusdUsdcOracle.getQuote(0, base, quote), 0);
+        }
     }
 
     function testFuzz_getQuote_revertWhen_invalidBaseOrQuote(uint96 amount96, address invalidAddress) public {
@@ -244,6 +328,8 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         vm.assume(invalidAddress != TRICRYPTO_USDT);
         vm.assume(invalidAddress != ETH_USDE);
         vm.assume(invalidAddress != ETH_FRXUSD);
+        vm.assume(invalidAddress != CRVUSD);
+        vm.assume(invalidAddress != USDC);
 
         // Test WETH/USDT Oracle
         vm.expectRevert(
@@ -266,5 +352,16 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
             abi.encodeWithSelector(PriceOracleErrors.PriceOracle_NotSupported.selector, ETH_USDE, invalidAddress)
         );
         frxusdUsdeOracle.getQuote(amount, ETH_USDE, invalidAddress);
+
+        // Test CRVUSD/USDC Oracle
+        vm.expectRevert(
+            abi.encodeWithSelector(PriceOracleErrors.PriceOracle_NotSupported.selector, invalidAddress, USDC)
+        );
+        crvusdUsdcOracle.getQuote(amount, invalidAddress, USDC);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(PriceOracleErrors.PriceOracle_NotSupported.selector, CRVUSD, invalidAddress)
+        );
+        crvusdUsdcOracle.getQuote(amount, CRVUSD, invalidAddress);
     }
 }
