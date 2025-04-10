@@ -52,12 +52,6 @@ contract BasketManagerTest is BaseTest {
 
     address public constant USD_ISO_4217_CODE = address(840);
 
-    uint40 public constant MIN_STEP_DELAY = 1 minutes;
-    uint40 public constant MAX_STEP_DELAY = 60 minutes;
-    uint8 public constant MAX_RETRY_COUNT = 10;
-    uint256 public constant MAX_SLIPPAGE_LIMIT = 0.5e18;
-    uint256 public constant MAX_WEIGHT_DEVIATION_LIMIT = 0.5e18;
-
     struct TradeTestParams {
         uint256 sellWeight;
         uint256 depositAmount;
@@ -892,14 +886,15 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         uint256 sellAmount = initialDepositAmount * pairAssetWeight / 1e18;
+        uint256 retryLimit = basketManager.retryLimit();
 
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             // 0 for the last input will guarantee the trade will be 100% unsuccessful
             _swapFirstBasketRootAssetToPairAsset(baskets, targetWeights, sellAmount, 0);
             assertEq(basketManager.retryCount(), uint256(i + 1));
             assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         }
-        assertEq(basketManager.retryCount(), uint256(MAX_RETRIES));
+        assertEq(basketManager.retryCount(), retryLimit);
 
         // We have reached max retries, if the next proposed token swap does not meet target weights the rebalance
         // will completed with the current balances.
@@ -972,15 +967,16 @@ contract BasketManagerTest is BaseTest {
         // 2. Multiply by target weight of pairAsset to determine how much needs to be swapped
         // 3. Divide by 1e18 to normalize the fixed-point arithmetic
         uint256 sellAmount = (depositAmount - redeemingShares) * pairAssetWeight / 1e18;
+        uint256 retryLimit = bm.retryLimit();
 
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             // The last parameter (0) represents the percentage of tokens successfully traded, in 1e18 precision (0 =
             // 0%, 1e18 = 100%)
             _swapFirstBasketRootAssetToPairAsset(baskets, targetWeights, sellAmount, 0);
             assertEq(bm.retryCount(), uint256(i + 1));
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         }
-        assertEq(bm.retryCount(), uint256(bm.retryLimit()));
+        assertEq(bm.retryCount(), retryLimit);
 
         // We have reached max retries, even if the next proposed token swap does not meet target weights, the rebalance
         // will terminate.
@@ -1084,8 +1080,10 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(baskets);
 
+        uint256 retryLimit = basketManager.retryLimit();
+
         // Fail the rebalance by not meeting target weights
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
             basketManager.completeRebalance(new ExternalTrade[](0), baskets, targetWeights, basketAssets);
 
@@ -1300,14 +1298,15 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         uint256 sellAmount = initialDepositAmount * pairAssetWeight / 1e18;
+        uint256 retryLimit = basketManager.retryLimit();
 
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             // 0 for the last input will guarantee the trade will be 100% unsuccessful
             _swapFirstBasketRootAssetToPairAsset(baskets, targetWeights, sellAmount, 0);
             assertEq(basketManager.retryCount(), uint256(i + 1));
             assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         }
-        assertEq(basketManager.retryCount(), uint256(MAX_RETRIES));
+        assertEq(basketManager.retryCount(), retryLimit);
 
         // We have reached max retries, if the next proposed token swap does not execute the rebalance
         // will successfully complete.
@@ -3475,21 +3474,21 @@ contract BasketManagerTest is BaseTest {
     }
 
     function testFuzz_setRetryLimit(uint8 retryLimit) public {
-        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.assume(retryLimit <= MAX_RETRIES);
         vm.prank(timelock);
         basketManager.setRetryLimit(retryLimit);
         assertEq(basketManager.retryLimit(), retryLimit);
     }
 
     function testFuzz_setRetryLimit_revertWhen_InvalidRetryCount(uint8 retryLimit) public {
-        vm.assume(retryLimit > MAX_RETRY_COUNT);
+        vm.assume(retryLimit > MAX_RETRIES);
         vm.prank(timelock);
         vm.expectRevert(BasketManager.InvalidRetryCount.selector);
         basketManager.setRetryLimit(retryLimit);
     }
 
     function testFuzz_setRetryLimit_revertWhen_MustWaitForRebalanceToComplete(uint8 retryLimit) public {
-        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.assume(retryLimit <= MAX_RETRIES);
         test_proposeRebalance_processesDeposits();
         vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(timelock);
@@ -3498,7 +3497,7 @@ contract BasketManagerTest is BaseTest {
 
     function testFuzz_setRetryLimit_revertWhen_CallerIsNotTimelock(address caller, uint8 retryLimit) public {
         vm.assume(caller != timelock);
-        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.assume(retryLimit <= MAX_RETRIES);
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
         basketManager.setRetryLimit(retryLimit);

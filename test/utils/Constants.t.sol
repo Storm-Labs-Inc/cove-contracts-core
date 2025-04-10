@@ -158,8 +158,12 @@ contract Constants is CommonBase {
     // Constants hardcoded in the contracts, replicated here for testing.
     uint16 public constant MAX_MANAGEMENT_FEE = 3000;
     uint16 public constant MAX_SWAP_FEE = 500;
-    uint8 public constant MAX_RETRIES = 3;
+    uint8 public constant MAX_RETRIES = 10;
     uint256 public constant REBALANCE_COOLDOWN_SEC = 1 hours;
+    uint256 public constant MAX_SLIPPAGE_LIMIT = 0.5e18;
+    uint256 public constant MAX_WEIGHT_DEVIATION_LIMIT = 0.5e18;
+    uint256 public constant MIN_STEP_DELAY = 1 minutes;
+    uint256 public constant MAX_STEP_DELAY = 60 minutes;
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;

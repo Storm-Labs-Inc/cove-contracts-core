@@ -251,8 +251,9 @@ contract IntegrationTest is BaseTest {
         // is called to create CoWSwap orders foe each of these external trades. completeRebalance() is called before
         // these orders can be fulfilled and result in the basket entering a retry state. The basket's rebalance does
         // not complete and instead reverts back to a state where additional token swaps must be proposed. This cycle is
-        // completed MAX_RETRIES amount of times.
-        for (uint256 retryNum = 0; retryNum < MAX_RETRIES; retryNum++) {
+        // completed retryLimit amount of times.
+        uint256 retryLimit = bm.retryLimit();
+        for (uint256 retryNum = 0; retryNum < retryLimit; retryNum++) {
             uint256[][] memory initialBalances = new uint256[][](basketTokens.length);
             address[][] memory basketAssets_ = new address[][](basketTokens.length);
             for (uint256 i = 0; i < basketTokens.length; i++) {
@@ -286,7 +287,7 @@ contract IntegrationTest is BaseTest {
             assert(!_validateTradeResults(internalTrades, externalTrades, basketTokens, initialBalances));
         }
 
-        // 6. The basket has attempted to complete its token swaps the MAX_RETRIES amount of times. The same swaps are
+        // 6. The basket has attempted to complete its token swaps the retryLimit amount of times. The same swaps are
         // proposed again and are not fulfilled.
         uint256[][] memory initialBals = new uint256[][](basketTokens.length);
         address[][] memory basketAssets_ = new address[][](basketTokens.length);
