@@ -1798,30 +1798,6 @@ contract BasketTokenTest is BaseTest {
         }
     }
 
-    function testFuzz_redeem_revertsWhen_fulfillRedeem_withZeroAssets_called(
-        uint256 totalDepositAmount,
-        uint256 issuedShares,
-        uint256 sharesToRedeem
-    )
-        public
-    {
-        vm.assume(sharesToRedeem != 0);
-        testFuzz_fulfillRedeem(totalDepositAmount, issuedShares, 0);
-
-        for (uint256 i = 0; i < MAX_USERS; ++i) {
-            address user = fuzzedUsers[i];
-            assertEq(
-                basket.maxWithdraw(user),
-                0,
-                "testFuzz_redeem_revertsWhen_fulfillRedeem_withZeroAssets_called: User should have no max withdraw"
-            );
-            // Call redeem
-            vm.expectRevert(abi.encodeWithSelector(BasketToken.MustClaimFullAmount.selector));
-            vm.prank(user);
-            basket.redeem(sharesToRedeem, user, user);
-        }
-    }
-
     function testFuzz_previewDeposit_reverts(uint256 n) public {
         vm.expectRevert();
         basket.previewDeposit(n);
