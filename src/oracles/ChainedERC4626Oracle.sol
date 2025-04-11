@@ -44,6 +44,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
         address currentVault = address(_initialVault);
         address currentAsset;
 
+        // slither-disable-start calls-loop
         // Build the chain
         while (chainLength < _MAX_CHAIN_LENGTH) {
             if (currentVault == address(0)) revert InvalidVaultChain();
@@ -68,7 +69,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
                 revert TargetAssetNotReached();
             }
         }
-
+        // slither-disable-end calls-loop
         if (chainLength == 0 || chainLength == _MAX_CHAIN_LENGTH) {
             revert ChainTooLong();
         }

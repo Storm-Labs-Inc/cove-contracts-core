@@ -215,6 +215,41 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         new CurveEMAOracleUnderlying(CRVUSD_USDC_POOL, CRVUSD, CRVUSD, CRVUSD_USDC_PRICE_INDEX, false, false);
     }
 
+    function test_constructor_revertWhen_zeroAddresses() public {
+        // Test with pool address = 0
+        vm.expectRevert(PriceOracleErrors.PriceOracle_InvalidConfiguration.selector);
+        new CurveEMAOracleUnderlying(
+            address(0), // Zero pool address
+            TRICRYPTO_WETH,
+            TRICRYPTO_USDT,
+            WETH_USDT_PRICE_INDEX,
+            false,
+            false
+        );
+
+        // Test with base address = 0
+        vm.expectRevert(PriceOracleErrors.PriceOracle_InvalidConfiguration.selector);
+        new CurveEMAOracleUnderlying(
+            TRICRYPTO_POOL,
+            address(0), // Zero base address
+            TRICRYPTO_USDT,
+            WETH_USDT_PRICE_INDEX,
+            false,
+            false
+        );
+
+        // Test with quote address = 0
+        vm.expectRevert(PriceOracleErrors.PriceOracle_InvalidConfiguration.selector);
+        new CurveEMAOracleUnderlying(
+            TRICRYPTO_POOL,
+            TRICRYPTO_WETH,
+            address(0), // Zero quote address
+            WETH_USDT_PRICE_INDEX,
+            false,
+            false
+        );
+    }
+
     // --- getQuote Tests (WETH/USDT) ---
 
     function testFuzz_getQuote_passWhen_convertingBaseToQuote_wethUsdt(uint96 amount96) public {
