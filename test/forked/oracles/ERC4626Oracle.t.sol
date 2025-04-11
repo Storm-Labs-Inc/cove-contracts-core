@@ -12,8 +12,8 @@ import { ERC4626Mock } from "test/utils/mocks/ERC4626Mock.sol";
 
 contract ERC4626OracleTest is BaseTest {
     // Constants for Yearn USDC vaults
-    address constant YEARN_USDC_VAULT_1 = 0xAe7d8Db82480E6d8e3873ecbF22cf17b3D8A7308;
-    address constant YEARN_USDC_VAULT_2 = 0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204;
+    address public constant YEARN_USDC_VAULT_1 = 0xAe7d8Db82480E6d8e3873ecbF22cf17b3D8A7308;
+    address public constant YEARN_USDC_VAULT_2 = 0xBe53A109B494E5c9f97b9Cd39Fe969BE68BF6204;
 
     // Mock contracts
     ERC20Mock public mockAsset;

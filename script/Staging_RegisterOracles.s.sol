@@ -17,8 +17,8 @@ import { Constants } from "test/utils/Constants.t.sol";
  * @notice Script to update the oracles for 4626 tokens in the staging environment
  * @dev This script deploys and configures oracles for sUSDe, sDAI, and sFRAX
  */
-// solhint-disable contract-name-camelcase
-contract Staging_RegisterOracles is DeployScript, Constants, StdAssertions, BatchScript, BuildDeploymentJsonNames {
+// solhint-disable var-name-mixedcase
+contract StagingRegisterOracles is DeployScript, Constants, StdAssertions, BatchScript, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 

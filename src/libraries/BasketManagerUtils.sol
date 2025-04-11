@@ -1009,6 +1009,7 @@ library BasketManagerUtils {
     /// @param basketsTargetWeights Array of target weights for each basket.
     /// @param basketAssets Array of assets in each basket.
     /// @param slot A Slot struct containing the basket balances and total values.
+    // solhint-disable-next-line code-complexity
     function _isTargetWeightMet(
         BasketManagerStorage storage self,
         EulerRouter eulerRouter,

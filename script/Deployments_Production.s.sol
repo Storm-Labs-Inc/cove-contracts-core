@@ -5,8 +5,7 @@ import { Deployments } from "./Deployments.s.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 
-// solhint-disable contract-name-camelcase
-contract Deployments_Staging is Deployments {
+contract DeploymentsProduction is Deployments {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
@@ -31,5 +30,6 @@ contract Deployments_Staging is Deployments {
         return keccak256(abi.encodePacked("Production_FeeCollector"));
     }
 
+    // solhint-disable-next-line no-empty-blocks
     function _deployNonCoreContracts() internal override { }
 }

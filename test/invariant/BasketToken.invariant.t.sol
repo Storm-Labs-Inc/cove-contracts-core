@@ -22,7 +22,7 @@ import { BasketToken } from "src/BasketToken.sol";
 /// targeting the contract with `targetContract`.
 /// Invariant test configurations are determined in foundry.toml,
 /// allowing for adjustments in call depth and runs to explore contract states effectively.
-contract BasketToken_InvariantTest is StdInvariant, BaseTest {
+contract BasketTokenInvariantTest is StdInvariant, BaseTest {
     using SafeERC20 for IERC20;
 
     BasketTokenHandler public basketTokenHandler;

@@ -515,6 +515,7 @@ contract BasketToken is
     /// @param feeCollector The address that will receive the harvested management fee.
     /// @return pendingDeposits The total amount of base assets pending deposit.
     /// @return pendingShares The total amount of shares pending redemption.
+    // solhint-disable-next-line code-complexity
     function prepareForRebalance(
         uint16 feeBps,
         address feeCollector

@@ -7,20 +7,20 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract ERC4626Mock is IERC4626, ERC20 {
-    IERC20 private immutable _asset;
-    uint8 private immutable _decimals;
+    IERC20 private immutable _ASSET;
+    uint8 private immutable _DECIMALS;
 
     constructor(IERC20 asset_, string memory name_, string memory symbol_, uint8 decimals_) ERC20(name_, symbol_) {
-        _asset = asset_;
-        _decimals = decimals_;
+        _ASSET = asset_;
+        _DECIMALS = decimals_;
     }
 
     function asset() external view returns (address) {
-        return address(_asset);
+        return address(_ASSET);
     }
 
     function totalAssets() external view returns (uint256) {
-        return _asset.balanceOf(address(this));
+        return _ASSET.balanceOf(address(this));
     }
 
     function convertToShares(uint256 assets) public pure returns (uint256) {
@@ -41,7 +41,7 @@ contract ERC4626Mock is IERC4626, ERC20 {
 
     function deposit(uint256 assets, address receiver) external returns (uint256) {
         uint256 shares = convertToShares(assets);
-        _asset.transferFrom(msg.sender, address(this), assets);
+        _ASSET.transferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
         return shares;
     }
@@ -56,7 +56,7 @@ contract ERC4626Mock is IERC4626, ERC20 {
 
     function mint(uint256 shares, address receiver) external returns (uint256) {
         uint256 assets = convertToAssets(shares);
-        _asset.transferFrom(msg.sender, address(this), assets);
+        _ASSET.transferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
         return assets;
     }
@@ -72,7 +72,7 @@ contract ERC4626Mock is IERC4626, ERC20 {
     function withdraw(uint256 assets, address receiver, address owner) external returns (uint256) {
         uint256 shares = convertToShares(assets);
         _burn(owner, shares);
-        _asset.transfer(receiver, assets);
+        _ASSET.transfer(receiver, assets);
         return shares;
     }
 
@@ -87,11 +87,11 @@ contract ERC4626Mock is IERC4626, ERC20 {
     function redeem(uint256 shares, address receiver, address owner) external returns (uint256) {
         uint256 assets = convertToAssets(shares);
         _burn(owner, shares);
-        _asset.transfer(receiver, assets);
+        _ASSET.transfer(receiver, assets);
         return assets;
     }
 
     function decimals() public view override(ERC20, IERC20Metadata) returns (uint8) {
-        return _decimals;
+        return _DECIMALS;
     }
 }

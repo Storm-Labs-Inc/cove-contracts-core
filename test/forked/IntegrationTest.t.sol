@@ -18,7 +18,7 @@ import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { Deployments } from "script/Deployments.s.sol";
-import { Deployments_Test } from "script/Deployments_Test.s.sol";
+import { DeploymentsTest } from "script/Deployments_Test.s.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
@@ -59,7 +59,7 @@ contract IntegrationTest is BaseTest {
         vm.allowCheatcodes(0xa5F044DA84f50f2F6fD7c309C5A8225BCE8b886B);
 
         vm.pauseGasMetering();
-        deployments = new Deployments_Test();
+        deployments = new DeploymentsTest();
         deployments.deploy(false);
         vm.resumeGasMetering();
 

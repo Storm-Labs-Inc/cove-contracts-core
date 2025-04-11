@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
+// solhint-disable one-contract-per-file
 pragma solidity 0.8.28;
 
 import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
@@ -7,7 +8,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 
 import { VmSafe } from "forge-std/Vm.sol";
-import { console } from "forge-std/console.sol";
 
 import { Test } from "forge-std/Test.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -16,7 +16,6 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 
-import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { RebalanceStatus } from "src/types/BasketManagerStorage.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
@@ -24,7 +23,7 @@ import { ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
 
-abstract contract BasketManager_InvariantTest is StdInvariant, BaseTest {
+abstract contract BasketManagerInvariantTest is StdInvariant, BaseTest {
     using SafeERC20 for IERC20;
     using BasketManagerValidationLib for BasketManager;
 
@@ -353,6 +352,7 @@ contract BasketManagerHandler is Test, Constants {
     using SafeERC20 for IERC20;
     using BasketManagerValidationLib for BasketManager;
 
+    // solhint-disable-next-line immutable-vars-naming
     BasketManager public immutable basketManager;
     address[] public baskets;
     address[] public assets;

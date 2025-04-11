@@ -5,8 +5,7 @@ import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 
-// solhint-disable contract-name-camelcase
-contract Deployments_Test is Deployments {
+contract DeploymentsTest is Deployments {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 

@@ -106,8 +106,10 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         }
     }
 
+    // solhint-disable-next-line no-empty-blocks
     function _setPermissionedAddresses() internal virtual { }
 
+    // solhint-disable-next-line no-empty-blocks
     function _deployNonCoreContracts() internal virtual { }
 
     modifier onlyIfMissing(string memory name) {

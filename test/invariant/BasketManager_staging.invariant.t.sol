@@ -2,9 +2,9 @@
 pragma solidity 0.8.28;
 
 import { BasketManager } from "src/BasketManager.sol";
-import { BasketManager_InvariantTest } from "test/invariant/BasketManager.invariant.t.sol";
+import { BasketManagerInvariantTest } from "test/invariant/BasketManager.invariant.t.sol";
 
-contract Staging_BasketManager_InvariantTest is BasketManager_InvariantTest {
+contract StagingBasketManagerInvariantTest is BasketManagerInvariantTest {
     function _getForkBlockNumber() internal override returns (uint256) {
         return 22_231_107;
     }
