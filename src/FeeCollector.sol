@@ -97,8 +97,9 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
         _checkIfBasketToken(basketToken);
         // claim any outstanding fees for previous sponsor
         address currentSponsor = basketTokenSponsors[basketToken];
-        _claimSponsorFee(basketToken, currentSponsor);
         basketTokenSponsors[basketToken] = sponsor;
+        _claimSponsorFee(basketToken, currentSponsor);
+        // slither-disable-next-line reentrancy-events
         emit SponsorSet(basketToken, sponsor);
     }
 
@@ -159,6 +160,7 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
             }
         }
         // Call harvestManagementFee to ensure that the fee is up to date
+        // slither-disable-next-line reentrancy-no-eth,reentrancy-benign
         BasketToken(basketToken).harvestManagementFee();
         uint256 fee = claimableTreasuryFees[basketToken];
         if (fee > 0) {
