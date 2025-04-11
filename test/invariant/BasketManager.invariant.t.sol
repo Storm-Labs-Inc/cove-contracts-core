@@ -33,7 +33,6 @@ abstract contract BasketManagerInvariantTest is StdInvariant, BaseTest {
     uint256 internal constant ACTOR_COUNT = 5;
     uint256 internal constant INITIAL_BALANCE = 1_000_000;
     uint256 internal constant DEPOSIT_AMOUNT = 10_000;
-    uint256 internal constant INITIAL_AMOUNT = 1e18;
 
     ///////////////////////
     // SETUP

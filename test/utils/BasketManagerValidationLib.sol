@@ -19,7 +19,7 @@ import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkA
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ChainedERC4626Oracle } from "src/oracles/ChainedERC4626Oracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
-import { Status, Status } from "src/types/BasketManagerStorage.sol";
+import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 /// @title BasketManagerValidationLib
