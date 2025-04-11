@@ -6,8 +6,7 @@ import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
-// solhint-disable contract-name-camelcase
-contract Deployments_Staging is Deployments {
+contract DeploymentsStaging is Deployments {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 

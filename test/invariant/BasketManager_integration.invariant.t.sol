@@ -6,7 +6,7 @@ import { Deployments_Test } from "script/Deployments_Test.s.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketManager_InvariantTest } from "test/invariant/BasketManager.invariant.t.sol";
 
-contract Integration_BasketManager_InvariantTest is BasketManager_InvariantTest {
+contract IntegrationBasketManagerInvariantTest is BasketManager_InvariantTest {
     Deployments public deployments;
 
     function _getForkBlockNumber() internal override returns (uint256) {

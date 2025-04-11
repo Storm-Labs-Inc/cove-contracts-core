@@ -593,6 +593,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
     /// @notice Updates the bitFlag for the given basket.
     /// @param basket Address of the basket.
     /// @param bitFlag New bitFlag. It must be inclusive of the current bitFlag.
+    // solhint-disable-next-line code-complexity
     function updateBitFlag(address basket, uint256 bitFlag) external onlyRole(_TIMELOCK_ROLE) {
         // Checks
         // Check if basket exists

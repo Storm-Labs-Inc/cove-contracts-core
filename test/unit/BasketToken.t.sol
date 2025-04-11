@@ -2096,6 +2096,7 @@ contract BasketTokenTest is BaseTest {
      * @param includeBaseAsset Whether to include the base asset in the list
      * @param seed Random seed for generating asset addresses
      */
+    // solhint-disable-next-line code-complexity
     function testFuzz_totalAssetsWithMockData(uint8 assetCount, bool includeBaseAsset, uint256 seed) public {
         // Bound asset count to a reasonable range
         assetCount = uint8(bound(assetCount, 1, 10));

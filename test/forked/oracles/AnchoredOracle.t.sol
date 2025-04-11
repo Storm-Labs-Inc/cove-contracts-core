@@ -11,7 +11,7 @@ import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
-contract AnchoredOracle_ForkedTest is BaseTest {
+contract AnchoredOracleForkedTest is BaseTest {
     uint256 public MAX_DIVERGENCE = 0.02e18; // 2.0%
 
     PythOracle public primary;

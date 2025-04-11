@@ -6,7 +6,7 @@ import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 
-contract AssetRegistry_Test is BaseTest {
+contract AssetRegistryTest is BaseTest {
     AssetRegistry public assetRegistry;
     bytes32 public adminRole;
     bytes32 public managerRole;

@@ -1392,6 +1392,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.completeRebalance(trades, targetBaskets, _targetWeights, basketAssets);
     }
 
+    // solhint-disable-next-line code-complexity
     function test_completeRebalance_withMultipleAssets() public {
         _setTokenSwapAdapter();
         // Setup baskets with 4 assets each

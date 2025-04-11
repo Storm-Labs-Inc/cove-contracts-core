@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.20;
 
-import { IERC20 } from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { Errors as PriceOracleErrors } from "euler-price-oracle-1/src/adapter/BaseAdapter.sol";
@@ -15,10 +14,10 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
     // --- Constants ---
 
     // tricrypto-ng pool (USDT/WBTC/WETH)
-    address constant TRICRYPTO_POOL = 0xD51a44d3FaE010294C616388b506AcdA1bfAAE46;
-    address constant TRICRYPTO_USDT = ETH_USDT; // coins[0] = quote
-    address constant TRICRYPTO_WBTC = ETH_WBTC; // coins[1] = base1, priceOracleIndex = 0
-    address constant TRICRYPTO_WETH = ETH_WETH; // coins[2] = base2, priceOracleIndex = 1
+    address public constant TRICRYPTO_POOL = 0xD51a44d3FaE010294C616388b506AcdA1bfAAE46;
+    address public constant TRICRYPTO_USDT = ETH_USDT; // coins[0] = quote
+    address public constant TRICRYPTO_WBTC = ETH_WBTC; // coins[1] = base1, priceOracleIndex = 0
+    address public constant TRICRYPTO_WETH = ETH_WETH; // coins[2] = base2, priceOracleIndex = 1
 
     // --- State Variables ---
 
@@ -26,13 +25,13 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
     CurveEMAOracleUnderlying public wethUsdtOracle;
     ICurvePool internal tricryptoPool = ICurvePool(TRICRYPTO_POOL);
     Scale internal wethUsdtScale;
-    uint256 constant WETH_USDT_PRICE_INDEX = 1;
+    uint256 public constant WETH_USDT_PRICE_INDEX = 1;
 
     // frxUSD/USDe Oracle
     CurveEMAOracleUnderlying public frxusdUsdeOracle;
     ICurvePool internal frxusdUsdePool = ICurvePool(ETH_CURVE_SFRXUSD_SUSDE_POOL);
     Scale internal frxUsdeScale;
-    uint256 constant FRXUSD_USDE_PRICE_INDEX = 0;
+    uint256 public constant FRXUSD_USDE_PRICE_INDEX = 0;
 
     // --- Setup ---
 

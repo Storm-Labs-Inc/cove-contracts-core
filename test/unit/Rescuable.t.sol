@@ -11,7 +11,7 @@ import { MockRescuable } from "test/utils/mocks/MockRescuable.sol";
 
 import { Rescuable } from "src/Rescuable.sol";
 
-contract Rescuable_Test is BaseTest {
+contract RescuableTest is BaseTest {
     MockRescuable public mockRescuable;
 
     // Addresses

@@ -19,7 +19,7 @@ import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkA
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ChainedERC4626Oracle } from "src/oracles/ChainedERC4626Oracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
-import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
+import { Status, Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 /// @title BasketManagerValidationLib
@@ -210,6 +210,7 @@ library BasketManagerValidationLib {
         return false;
     }
 
+    // solhint-disable-next-line code-complexity
     function testLib_needsRebalance(BasketManager basketManager, address basket) internal view returns (bool) {
         // Only if the basket rebalance status is NOT_STARTED
         if (basketManager.rebalanceStatus().status != Status.NOT_STARTED) {
@@ -339,6 +340,7 @@ library BasketManagerValidationLib {
         return (internalTradesResult, externalTradesResult);
     }
 
+    // solhint-disable-next-line code-complexity
     function testLib_compareCurrentAndTargetWeights(
         BasketManager basketManager,
         address[] memory baskets,
@@ -476,6 +478,7 @@ library BasketManagerValidationLib {
     /// @param allTargetWeights Target weights for each basket
     /// @param slot The working variables slot
     /// @return Updated slot with surplus and deficit information
+    // solhint-disable-next-line code-complexity
     function testLib_calculateSurplusAndDeficit(
         BasketManager basketManager,
         EulerRouter eulerRouter,
@@ -691,6 +694,7 @@ library BasketManagerValidationLib {
     /// @notice Generates internal trades between baskets
     /// @param slot The working variables slot with surplus/deficit information
     /// @return Updated slot with internal trades
+    // solhint-disable-next-line code-complexity
     function testLib_generateInternalTrades(TestLibGenerateTradesSlot memory slot)
         internal
         view
@@ -798,6 +802,7 @@ library BasketManagerValidationLib {
     /// @param eulerRouter The EulerRouter contract
     /// @param slot The working variables slot with updated surplus/deficit after internal trades
     /// @return Updated slot with external trades
+    // solhint-disable-next-line code-complexity
     function testLib_generateExternalTrades(
         EulerRouter eulerRouter,
         TestLibGenerateTradesSlot memory slot

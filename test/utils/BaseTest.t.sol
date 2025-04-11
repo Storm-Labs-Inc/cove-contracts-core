@@ -31,9 +31,11 @@ abstract contract BaseTest is Test, Constants {
     bytes32 public constant _PERMIT_DETAILS_TYPEHASH =
         keccak256("PermitDetails(address token,uint160 amount,uint48 expiration,uint48 nonce)");
 
+    // solhint-disable max-line-length
     bytes32 public constant _PERMIT_SINGLE_TYPEHASH = keccak256(
         "PermitSingle(PermitDetails details,address spender,uint256 sigDeadline)PermitDetails(address token,uint160 amount,uint48 expiration,uint48 nonce)"
     );
+    // solhint-enable max-line-length
 
     mapping(string => address) public users;
     mapping(string => Fork) public forks;

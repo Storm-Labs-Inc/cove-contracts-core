@@ -23,6 +23,7 @@ import { Constants } from "test/utils/Constants.t.sol";
  * @notice Script to update the oracles for 4626 tokens in the staging environment
  * @dev This script deploys and configures oracles for sUSDe, sDAI, and sFRAX
  */
+// solhint-disable var-name-mixedcase
 contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchScript, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
@@ -65,6 +66,7 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         // executeBatch(false);
     }
 
+    // eslint-disable var-name-mixedcase
     function _printCurrentConfiguration() private {
         EulerRouter router = EulerRouter(STAGING_EULER_ROUTER);
 

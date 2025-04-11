@@ -7,12 +7,10 @@ pragma solidity 0.8.28;
 // alternative approaches that don't rely on cheatcodes for frontend testing.
 
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { console } from "forge-std/console.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
