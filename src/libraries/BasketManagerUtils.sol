@@ -429,6 +429,7 @@ library BasketManagerUtils {
         uint8 currentRetryCount = self.rebalanceStatus.retryCount;
         if (currentRetryCount < self.retryLimit) {
             if (!_isTargetWeightMet(self, eulerRouter, baskets, basketTargetWeights, basketAssets, slot)) {
+                // slither-disable-next-line reentrancy-events
                 emit RebalanceRetried(self.rebalanceStatus.epoch, ++currentRetryCount);
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
@@ -845,6 +846,7 @@ library BasketManagerUtils {
                 feeValue: 0
             });
             uint256 initialBuyAmount = 0;
+            // slither-disable-start timestamp
             if (info.sellValue > 0) {
                 initialBuyAmount = eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             }
@@ -873,7 +875,7 @@ library BasketManagerUtils {
             if (initialBuyAmount > slot.basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]) {
                 revert IncorrectTradeTokenAmount();
             }
-
+            // slither-disable-end timestamp
             // Settle the internal trades and track the balance changes.
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.basketBalanceOf[trade.fromBasket][trade.sellToken] =
@@ -963,6 +965,7 @@ library BasketManagerUtils {
             );
 
             // Check if the given minAmount is within the slippageLimit threshold of internalMinAmount
+            // slither-disable-next-line timestamp
             if (
                 FixedPointMathLib.fullMulDiv(
                     MathUtils.diff(internalMinAmount, trade.minAmount), _WEIGHT_PRECISION, internalMinAmount
@@ -1091,6 +1094,7 @@ library BasketManagerUtils {
                     // Rounding direction: down
                     uint256 afterTradeWeight =
                         FixedPointMathLib.fullMulDiv(assetValueInUSD, _WEIGHT_PRECISION, slot.totalValues[i]);
+                    // slither-disable-next-line timestamp
                     if (MathUtils.diff(adjustedTargetWeights[j], afterTradeWeight) > weightDeviationLimit) {
                         return false;
                     }

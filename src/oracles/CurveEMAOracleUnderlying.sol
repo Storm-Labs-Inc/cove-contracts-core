@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { BaseAdapter, IPriceOracle } from "euler-price-oracle-1/src/adapter/BaseAdapter.sol";
+import { BaseAdapter, Errors, IPriceOracle } from "euler-price-oracle-1/src/adapter/BaseAdapter.sol";
 import { ICurvePool } from "euler-price-oracle-1/src/adapter/curve/ICurvePool.sol";
 import { Scale, ScaleUtils } from "euler-price-oracle-1/src/lib/ScaleUtils.sol";
 
@@ -54,6 +54,15 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     )
         payable
     {
+        if (_pool == address(0)) {
+            revert Errors.PriceOracle_InvalidConfiguration();
+        }
+        if (_base == address(0)) {
+            revert Errors.PriceOracle_InvalidConfiguration();
+        }
+        if (_quote == address(0)) {
+            revert Errors.PriceOracle_InvalidConfiguration();
+        }
         // The EMA oracle returns a price quoted in `coins[0]`.
         uint256 baseIndex = 0;
         if (_priceOracleIndex == type(uint256).max) {
