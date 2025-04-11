@@ -12,7 +12,7 @@ import { ERC4626Mock } from "test/utils/mocks/ERC4626Mock.sol";
 
 contract ChainedERC4626OracleTest is BaseTest {
     // ysyG-yvUSDS-1, boosties strategy for yG-yvUSDS-1
-    address public constant YSYG_YVUSDS = 0x81f78DeF7a3a8B0F6aAB69925efC69E70239D95;
+    address public constant YSYG_YVUSDS = 0x81f78DeF7a3a8B0F6aABa69925efC69E70239D95;
     // yG-yvUSDS-1, yearn gauge for yvUSDS-1
     address public constant YG_YVUSDS = 0xd57aEa3686d623dA2dCEbc87010a4F2F38Ac7B15;
     // yvUSDS-1, yearn vault
