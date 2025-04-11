@@ -44,6 +44,7 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     /// WARNING: Some StableSwap-NG pools deployed before Dec-12-2023 have a known oracle vulnerability.
     /// See (https://docs.curve.fi/stableswap-exchange/stableswap-ng/pools/oracles/#price-oracles) for more details.
     /// Additionally, verify that the pool has enough liquidity before deploying this adapter.
+    // slither-disable-next-line locked-ether
     constructor(
         address _pool,
         address _base,

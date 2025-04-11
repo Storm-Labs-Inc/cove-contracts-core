@@ -965,7 +965,7 @@ library BasketManagerUtils {
             );
 
             // Check if the given minAmount is within the slippageLimit threshold of internalMinAmount
-            // slither-disable-next-line timestamp
+            // slither-disable-start timestamp
             if (
                 FixedPointMathLib.fullMulDiv(
                     MathUtils.diff(internalMinAmount, trade.minAmount), _WEIGHT_PRECISION, internalMinAmount
@@ -973,7 +973,7 @@ library BasketManagerUtils {
             ) {
                 revert ExternalTradeSlippage();
             }
-
+            // slither-disable-end timestamp
             unchecked {
                 // Overflow not possible: i is bounded by baskets.length
                 ++i;
