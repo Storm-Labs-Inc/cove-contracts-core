@@ -66,7 +66,6 @@ contract UpdateStagingOracles is DeployScript, Constants, StdAssertions, BatchSc
         // executeBatch(false);
     }
 
-    // eslint-disable var-name-mixedcase
     function _printCurrentConfiguration() private {
         EulerRouter router = EulerRouter(STAGING_EULER_ROUTER);
 
