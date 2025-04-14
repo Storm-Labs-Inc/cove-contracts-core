@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments.s.sol";
+import { BasketTokenDeployment, OracleOptions } from "./Deployments.s.sol";
+
+import { BuildDeploymentJsonNames } from "./utils/BuildDeploymentJsonNames.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
+import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { BatchScript } from "forge-safe/BatchScript.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
+import { Constants } from "test/utils/Constants.t.sol";
 
 /**
  * @title Staging_RegisterOracles
@@ -20,7 +25,7 @@ import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol"
  */
 // solhint-disable var-name-mixedcase
 
-contract StagingCreateNewBasket is Deployments, BatchScript {
+contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
@@ -31,7 +36,7 @@ contract StagingCreateNewBasket is Deployments, BatchScript {
         return "Staging_";
     }
 
-    function deploy() public override isBatch(ops_safe) {
+    function deploy() public isBatch(ops_safe) {
         require(msg.sender == COVE_DEPLOYER_ADDRESS, "Caller must be COVE DEPLOYER");
         // Start the prank if not in production
         deployer.setAutoBroadcast(true);
@@ -53,15 +58,15 @@ contract StagingCreateNewBasket is Deployments, BatchScript {
         initialWeights[3] = 0.25e18;
         initialWeights[4] = 0.25e18;
         // Deploy managed weight strategy
-        AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
+        AssetRegistry assetRegistry = AssetRegistry(deployer.getAddress(buildAssetRegistryName()));
         // vm.prank(0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5);
         assetRegistry.addAsset(ETH_SUPERUSDC);
         BasketTokenDeployment memory deployment = BasketTokenDeployment({
             name: "StablesV2",
             symbol: "stgUSD2",
             rootAsset: ETH_USDC,
-            bitFlag: assetsToBitFlag(basketAssets),
-            strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1")),
+            bitFlag: assetRegistry.getAssetsBitFlag(basketAssets),
+            strategy: deployer.getAddress(buildManagedWeightStrategyName("Gauntlet V1")),
             initialWeights: initialWeights
         });
 
@@ -114,10 +119,6 @@ contract StagingCreateNewBasket is Deployments, BatchScript {
             0,
             abi.encodeWithSelector(EulerRouter.govSetConfig.selector, ETH_SUPERUSDC, USD, anchoredOracle)
         );
-    }
-
-    function _feeCollectorSalt() internal pure override returns (bytes32) {
-        return keccak256(abi.encodePacked("Staging_FeeCollector_0403"));
     }
 
     function _deployAnchoredOracleWith4626ForAssetNoRegister(
