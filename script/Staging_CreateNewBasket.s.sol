@@ -145,7 +145,7 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
                 )
             );
             address erc4626Oracle =
-                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, ETH_USDC), IERC4626(asset)));
             primaryOracle = address(
                 deployer.deploy_CrossAdapter(
                     buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Pyth"),
