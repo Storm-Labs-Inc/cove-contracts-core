@@ -59,7 +59,7 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
         initialWeights[4] = 0.25e18;
         // Deploy managed weight strategy
         AssetRegistry assetRegistry = AssetRegistry(deployer.getAddress(buildAssetRegistryName()));
-        // vm.prank(0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5);
+        vm.broadcast();
         assetRegistry.addAsset(ETH_SUPERUSDC);
         BasketTokenDeployment memory deployment = BasketTokenDeployment({
             name: "StablesV2",
@@ -72,7 +72,7 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
 
         ManagedWeightStrategy strategy =
             ManagedWeightStrategy(deployer.getAddress(buildManagedWeightStrategyName("Gauntlet V1")));
-        // vm.prank(0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5);
+        vm.broadcast();
         strategy.setTargetWeights(deployment.bitFlag, deployment.initialWeights);
 
         // 1. Add basket creation to multisig tx
