@@ -63,6 +63,7 @@ contract Constants is CommonBase {
     address public constant ETH_FRXUSD = 0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29;
     address public constant ETH_YSYG_YVUSDS_1 = 0x81f78DeF7a3a8B0F6aABa69925efC69E70239D95;
     address public constant ETH_USDS = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
+    address public constant ETH_SUPERUSDC = 0xF7DE3c70F2db39a188A81052d2f3C8e3e217822a;
 
     // PRICE FEEDS
     // USDC/USD
