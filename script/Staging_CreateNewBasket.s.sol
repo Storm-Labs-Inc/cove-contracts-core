@@ -53,10 +53,10 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
         // Initial weights for respective basket assets
         uint64[] memory initialWeights = new uint64[](5);
         initialWeights[0] = 0;
-        initialWeights[1] = 0.25e18;
-        initialWeights[2] = 0.25e18;
-        initialWeights[3] = 0.25e18;
-        initialWeights[4] = 0.25e18;
+        initialWeights[1] = 0.34e18;
+        initialWeights[2] = 0.33e18;
+        initialWeights[3] = 0;
+        initialWeights[4] = 0.33e18;
         // Deploy managed weight strategy
         AssetRegistry assetRegistry = AssetRegistry(deployer.getAddress(buildAssetRegistryName()));
         vm.broadcast();
