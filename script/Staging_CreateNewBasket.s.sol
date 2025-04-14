@@ -59,8 +59,8 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
         initialWeights[4] = 0.33e18;
         // Deploy managed weight strategy
         AssetRegistry assetRegistry = AssetRegistry(deployer.getAddress(buildAssetRegistryName()));
-        vm.broadcast();
-        assetRegistry.addAsset(ETH_SUPERUSDC);
+        // vm.broadcast();
+        // assetRegistry.addAsset(ETH_SUPERUSDC);
         BasketTokenDeployment memory deployment = BasketTokenDeployment({
             name: "StablesV2",
             symbol: "stgUSD2",
@@ -89,12 +89,12 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
             )
         );
         // 1st batch for Ops multisig
-        // executeBatch(false);
+        // executeBatch(true);
         // Reset encodedTxns
         encodedTxns = new bytes[](0);
         // 2nd batch for Community multisig
         _deployAndRegisterOracle();
-        // executeBatch(false);
+        executeBatch(true);
     }
 
     function _deployAndRegisterOracle() internal isBatch(community_safe) {
@@ -148,7 +148,7 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
                 address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
             primaryOracle = address(
                 deployer.deploy_CrossAdapter(
-                    buildCrossAdapterName(asset, underlyingAsset, USD, "ERC4626", "Pyth"),
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Pyth"),
                     underlyingAsset,
                     asset,
                     USD,

@@ -1,0 +1,141 @@
+{
+  "address": "0xFCa447b7Da9E3d66B6BaA7a7d8efFB78F4D85e5A",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract IERC4626",
+          "name": "_vault",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "base",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "inAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "getQuote",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "inAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "getQuotes",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "name",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "quote",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "PriceOracle_NotSupported",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60c080604052346100d1576020816104e7803803809161001f82856100e8565b8339810103126100d157516001600160a01b038116908190036100d157602081600492608052604051928380926338d52e0f60e01b82525afa9081156100dd575f91610097575b5060a0526040516103c79081610120823960805181818160d70152610229015260a051818181609401526102070152f35b90506020813d6020116100d5575b816100b2602093836100e8565b810103126100d157516001600160a01b03811681036100d1575f610066565b5f80fd5b3d91506100a5565b6040513d5f823e3d90fd5b601f909101601f19168101906001600160401b0382119082101761010b57604052565b634e487b7160e01b5f52604160045260245ffdfe60806040526004361015610011575f80fd5b5f3560e01c80630579e61f1461018557806306fdde03146100fb5780635001f3b5146100b8578063999b93af146100755763ae68676c14610050575f80fd5b34610071576020610069610063366101a5565b91610201565b604051908152f35b5f80fd5b34610071575f3660031901126100715760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b34610071575f3660031901126100715760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b34610071575f366003190112610071576040516040810181811067ffffffffffffffff82111761017157604052600d8152604060208201916c455243343632364f7261636c6560981b83528151928391602083525180918160208501528484015e5f828201840152601f01601f19168101030190f35b634e487b7160e01b5f52604160045260245ffd5b34610071576040610198610063366101a5565b8151908082526020820152f35b606090600319011261007157600435906024356001600160a01b038116810361007157906044356001600160a01b03811681036100715790565b90601f8019910116810190811067ffffffffffffffff82111761017157604052565b9061024e7f0000000000000000000000000000000000000000000000000000000000000000847f000000000000000000000000000000000000000000000000000000000000000084610306565b9180156102fe576001600160a01b03936020936102ce575060249060405194859384926303d1689d60e11b84526004840152165afa9081156102c3575f91610294575090565b90506020813d6020116102bb575b816102af602093836101df565b81010312610071575190565b3d91506102a2565b6040513d5f823e3d90fd5b915060249060405194859384926363737ac960e11b84526004840152165afa9081156102c3575f91610294575090565b505050505f90565b906001600160a01b0380919493941691169181831480610376575b6102fe576001600160a01b031682149081610363575b5061035c576001600160a01b0392506304ca22af60e41b5f526004521660245260445ffd5b5050600190565b90506001600160a01b038316145f610337565b506001600160a01b0381166001600160a01b0385161461032156fea26469706673582212205512bd80001cd8a22fabd6480a7d104c0bb624195bdfbbe29aa44d5f4af3a45064736f6c634300081c0033",
+  "args_data": "0x000000000000000000000000f7de3c70f2db39a188a81052d2f3c8e3e217822a",
+  "tx_hash": "",
+  "args": [],
+  "data": "",
+  "artifact_path": "ERC4626Oracle.sol",
+  "artifact_full_path": "ERC4626Oracle.sol:ERC4626Oracle"
+}
