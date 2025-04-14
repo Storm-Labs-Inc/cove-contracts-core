@@ -548,7 +548,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 )
             );
             address erc4626Oracle =
-                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, underlyingAsset), IERC4626(asset)));
             primaryOracle = address(
                 deployer.deploy_CrossAdapter(
                     buildCrossAdapterName(asset, underlyingAsset, USD, "ERC4626", "Pyth"),
@@ -585,7 +585,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 )
             );
             address erc4626Oracle =
-                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, underlyingAsset), IERC4626(asset)));
             anchorOracle = address(
                 deployer.deploy_CrossAdapter(
                     buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Chainlink"),
