@@ -10,6 +10,9 @@ import { Errors } from "euler-price-oracle/src/lib/Errors.sol";
 /// @author Storm Labs (https://storm-labs.xyz/)
 /// @dev Euler's experimental implementation was used as a reference:
 /// https://github.com/euler-xyz/euler-price-oracle/blob/experiments/src/aggregator/AnchoredOracle.sol
+/// This is a modified version of AnchoredOracle.sol that scales the input amount when the primary oracle
+/// returns a very small output amount. This implementation is only compatible with underlying oracles that are linearly
+/// related to the quote asset. The maximum input amount must be type(uint256).max / 1e18.
 /// @notice PriceOracle that chains two PriceOracles.
 contract AnchoredOracle is BaseAdapter {
     /// @notice The lower bound for `maxDivergence`, 0.1%.
