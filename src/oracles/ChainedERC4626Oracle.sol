@@ -17,6 +17,7 @@ import { ScaleUtils } from "euler-price-oracle/src/lib/ScaleUtils.sol";
 /// If the dependent ERC4626 contracts do not implement sufficient protection against donation attacks,
 /// sudden price jumps may occur when large amounts of assets are donated to the vaults without a proportional
 /// increase in shares. Users should verify the security measures implemented by the underlying vaults.
+/// Due to this risk, this oracle should only be used when there is no direct price feed available for the vault tokens.
 contract ChainedERC4626Oracle is BaseAdapter {
     /// @notice The name of the oracle
     // solhint-disable-next-line const-name-snakecase
