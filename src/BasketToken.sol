@@ -775,7 +775,7 @@ contract BasketToken is
         }
         uint16 feeBps = bm.managementFee(address(this));
         _harvestManagementFee(feeBps, feeCollector);
-}
+    }
 
     /// @notice Internal function to harvest management fees. Updates the timestamp of the last management fee harvest
     /// if a non zero fee is collected. Mints the fee to the fee collector and notifies the basket manager.
