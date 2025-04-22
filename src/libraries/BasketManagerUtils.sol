@@ -441,8 +441,12 @@ library BasketManagerUtils {
             }
         }
         // Harvest management fee
-        for (uint256 i = 0; i < baskets.length; i++) {
+        for (uint256 i = 0; i < baskets.length;) {
             BasketToken(baskets[i]).harvestManagementFee();
+            unchecked {
+                // Overflow not possible: i is less than baskets.length
+                ++i;
+            }
         }
         _finalizeRebalance(self, eulerRouter, baskets, basketAssets);
     }
