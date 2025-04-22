@@ -520,6 +520,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             // slither-disable-next-line reentrancy-no-eth
             BasketToken(basket).harvestManagementFee();
         }
+        // slither-disable-next-line reentrancy-events
         emit ManagementFeeSet(basket, _bmStorage.managementFees[basket], managementFee_);
         _bmStorage.managementFees[basket] = managementFee_;
     }
