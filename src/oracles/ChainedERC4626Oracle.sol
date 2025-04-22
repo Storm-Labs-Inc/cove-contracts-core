@@ -12,6 +12,11 @@ import { ScaleUtils } from "euler-price-oracle/src/lib/ScaleUtils.sol";
 /// @dev Handles price conversions between ERC4626 vault shares through multiple levels until reaching
 /// the target underlying asset. The oracle automatically converts between share and asset prices
 /// through the entire chain using each vault's convertToAssets/convertToShares functions.
+///
+/// This oracle relies on the convertToAssets/convertToShares functions of the underlying ERC4626 vaults.
+/// If the dependent ERC4626 contracts do not implement sufficient protection against donation attacks,
+/// sudden price jumps may occur when large amounts of assets are donated to the vaults without a proportional
+/// increase in shares. Users should verify the security measures implemented by the underlying vaults.
 contract ChainedERC4626Oracle is BaseAdapter {
     /// @notice The name of the oracle
     // solhint-disable-next-line const-name-snakecase

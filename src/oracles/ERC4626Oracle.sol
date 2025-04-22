@@ -14,6 +14,11 @@ import { ScaleUtils } from "euler-price-oracle/src/lib/ScaleUtils.sol";
 /// using the vault's convertToAssets/convertToShares functions. The oracle follows the behavior of
 /// the ERC4626 vault's implementation of its functions, typically ignoring the maximum amount of shares that can be
 /// redeemed or minted.
+///
+/// This oracle relies on the convertToAssets/convertToShares functions of the underlying ERC4626 vault.
+/// If the dependent ERC4626 contract does not implement sufficient protection against donation attacks,
+/// sudden price jumps may occur when large amounts of assets are donated to the vault without a proportional
+/// increase in shares. Users should verify the security measures implemented by the underlying vault.
 contract ERC4626Oracle is BaseAdapter {
     /// @notice The name of the oracle.
     // solhint-disable-next-line const-name-snakecase
@@ -25,8 +30,8 @@ contract ERC4626Oracle is BaseAdapter {
 
     /// @notice Constructor for the ERC4626Oracle contract.
     /// @param _vault The ERC4626 vault that should be used as the base asset.
-    // nosemgrep: solidity.performance.non-payable-constructor.non-payable-constructor
-    constructor(IERC4626 _vault) {
+    // slither-disable-next-line locked-ether
+    constructor(IERC4626 _vault) payable {
         // Assume the vault is IERC4626 compliant token
         base = address(_vault);
         quote = _vault.asset();
