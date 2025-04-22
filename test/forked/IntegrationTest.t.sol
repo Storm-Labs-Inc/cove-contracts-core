@@ -845,6 +845,20 @@ contract IntegrationTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + farmingPlugin.farmInfo().finished);
     }
 
+    function testFuzz_setManagementFee_collectsAccruedFee(uint16 fee) public {
+        fee = uint16(bound(fee, 10, MAX_MANAGEMENT_FEE));
+        address feeCollectorAddress = deployments.getAddress(deployments.buildFeeCollectorName());
+        address basketToken = bm.basketTokens()[0];
+        _completeRebalance_processDeposits(100, 100);
+        vm.prank(COVE_OPS_MULTISIG);
+        bm.setManagementFee(basketToken, fee);
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
+        assertEq(BasketToken(basketToken).balanceOf(feeCollectorAddress), 0);
+        vm.prank(COVE_OPS_MULTISIG);
+        bm.setManagementFee(basketToken, 0);
+        assertGt(BasketToken(basketToken).balanceOf(feeCollectorAddress), 0);
+    }
+
     /// INTERNAL HELPER FUNCTIONS
 
     // Requests and processes deposits into every basket

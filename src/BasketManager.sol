@@ -518,6 +518,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
                 revert MustWaitForRebalanceToComplete();
             }
         }
+        BasketToken(basket).harvestManagementFee();
         emit ManagementFeeSet(basket, _bmStorage.managementFees[basket], managementFee_);
         _bmStorage.managementFees[basket] = managementFee_;
     }
