@@ -157,6 +157,7 @@ contract Constants is CommonBase {
 
     // Constants hardcoded in the contracts, replicated here for testing.
     uint16 public constant MAX_MANAGEMENT_FEE = 3000;
+    uint16 public constant MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 public constant MAX_SWAP_FEE = 500;
     uint8 public constant MAX_RETRIES = 10;
     uint256 public constant REBALANCE_COOLDOWN_SEC = 1 hours;

@@ -769,7 +769,9 @@ contract BasketToken is
         BasketManager bm = BasketManager(basketManager);
         address feeCollector = bm.feeCollector();
         if (msg.sender != feeCollector) {
-            revert NotFeeCollector();
+            if (msg.sender != address(bm)) {
+                revert NotFeeCollector();
+            }
         }
         uint16 feeBps = bm.managementFee(address(this));
         _harvestManagementFee(feeBps, feeCollector);

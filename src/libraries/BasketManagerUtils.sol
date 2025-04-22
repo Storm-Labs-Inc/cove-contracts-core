@@ -440,6 +440,10 @@ library BasketManagerUtils {
                 return;
             }
         }
+        // Harvest management fee
+        for (uint256 i = 0; i < baskets.length; i++) {
+            BasketToken(baskets[i]).harvestManagementFee();
+        }
         _finalizeRebalance(self, eulerRouter, baskets, basketAssets);
     }
 
