@@ -480,6 +480,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
 
     /// @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
     /// each underlying asset in the basket pro-rata to the amount of shares redeemed.
+    /// @dev This function can only be called by basket tokens.
     /// @param totalSupplyBefore Total supply of the basket token before the shares were burned.
     /// @param burnedShares Amount of shares burned.
     /// @param to Address to send the redeemed assets to.
