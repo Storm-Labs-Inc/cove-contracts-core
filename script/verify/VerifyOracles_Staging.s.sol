@@ -11,6 +11,8 @@ import { IPriceOracle } from "euler-price-oracle/src/interfaces/IPriceOracle.sol
 
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { console } from "forge-std/console.sol";
+
+import { IPriceOracleWithBaseAndQuote } from "src/interfaces/deps/IPriceOracleWithBaseAndQuote.sol";
 import { CurveEMAOracleUnderlying } from "src/oracles/CurveEMAOracleUnderlying.sol";
 
 import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
@@ -23,11 +25,6 @@ import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLi
 
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { Constants } from "test/utils/Constants.t.sol";
-
-interface IPriceOracleWithBaseAndQuote is IPriceOracle {
-    function base() external view returns (address);
-    function quote() external view returns (address);
-}
 
 // solhint-disable contract-name-capwords
 contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNames {
