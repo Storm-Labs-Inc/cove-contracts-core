@@ -149,8 +149,8 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
             primaryOracle = address(
                 deployer.deploy_CrossAdapter(
                     buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Pyth"),
-                    underlyingAsset,
                     asset,
+                    underlyingAsset,
                     USD,
                     erc4626Oracle,
                     pythOracle
