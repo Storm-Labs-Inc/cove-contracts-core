@@ -51,29 +51,68 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         // Get the MasterRegistry contract
         IMasterRegistry masterRegistry = IMasterRegistry(masterRegistryAddr);
         console.log("\n=== Master Registry ===");
-        console.log("Address:", address(masterRegistry));
+        console.log(
+            string.concat("Address: ", vm.toString(address(masterRegistry)), " (", buildMasterRegistryName(), ")")
+        );
 
         // Get the BasketManager address
         address basketManagerAddr = masterRegistry.resolveNameToLatestAddress("BasketManager");
         require(basketManagerAddr != address(0), "BasketManager not registered");
         console.log("\n=== Basket Manager ===");
-        console.log("Address:", basketManagerAddr);
+        console.log("MR Registered Address:", basketManagerAddr);
+        console.log(
+            string.concat(
+                "Matches deployment json: ",
+                basketManagerAddr == deployer.getAddress(buildBasketManagerName()) ? unicode"✅" : unicode"❌",
+                " (",
+                buildBasketManagerName(),
+                ")"
+            )
+        );
         BasketManager basketManager = BasketManager(basketManagerAddr);
 
         // Get the EulerRouter
         address eulerRouterAddr = masterRegistry.resolveNameToLatestAddress("EulerRouter");
         require(eulerRouterAddr != address(0), "EulerRouter not registered");
-        require(eulerRouterAddr == basketManager.eulerRouter(), "EulerRouter address mismatch");
         console.log("\n=== Euler Router ===");
-        console.log("Address:", eulerRouterAddr);
+        console.log("MR Registered Address:", eulerRouterAddr);
+        console.log(
+            string.concat(
+                "Matches deployment json: ",
+                eulerRouterAddr == deployer.getAddress(buildEulerRouterName()) ? unicode"✅" : unicode"❌",
+                " (",
+                buildEulerRouterName(),
+                ")"
+            )
+        );
+        console.log(
+            string.concat(
+                "Matches basketManager.eulerRouter(): ",
+                eulerRouterAddr == basketManager.eulerRouter() ? unicode"✅" : unicode"❌"
+            )
+        );
         EulerRouter eulerRouter = EulerRouter(eulerRouterAddr);
 
         // Get the AssetRegistry
         address assetRegistryAddr = masterRegistry.resolveNameToLatestAddress("AssetRegistry");
         require(assetRegistryAddr != address(0), "AssetRegistry not registered");
-        require(assetRegistryAddr == basketManager.assetRegistry(), "AssetRegistry address mismatch");
         console.log("\n=== Asset Registry ===");
-        console.log("Address:", assetRegistryAddr);
+        console.log("MR Registered Address:", assetRegistryAddr);
+        console.log(
+            string.concat(
+                "Matches deployment json: ",
+                assetRegistryAddr == deployer.getAddress(buildAssetRegistryName()) ? unicode"✅" : unicode"❌",
+                " (",
+                buildAssetRegistryName(),
+                ")"
+            )
+        );
+        console.log(
+            string.concat(
+                "Matches basketManager.assetRegistry(): ",
+                assetRegistryAddr == basketManager.assetRegistry() ? unicode"✅" : unicode"❌"
+            )
+        );
         AssetRegistry assetRegistry = AssetRegistry(assetRegistryAddr);
 
         // Validate all configured oracles
@@ -83,7 +122,7 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
 
         // Get all basket tokens
         address[] memory baskets = basketManager.basketTokens();
-        console.log("\n=== Analyzing Oracle Paths ===");
+        console.log("\n=== Analyzing Basket Tokens ===");
         console.log("Number of baskets:", baskets.length);
 
         // For each basket, get its assets and analyze oracle paths
@@ -106,9 +145,9 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
             console.log("Assets:", assetList);
         }
 
+        console.log("\n=== Analyzing Assets and Oracles ===");
         // Get the list of registered assets
         address[] memory allAssets = assetRegistry.getAllAssets();
-
         // For each asset, get and analyze its oracle path
         for (uint256 j = 0; j < allAssets.length; j++) {
             address asset = allAssets[j];
@@ -148,7 +187,7 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         try IPriceOracle(oracle).name() returns (string memory name) {
             oracleName = name;
         } catch {
-            console.log(string.concat(currentIndent, unicode"⚠️ Unknown Oracle Type at Address: ", vm.toString(oracle)));
+            console.log(string.concat(currentIndent, unicode"❌ Oracle without name() function: ", vm.toString(oracle)));
             return;
         }
 
@@ -184,6 +223,8 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         console.log(string.concat(indent, "Type: Pyth"));
         console.log(string.concat(indent, "Feed ID: ", vm.toString(feedId)));
         console.log(string.concat(indent, "Max Staleness: ", vm.toString(staleness), "s"));
+        string memory deploymentJsonName = buildPythOracleName(pythOracle.base(), pythOracle.quote());
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
         _printBaseAndQuote(oracle, indent);
     }
 
@@ -195,6 +236,8 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         console.log(string.concat(indent, "Type: Chainlink"));
         console.log(string.concat(indent, "Feed: ", vm.toString(feed)));
         console.log(string.concat(indent, "Max Staleness: ", vm.toString(staleness), "s"));
+        string memory deploymentJsonName = buildChainlinkOracleName(clOracle.base(), clOracle.quote());
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
         _printBaseAndQuote(oracle, indent);
     }
 
@@ -204,6 +247,14 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         address oracleCrossQuote = crossAdapter.oracleCrossQuote();
 
         console.log(string.concat(indent, "Type: CrossAdapter"));
+        string memory deploymentJsonName = buildCrossAdapterName(
+            crossAdapter.base(),
+            crossAdapter.cross(),
+            crossAdapter.quote(),
+            _getCrossAdapterOracleType(IPriceOracle(crossAdapter.oracleBaseCross()).name()),
+            _getCrossAdapterOracleType(IPriceOracle(crossAdapter.oracleCrossQuote()).name())
+        );
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
         console.log(string.concat(indent, "Oracle Base Cross Path:"));
         _traverseOracles(oracleBaseCross, indent); // Recurse with same indent level for clarity
         console.log(string.concat(indent, "Oracle Cross Quote Path:"));
@@ -212,6 +263,10 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
 
     function _printERC4626OracleDetails(address oracle, string memory indent) internal view {
         console.log(string.concat(indent, "Type: ERC4626Oracle"));
+        string memory deploymentJsonName = buildERC4626OracleName(
+            IPriceOracleWithBaseAndQuote(oracle).base(), IPriceOracleWithBaseAndQuote(oracle).quote()
+        );
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
         _printBaseAndQuote(oracle, indent);
     }
 
@@ -221,11 +276,19 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
 
         console.log(string.concat(indent, "Type: CurveEMAOracleUnderlying"));
         console.log(string.concat(indent, "Curve Pool: ", vm.toString(pool)));
+        string memory deploymentJsonName = buildCurveEMAOracleUnderlyingName(
+            IPriceOracleWithBaseAndQuote(oracle).base(), IPriceOracleWithBaseAndQuote(oracle).quote()
+        );
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
         _printBaseAndQuote(oracle, indent);
     }
 
     function _printChainedERC4626OracleDetails(address oracle, string memory indent) internal view {
         console.log(string.concat(indent, "Type: ChainedERC4626Oracle"));
+        string memory deploymentJsonName = buildChainedERC4626OracleName(
+            IPriceOracleWithBaseAndQuote(oracle).base(), IPriceOracleWithBaseAndQuote(oracle).quote()
+        );
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
         _printBaseAndQuote(oracle, indent);
     }
 
@@ -253,6 +316,44 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
                     ")"
                 )
             );
+        }
+    }
+
+    function _printDeploymentJsonMatch(
+        address oracle,
+        string memory indent,
+        string memory deploymentJsonName
+    )
+        internal
+        view
+    {
+        console.log(
+            string.concat(
+                indent,
+                "Matches deployment json: ",
+                oracle == deployer.getAddress(deploymentJsonName) ? unicode"✅" : unicode"❌",
+                " (",
+                deploymentJsonName,
+                ")"
+            )
+        );
+    }
+
+    function _getCrossAdapterOracleType(string memory oracleName) internal pure returns (string memory) {
+        if (oracleName.equal("PythOracle")) {
+            return "Pyth";
+        } else if (oracleName.equal("ChainlinkOracle")) {
+            return "Chainlink";
+        } else if (oracleName.equal("CrossAdapter")) {
+            return "CrossAdapter";
+        } else if (oracleName.equal("ERC4626Oracle")) {
+            return "4626";
+        } else if (oracleName.equal("CurveEMAOracleUnderlying")) {
+            return "CurveEMAUnderlying";
+        } else if (oracleName.equal("ChainedERC4626Oracle")) {
+            return "ChainedERC4626";
+        } else {
+            return "Unknown";
         }
     }
 
