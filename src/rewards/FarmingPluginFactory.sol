@@ -50,7 +50,8 @@ contract FarmingPluginFactory is AccessControlEnumerable {
     /// @param admin  Address that receives DEFAULT_ADMIN_ROLE.
     /// @param manager  Address that receives MANAGER_ROLE.
     /// @param _defaultPluginOwner  Address that will be the default plugin owner.
-    constructor(address admin, address manager, address _defaultPluginOwner) {
+    // slither-disable-next-line locked-ether
+    constructor(address admin, address manager, address _defaultPluginOwner) payable {
         if (admin == address(0) || manager == address(0)) revert ZeroAddress();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MANAGER_ROLE, manager);
