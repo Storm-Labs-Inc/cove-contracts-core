@@ -161,12 +161,19 @@ abstract contract BaseTest is Test, Constants {
     }
 
     /// @dev Returns the deterministic address for `salt` with `deployer`.
-    function _predictDeterministicAddress(bytes32 salt, address deployer) internal pure returns (address deployed) {
+    function _predictDeterministicAddress(
+        bytes32 salt,
+        address deployerAddress
+    )
+        internal
+        pure
+        returns (address deployed)
+    {
         /// @solidity memory-safe-assembly
         // solhint-disable-next-line no-inline-assembly
         assembly {
             let m := mload(0x40) // Cache the free memory pointer.
-            mstore(0x00, deployer) // Store `deployer`.
+            mstore(0x00, deployerAddress) // Store `deployerAddress`.
             mstore8(0x0b, 0xff) // Store the prefix.
             mstore(0x20, salt) // Store the salt.
             mstore(0x40, _PROXY_INITCODE_HASH) // Store the bytecode hash.
