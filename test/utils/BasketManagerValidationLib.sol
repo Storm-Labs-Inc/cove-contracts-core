@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { IPyth } from "@pyth/IPyth.sol";
+import { PythStructs } from "@pyth/PythStructs.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
-import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
-import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
