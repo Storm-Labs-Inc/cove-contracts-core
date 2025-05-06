@@ -812,6 +812,15 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             bm.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         }
 
+        // FarmingPluginFactory
+        FarmingPluginFactory farmingPluginFactory =
+            FarmingPluginFactory(getAddressOrRevert(buildFarmingPluginFactoryName()));
+        if (farmingPluginFactory.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            farmingPluginFactory.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            farmingPluginFactory.grantRole(MANAGER_ROLE, manager);
+            farmingPluginFactory.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
+
         if (shouldBroadcast) {
             vm.stopBroadcast();
         }
@@ -897,8 +906,11 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     }
 
     function _deployFarmingPluginFactory() internal returns (address) {
-        address farmingPluginFactory =
-            address(deployer.deploy_FarmingPluginFactory(buildFarmingPluginFactoryName(), admin, manager, manager));
+        address farmingPluginFactory = address(
+            deployer.deploy_FarmingPluginFactory(
+                buildFarmingPluginFactoryName(), COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS
+            )
+        );
         return farmingPluginFactory;
     }
 
