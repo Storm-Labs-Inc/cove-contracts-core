@@ -908,7 +908,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     function _deployFarmingPluginFactory() internal returns (address) {
         address farmingPluginFactory = address(
             deployer.deploy_FarmingPluginFactory(
-                buildFarmingPluginFactoryName(), COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS
+                buildFarmingPluginFactoryName(), COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS, manager
             )
         );
         return farmingPluginFactory;
