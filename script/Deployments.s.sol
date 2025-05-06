@@ -10,13 +10,16 @@ import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import { console } from "forge-std/console.sol";
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
+import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
+import { IERC20Plugins } from "token-plugins-upgradeable/contracts/interfaces/IERC20Plugins.sol";
 
 import { BuildDeploymentJsonNames } from "./utils/BuildDeploymentJsonNames.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
@@ -60,6 +63,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     address public tokenSwapProposer;
     address public tokenSwapExecutor;
     address public basketTokenImplementation;
+    address public rewardToken;
     IMasterRegistry public masterRegistry;
 
     bool public shouldBroadcast;
@@ -96,6 +100,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
         // Add all collected registry names to master registry
         _finalizeRegistryAdditions();
+
+        // Deploy farming plugins for each basket token with COVE rewards
+        _deployPluginsViaFactory();
 
         // Give up all permissions from the deployer to the admin/manager multisig
         _cleanPermissions();
@@ -138,6 +145,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _deployBasketManager(_feeCollectorSalt());
         _deployFeeCollector(_feeCollectorSalt());
         _deployAndSetCowSwapAdapter();
+        _deployFarmingPluginFactory();
 
         // Add all core contract names to the collection
         _addToMasterRegistryLater("AssetRegistry", assetRegistry);
@@ -146,6 +154,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _addToMasterRegistryLater("BasketManager", getAddressOrRevert(buildBasketManagerName()));
         _addToMasterRegistryLater("FeeCollector", getAddressOrRevert(buildFeeCollectorName()));
         _addToMasterRegistryLater("CowSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
+        _addToMasterRegistryLater("FarmingPluginFactory", getAddressOrRevert(buildFarmingPluginFactoryName()));
     }
 
     function _feeCollectorSalt() internal view virtual returns (bytes32);
@@ -885,6 +894,36 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
         // Register the vault/USD anchored oracle using EulerRouter
         _registerAnchoredOracleWithEulerRouter(initialVault, anchoredOracle);
+    }
+
+    function _deployFarmingPluginFactory() internal returns (address) {
+        address farmingPluginFactory =
+            address(deployer.deploy_FarmingPluginFactory(buildFarmingPluginFactoryName(), admin, manager, manager));
+        return farmingPluginFactory;
+    }
+
+    function _deployPluginsViaFactory() internal {
+        address farmingPluginFactory = getAddressOrRevert(buildFarmingPluginFactoryName());
+        address basketManager = getAddressOrRevert(buildBasketManagerName());
+        address[] memory basketTokens = BasketManager(basketManager).basketTokens();
+        for (uint256 i = 0; i < basketTokens.length; i++) {
+            address basketToken = basketTokens[i];
+            // check if plugin already exists
+            address plugin = FarmingPluginFactory(farmingPluginFactory).computePluginAddress(
+                IERC20Plugins(basketToken), IERC20(rewardToken)
+            );
+            // check for contract size
+            uint256 codeSize;
+            assembly {
+                codeSize := extcodesize(plugin)
+            }
+            if (codeSize == 0) {
+                plugin = FarmingPluginFactory(farmingPluginFactory).deployFarmingPluginWithDefaultOwner(
+                    IERC20Plugins(basketToken), IERC20(rewardToken)
+                );
+            }
+            deployer.save(buildFarmingPluginName(basketToken, rewardToken), plugin, "FarmingPlugin.sol:FarmingPlugin");
+        }
     }
 
     function assetsToBitFlag(address[] memory assets) public view returns (uint256 bitFlag) {

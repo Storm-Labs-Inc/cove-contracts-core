@@ -3,7 +3,9 @@ pragma solidity 0.8.28;
 
 import { IERC20Plugins } from "@1inch/token-plugins/contracts/interfaces/IERC20Plugins.sol";
 import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 
@@ -25,6 +27,8 @@ contract FarmingPluginFactory is AccessControlEnumerable {
     /// @notice Default plugin owner.
     address public defaultPluginOwner;
 
+    /// @dev CREATE3Factory address
+    CREATE3Factory private constant _CREATE3_FACTORY = CREATE3Factory(0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1);
     /// @dev staking token => list of all farming plugins created for that token
     mapping(address => address[]) private _plugins;
     /// @dev flat list of every plugin ever deployed (useful for iteration off-chain)
@@ -71,6 +75,17 @@ contract FarmingPluginFactory is AccessControlEnumerable {
     /// @return plugins Array of farming plugins for the given staking token.
     function plugins(address stakingToken) external view returns (address[] memory) {
         return _plugins[stakingToken];
+    }
+
+    /// @notice Compute the address of a plugin for a given staking token and rewards token.
+    /// @dev The corresponding contract may not have been deployed yet, so the address may be empty.
+    /// For existence, either check for the code size or compare against the allPlugins array.
+    /// @param stakingToken Address of the staking token.
+    /// @param rewardsToken Address of the rewards token.
+    /// @return plugin Address of the plugin.
+    function computePluginAddress(IERC20Plugins stakingToken, IERC20 rewardsToken) external view returns (address) {
+        bytes32 salt = keccak256(abi.encodePacked(stakingToken, rewardsToken));
+        return _CREATE3_FACTORY.getDeployed(address(this), salt);
     }
 
     /*════════════════════════════════  ADMIN FUNCTIONS  ════════════════════════════════*/
@@ -142,7 +157,10 @@ contract FarmingPluginFactory is AccessControlEnumerable {
             revert ZeroAddress();
         }
         bytes32 salt = keccak256(abi.encodePacked(stakingToken, rewardsToken));
-        plugin = address(new FarmingPlugin{ salt: salt }(stakingToken, rewardsToken, pluginOwner));
+        plugin = _CREATE3_FACTORY.deploy(
+            salt,
+            abi.encodePacked(type(FarmingPlugin).creationCode, abi.encode(stakingToken, rewardsToken, pluginOwner))
+        );
 
         _plugins[address(stakingToken)].push(plugin);
         _allPlugins.push(plugin);

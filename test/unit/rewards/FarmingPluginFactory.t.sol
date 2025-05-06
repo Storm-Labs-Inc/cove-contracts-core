@@ -6,6 +6,8 @@ import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { IERC20Plugins } from "@1inch/token-plugins/contracts/interfaces/IERC20Plugins.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import { CREATE3Factory } from "create3-factory/src/CREATE3Factory.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -24,6 +26,7 @@ contract FarmingPluginFactoryTest is BaseTest {
     function setUp() public override {
         super.setUp();
         factory = new FarmingPluginFactory(admin, manager, defaultOwner);
+        vm.etch(CREATE3_FACTORY, address(new CREATE3Factory()).code);
     }
 
     // Constructor
@@ -52,7 +55,7 @@ contract FarmingPluginFactoryTest is BaseTest {
 
     // setDefaultPluginOwner
 
-    function test_setDefaultPluginOwner(address newOwner) public {
+    function testFuzz_setDefaultPluginOwner(address newOwner) public {
         vm.assume(newOwner != address(0));
         vm.prank(admin);
         vm.expectEmit(true, true, true, true);
@@ -61,7 +64,7 @@ contract FarmingPluginFactoryTest is BaseTest {
         assertEq(factory.defaultPluginOwner(), newOwner, "New owner mismatch");
     }
 
-    function test_setDefaultPluginOwner_revertWhen_NotAdmin(address caller, address newOwner) public {
+    function testFuzz_setDefaultPluginOwner_revertWhen_NotAdmin(address caller, address newOwner) public {
         vm.assume(newOwner != address(0));
         vm.assume(caller != address(0));
         vm.assume(caller != admin);
@@ -72,15 +75,34 @@ contract FarmingPluginFactoryTest is BaseTest {
         factory.setDefaultPluginOwner(newOwner);
     }
 
-    function test_setDefaultPluginOwner_revertWhen_ZeroAddress() public {
+    function testFuzz_setDefaultPluginOwner_revertWhen_ZeroAddress(address newOwner) public {
+        vm.assume(newOwner != address(0));
         vm.prank(admin);
         vm.expectRevert(FarmingPluginFactory.ZeroAddress.selector);
         factory.setDefaultPluginOwner(address(0));
     }
 
+    function testFuzz_computePluginAddress(address stakingToken, address rewardsToken) public {
+        vm.assume(stakingToken != address(0));
+        vm.assume(rewardsToken != address(0));
+        address plugin = factory.computePluginAddress(IERC20Plugins(stakingToken), IERC20(rewardsToken));
+
+        // Verify the computed address matches the CREATE3 factory's getDeployed result
+        bytes32 salt = keccak256(abi.encodePacked(stakingToken, rewardsToken));
+        address expectedPlugin = CREATE3Factory(CREATE3_FACTORY).getDeployed(address(factory), salt);
+        assertEq(plugin, expectedPlugin, "Plugin address mismatch");
+
+        // Verify the deployed contract matches the expected address
+        // Deploy the plugin to verify the computed address
+        vm.prank(manager);
+        address deployedPlugin =
+            factory.deployFarmingPlugin(IERC20Plugins(stakingToken), IERC20(rewardsToken), defaultOwner);
+        assertEq(plugin, deployedPlugin, "Deployed plugin address mismatch");
+    }
+
     // deployFarmingPlugin & deployFarmingPluginWithDefaultOwner
 
-    function test_deployFarmingPlugin(address stakingToken, address rewardsToken, address newOwner) public {
+    function testFuzz_deployFarmingPlugin(address stakingToken, address rewardsToken, address newOwner) public {
         vm.assume(stakingToken != address(0));
         vm.assume(rewardsToken != address(0));
         vm.assume(newOwner != address(0));
@@ -137,7 +159,7 @@ contract FarmingPluginFactoryTest is BaseTest {
         assertEq(deployedPlugin.owner(), newOwner, "Deployed owner mismatch");
     }
 
-    function test_deployFarmingPluginWithDefaultOwner(address stakingToken, address rewardsToken) public {
+    function tesFuzz_deployFarmingPluginWithDefaultOwner(address stakingToken, address rewardsToken) public {
         vm.assume(stakingToken != address(0));
         vm.assume(rewardsToken != address(0));
 
@@ -178,6 +200,11 @@ contract FarmingPluginFactoryTest is BaseTest {
         address[] memory pluginsForToken = factory.plugins(address(stakingToken));
         assertEq(pluginsForToken.length, 1, "Plugins length mismatch");
         assertEq(pluginsForToken[0], plugin, "Plugins content mismatch");
+        assertEq(
+            factory.computePluginAddress(IERC20Plugins(stakingToken), IERC20(rewardsToken)),
+            plugin,
+            "Plugin address mismatch"
+        );
 
         address[] memory allPlugins = factory.allPlugins();
         assertEq(allPlugins.length, 1, "All plugins length mismatch");
@@ -190,7 +217,7 @@ contract FarmingPluginFactoryTest is BaseTest {
         assertEq(deployedPlugin.owner(), defaultOwner, "Deployed owner mismatch (default)");
     }
 
-    function test_deployFarmingPlugin_revertWhen_NotManager(
+    function testFuzz_deployFarmingPlugin_revertWhen_NotManager(
         address caller,
         address stakingToken,
         address rewardsToken,
@@ -210,7 +237,7 @@ contract FarmingPluginFactoryTest is BaseTest {
         factory.deployFarmingPlugin(IERC20Plugins(stakingToken), IERC20(rewardsToken), newOwner);
     }
 
-    function test_deployFarmingPluginWithDefaultOwner_revertWhen_NotManager(
+    function testFuzz_deployFarmingPluginWithDefaultOwner_revertWhen_NotManager(
         address caller,
         address stakingToken,
         address rewardsToken
@@ -228,37 +255,37 @@ contract FarmingPluginFactoryTest is BaseTest {
         factory.deployFarmingPluginWithDefaultOwner(IERC20Plugins(stakingToken), IERC20(rewardsToken));
     }
 
-    function test_deployFarmingPlugin_revertWhen_ZeroStakingToken(address rewardsToken, address newOwner) public {
+    function testFuzz_deployFarmingPlugin_revertWhen_ZeroStakingToken(address rewardsToken, address newOwner) public {
         vm.prank(manager);
         vm.expectRevert(FarmingPluginFactory.ZeroAddress.selector);
         factory.deployFarmingPlugin(IERC20Plugins(address(0)), IERC20(rewardsToken), newOwner);
     }
 
-    function test_deployFarmingPluginWithDefaultOwner_revertWhen_ZeroStakingToken(address rewardsToken) public {
+    function testFuzz_deployFarmingPluginWithDefaultOwner_revertWhen_ZeroStakingToken(address rewardsToken) public {
         vm.prank(manager);
         vm.expectRevert(FarmingPluginFactory.ZeroAddress.selector);
         factory.deployFarmingPluginWithDefaultOwner(IERC20Plugins(address(0)), IERC20(rewardsToken));
     }
 
-    function test_deployFarmingPlugin_revertWhen_ZeroRewardsToken(address stakingToken, address newOwner) public {
+    function testFuzz_deployFarmingPlugin_revertWhen_ZeroRewardsToken(address stakingToken, address newOwner) public {
         vm.prank(manager);
         vm.expectRevert(FarmingPluginFactory.ZeroAddress.selector);
         factory.deployFarmingPlugin(IERC20Plugins(stakingToken), IERC20(address(0)), newOwner);
     }
 
-    function test_deployFarmingPluginWithDefaultOwner_revertWhen_ZeroRewardsToken(address stakingToken) public {
+    function testFuzz_deployFarmingPluginWithDefaultOwner_revertWhen_ZeroRewardsToken(address stakingToken) public {
         vm.prank(manager);
         vm.expectRevert(FarmingPluginFactory.ZeroAddress.selector);
         factory.deployFarmingPluginWithDefaultOwner(IERC20Plugins(stakingToken), IERC20(address(0)));
     }
 
-    function test_deployFarmingPlugin_revertWhen_ZeroOwner(address stakingToken, address rewardsToken) public {
+    function testFuzz_deployFarmingPlugin_revertWhen_ZeroOwner(address stakingToken, address rewardsToken) public {
         vm.prank(manager);
         vm.expectRevert(FarmingPluginFactory.ZeroAddress.selector);
         factory.deployFarmingPlugin(IERC20Plugins(stakingToken), IERC20(rewardsToken), address(0));
     }
 
-    function test_deployFarmingPlugin_revertWhen_DuplicatePlugin(
+    function testFuzz_deployFarmingPlugin_revertWhen_DuplicatePlugin(
         address stakingToken,
         address rewardsToken,
         address newOwner
@@ -276,7 +303,7 @@ contract FarmingPluginFactoryTest is BaseTest {
         vm.stopPrank();
     }
 
-    function test_deployMultiplePlugins(
+    function testFuzz_deployMultiplePlugins(
         address stakingToken,
         address rewardsToken,
         address newOwner,

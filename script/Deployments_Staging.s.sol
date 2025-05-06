@@ -4,7 +4,6 @@ pragma solidity ^0.8.23;
 import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments.s.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
-import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 contract DeploymentsStaging is Deployments {
     using DeployerFunctions for Deployer;
@@ -25,6 +24,7 @@ contract DeploymentsStaging is Deployments {
         rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
         tokenSwapProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
         tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+        rewardToken = address(deployer.deploy_ERC20Mock("Staging_CoveMockERC20"));
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {
@@ -151,20 +151,5 @@ contract DeploymentsStaging is Deployments {
                 initialWeights: initialWeights
             })
         );
-
-        // Deploy ERC20Mock for farming plugin rewards
-        ERC20Mock mockERC20 = deployer.deploy_ERC20Mock("Staging_CoveMockERC20");
-
-        // Deploy farming plugin
-        address basketToken = getAddressOrRevert(buildBasketTokenName("Stables"));
-        address farmingPlugin = address(
-            deployer.deploy_FarmingPlugin(
-                buildFarmingPluginName(basketToken, address(mockERC20)),
-                basketToken,
-                address(mockERC20),
-                COVE_DEPLOYER_ADDRESS
-            )
-        );
-        _addToMasterRegistryLater("FP_stgUSD_E20M", farmingPlugin);
     }
 }

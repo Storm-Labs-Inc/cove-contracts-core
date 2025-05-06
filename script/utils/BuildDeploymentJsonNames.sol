@@ -122,6 +122,10 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "ManagedWeightStrategy_", strategyName);
     }
 
+    function buildFarmingPluginFactoryName() public view returns (string memory) {
+        return string.concat(_buildPrefix(), "FarmingPluginFactory");
+    }
+
     function buildFarmingPluginName(address asset, address rewardToken) public view returns (string memory) {
         string memory assetSymbol = _getOracleAssetSymbol(asset);
         string memory rewardTokenSymbol = _getOracleAssetSymbol(rewardToken);
