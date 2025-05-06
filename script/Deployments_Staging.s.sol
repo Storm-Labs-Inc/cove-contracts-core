@@ -24,7 +24,7 @@ contract DeploymentsStaging is Deployments {
         rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
         tokenSwapProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
         tokenSwapExecutor = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
-        rewardToken = address(deployer.deploy_ERC20Mock("Staging_CoveMockERC20"));
+        rewardToken = address(deployer.deploy_ERC20Mock(string.concat(_buildPrefix(), "CoveMockERC20")));
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {
