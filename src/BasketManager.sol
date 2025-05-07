@@ -480,6 +480,7 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
 
     /// @notice Fallback redeem function to redeem shares when the rebalance is not in progress. Redeems the shares for
     /// each underlying asset in the basket pro-rata to the amount of shares redeemed.
+    /// @dev This function can only be called by basket tokens.
     /// @param totalSupplyBefore Total supply of the basket token before the shares were burned.
     /// @param burnedShares Amount of shares burned.
     /// @param to Address to send the redeemed assets to.
@@ -517,7 +518,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             if ((_bmStorage.rebalanceStatus.basketMask & (1 << indexPlusOne - 1)) != 0) {
                 revert MustWaitForRebalanceToComplete();
             }
+            // slither-disable-next-line reentrancy-no-eth
+            BasketToken(basket).harvestManagementFee();
         }
+        // slither-disable-next-line reentrancy-events
         emit ManagementFeeSet(basket, _bmStorage.managementFees[basket], managementFee_);
         _bmStorage.managementFees[basket] = managementFee_;
     }

@@ -738,8 +738,10 @@ contract BasketToken is
         return 0;
     }
 
-    /// @notice Immediately redeems shares for all assets associated with this basket. This is synchronous and does not
-    /// require the rebalance process to be completed.
+    /// @notice Synchronously redeems basket shares for underlying assets at current proportions.
+    /// @dev Bypasses rebalance process, transferring assets immediately. Requires basket to be out of rebalance cycle.
+    /// Can be used to exit baskets with paused assets. See {BasketManager-proRataRedeem} and
+    /// {AssetRegistry-setAssetStatus}.
     /// @param shares Number of shares to redeem.
     /// @param to Address to receive the assets.
     /// @param from Address to redeem shares from.
@@ -769,7 +771,9 @@ contract BasketToken is
         BasketManager bm = BasketManager(basketManager);
         address feeCollector = bm.feeCollector();
         if (msg.sender != feeCollector) {
-            revert NotFeeCollector();
+            if (msg.sender != address(bm)) {
+                revert NotFeeCollector();
+            }
         }
         uint16 feeBps = bm.managementFee(address(this));
         _harvestManagementFee(feeBps, feeCollector);
