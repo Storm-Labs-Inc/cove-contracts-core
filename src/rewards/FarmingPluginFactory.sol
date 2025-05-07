@@ -15,8 +15,8 @@ import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
  *
  * Roles
  * -----
- * - DEFAULT_ADMIN_ROLE — full control (can grant/revoke all roles)
- * - MANAGER_ROLE       — allowed to call {deployFarmingPlugin}
+ * - DEFAULT_ADMIN_ROLE — can grant/revoke all roles and set default plugin owner
+ * - MANAGER_ROLE       — allowed to deploy new farming plugins
  *
  * @dev This factory uses CREATE2 to deploy the farming plugin, therefore there cannot be two plugins with the same
  * staking token and rewards token.
