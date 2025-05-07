@@ -845,6 +845,28 @@ contract IntegrationTest is BaseTest {
         vm.warp(vm.getBlockTimestamp() + farmingPlugin.farmInfo().finished);
     }
 
+    function testFuzz_setManagementFee_collectsAccruedFee(uint16 fee) public {
+        fee = uint16(bound(fee, 10, MAX_MANAGEMENT_FEE));
+        address feeCollectorAddress = deployments.getAddress(deployments.buildFeeCollectorName());
+        BasketToken basketToken = BasketToken(bm.basketTokens()[0]);
+        _completeRebalance_processDeposits(100, 100);
+        vm.prank(COVE_OPS_MULTISIG);
+        bm.setManagementFee(address(basketToken), fee);
+        uint256 managementFeeHarvestedTimestamp = basketToken.lastManagementFeeHarvestTimestamp();
+        vm.warp(vm.getBlockTimestamp() + 15 minutes);
+        assertEq(basketToken.balanceOf(feeCollectorAddress), 0);
+        vm.prank(COVE_OPS_MULTISIG);
+        bm.setManagementFee(address(basketToken), 0);
+        // Ensure the correct fee was given
+        uint256 feeCollectorBalanceAfter = basketToken.balanceOf(feeCollectorAddress);
+        uint256 expectedFee = FixedPointMathLib.fullMulDiv(
+            basketToken.totalSupply() - feeCollectorBalanceAfter,
+            fee * (vm.getBlockTimestamp() - managementFeeHarvestedTimestamp),
+            ((MANAGEMENT_FEE_DECIMALS - fee) * uint256(365 days))
+        );
+        assertEq(feeCollectorBalanceAfter, expectedFee);
+    }
+
     /// INTERNAL HELPER FUNCTIONS
 
     // Requests and processes deposits into every basket
