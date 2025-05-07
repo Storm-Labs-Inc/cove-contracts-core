@@ -22,8 +22,6 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     address public immutable quote;
     /// @notice The index in `price_oracle` corresponding to the base asset.
     /// @dev Note that indices in `price_oracle` are shifted by 1, i.e. `0` corresponds to `coins[1]`.
-    /// @dev If type(uint256).max, then the adapter will call `price_oracle()`.
-    /// @dev Else the adapter will call the indexed price method `price_oracle(priceOracleIndex)`.
     uint256 public immutable priceOracleIndex;
     /// @notice The scale factors used for decimal conversions.
     Scale internal immutable _scale;
@@ -31,16 +29,26 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     error BaseAssetMismatch();
     error QuoteAssetMismatch();
 
-    /// @notice Deploy a CurveEMAOracle.
+    /// @notice Deploy a CurveEMAOracleUnderlying for a Curve pool.
     /// @param _pool The address of the Curve pool.
     /// @param _base The address of the base asset.
-    /// @param _quote The address of the quote asset.
-    /// @param _priceOracleIndex The index in `price_oracle` corresponding to the base asset.
+    /// @param _quote The address of the quote asset, must match `pool.coins[0]`.
+    /// @param _priceOracleIndex The index in `price_oracle` corresponding to the base asset. If `type(uint256).max`,
+    /// then the adapter will call the non-indexed price method `price_oracle()`.
     /// @param isBaseUnderlying Whether the price oracle returns the price of the base asset in the underlying asset.
     /// @param isQuoteUnderlying Whether the price oracle returns the price of the quote asset in the underlying asset.
-    /// @dev The quote is always `pool.coins[0]`.
-    /// If `priceOracleIndex` is `type(uint256).max`, then the adapter will call the non-indexed price method
-    /// `price_oracle()`
+    /// @dev
+    /// IMPORTANT: The isBaseUnderlying and isQuoteUnderlying flags must match the pool's actual asset types.
+    /// For example, in the sUSDE/sfrxUSD pool (0x3bd1017929b43c1414be2aca39892590fba4d6e2),
+    /// both tokens are ERC4626-compatible, and the pool returns USDE/frxUSD prices.
+    ///
+    /// Curve pools with ERC4626-compatible tokens (like sUSDE/sfrxUSD) internally handle underlying asset conversions.
+    /// The price_oracle() function returns the price in terms of the underlying assets (e.g., USDE/frxUSD).
+    /// This behavior is pool-specific and depends on the pool's initialization parameters.
+    ///
+    /// WARNING: Incorrect configuration of isBaseUnderlying and isQuoteUnderlying will result in
+    /// incorrect price calculations. Always verify the pool's asset types off-chain before deployment.
+    ///
     /// WARNING: Some StableSwap-NG pools deployed before Dec-12-2023 have a known oracle vulnerability.
     /// See (https://docs.curve.fi/stableswap-exchange/stableswap-ng/pools/oracles/#price-oracles) for more details.
     /// Additionally, verify that the pool has enough liquidity before deploying this adapter.
