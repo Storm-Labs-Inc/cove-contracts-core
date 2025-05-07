@@ -740,7 +740,8 @@ contract BasketToken is
 
     /// @notice Synchronously redeems basket shares for underlying assets at current proportions.
     /// @dev Bypasses rebalance process, transferring assets immediately. Requires basket to be out of rebalance cycle.
-    /// Can be used to exit baskets with paused assets. See {BasketManager-proRataRedeem} and {AssetRegistry-setAssetStatus}.
+    /// Can be used to exit baskets with paused assets. See {BasketManager-proRataRedeem} and
+    /// {AssetRegistry-setAssetStatus}.
     /// @param shares Number of shares to redeem.
     /// @param to Address to receive the assets.
     /// @param from Address to redeem shares from.
