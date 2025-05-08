@@ -24,6 +24,7 @@ contract DeploymentsProduction is Deployments {
         rebalanceProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
         tokenSwapProposer = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
         tokenSwapExecutor = BOOSTIES_SILVERBACK_AWS_ACCOUNT;
+        rewardToken = ETH_COVE;
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {
