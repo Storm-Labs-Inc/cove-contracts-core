@@ -24,6 +24,7 @@ contract DeploymentsTest is Deployments {
         rebalanceProposer = COVE_OPS_MULTISIG;
         tokenSwapProposer = COVE_OPS_MULTISIG;
         tokenSwapExecutor = COVE_OPS_MULTISIG;
+        rewardToken = address(deployer.deploy_ERC20Mock(string.concat(_buildPrefix(), "CoveMockERC20")));
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {

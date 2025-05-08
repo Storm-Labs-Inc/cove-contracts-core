@@ -13,7 +13,7 @@ import { Scale, ScaleUtils } from "euler-price-oracle-1/src/lib/ScaleUtils.sol";
 contract CurveEMAOracleUnderlying is BaseAdapter {
     /// @inheritdoc IPriceOracle
     // solhint-disable-next-line const-name-snakecase
-    string public constant name = "CurveEMAOracle";
+    string public constant name = "CurveEMAOracleUnderlying";
     /// @notice The address of the Curve pool.
     address public immutable pool;
     /// @notice The address of the base asset.
