@@ -930,6 +930,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 codeSize := extcodesize(plugin)
             }
             if (codeSize == 0) {
+                if (shouldBroadcast) {
+                    vm.broadcast();
+                }
                 plugin = FarmingPluginFactory(farmingPluginFactory).deployFarmingPluginWithDefaultOwner(
                     IERC20Plugins(basketToken), IERC20(rewardToken)
                 );
