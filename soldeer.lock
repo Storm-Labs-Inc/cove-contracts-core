@@ -21,8 +21,8 @@ rev = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce"
 [[dependencies]]
 name = "euler-price-oracle"
 version = "1"
-git = "https://github.com/euler-xyz/euler-price-oracle.git"
-rev = "c8f57bcae71df99499a61d0fc92862dd9cf80718"
+git = "https://github.com/Storm-Labs-Inc/euler-price-oracle.git"
+rev = "511ee550b082870d248a4e50491a6a9042cb011d"
 
 [[dependencies]]
 name = "farming"
@@ -40,7 +40,7 @@ rev = "2a0c1987ca8a619fd41a0cc546706ebf38a2d4af"
 name = "forge-safe"
 version = "1"
 git = "https://github.com/Storm-Labs-Inc/forge-safe.git"
-rev = "8175a6a60844b86d36b3089fe08c584121c7658d"
+rev = "b050356e4667fc952fe84b66cf2990d9bb35c172"
 
 [[dependencies]]
 name = "forge-std"
@@ -54,6 +54,13 @@ name = "lifinance/create3-factory"
 version = "0"
 git = "https://github.com/lifinance/create3-factory.git"
 rev = "93b667acda0dafcafb6e193610b421ea003f46a9"
+
+[[dependencies]]
+name = "solady"
+version = "0.1.17"
+url = "https://soldeer-revisions.s3.amazonaws.com/solady/0_1_17_30-04-2025_11:52:21_solady.zip"
+checksum = "e4b8bb231bd4c1625749beb2159a46314ca84df00476da895a287543ffb69c99"
+integrity = "71f93f254f7653d8e0ccc3e7405c0b71746c03ee4bf43ad04967301e0977d301"
 
 [[dependencies]]
 name = "solidity-utils"

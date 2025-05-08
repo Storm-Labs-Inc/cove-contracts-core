@@ -7,10 +7,11 @@ import { console } from "forge-std/console.sol";
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
-import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
+import { IPyth } from "@pyth/IPyth.sol";
+import { PythStructs } from "@pyth/PythStructs.sol";
+
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
-import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
