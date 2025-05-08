@@ -104,21 +104,21 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         assertEq(wethUsdtOracle.base(), TRICRYPTO_WETH);
         assertEq(wethUsdtOracle.quote(), TRICRYPTO_USDT);
         assertEq(wethUsdtOracle.priceOracleIndex(), WETH_USDT_PRICE_INDEX);
-        assertEq(wethUsdtOracle.name(), "CurveEMAOracle");
+        assertEq(wethUsdtOracle.name(), "CurveEMAOracleUnderlying");
 
         // frxUSD/USDe Oracle
         assertEq(frxusdUsdeOracle.pool(), ETH_CURVE_SFRXUSD_SUSDE_POOL);
         assertEq(frxusdUsdeOracle.base(), ETH_USDE);
         assertEq(frxusdUsdeOracle.quote(), ETH_FRXUSD);
         assertEq(frxusdUsdeOracle.priceOracleIndex(), FRXUSD_USDE_PRICE_INDEX);
-        assertEq(frxusdUsdeOracle.name(), "CurveEMAOracle");
+        assertEq(frxusdUsdeOracle.name(), "CurveEMAOracleUnderlying");
 
         // CRVUSD/USDC Oracle
         assertEq(crvusdUsdcOracle.pool(), CRVUSD_USDC_POOL);
         assertEq(crvusdUsdcOracle.base(), CRVUSD);
         assertEq(crvusdUsdcOracle.quote(), USDC);
         assertEq(crvusdUsdcOracle.priceOracleIndex(), CRVUSD_USDC_PRICE_INDEX);
-        assertEq(crvusdUsdcOracle.name(), "CurveEMAOracle");
+        assertEq(crvusdUsdcOracle.name(), "CurveEMAOracleUnderlying");
     }
 
     function test_constructor_revertWhen_baseAssetMismatch_noUnderlying() public {
