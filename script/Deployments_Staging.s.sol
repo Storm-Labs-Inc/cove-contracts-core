@@ -101,7 +101,7 @@ contract DeploymentsStaging is Deployments {
         _addAssetToAssetRegistry(ETH_SUSDE);
 
         // 3. sfrxUSD
-        // Primary: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Pyth)--> USD
+        // Primary: sfrxUSD --(4626)--> frxUSD --(Pyth)--> USD
         // Anchor: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Chainlink)--> USD
         _deployAnchoredOracleWith4626CurveEMAOracleUnderlying(
             ETH_SFRXUSD,
@@ -110,7 +110,7 @@ contract DeploymentsStaging is Deployments {
             0, // sfrxUSD is the first coin in the pool, but the oracle uses frxUSD price
             1, // sUSDe is the second coin in the pool, but the oracle uses USDe price
             OracleOptions({
-                pythPriceFeed: PYTH_USDE_USD_FEED,
+                pythPriceFeed: PYTH_FRXUSD_USD_FEED,
                 pythMaxStaleness: 30 seconds,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,

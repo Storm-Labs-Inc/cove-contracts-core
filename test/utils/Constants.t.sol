@@ -134,6 +134,9 @@ contract Constants is CommonBase {
     // sfrxUSD/sUSDe
     address public constant ETH_CURVE_SFRXUSD_SUSDE_POOL = 0x3BD1017929b43c1414bE2Aca39892590fBa4d6e2;
 
+    // frxUSD
+    bytes32 public constant PYTH_FRXUSD_USD_FEED = 0x7c53208632935ba5122c3cf65a0f4b3e72ba4955b49ad6ba0acf3d9ba405aef3;
+
     // USDS
     bytes32 public constant PYTH_USDS_USD_FEED = 0x77f0971af11cc8bac224917275c1bf55f2319ed5c654a1ca955c82fa2d297ea1;
     address public constant ETH_CHAINLINK_USDS_USD_FEED = 0xfF30586cD0F29eD462364C7e81375FC0C71219b1;
