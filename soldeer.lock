@@ -22,7 +22,7 @@ rev = "196f1ecc6485c1bf2d41677fa01d3df4927ff9ce"
 name = "euler-price-oracle"
 version = "1"
 git = "https://github.com/euler-xyz/euler-price-oracle.git"
-rev = "a638a0d7db33cb71cc992d6dcd532082a763db27"
+rev = "c8f57bcae71df99499a61d0fc92862dd9cf80718"
 
 [[dependencies]]
 name = "farming"
@@ -33,8 +33,14 @@ rev = "b4e59e415352d3233ccd3c339d845a1eb2e1139b"
 [[dependencies]]
 name = "forge-deploy"
 version = "1"
-git = "https://github.com/Abracadabra-money/forge-deploy.git"
-rev = "a81ce1a5704bbee4686a13209bc17f80132542f9"
+git = "https://github.com/Storm-Labs-Inc/forge-deploy.git"
+rev = "2a0c1987ca8a619fd41a0cc546706ebf38a2d4af"
+
+[[dependencies]]
+name = "forge-safe"
+version = "1"
+git = "https://github.com/Storm-Labs-Inc/forge-safe.git"
+rev = "8175a6a60844b86d36b3089fe08c584121c7658d"
 
 [[dependencies]]
 name = "forge-std"

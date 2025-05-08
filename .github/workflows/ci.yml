@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   push:
-    branches: [master]
+    branches: [master, staging]
   pull_request:
     branches: ["**"]
 
@@ -190,9 +190,6 @@ jobs:
 
   coverage:
     name: Coverage
-    if:
-      (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'master') || (github.event_name
-      =='push' && github.ref == 'refs/heads/master')
     runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
       - name: Checkout repository

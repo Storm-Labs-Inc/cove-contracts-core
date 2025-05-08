@@ -18,7 +18,6 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { WeightStrategy } from "src/strategies/WeightStrategy.sol";
 import { TokenSwapAdapter } from "src/swap_adapters/TokenSwapAdapter.sol";
@@ -52,12 +51,6 @@ contract BasketManagerTest is BaseTest {
     uint64[][] private _targetWeights;
 
     address public constant USD_ISO_4217_CODE = address(840);
-
-    uint40 public constant MIN_STEP_DELAY = 1 minutes;
-    uint40 public constant MAX_STEP_DELAY = 60 minutes;
-    uint8 public constant MAX_RETRY_COUNT = 10;
-    uint256 public constant MAX_SLIPPAGE_LIMIT = 0.5e18;
-    uint256 public constant MAX_WEIGHT_DEVIATION_LIMIT = 0.5e18;
 
     struct TradeTestParams {
         uint256 sellWeight;
@@ -143,6 +136,7 @@ contract BasketManagerTest is BaseTest {
         );
         assertEq(address(bm.eulerRouter()), eulerRouter_);
         assertEq(address(bm.strategyRegistry()), strategyRegistry_);
+        assertEq(address(bm.assetRegistry()), assetRegistry_);
         assertEq(address(bm.feeCollector()), feeCollector_);
         assertEq(bm.hasRole(DEFAULT_ADMIN_ROLE, admin_), true);
         assertEq(bm.getRoleMemberCount(DEFAULT_ADMIN_ROLE), 1);
@@ -181,7 +175,7 @@ contract BasketManagerTest is BaseTest {
             assetRegistry_ = address(0);
         }
 
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         new BasketManager(
             basketTokenImplementation_, eulerRouter_, strategyRegistry_, assetRegistry_, admin_, feeCollector_
         );
@@ -249,7 +243,7 @@ contract BasketManagerTest is BaseTest {
 
     function test_execute_revertWhen_zeroAddress() public {
         bytes memory data = abi.encodeWithSelector(IERC20.transfer.selector, address(protocolTreasury), 100e18);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(timelock);
         basketManager.execute{ value: 1 ether }(address(0), data, 1 ether);
     }
@@ -523,7 +517,7 @@ contract BasketManagerTest is BaseTest {
         address[] memory assets = new address[](1);
         assets[0] = rootAsset;
         vm.prank(manager);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         basketManager.createNewBasket(name, symbol, address(0), bitFlag, strategy);
     }
 
@@ -601,6 +595,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
 
         assertEq(basketManager.rebalanceStatus().timestamp, vm.getBlockTimestamp());
+        assertEq(basketManager.rebalanceStatus().proposalTimestamp, vm.getBlockTimestamp());
         assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(basketManager.rebalanceStatus().basketMask, 1);
         assertEq(
@@ -672,6 +667,20 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(targetBaskets);
     }
 
+    function test_proposeRebalance_revertWhen_ZeroTotalSupply() public {
+        address basket = _setupSingleBasketAndMocks();
+        address[] memory targetBaskets = new address[](1);
+        targetBaskets[0] = basket;
+
+        // Mock total supply to be 0
+        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(0));
+        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 0));
+
+        vm.expectRevert(BasketManagerUtils.ZeroTotalSupply.selector);
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(targetBaskets);
+    }
+
     function test_proposeRebalance_processesDeposits_revertWhen_paused() public {
         address basket = _setupSingleBasketAndMocks();
         address[] memory targetBaskets = new address[](1);
@@ -713,21 +722,19 @@ contract BasketManagerTest is BaseTest {
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, _targetWeights, basketAssets);
 
         vm.warp(vm.getBlockTimestamp() + 1 weeks + 1);
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
         vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
-        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillDeposit.selector), new bytes(0));
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
+        vm.mockCall(
+            targetBaskets[1], abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000)
+        );
+        vm.mockCall(targetBaskets[1], abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(targetBaskets);
 
         // Simulate the passage of time
         vm.warp(vm.getBlockTimestamp() + 15 minutes + 1);
 
-        vm.mockCall(basket, abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(0));
-        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.prepareForRebalance.selector), abi.encode(0, 10_000));
-        vm.mockCall(basket, abi.encodeWithSelector(BasketToken.fulfillRedeem.selector), new bytes(0));
         vm.mockCall(rootAsset, abi.encodeWithSelector(IERC20.approve.selector), abi.encode(true));
-        vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
         basketManager.completeRebalance(new ExternalTrade[](0), targetBaskets, _targetWeights, basketAssets);
     }
 
@@ -758,7 +765,7 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
@@ -816,7 +823,7 @@ contract BasketManagerTest is BaseTest {
         );
         // Execute
         vm.expectEmit();
-        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch);
+        emit BasketManager.TokenSwapExecuted(basketManager.rebalanceStatus().epoch, trades);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
 
@@ -879,14 +886,15 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         uint256 sellAmount = initialDepositAmount * pairAssetWeight / 1e18;
+        uint256 retryLimit = basketManager.retryLimit();
 
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             // 0 for the last input will guarantee the trade will be 100% unsuccessful
             _swapFirstBasketRootAssetToPairAsset(baskets, targetWeights, sellAmount, 0);
             assertEq(basketManager.retryCount(), uint256(i + 1));
             assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         }
-        assertEq(basketManager.retryCount(), uint256(MAX_RETRIES));
+        assertEq(basketManager.retryCount(), retryLimit);
 
         // We have reached max retries, if the next proposed token swap does not meet target weights the rebalance
         // will completed with the current balances.
@@ -959,15 +967,16 @@ contract BasketManagerTest is BaseTest {
         // 2. Multiply by target weight of pairAsset to determine how much needs to be swapped
         // 3. Divide by 1e18 to normalize the fixed-point arithmetic
         uint256 sellAmount = (depositAmount - redeemingShares) * pairAssetWeight / 1e18;
+        uint256 retryLimit = bm.retryLimit();
 
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             // The last parameter (0) represents the percentage of tokens successfully traded, in 1e18 precision (0 =
             // 0%, 1e18 = 100%)
             _swapFirstBasketRootAssetToPairAsset(baskets, targetWeights, sellAmount, 0);
             assertEq(bm.retryCount(), uint256(i + 1));
             assertEq(uint8(bm.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         }
-        assertEq(bm.retryCount(), uint256(bm.retryLimit()));
+        assertEq(bm.retryCount(), retryLimit);
 
         // We have reached max retries, even if the next proposed token swap does not meet target weights, the rebalance
         // will terminate.
@@ -1071,8 +1080,10 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(baskets);
 
+        uint256 retryLimit = basketManager.retryLimit();
+
         // Fail the rebalance by not meeting target weights
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
             basketManager.completeRebalance(new ExternalTrade[](0), baskets, targetWeights, basketAssets);
 
@@ -1084,7 +1095,7 @@ contract BasketManagerTest is BaseTest {
 
         // Call completeRebalance to get out of the retry loop
         vm.warp(vm.getBlockTimestamp() + 60 minutes);
-        vm.expectCall(basket, abi.encodeWithSelector(BasketToken.fallbackRedeemTrigger.selector));
+        vm.expectCall(basket, abi.encodeWithSelector(BasketToken.fulfillRedeem.selector, uint256(0)));
         basketManager.completeRebalance(new ExternalTrade[](0), baskets, targetWeights, basketAssets);
 
         // Check the retry count has been reset and we are back to NOT_STARTED status
@@ -1287,14 +1298,15 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeRebalance(baskets);
 
         uint256 sellAmount = initialDepositAmount * pairAssetWeight / 1e18;
+        uint256 retryLimit = basketManager.retryLimit();
 
-        for (uint8 i = 0; i < MAX_RETRIES; i++) {
+        for (uint8 i = 0; i < retryLimit; i++) {
             // 0 for the last input will guarantee the trade will be 100% unsuccessful
             _swapFirstBasketRootAssetToPairAsset(baskets, targetWeights, sellAmount, 0);
             assertEq(basketManager.retryCount(), uint256(i + 1));
             assertEq(uint8(basketManager.rebalanceStatus().status), uint8(Status.REBALANCE_PROPOSED));
         }
-        assertEq(basketManager.retryCount(), uint256(MAX_RETRIES));
+        assertEq(basketManager.retryCount(), retryLimit);
 
         // We have reached max retries, if the next proposed token swap does not execute the rebalance
         // will successfully complete.
@@ -1380,6 +1392,7 @@ contract BasketManagerTest is BaseTest {
         basketManager.completeRebalance(trades, targetBaskets, _targetWeights, basketAssets);
     }
 
+    // solhint-disable-next-line code-complexity
     function test_completeRebalance_withMultipleAssets() public {
         _setTokenSwapAdapter();
         // Setup baskets with 4 assets each
@@ -1444,6 +1457,7 @@ contract BasketManagerTest is BaseTest {
 
         assertEq(uint8(status.status), uint8(Status.REBALANCE_PROPOSED));
         assertEq(status.timestamp, block.timestamp);
+        assertEq(status.proposalTimestamp, block.timestamp);
         assertEq(status.epoch, 0);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, keccak256(abi.encode(baskets, targetWeights, basketAssets)));
@@ -1537,6 +1551,8 @@ contract BasketManagerTest is BaseTest {
         // Verify final rebalance status
         status = basketManager.rebalanceStatus();
         assertEq(uint8(status.status), uint8(Status.NOT_STARTED));
+        assertEq(status.timestamp, vm.getBlockTimestamp());
+        assertEq(status.proposalTimestamp, 0);
         assertEq(status.epoch, 1);
         assertEq(status.retryCount, 0);
         assertEq(status.basketHash, bytes32(0));
@@ -1569,10 +1585,13 @@ contract BasketManagerTest is BaseTest {
         vm.prank(rebalanceProposer);
         basketManager.proposeRebalance(redeemBaskets);
 
-        // Do not trade anything and process redeems only
+        // Do not trade anything and intentionally enter retry loop
         uint256 retryLimit = basketManager.retryLimit();
+        uint40 epoch = basketManager.rebalanceStatus().epoch;
         for (uint256 i = 0; i < retryLimit; i++) {
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
+            vm.expectEmit();
+            emit BasketManagerUtils.RebalanceRetried(epoch, i + 1);
             basketManager.completeRebalance(
                 new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets
             );
@@ -1582,6 +1601,8 @@ contract BasketManagerTest is BaseTest {
         // rebalancing status
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         vm.expectCall(baskets[0], abi.encodeCall(BasketToken.fulfillRedeem, (redeemAmount)));
+        vm.expectEmit();
+        emit BasketManagerUtils.RebalanceCompleted(epoch);
         basketManager.completeRebalance(new ExternalTrade[](0), redeemBaskets, redeemTargetWeights, redeemBasketAssets);
 
         // Check the base asset balance was reduced
@@ -2235,6 +2256,16 @@ contract BasketManagerTest is BaseTest {
         uint256 netBuyAmount = buyAmount - buyAmount.fullMulDiv(swapFee, 2e4);
 
         assertEq(
+            basketManager.collectedSwapFees(rootAsset),
+            swapFeeAmount,
+            "collectedSwapFees did not increase by swapFeeAmount"
+        );
+        assertEq(
+            basketManager.collectedSwapFees(params.pairAsset),
+            buyAmount - netBuyAmount,
+            "collectedSwapFees did not increase by swapFeeAmount"
+        );
+        assertEq(
             basketManager.basketBalanceOf(baskets[0], rootAsset),
             basket0RootAssetBalanceOfBefore - internalTrades[0].sellAmount,
             "fromBasket balance of sellToken did not decrease by sellAmount"
@@ -2699,6 +2730,119 @@ contract BasketManagerTest is BaseTest {
         basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
     }
 
+    function testFuzz_proposeTokenSwap_internalTrade_revertWhen_InternalTradeSellAmountZero(
+        uint256 sellWeight,
+        uint256 depositAmount
+    )
+        public
+        returns (ExternalTrade[] memory, address[] memory)
+    {
+        // Setup fuzzing bounds
+        TradeTestParams memory params;
+        params.sellWeight = bound(sellWeight, 0, 1e18);
+        // Below bound is due to deposit amount being scaled by price and target weight
+        vm.assume(depositAmount < type(uint256).max / 1e36);
+        params.depositAmount = depositAmount;
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
+        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+
+        // Setup basket and target weights
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = pairAsset;
+        address[][] memory basketAssets = new address[][](1);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](1);
+        initialDepositAmounts[0] = params.depositAmount;
+        uint64[][] memory targetWeights = new uint64[][](1);
+        targetWeights[0] = new uint64[](2);
+        targetWeights[0][0] = uint64(params.baseAssetWeight);
+        targetWeights[0][1] = uint64(params.sellWeight);
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
+
+        // Propose the rebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Setup the trade and propose token swap
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](1);
+        internalTrades[0] = InternalTrade({
+            fromBasket: baskets[0],
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            toBasket: baskets[0],
+            sellAmount: 0,
+            minAmount: 0,
+            maxAmount: 0
+        });
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        externalTrades[0] = ExternalTrade({
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            sellAmount: params.depositAmount * params.sellWeight / 1e18,
+            minAmount: (params.depositAmount * params.sellWeight / 1e18) * 0.995e18 / 1e18,
+            basketTradeOwnership: tradeOwnerships
+        });
+        vm.expectRevert(BasketManagerUtils.InternalTradeSellAmountZero.selector);
+        vm.prank(tokenswapProposer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+    }
+
+    function testFuzz_proposeTokenSwap_externalTrade_revertWhen_InternalTradeSellAmountZero(
+        uint256 sellWeight,
+        uint256 depositAmount
+    )
+        public
+        returns (ExternalTrade[] memory, address[] memory)
+    {
+        // Setup fuzzing bounds
+        TradeTestParams memory params;
+        params.sellWeight = bound(sellWeight, 0, 1e18);
+        // Below bound is due to deposit amount being scaled by price and target weight
+        vm.assume(depositAmount < type(uint256).max / 1e36);
+        params.depositAmount = depositAmount;
+        // With price set at 1e18 this is the threshold for a rebalance to be valid
+        vm.assume(params.depositAmount * params.sellWeight / 1e18 > 500);
+
+        // Setup basket and target weights
+        params.baseAssetWeight = 1e18 - params.sellWeight;
+        params.pairAsset = pairAsset;
+        address[][] memory basketAssets = new address[][](1);
+        basketAssets[0] = new address[](2);
+        basketAssets[0][0] = rootAsset;
+        basketAssets[0][1] = params.pairAsset;
+        uint256[] memory initialDepositAmounts = new uint256[](1);
+        initialDepositAmounts[0] = params.depositAmount;
+        uint64[][] memory targetWeights = new uint64[][](1);
+        targetWeights[0] = new uint64[](2);
+        targetWeights[0][0] = uint64(params.baseAssetWeight);
+        targetWeights[0][1] = uint64(params.sellWeight);
+        address[] memory baskets = _setupBasketsAndMocks(basketAssets, targetWeights, initialDepositAmounts);
+
+        // Propose the rebalance
+        vm.prank(rebalanceProposer);
+        basketManager.proposeRebalance(baskets);
+
+        // Setup the trade and propose token swap
+        ExternalTrade[] memory externalTrades = new ExternalTrade[](1);
+        InternalTrade[] memory internalTrades = new InternalTrade[](0);
+        BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](1);
+        tradeOwnerships[0] = BasketTradeOwnership({ basket: baskets[0], tradeOwnership: uint96(1e18) });
+        externalTrades[0] = ExternalTrade({
+            sellToken: rootAsset,
+            buyToken: params.pairAsset,
+            sellAmount: 0,
+            minAmount: 0,
+            basketTradeOwnership: tradeOwnerships
+        });
+        vm.expectRevert(BasketManagerUtils.ExternalTradeSellAmountZero.selector);
+        vm.prank(tokenswapProposer);
+        basketManager.proposeTokenSwap(internalTrades, externalTrades, baskets, _targetWeights, basketAssets);
+    }
+
     function testFuzz_proposeTokenSwap_revertWhen_assetNotInBasket(uint256 sellWeight, uint256 depositAmount) public {
         // Setup fuzzing bounds
         TradeTestParams memory params;
@@ -3146,7 +3290,7 @@ contract BasketManagerTest is BaseTest {
     function test_proRataRedeem_revertWhen_ZeroAddress() public {
         address basket = _setupSingleBasketAndMocks();
         vm.mockCall(basket, abi.encodeCall(IERC20.totalSupply, ()), abi.encode(10_000));
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(basket);
         basketManager.proRataRedeem(1, 1, address(0));
     }
@@ -3182,7 +3326,7 @@ contract BasketManagerTest is BaseTest {
     }
 
     function test_setTokenSwapAdapter_revertWhen_ZeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(timelock);
         basketManager.setTokenSwapAdapter(address(0));
     }
@@ -3293,7 +3437,7 @@ contract BasketManagerTest is BaseTest {
         (ExternalTrade[] memory trades,) = testFuzz_proposeTokenSwap_externalTrade(sellWeight, depositAmount);
 
         // Execute
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(BasketManager.ZeroAddress.selector);
         vm.prank(tokenswapExecutor);
         basketManager.executeTokenSwap(trades, "");
     }
@@ -3444,21 +3588,21 @@ contract BasketManagerTest is BaseTest {
     }
 
     function testFuzz_setRetryLimit(uint8 retryLimit) public {
-        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.assume(retryLimit <= MAX_RETRIES);
         vm.prank(timelock);
         basketManager.setRetryLimit(retryLimit);
         assertEq(basketManager.retryLimit(), retryLimit);
     }
 
     function testFuzz_setRetryLimit_revertWhen_InvalidRetryCount(uint8 retryLimit) public {
-        vm.assume(retryLimit > MAX_RETRY_COUNT);
+        vm.assume(retryLimit > MAX_RETRIES);
         vm.prank(timelock);
         vm.expectRevert(BasketManager.InvalidRetryCount.selector);
         basketManager.setRetryLimit(retryLimit);
     }
 
     function testFuzz_setRetryLimit_revertWhen_MustWaitForRebalanceToComplete(uint8 retryLimit) public {
-        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.assume(retryLimit <= MAX_RETRIES);
         test_proposeRebalance_processesDeposits();
         vm.expectRevert(BasketManagerUtils.MustWaitForRebalanceToComplete.selector);
         vm.prank(timelock);
@@ -3467,7 +3611,7 @@ contract BasketManagerTest is BaseTest {
 
     function testFuzz_setRetryLimit_revertWhen_CallerIsNotTimelock(address caller, uint8 retryLimit) public {
         vm.assume(caller != timelock);
-        vm.assume(retryLimit <= MAX_RETRY_COUNT);
+        vm.assume(retryLimit <= MAX_RETRIES);
         vm.expectRevert(_formatAccessControlError(caller, TIMELOCK_ROLE));
         vm.prank(caller);
         basketManager.setRetryLimit(retryLimit);
@@ -3805,7 +3949,7 @@ contract BasketManagerTest is BaseTest {
             vm.mockCall(
                 baskets[i], abi.encodeCall(BasketToken.totalPendingDeposits, ()), abi.encode(initialDepositAmounts[i])
             );
-            vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fallbackRedeemTrigger.selector), new bytes(0));
+            vm.mockCall(baskets[i], abi.encodeWithSelector(BasketToken.fulfillRedeem.selector), new bytes(0));
             vm.mockCall(
                 baskets[i],
                 abi.encodeWithSelector(BasketToken.prepareForRebalance.selector),

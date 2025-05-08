@@ -50,6 +50,19 @@ export const abi = [
   },
   {
     type: "function",
+    name: "assetRegistry",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address"
+      }
+    ],
+    stateMutability: "view"
+  },
+  {
+    type: "function",
     name: "basketAssets",
     inputs: [
       {
@@ -560,25 +573,6 @@ export const abi = [
   },
   {
     type: "function",
-    name: "isOrderValid",
-    inputs: [
-      {
-        name: "",
-        type: "bytes32",
-        internalType: "bytes32"
-      }
-    ],
-    outputs: [
-      {
-        name: "",
-        type: "bool",
-        internalType: "bool"
-      }
-    ],
-    stateMutability: "view"
-  },
-  {
-    type: "function",
     name: "managementFee",
     inputs: [
       {
@@ -796,6 +790,11 @@ export const abi = [
           },
           {
             name: "epoch",
+            type: "uint40",
+            internalType: "uint40"
+          },
+          {
+            name: "proposalTimestamp",
             type: "uint40",
             internalType: "uint40"
           },
@@ -1419,6 +1418,51 @@ export const abi = [
         type: "uint40",
         indexed: true,
         internalType: "uint40"
+      },
+      {
+        name: "externalTrades",
+        type: "tuple[]",
+        indexed: false,
+        internalType: "struct ExternalTrade[]",
+        "components": [
+          {
+            name: "sellToken",
+            type: "address",
+            internalType: "address"
+          },
+          {
+            name: "buyToken",
+            type: "address",
+            internalType: "address"
+          },
+          {
+            name: "sellAmount",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "minAmount",
+            type: "uint256",
+            internalType: "uint256"
+          },
+          {
+            name: "basketTradeOwnership",
+            type: "tuple[]",
+            internalType: "struct BasketTradeOwnership[]",
+            "components": [
+              {
+                name: "basket",
+                type: "address",
+                internalType: "address"
+              },
+              {
+                name: "tradeOwnership",
+                type: "uint96",
+                internalType: "uint96"
+              }
+            ]
+          }
+        ]
       }
     ],
     anonymous: false

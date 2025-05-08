@@ -36,4 +36,10 @@ contract InvariantHandler is Test {
         vm.stopPrank();
         currentActor = address(this);
     }
+
+    modifier useThis() {
+        vm.stopPrank();
+        currentActor = address(this);
+        _;
+    }
 }

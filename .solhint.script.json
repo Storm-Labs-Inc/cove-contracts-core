@@ -16,16 +16,19 @@
     "named-parameters-mapping": "off",
     "no-console": "off",
     "not-rely-on-time": "off",
-    "event-name-camelcase": "error",
     "func-param-name-mixedcase": "error",
     "modifier-name-mixedcase": "error",
-    "private-vars-leading-underscore": "error",
-    "var-name-mixedcase": "error",
+    "private-vars-leading-underscore": "warn",
+    "var-name-mixedcase": "warn",
     "imports-on-top": "error",
-    "const-name-snakecase": "error",
-    "contract-name-camelcase": "error",
+    "const-name-snakecase": "warn",
     "no-unused-vars": "error",
     "no-unused-import": "error",
-    "immutable-vars-naming": ["error", { "immutablesAsConstants": true }]
+    "immutable-vars-naming": [
+      "error",
+      {
+        "immutablesAsConstants": true
+      }
+    ]
   }
 }

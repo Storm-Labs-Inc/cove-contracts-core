@@ -59,6 +59,11 @@ contract Constants is CommonBase {
     address public constant ETH_DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address public constant ETH_FRAX = 0x853d955aCEf822Db058eb8505911ED77F175b99e;
     address public constant ETH_USDE = 0x4c9EDD5852cd905f086C759E8383e09bff1E68B3;
+    address public constant ETH_SFRXUSD = 0xcf62F905562626CfcDD2261162a51fd02Fc9c5b6;
+    address public constant ETH_FRXUSD = 0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29;
+    address public constant ETH_YSYG_YVUSDS_1 = 0x81f78DeF7a3a8B0F6aABa69925efC69E70239D95;
+    address public constant ETH_USDS = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
+
     // PRICE FEEDS
     // USDC/USD
     bytes32 public constant PYTH_USDC_USD_FEED = 0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a;
@@ -67,6 +72,10 @@ contract Constants is CommonBase {
     // DAI/USD
     bytes32 public constant PYTH_DAI_USD_FEED = 0xb0948a5e5313200c632b51bb5ca32f6de0d36e9950a942d19751e833f70dabfd;
     address public constant ETH_CHAINLINK_DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
+
+    // sDAI/USD
+    bytes32 public constant PYTH_SDAI_USD_FEED = 0x710659c5a68e2416ce4264ca8d50d34acc20041d91289110eea152c52ff3dc39;
+    // Missing Chainlink price feed
 
     // FRAX/USD
     bytes32 public constant PYTH_FRAX_USD_FEED = 0xc3d5d8d6d17081b3d0bbca6e2fa3a6704bb9a9561d9f9e1dc52db47629f862ad;
@@ -120,12 +129,22 @@ contract Constants is CommonBase {
     bytes32 public constant PYTH_CBBTC_USD_FEED = 0x2817d7bfe5c64b8ea956e9a26f573ef64e72e4d7891f2d6af9bcc93f7aff9a97;
     address public constant ETH_CHAINLINK_CBBTC_USD_FEED = 0x2665701293fCbEB223D11A08D826563EDcCE423A;
 
+    // sfrxUSD/sUSDe
+    address public constant ETH_CURVE_SFRXUSD_SUSDE_POOL = 0x3BD1017929b43c1414bE2Aca39892590fBa4d6e2;
+
+    // USDS
+    bytes32 public constant PYTH_USDS_USD_FEED = 0x77f0971af11cc8bac224917275c1bf55f2319ed5c654a1ca955c82fa2d297ea1;
+    address public constant ETH_CHAINLINK_USDS_USD_FEED = 0xfF30586cD0F29eD462364C7e81375FC0C71219b1;
+
     // COVE
     address public constant COVE_DEPLOYER_ADDRESS = 0x8842fe65A7Db9BB5De6d50e49aF19496da09F9b5;
     address public constant COVE_OPS_MULTISIG = 0x71BDC5F3AbA49538C76d58Bc2ab4E3A1118dAe4c;
     address public constant COVE_COMMUNITY_MULTISIG = 0x7Bd578354b0B2f02E656f1bDC0e41a80f860534b;
     address public constant COVE_MASTER_REGISTRY = 0x91cf20C03bEC656BC008fB2a2177bC3caA34f772;
-    address public constant COVE_SILVERBACK_AWS_ACCOUNT = 0xd31336617fC8B5Ee3b162d88e75B9236a9be3d6D;
+
+    // AWS KEEPER ACCOUNTS
+    address public constant BOOSTIES_SILVERBACK_AWS_ACCOUNT = 0xd31336617fC8B5Ee3b162d88e75B9236a9be3d6D;
+    address public constant STAGING_COVE_SILVERBACK_AWS_ACCOUNT = 0x63A7c2537e54831d902f6140F7ae07d3802AD256;
 
     // STAGING
     // 1 out of 5 addresses, ops multisig signers + deployer
@@ -138,9 +157,14 @@ contract Constants is CommonBase {
 
     // Constants hardcoded in the contracts, replicated here for testing.
     uint16 public constant MAX_MANAGEMENT_FEE = 3000;
+    uint16 public constant MANAGEMENT_FEE_DECIMALS = 1e4;
     uint16 public constant MAX_SWAP_FEE = 500;
-    uint8 public constant MAX_RETRIES = 3;
+    uint8 public constant MAX_RETRIES = 10;
     uint256 public constant REBALANCE_COOLDOWN_SEC = 1 hours;
+    uint256 public constant MAX_SLIPPAGE_LIMIT = 0.5e18;
+    uint256 public constant MAX_WEIGHT_DEVIATION_LIMIT = 0.5e18;
+    uint256 public constant MIN_STEP_DELAY = 1 minutes;
+    uint256 public constant MAX_STEP_DELAY = 60 minutes;
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
@@ -155,7 +179,8 @@ contract Constants is CommonBase {
         vm.label(COVE_OPS_MULTISIG, "COVE OPS MULTISIG");
         vm.label(COVE_COMMUNITY_MULTISIG, "COVE COMMUNITY MULTISIG");
         vm.label(COVE_MASTER_REGISTRY, "COVE MASTER REGISTRY");
-        vm.label(COVE_SILVERBACK_AWS_ACCOUNT, "COVE SILVERBACK AWS ACCOUNT");
+        vm.label(BOOSTIES_SILVERBACK_AWS_ACCOUNT, "BOOSTIES SILVERBACK AWS ACCOUNT");
+        vm.label(STAGING_COVE_SILVERBACK_AWS_ACCOUNT, "STAGING COVE SILVERBACK AWS ACCOUNT");
         vm.label(COVE_STAGING_OPS_MULTISIG, "COVE STAGING OPS MULTISIG");
         vm.label(COVE_STAGING_COMMUNITY_MULTISIG, "COVE STAGING COMMUNITY MULTISIG");
 

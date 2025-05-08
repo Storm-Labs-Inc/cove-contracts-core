@@ -5,7 +5,6 @@ import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BitFlag } from "src/libraries/BitFlag.sol";
-import { Errors } from "src/libraries/Errors.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { RebalanceStatus, Status } from "src/types/BasketManagerStorage.sol";
 
@@ -37,9 +36,9 @@ contract ManagedWeightStrategyTest is BaseTest {
     }
 
     function testFuzz_constructor_revertsWhen_ZeroAddress() public {
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(ManagedWeightStrategy.ZeroAddress.selector);
         new ManagedWeightStrategy(address(0), basketManager);
-        vm.expectRevert(Errors.ZeroAddress.selector);
+        vm.expectRevert(ManagedWeightStrategy.ZeroAddress.selector);
         new ManagedWeightStrategy(admin, address(0));
     }
 
@@ -70,6 +69,7 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketHash: bytes32(0),
                     basketMask: uint256(0),
                     epoch: epoch,
+                    proposalTimestamp: uint40(0),
                     timestamp: uint40(0),
                     retryCount: uint8(0),
                     status: Status.NOT_STARTED
@@ -120,6 +120,7 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketHash: bytes32(0),
                     basketMask: uint256(0),
                     epoch: epoch,
+                    proposalTimestamp: uint40(0),
                     timestamp: uint40(0),
                     retryCount: uint8(0),
                     status: Status(status)
@@ -262,6 +263,7 @@ contract ManagedWeightStrategyTest is BaseTest {
                     basketHash: bytes32(0),
                     basketMask: uint256(0),
                     epoch: epoch,
+                    proposalTimestamp: uint40(0),
                     timestamp: uint40(0),
                     retryCount: uint8(0),
                     status: Status.NOT_STARTED

@@ -107,6 +107,25 @@
   },
   {
     "type": "event",
+    "name": "RebalanceRetried",
+    "inputs": [
+      {
+        "name": "epoch",
+        "type": "uint40",
+        "indexed": true,
+        "internalType": "uint40"
+      },
+      {
+        "name": "retryCount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "SwapFeeCharged",
     "inputs": [
       {

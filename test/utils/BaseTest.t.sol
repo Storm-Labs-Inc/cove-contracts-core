@@ -8,6 +8,11 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
+import { IPyth } from "euler-price-oracle/lib/pyth-sdk-solidity/IPyth.sol";
+import { PythStructs } from "euler-price-oracle/lib/pyth-sdk-solidity/PythStructs.sol";
+import { Deployer, GlobalDeployer } from "forge-deploy/Deployer.sol";
+
+import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 import { IAllowanceTransfer } from "src/interfaces/deps/permit2/IAllowanceTransfer.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
@@ -26,9 +31,11 @@ abstract contract BaseTest is Test, Constants {
     bytes32 public constant _PERMIT_DETAILS_TYPEHASH =
         keccak256("PermitDetails(address token,uint160 amount,uint48 expiration,uint48 nonce)");
 
+    // solhint-disable max-line-length
     bytes32 public constant _PERMIT_SINGLE_TYPEHASH = keccak256(
         "PermitSingle(PermitDetails details,address spender,uint256 sigDeadline)PermitDetails(address token,uint160 amount,uint48 expiration,uint48 nonce)"
     );
+    // solhint-enable max-line-length
 
     mapping(string => address) public users;
     mapping(string => Fork) public forks;
@@ -37,8 +44,13 @@ abstract contract BaseTest is Test, Constants {
     ERC20 internal _usdc;
     ERC20 internal _dai;
 
+    /// HELPER CONTRACTS ///
+    Deployer internal deployer;
+
     /// SETUP FUNCTION ///
-    function setUp() public virtual { }
+    function setUp() public virtual {
+        deployer = getDeployer();
+    }
 
     /// HELPERS ///
 
@@ -176,24 +188,25 @@ abstract contract BaseTest is Test, Constants {
         uint256 approvalFromPrivKey,
         address approvalTo,
         uint256 amount,
-        uint256 nonce,
         uint256 deadline
     )
         internal
         view
         returns (uint8 v, bytes32 r, bytes32 s)
     {
+        // Use ERC-2612's domain separator from the token contract
+        bytes32 domain = IERC20Permit(token).DOMAIN_SEPARATOR();
+        uint256 nonce = IERC20Permit(token).nonces(approvalFrom);
+        bytes32 msgHash = keccak256(abi.encode(PERMIT_TYPEHASH, approvalFrom, approvalTo, amount, nonce, deadline));
+
+        // Sign the hashed message with the given domain following EIP-712 signature format
         (v, r, s) = vm.sign(
             approvalFromPrivKey, // user's private key
             keccak256(
                 abi.encodePacked(
                     "\x19\x01", // EIP-712 encoding
-                    IERC20Permit(token).DOMAIN_SEPARATOR(),
-                    // Frontend should use deadline with enough buffer and with the correct nonce
-                    // keccak256(abi.encode(PERMIT_TYPEHASH, user, address(router), depositAmount,
-                    // sourceToken.nonces(user),
-                    // block.timestamp + 100_000))
-                    keccak256(abi.encode(PERMIT_TYPEHASH, approvalFrom, approvalTo, amount, nonce, deadline))
+                    domain,
+                    msgHash
                 )
             )
         );
@@ -205,7 +218,6 @@ abstract contract BaseTest is Test, Constants {
         uint256 ownerPrivateKey,
         address spender,
         uint256 value,
-        uint256 nonce,
         uint256 deadline
     )
         internal
@@ -224,9 +236,9 @@ abstract contract BaseTest is Test, Constants {
         console.log("  Owner: ", owner);
         console.log("  Spender: ", address(0xbeef));
         console.log("  Value: ", uint256(1000 ether));
-        console.log("  Nonce: ", nonce);
+        console.log("  Nonce: ", IERC20Permit(token).nonces(owner));
         console.log("  Deadline: ", _MAX_UINT256);
-        (v, r, s) = _generatePermitSignature(token, owner, ownerPrivateKey, spender, value, nonce, deadline);
+        (v, r, s) = _generatePermitSignature(token, owner, ownerPrivateKey, spender, value, deadline);
         console.log("");
         console.log("Generated signature: ");
         console.log("  v: ", v);
@@ -236,16 +248,19 @@ abstract contract BaseTest is Test, Constants {
 
     function _generatePermit2Signature(
         address token,
+        address approvalFrom,
         uint256 approvalFromPrivKey,
         address approvalTo,
         uint256 amount,
-        uint256 nonce,
         uint256 deadline
     )
         internal
         view
         returns (uint8 v, bytes32 r, bytes32 s)
     {
+        // Use Permit2's domain separator
+        bytes32 domain = IAllowanceTransfer(ETH_PERMIT2).DOMAIN_SEPARATOR();
+        (,, uint48 nonce) = IAllowanceTransfer(ETH_PERMIT2).allowance(approvalFrom, token, approvalTo);
         bytes32 permitHash = keccak256(
             abi.encode(
                 _PERMIT_DETAILS_TYPEHASH,
@@ -258,15 +273,84 @@ abstract contract BaseTest is Test, Constants {
             )
         );
         bytes32 msgHash = keccak256(abi.encode(_PERMIT_SINGLE_TYPEHASH, permitHash, approvalTo, deadline));
+
+        // Sign the hashed message with the given domain following EIP-712 signature format
         (v, r, s) = vm.sign(
             approvalFromPrivKey, // user's private key
             keccak256(
                 abi.encodePacked(
                     "\x19\x01", // EIP-712 encoding
-                    IAllowanceTransfer(ETH_PERMIT2).DOMAIN_SEPARATOR(),
+                    domain,
                     msgHash
                 )
             )
         );
+    }
+
+    // Helper function to dump state and log timestamp
+    function _dumpStateWithTimestamp(string memory label) internal {
+        string memory path = string.concat("dumpStates/", label, "_", vm.toString(vm.getBlockTimestamp()), ".json");
+        console.log("Dumping state: ", path);
+        vm.dumpState(path);
+    }
+
+    /**
+     * @notice Returns the deployer contract. If the contract is not deployed, it etches it and initializes it.
+     * @dev This is intentionally not marked as persistent because the deployment context will depend on chain ID. For
+     * example, if a test changes the chain ID, this function needs to be called again to re-deploy and re-initialize
+     * the deployer contract.
+     * @return The deployer contract address.
+     */
+    function getDeployer() public returns (Deployer) {
+        address addr = 0x666f7267652d6465706C6f790000000000000000;
+        if (addr.code.length > 0) {
+            return Deployer(addr);
+        }
+        bytes memory code = vm.getDeployedCode("Deployer.sol:GlobalDeployer");
+        vm.etch(addr, code);
+        vm.allowCheatcodes(addr);
+        GlobalDeployer deployer_ = GlobalDeployer(addr);
+        deployer_.init();
+        return deployer_;
+    }
+
+    // Updates the timestamp of a Pyth oracle response
+    function _updatePythOracleTimeStamp(bytes32 pythPriceFeed) internal {
+        vm.record();
+        IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
+        (bytes32[] memory readSlots,) = vm.accesses(PYTH);
+        // Second read slot contains the timestamp in the last 32 bits
+        // key   "0x28b01e5f9379f2a22698d286ce7faa0c31f6e4041ee32933d99cfe45a4a8ced5":
+        // value "0x0000000000000000071021bc0000003f435df940fffffff80000000067a59cb0",
+        // Where timestamp is 0x67a59cb0
+        // overwrite this by using vm.store(readSlots[1], modified state)
+        uint256 newPublishTime = vm.getBlockTimestamp();
+        bytes32 modifiedStorageData =
+            bytes32((uint256(vm.load(PYTH, readSlots[1])) & ~uint256(0xFFFFFFFF)) | newPublishTime);
+        vm.store(PYTH, readSlots[1], modifiedStorageData);
+
+        // Verify the storage was updated.
+        PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
+        assertEq(res.publishTime, newPublishTime, "PythOracle timestamp was not updated correctly");
+    }
+
+    // Updates the timestamp of a ChainLink oracle response
+    function _updateChainLinkOracleTimeStamp(address chainlinkOracle) internal {
+        address aggregator = IChainlinkAggregatorV3Interface(chainlinkOracle).aggregator();
+        vm.record();
+        IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
+        (bytes32[] memory readSlots,) = vm.accesses(aggregator);
+        // The third slot of the aggregator reads contains the timestamp in the first 32 bits
+        // Format: 0x67a4876b67a48757000000000000000000000000000000000f806f93b728efc0
+        // Where 0x67a4876b is the timestamp
+        uint256 newPublishTime = vm.getBlockTimestamp();
+        bytes32 modifiedStorageData = bytes32(
+            (uint256(vm.load(aggregator, readSlots[2])) & ~uint256(0xFFFFFFFF << 224)) | (newPublishTime << 224)
+        );
+        vm.store(aggregator, readSlots[2], modifiedStorageData);
+
+        // Verify the storage was updated
+        (,,, uint256 updatedTimestamp,) = IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
+        assertEq(updatedTimestamp, newPublishTime, "ChainLink timestamp was not updated correctly");
     }
 }
