@@ -560,9 +560,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, underlyingAsset), IERC4626(asset)));
             primaryOracle = address(
                 deployer.deploy_CrossAdapter(
-                    buildCrossAdapterName(asset, underlyingAsset, USD, "ERC4626", "Pyth"),
-                    underlyingAsset,
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Pyth"),
                     asset,
+                    underlyingAsset,
                     USD,
                     erc4626Oracle,
                     pythOracle
