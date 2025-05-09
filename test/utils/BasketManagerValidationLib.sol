@@ -35,10 +35,6 @@ library BasketManagerValidationLib {
     error NotAnchoredOracle(address asset);
     /// @notice Error thrown when an oracle path does not use both Pyth and Chainlink
     error InvalidOraclePath(address asset);
-    /// @notice Error thrown when primary oracle is not using Pyth
-    error PrimaryNotPyth(address asset);
-    /// @notice Error thrown when anchor oracle is not using Chainlink
-    error AnchorNotChainlink(address asset);
     /// @notice Error thrown when AnchoredOracle is given when expecting an oracle with a linear path to USD
     error OracleIsNotLinear(address asset);
     /// @notice Error thrown when an invalid oracle is given
@@ -1127,7 +1123,7 @@ library BasketManagerValidationLib {
             return true;
         }
 
-        // Check if it's an AnchoredOracle with Pyth
+        // Check if it's an AnchoredOracle. In this case, the oracle is linear and could be of multiple types
         if (_isAnchoredOracle(oracle)) {
             revert OracleIsNotLinear(oracle);
         }
@@ -1153,9 +1149,9 @@ library BasketManagerValidationLib {
             return true;
         }
 
-        // Check if it's an AnchoredOracle with Chainlink
+        // Check if it's an AnchoredOracle. In this case, the oracle is linear and could be of multiple types
         if (_isAnchoredOracle(oracle)) {
-            revert AnchorNotChainlink(oracle);
+            revert OracleIsNotLinear(oracle);
         }
 
         // Check if it's a CrossAdapter with Chainlink
