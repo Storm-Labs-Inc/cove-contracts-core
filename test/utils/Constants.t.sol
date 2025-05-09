@@ -63,6 +63,7 @@ contract Constants is CommonBase {
     address public constant ETH_FRXUSD = 0xCAcd6fd266aF91b8AeD52aCCc382b4e165586E29;
     address public constant ETH_YSYG_YVUSDS_1 = 0x81f78DeF7a3a8B0F6aABa69925efC69E70239D95;
     address public constant ETH_USDS = 0xdC035D45d973E3EC169d2276DDab16f1e407384F;
+    address public constant ETH_SUPERUSDC = 0xF7DE3c70F2db39a188A81052d2f3C8e3e217822a;
     address public constant ETH_COVE = 0x32fb7D6E0cBEb9433772689aA4647828Cc7cbBA8;
 
     // PRICE FEEDS
@@ -132,6 +133,9 @@ contract Constants is CommonBase {
 
     // sfrxUSD/sUSDe
     address public constant ETH_CURVE_SFRXUSD_SUSDE_POOL = 0x3BD1017929b43c1414bE2Aca39892590fBa4d6e2;
+
+    // frxUSD
+    bytes32 public constant PYTH_FRXUSD_USD_FEED = 0x7c53208632935ba5122c3cf65a0f4b3e72ba4955b49ad6ba0acf3d9ba405aef3;
 
     // USDS
     bytes32 public constant PYTH_USDS_USD_FEED = 0x77f0971af11cc8bac224917275c1bf55f2319ed5c654a1ca955c82fa2d297ea1;
@@ -214,6 +218,11 @@ contract Constants is CommonBase {
         vm.label(ETH_DAI, "DAI");
         vm.label(ETH_FRAX, "FRAX");
         vm.label(ETH_USDE, "USDe");
+        vm.label(ETH_SUPERUSDC, "SuperUSDC");
+        vm.label(ETH_YSYG_YVUSDS_1, "ysyg_yvUSDS-1");
+        vm.label(ETH_USDS, "USDS");
+        vm.label(ETH_SFRXUSD, "sfrxUSD");
+        vm.label(ETH_FRXUSD, "frxUSD");
 
         // Price feeds
         vm.label(ETH_CHAINLINK_USDC_USD_FEED, "CHAINLINK USDC/USD");

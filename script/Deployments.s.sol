@@ -557,12 +557,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 )
             );
             address erc4626Oracle =
-                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, underlyingAsset), IERC4626(asset)));
             primaryOracle = address(
                 deployer.deploy_CrossAdapter(
-                    buildCrossAdapterName(asset, underlyingAsset, USD, "ERC4626", "Pyth"),
-                    underlyingAsset,
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Pyth"),
                     asset,
+                    underlyingAsset,
                     USD,
                     erc4626Oracle,
                     pythOracle
@@ -594,7 +594,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 )
             );
             address erc4626Oracle =
-                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, USD), IERC4626(asset)));
+                address(deployer.deploy_ERC4626Oracle(buildERC4626OracleName(asset, underlyingAsset), IERC4626(asset)));
             anchorOracle = address(
                 deployer.deploy_CrossAdapter(
                     buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Chainlink"),
@@ -628,7 +628,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
     /// @notice Deploys an anchored oracle with a 4626 vault and a CurveEMA oracle for assets that need to be priced
     /// through a curve pool
-    /// @dev This function supports pricing paths like: sfrxUSD -(4626)-> frxUSD -(curve ema)-> USDE-(pyth/CL) -> USD
+    /// @dev This function supports pricing paths like:
+    /// primary: sfrxUSD -(4626)-> frxUSD -(pyth) -> USD
+    /// anchor: sfrxUSD -(4626)-> frxUSD -(curve ema)-> USDE -(chainlink) -> USD
     /// @param asset The ERC4626 vault asset to price (e.g., sfrxUSD)
     /// @param curvePool The Curve pool containing the underlying asset and cross asset
     /// @param crossAsset The asset to cross-price through (e.g., USDE)
@@ -680,12 +682,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             )
         );
 
-        // 2c. Pyth Oracle (crossAsset -> USD)
-        address pythOracleCrossUSD = address(
+        // 2c. Pyth Oracle (underlyingAsset -> USD)
+        address pythOracleUnderlyingUSD = address(
             deployer.deploy_PythOracle(
-                buildPythOracleName(crossAsset, USD),
+                buildPythOracleName(underlyingAsset, USD),
                 PYTH,
-                crossAsset,
+                underlyingAsset,
                 USD,
                 oracleOptions.pythPriceFeed,
                 oracleOptions.pythMaxStaleness,
@@ -718,19 +720,19 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
 
         // --- 4. Deploy Final Cross Adapters (asset -> USD) ---
 
-        // 4a. Primary: asset -> crossAsset -> USD (via Pyth)
+        // 4a. Primary: asset -(4626)-> underlyingAsset -(pyth)-> USD
         address primaryCrossAdapter = address(
             deployer.deploy_CrossAdapter(
-                buildCrossAdapterName(asset, crossAsset, USD, "CrossAdapter", "Pyth"),
+                buildCrossAdapterName(asset, underlyingAsset, USD, "4626", "Pyth"),
                 asset,
-                crossAsset,
+                underlyingAsset,
                 USD,
-                assetToCrossAssetAdapter,
-                pythOracleCrossUSD
+                erc4626Oracle,
+                pythOracleUnderlyingUSD
             )
         );
 
-        // 4b. Anchor: asset -> crossAsset -> USD (via Chainlink)
+        // 4b. Anchor: asset -(4626)-> underlyingAsset -(curve ema)-> crossAsset -(chainlink)-> USD
         address anchorCrossAdapter = address(
             deployer.deploy_CrossAdapter(
                 buildCrossAdapterName(asset, crossAsset, USD, "CrossAdapter", "Chainlink"),
@@ -930,6 +932,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 codeSize := extcodesize(plugin)
             }
             if (codeSize == 0) {
+                if (shouldBroadcast) {
+                    vm.broadcast();
+                }
                 plugin = FarmingPluginFactory(farmingPluginFactory).deployFarmingPluginWithDefaultOwner(
                     IERC20Plugins(basketToken), IERC20(rewardToken)
                 );

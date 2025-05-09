@@ -7,6 +7,7 @@ pragma solidity 0.8.28;
 // alternative approaches that don't rely on cheatcodes for frontend testing.
 
 import { FarmingPlugin } from "@1inch/farming/contracts/FarmingPlugin.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
@@ -14,6 +15,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
+import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
 import { BaseTest } from "test/utils/BaseTest.t.sol";
@@ -34,13 +36,15 @@ contract GenerateStatesForFrontend is BaseTest {
     uint256 public constant DEPOSIT = 10_000;
 
     function setUp() public override {
-        // https://etherscan.io/block/22155634
-        // 4th April 2025, targets staging deployment with updated CurveEMAOracleUnderlying
-        forkNetworkAt("mainnet", 22_196_382);
+        // https://etherscan.io/block/22442301
+        // 8th May 2025, targets staging deployment with correct oracle deployments
+        forkNetworkAt("mainnet", 22_442_301);
         basketManager = _getFromStagingMasterRegistry("BasketManager");
         basketToken = BasketManager(basketManager).basketTokens()[0];
         weightStrategy = BasketToken(basketToken).strategy();
-        farmingPlugin = _getFromStagingMasterRegistry("FP_stgUSD_E20M");
+        FarmingPluginFactory farmingPluginFactory =
+            FarmingPluginFactory(_getFromStagingMasterRegistry("FarmingPluginFactory"));
+        farmingPlugin = farmingPluginFactory.plugins(basketToken)[0];
         super.setUp();
         labelKnownAddresses();
 
@@ -60,10 +64,12 @@ contract GenerateStatesForFrontend is BaseTest {
         uint256 rewardAmount = 100e18;
         uint256 rewardPeriod = 1 days;
         ERC20Mock farmingRewardToken = ERC20Mock(address(FarmingPlugin(farmingPlugin).REWARDS_TOKEN()));
-        farmingRewardToken.mint(COVE_DEPLOYER_ADDRESS, rewardAmount);
-        vm.startPrank(COVE_DEPLOYER_ADDRESS);
+        // Find the distributor of the plugin
+        address owner = FarmingPlugin(farmingPlugin).owner();
+        farmingRewardToken.mint(owner, rewardAmount);
+        vm.startPrank(owner);
         farmingRewardToken.approve(farmingPlugin, rewardAmount);
-        FarmingPlugin(farmingPlugin).setDistributor(COVE_DEPLOYER_ADDRESS);
+        FarmingPlugin(farmingPlugin).setDistributor(owner);
         FarmingPlugin(farmingPlugin).startFarming(rewardAmount, rewardPeriod);
         vm.stopPrank();
 
@@ -98,7 +104,7 @@ contract GenerateStatesForFrontend is BaseTest {
         uint64[][] memory targetWeights = _getBasketTagetWeights(basketTokens);
         ExternalTrade[] memory externalTrades = new ExternalTrade[](4);
         externalTrades[0] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, depositAmount * targetWeights[0][1] / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUPERUSDC, depositAmount * targetWeights[0][1] / 1e18);
         externalTrades[1] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, depositAmount * targetWeights[0][2] / 1e18);
         externalTrades[2] =
@@ -126,7 +132,10 @@ contract GenerateStatesForFrontend is BaseTest {
         vm.stopPrank();
 
         externalTrades[0] = _buildSingleExternalTrade(
-            basketToken, ETH_SDAI, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SDAI)
+            basketToken,
+            ETH_SUPERUSDC,
+            ETH_USDC,
+            BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SUPERUSDC)
         );
         externalTrades[1] = _buildSingleExternalTrade(
             basketToken, ETH_SUSDE, ETH_USDC, BasketManager(basketManager).basketBalanceOf(basketToken, ETH_SUSDE)
@@ -159,7 +168,7 @@ contract GenerateStatesForFrontend is BaseTest {
         vm.prank(rebalanceProposer);
         BasketManager(basketManager).proposeRebalance(basketTokens);
         externalTrades[0] =
-            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SDAI, targetWeights[0][1] * depositAmount / 1e18);
+            _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUPERUSDC, targetWeights[0][1] * depositAmount / 1e18);
         externalTrades[1] =
             _buildSingleExternalTrade(basketToken, ETH_USDC, ETH_SUSDE, targetWeights[0][2] * depositAmount / 1e18);
         externalTrades[2] =
@@ -217,16 +226,12 @@ contract GenerateStatesForFrontend is BaseTest {
     function _refreshPriceFeeds() internal {
         _updatePythOracleTimeStamp(PYTH_SUSDE_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_USDC_USD_FEED);
-        _updatePythOracleTimeStamp(PYTH_SDAI_USD_FEED);
         _updatePythOracleTimeStamp(PYTH_USDS_USD_FEED);
-        _updatePythOracleTimeStamp(PYTH_FRAX_USD_FEED);
-        _updatePythOracleTimeStamp(PYTH_USDE_USD_FEED);
+        _updatePythOracleTimeStamp(PYTH_FRXUSD_USD_FEED);
 
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_SUSDE_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDC_USD_FEED);
-        _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_DAI_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDS_USD_FEED);
-        _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_FRAX_USD_FEED);
         _updateChainLinkOracleTimeStamp(ETH_CHAINLINK_USDE_USD_FEED);
     }
 
@@ -302,7 +307,7 @@ contract GenerateStatesForFrontend is BaseTest {
                 // ysyG-yvUSDS-1 uses Yearn strategy v3 implementation, which relies on the total supply of the vault
                 // to calculate conversion rate between shares and assets. So we don't adjust the total supply for
                 // ysyG-yvUSDS-1
-                bool adjustTotalSupply = buyToken != ETH_YSYG_YVUSDS_1;
+                bool adjustTotalSupply = buyToken != ETH_YSYG_YVUSDS_1 && buyToken != ETH_SUPERUSDC;
                 airdrop(IERC20(buyToken), swapContract, buyAmount, adjustTotalSupply);
             }
         }
