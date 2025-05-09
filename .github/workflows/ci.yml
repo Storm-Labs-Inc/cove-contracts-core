@@ -49,7 +49,7 @@ jobs:
         run: pnpm run build:slither
 
       - name: Run Slither
-        uses: crytic/slither-action@v0.4.0
+        uses: crytic/slither-action@v0.4.1
         id: slither
         with:
           # TODO: re-enable this before audits
