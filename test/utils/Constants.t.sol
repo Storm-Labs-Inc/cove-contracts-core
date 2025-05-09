@@ -218,6 +218,11 @@ contract Constants is CommonBase {
         vm.label(ETH_DAI, "DAI");
         vm.label(ETH_FRAX, "FRAX");
         vm.label(ETH_USDE, "USDe");
+        vm.label(ETH_SUPERUSDC, "SuperUSDC");
+        vm.label(ETH_YSYG_YVUSDS_1, "ysyg_yvUSDS-1");
+        vm.label(ETH_USDS, "USDS");
+        vm.label(ETH_SFRXUSD, "sfrxUSD");
+        vm.label(ETH_FRXUSD, "frxUSD");
 
         // Price feeds
         vm.label(ETH_CHAINLINK_USDC_USD_FEED, "CHAINLINK USDC/USD");
