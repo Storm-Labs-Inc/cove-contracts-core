@@ -41,7 +41,7 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
     }
 
     // Due to using DeployScript, we use the deploy() function instead of run()
-    function deploy() external view {
+    function deploy() external {
         // Get the MasterRegistry address from environment
         address masterRegistryAddr = _getAddressOrRevert(buildMasterRegistryName());
 
@@ -145,23 +145,35 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         console.log("\n=== Analyzing Assets and Oracles ===");
         // Get the list of registered assets
         address[] memory allAssets = assetRegistry.getAllAssets();
+        // Update oracle timestamps and check for prices (could be stale since last update)
+        basketManager.testLib_updateOracleTimestamps();
         // For each asset, get and analyze its oracle path
         for (uint256 j = 0; j < allAssets.length; j++) {
             address asset = allAssets[j];
             address oracleAddr = eulerRouter.getConfiguredOracle(asset, USD);
 
             console.log(
-                string.concat(
-                    "\nAsset ", vm.toString(j + 1), ": ", vm.toString(asset), " (", IERC20Metadata(asset).symbol(), ")"
-                )
+                string.concat("\nAsset ", vm.toString(j + 1), ": ", vm.toString(asset), " (", _getSymbol(asset), ")")
             );
             string memory oracleName = IPriceOracle(oracleAddr).name();
             console.log(string.concat("Registered Oracle: ", vm.toString(oracleAddr), " (", oracleName, ")"));
+
+            // Use single unit of asset to measure the price
+            uint256 amount = 10 ** IERC20Metadata(asset).decimals();
+            uint256 eulerRouterPrice = eulerRouter.getQuote(amount, asset, USD);
 
             // Get primary and anchor oracles
             AnchoredOracle anchoredOracle = AnchoredOracle(oracleAddr);
             address primaryOracle = anchoredOracle.primaryOracle();
             address anchorOracle = anchoredOracle.anchorOracle();
+
+            // Get prices from primary and anchor oracle prices
+            uint256 primaryPrice = IPriceOracle(primaryOracle).getQuote(amount, asset, USD);
+            uint256 anchorPrice = IPriceOracle(anchorOracle).getQuote(amount, asset, USD);
+
+            console.log(string.concat("EulerRouter Price   : $", _formatEther(eulerRouterPrice)));
+            console.log(string.concat("Primary Oracle Price: $", _formatEther(primaryPrice)));
+            console.log(string.concat("Anchor Oracle Price : $", _formatEther(anchorPrice)));
 
             // Print primary oracle details
             console.log("\nPrimary Oracle (Pyth sourced):", primaryOracle);
@@ -360,5 +372,37 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
             return "USD";
         }
         return IERC20Metadata(asset).symbol();
+    }
+
+    /// @notice Helper function to format a value in ether (1e18)
+    function _formatEther(uint256 value) internal pure returns (string memory) {
+        if (value >= 1e18) {
+            uint256 whole = value / 1e18;
+            uint256 fraction = value % 1e18;
+
+            // Format the fractional part to ensure it has leading zeros
+            string memory fractionStr = vm.toString(fraction);
+            uint256 fractionLength = bytes(fractionStr).length;
+
+            // Pad with leading zeros
+            string memory padding = "";
+            for (uint256 i = 0; i < 18 - fractionLength; i++) {
+                padding = string.concat(padding, "0");
+            }
+
+            return string.concat(vm.toString(whole), ".", padding, fractionStr);
+        } else {
+            // Format the fractional part to ensure it has leading zeros
+            string memory fractionStr = vm.toString(value);
+            uint256 fractionLength = bytes(fractionStr).length;
+
+            // Pad with leading zeros
+            string memory padding = "";
+            for (uint256 i = 0; i < 18 - fractionLength; i++) {
+                padding = string.concat(padding, "0");
+            }
+
+            return string.concat("0.", padding, fractionStr);
+        }
     }
 }

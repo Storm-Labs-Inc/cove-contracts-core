@@ -709,7 +709,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         // --- 3. Deploy Intermediate Cross Adapter (asset -> crossAsset) ---
         address assetToCrossAssetAdapter = address(
             deployer.deploy_CrossAdapter(
-                buildCrossAdapterName(asset, underlyingAsset, crossAsset, "4626", "CurveEMA"),
+                buildCrossAdapterName(asset, underlyingAsset, crossAsset, "4626", "CurveEMAUnderlying"),
                 asset,
                 underlyingAsset,
                 crossAsset,

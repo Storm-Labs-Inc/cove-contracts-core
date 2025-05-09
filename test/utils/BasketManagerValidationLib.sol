@@ -14,10 +14,10 @@ import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 import { CurveEMAOracleUnderlying } from "src/oracles/CurveEMAOracleUnderlying.sol";
 
+import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
-
 import { IPriceOracleWithBaseAndQuote } from "src/interfaces/deps/IPriceOracleWithBaseAndQuote.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ChainedERC4626Oracle } from "src/oracles/ChainedERC4626Oracle.sol";
@@ -144,20 +144,18 @@ library BasketManagerValidationLib {
         // Get the EulerRouter from the BasketManager
         EulerRouter eulerRouter = EulerRouter(basketManager.eulerRouter());
 
-        // Get all basket tokens
-        address[] memory baskets = basketManager.basketTokens();
+        // Get all assets
+        AssetRegistry assetRegistry = AssetRegistry(basketManager.assetRegistry());
+        address[] memory assets = assetRegistry.getAllAssets();
 
-        // Iterate through each basket
-        for (uint256 i = 0; i < baskets.length; i++) {
-            // Get all assets in the basket
-            address[] memory assets = basketManager.basketAssets(baskets[i]);
-
-            // Iterate through each asset
-            for (uint256 j = 0; j < assets.length; j++) {
-                address asset = assets[j];
-                address oracle = eulerRouter.getConfiguredOracle(asset, USD);
-                _updateOracleTimestamp(eulerRouter, oracle);
+        // Iterate through each asset
+        for (uint256 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
+            address oracle = eulerRouter.getConfiguredOracle(asset, USD);
+            if (oracle == address(0)) {
+                revert OracleNotConfigured(asset);
             }
+            _updateOracleTimestamp(eulerRouter, oracle);
         }
     }
 
@@ -1084,8 +1082,6 @@ library BasketManagerValidationLib {
         // Get the CrossAdapter's oracles
         address oracleBaseCross = CrossAdapter(oracleAddr).oracleBaseCross();
         address oracleCrossQuote = CrossAdapter(oracleAddr).oracleCrossQuote();
-
-        console.log("cross adapter", oracleAddr);
 
         address base = CrossAdapter(oracleAddr).base();
         address cross = CrossAdapter(oracleAddr).cross();
