@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import { BasketTokenDeployment, OracleOptions } from "./Deployments.s.sol";
+import { BasketTokenDeployment, OracleOptions } from "script/Deployments.s.sol";
 
-import { BuildDeploymentJsonNames } from "./utils/BuildDeploymentJsonNames.sol";
-import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
+import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
