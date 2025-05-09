@@ -7,11 +7,12 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
-import { CurveEMAOracle } from "euler-price-oracle/src/adapter/curve/CurveEMAOracle.sol";
+
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 import { IPriceOracle } from "euler-price-oracle/src/interfaces/IPriceOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
+import { CurveEMAOracleUnderlying } from "src/oracles/CurveEMAOracleUnderlying.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -995,7 +996,7 @@ library BasketManagerValidationLib {
             _updatePythOracleTimeStamp(PythOracle(oracle).feedId());
         } else if (_isChainlinkOracle(oracle)) {
             _updateChainLinkOracleTimeStamp(ChainlinkOracle(oracle).feed());
-        } else if (_isCurveEMAOracle(oracle)) {
+        } else if (_isCurveEMAOracleUnderlying(oracle)) {
             // Do nothing
         } else if (_isChainedERC4626Oracle(oracle)) {
             // Do nothing
@@ -1221,12 +1222,12 @@ library BasketManagerValidationLib {
         }
     }
 
-    /// @notice Helper function to check if an oracle is a CurveEMAOracle
+    /// @notice Helper function to check if an oracle is a CurveEMAOracleUnderlying
     /// @param oracle The oracle address to check
-    /// @return True if the oracle is a CurveEMAOracle
-    function _isCurveEMAOracle(address oracle) private view returns (bool) {
-        try CurveEMAOracle(oracle).name() returns (string memory name) {
-            return keccak256(bytes(name)) == keccak256(bytes("CurveEMAOracle"));
+    /// @return True if the oracle is a CurveEMAOracleUnderlying
+    function _isCurveEMAOracleUnderlying(address oracle) private view returns (bool) {
+        try CurveEMAOracleUnderlying(oracle).name() returns (string memory name) {
+            return keccak256(bytes(name)) == keccak256(bytes("CurveEMAOracleUnderlying"));
         } catch {
             return false;
         }

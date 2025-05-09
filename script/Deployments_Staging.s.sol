@@ -28,14 +28,14 @@ contract DeploymentsStaging is Deployments {
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {
-        return keccak256(abi.encodePacked("Staging_FeeCollector_0403"));
+        return keccak256(abi.encodePacked("Staging_FeeCollector_0508"));
     }
 
     function _deployNonCoreContracts() internal override {
         // Basket assets
         address[] memory basketAssets = new address[](5);
         basketAssets[0] = ETH_USDC;
-        basketAssets[1] = ETH_SDAI;
+        basketAssets[1] = ETH_SUPERUSDC;
         basketAssets[2] = ETH_SUSDE;
         basketAssets[3] = ETH_SFRXUSD;
         basketAssets[4] = ETH_YSYG_YVUSDS_1;
@@ -64,23 +64,23 @@ contract DeploymentsStaging is Deployments {
         );
         _addAssetToAssetRegistry(ETH_USDC);
 
-        // 1. sDAI
-        // Primary: sDAI --(Pyth)--> USD
-        // Anchor: sDAI --(4626)--> DAI --(Chainlink)--> USD
+        // 1. SUPERUSDC
+        // Primary: SUPERUSDC-->(4626)--> USDC-->(Pyth)--> USD
+        // Anchor: SUPERUSDC-->(4626)--> USDC-->(Chainlink)--> USD
         _deployAnchoredOracleWith4626ForAsset(
-            ETH_SDAI,
-            false,
+            ETH_SUPERUSDC,
+            true,
             true,
             OracleOptions({
-                pythPriceFeed: PYTH_SDAI_USD_FEED,
+                pythPriceFeed: PYTH_USDC_USD_FEED,
                 pythMaxStaleness: 30 seconds,
                 pythMaxConfWidth: 50, //0.5%
-                chainlinkPriceFeed: ETH_CHAINLINK_DAI_USD_FEED,
+                chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
              })
         );
-        _addAssetToAssetRegistry(ETH_SDAI);
+        _addAssetToAssetRegistry(ETH_SUPERUSDC);
 
         // 2. sUSDe
         // Primary: sUSDe --(Pyth)--> USD
@@ -101,7 +101,7 @@ contract DeploymentsStaging is Deployments {
         _addAssetToAssetRegistry(ETH_SUSDE);
 
         // 3. sfrxUSD
-        // Primary: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Pyth)--> USD
+        // Primary: sfrxUSD --(4626)--> frxUSD --(Pyth)--> USD
         // Anchor: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Chainlink)--> USD
         _deployAnchoredOracleWith4626CurveEMAOracleUnderlying(
             ETH_SFRXUSD,
@@ -110,7 +110,7 @@ contract DeploymentsStaging is Deployments {
             0, // sfrxUSD is the first coin in the pool, but the oracle uses frxUSD price
             1, // sUSDe is the second coin in the pool, but the oracle uses USDe price
             OracleOptions({
-                pythPriceFeed: PYTH_USDE_USD_FEED,
+                pythPriceFeed: PYTH_FRXUSD_USD_FEED,
                 pythMaxStaleness: 30 seconds,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
