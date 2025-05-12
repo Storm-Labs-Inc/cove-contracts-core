@@ -31,7 +31,7 @@ To load a state, use the Anvil command with the following format:
 ```bash
 anvil --fork-url $MAINNET_RPC_URL \
       --auto-impersonate \
-      --fork-block-number 22046527 \
+      --fork-block-number 22442301 \
       --load-state dumpStates/<state_file>.json \
       --steps-tracing
 ```
@@ -63,14 +63,14 @@ anvil --fork-url $MAINNET_RPC_URL \
    anvil --fork-url $MAINNET_RPC_URL \
          --auto-impersonate \
          --fork-block-number 22046527 \
-         --load-state dumpStates/02_AccountHasPendingDeposit_1740638063.json \
+         --load-state dumpStates/02_AccountHasPendingDeposit_1746836183.json \
          --steps-tracing
    ```
 
 2. In a new terminal, set the correct timestamp:
 
    ```bash
-   TIMESTAMP=$(echo 02_AccountHasPendingDeposit_1742058755.json | grep -o '[0-9]*' | tail -1)
+   TIMESTAMP=$(echo 02_AccountHasPendingDeposit_1746836183.json | grep -o '[0-9]*' | tail -1)
    cast rpc evm_setNextBlockTimestamp $TIMESTAMP && cast rpc anvil_mine
    ```
 
@@ -94,6 +94,6 @@ The dump states follow a complete deposit-rebalance-redeem cycle with the test a
 
 If you encounter state inconsistencies:
 
-1. Verify you're using block number 21928744
+1. Verify you're using block number 22442301
 2. Ensure you've set the correct timestamp from the state filename. You may need to mine a block with the new timestamp.
 3. Check that you're using the latest version of the dump state files
