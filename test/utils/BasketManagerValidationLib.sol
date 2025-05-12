@@ -14,19 +14,21 @@ import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 import { CurveEMAOracleUnderlying } from "src/oracles/CurveEMAOracleUnderlying.sol";
 
+import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
+import { IPriceOracleWithBaseAndQuote } from "src/interfaces/deps/IPriceOracleWithBaseAndQuote.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ChainedERC4626Oracle } from "src/oracles/ChainedERC4626Oracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
-
 /// @title BasketManagerValidationLib
 /// @author Cove
 /// @notice Library for testing the BasketManager contract. Other test contracts should import
 /// this library and use it for BasketManager addresses.
+
 library BasketManagerValidationLib {
     /// @notice Error thrown when an oracle is not configured for an asset
     error OracleNotConfigured(address asset);
@@ -34,14 +36,28 @@ library BasketManagerValidationLib {
     error NotAnchoredOracle(address asset);
     /// @notice Error thrown when an oracle path does not use both Pyth and Chainlink
     error InvalidOraclePath(address asset);
-    /// @notice Error thrown when primary oracle is not using Pyth
-    error PrimaryNotPyth(address asset);
-    /// @notice Error thrown when anchor oracle is not using Chainlink
-    error AnchorNotChainlink(address asset);
     /// @notice Error thrown when AnchoredOracle is given when expecting an oracle with a linear path to USD
     error OracleIsNotLinear(address asset);
     /// @notice Error thrown when an invalid oracle is given
     error InvalidOracle(address oracle);
+    /// @notice Error thrown when base, cross, and quote are not properly configured for a CrossAdapter
+    error InvalidCrossAdapter_BaseCrossMisMatch(
+        address oracle,
+        address base,
+        address cross,
+        address oracleBaseCross,
+        address oracleBaseCrossBase,
+        address oracleBaseCrossQuote
+    );
+    /// @notice Error thrown when base, cross, and quote are not properly configured for a CrossAdapter
+    error InvalidCrossAdapter_CrossQuoteMisMatch(
+        address oracle,
+        address cross,
+        address quote,
+        address oracleCrossQuote,
+        address oracleCrossQuoteBase,
+        address oracleCrossQuoteQuote
+    );
 
     /// @notice Struct for holding information about surplus and deficit of assets in a basket
     struct SurplusDeficit {
@@ -128,20 +144,18 @@ library BasketManagerValidationLib {
         // Get the EulerRouter from the BasketManager
         EulerRouter eulerRouter = EulerRouter(basketManager.eulerRouter());
 
-        // Get all basket tokens
-        address[] memory baskets = basketManager.basketTokens();
+        // Get all assets
+        AssetRegistry assetRegistry = AssetRegistry(basketManager.assetRegistry());
+        address[] memory assets = assetRegistry.getAllAssets();
 
-        // Iterate through each basket
-        for (uint256 i = 0; i < baskets.length; i++) {
-            // Get all assets in the basket
-            address[] memory assets = basketManager.basketAssets(baskets[i]);
-
-            // Iterate through each asset
-            for (uint256 j = 0; j < assets.length; j++) {
-                address asset = assets[j];
-                address oracle = eulerRouter.getConfiguredOracle(asset, USD);
-                _updateOracleTimestamp(eulerRouter, oracle);
+        // Iterate through each asset
+        for (uint256 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
+            address oracle = eulerRouter.getConfiguredOracle(asset, USD);
+            if (oracle == address(0)) {
+                revert OracleNotConfigured(asset);
             }
+            _updateOracleTimestamp(eulerRouter, oracle);
         }
     }
 
@@ -1064,27 +1078,36 @@ library BasketManagerValidationLib {
 
     /// @notice Validates a CrossAdapter oracle by checking its paths
     /// @param oracleAddr The CrossAdapter oracle address
-    function validateCrossAdapterPath(address oracleAddr) private view {
+    function _validateCrossAdapterPath(address oracleAddr) private view {
         // Get the CrossAdapter's oracles
         address oracleBaseCross = CrossAdapter(oracleAddr).oracleBaseCross();
         address oracleCrossQuote = CrossAdapter(oracleAddr).oracleCrossQuote();
 
-        // We need to check both chain paths to ensure one uses Pyth and one uses Chainlink
-        bool baseCrossPyth = _isOraclePathPyth(oracleBaseCross);
-        bool baseCrossChainlink = _isOraclePathChainlink(oracleBaseCross);
-        bool crossQuotePyth = _isOraclePathPyth(oracleCrossQuote);
-        bool crossQuoteChainlink = _isOraclePathChainlink(oracleCrossQuote);
+        address base = CrossAdapter(oracleAddr).base();
+        address cross = CrossAdapter(oracleAddr).cross();
+        address quote = CrossAdapter(oracleAddr).quote();
 
-        // Ensure we have at least one Pyth and one Chainlink oracle in the paths
-        // Valid configurations:
-        // 1. BaseCross = Pyth, CrossQuote = Chainlink
-        // 2. BaseCross = Chainlink, CrossQuote = Pyth
-        // 3. Both have mixed paths but together they ensure Pyth and Chainlink are used
-        bool hasPyth = baseCrossPyth || crossQuotePyth;
-        bool hasChainlink = baseCrossChainlink || crossQuoteChainlink;
+        address oracleBaseCrossBase = IPriceOracleWithBaseAndQuote(oracleBaseCross).base();
+        address oracleBaseCrossQuote = IPriceOracleWithBaseAndQuote(oracleBaseCross).quote();
+        address oracleCrossQuoteBase = IPriceOracleWithBaseAndQuote(oracleCrossQuote).base();
+        address oracleCrossQuoteQuote = IPriceOracleWithBaseAndQuote(oracleCrossQuote).quote();
 
-        if (!(hasPyth && hasChainlink)) {
-            revert InvalidOraclePath(CrossAdapter(oracleAddr).base());
+        // Check if the CrossAdapter's base, cross, and quote are all respected by the oracle paths
+        if (
+            (base != oracleBaseCrossBase || cross != oracleBaseCrossQuote)
+                && (base != oracleBaseCrossQuote || cross != oracleBaseCrossBase)
+        ) {
+            revert InvalidCrossAdapter_BaseCrossMisMatch(
+                oracleAddr, base, cross, oracleBaseCross, oracleBaseCrossBase, oracleBaseCrossQuote
+            );
+        }
+        if (
+            (cross != oracleCrossQuoteBase || quote != oracleCrossQuoteQuote)
+                && (cross != oracleCrossQuoteQuote || quote != oracleCrossQuoteBase)
+        ) {
+            revert InvalidCrossAdapter_CrossQuoteMisMatch(
+                oracleAddr, cross, quote, oracleCrossQuote, oracleCrossQuoteBase, oracleCrossQuoteQuote
+            );
         }
     }
 
@@ -1097,7 +1120,7 @@ library BasketManagerValidationLib {
             return true;
         }
 
-        // Check if it's an AnchoredOracle with Pyth
+        // Check if it's an AnchoredOracle. In this case, the oracle is linear and could be of multiple types
         if (_isAnchoredOracle(oracle)) {
             revert OracleIsNotLinear(oracle);
         }
@@ -1106,6 +1129,7 @@ library BasketManagerValidationLib {
         if (_isCrossAdapter(oracle)) {
             address oracleBaseCross = CrossAdapter(oracle).oracleBaseCross();
             address oracleCrossQuote = CrossAdapter(oracle).oracleCrossQuote();
+            _validateCrossAdapterPath(oracle);
             return (_isOraclePathPyth(oracleBaseCross) || _isOraclePathPyth(oracleCrossQuote))
                 && (!_isOraclePathChainlink(oracleBaseCross) && !_isOraclePathChainlink(oracleCrossQuote));
         }
@@ -1122,15 +1146,16 @@ library BasketManagerValidationLib {
             return true;
         }
 
-        // Check if it's an AnchoredOracle with Chainlink
+        // Check if it's an AnchoredOracle. In this case, the oracle is linear and could be of multiple types
         if (_isAnchoredOracle(oracle)) {
-            revert AnchorNotChainlink(oracle);
+            revert OracleIsNotLinear(oracle);
         }
 
         // Check if it's a CrossAdapter with Chainlink
         if (_isCrossAdapter(oracle)) {
             address oracleBaseCross = CrossAdapter(oracle).oracleBaseCross();
             address oracleCrossQuote = CrossAdapter(oracle).oracleCrossQuote();
+            _validateCrossAdapterPath(oracle);
             return (_isOraclePathChainlink(oracleBaseCross) || _isOraclePathChainlink(oracleCrossQuote))
                 && (!_isOraclePathPyth(oracleBaseCross) && !_isOraclePathPyth(oracleCrossQuote));
         }

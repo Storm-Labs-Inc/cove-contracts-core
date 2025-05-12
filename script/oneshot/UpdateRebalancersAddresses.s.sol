@@ -4,9 +4,9 @@ pragma solidity ^0.8.23;
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
-import { BuildDeploymentJsonNames } from "./utils/BuildDeploymentJsonNames.sol";
-import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
+import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
 import { Constants } from "test/utils/Constants.t.sol";

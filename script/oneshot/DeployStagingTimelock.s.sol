@@ -4,8 +4,8 @@ pragma solidity ^0.8.23;
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 
-import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer } from "forge-deploy/Deployer.sol";
+import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 

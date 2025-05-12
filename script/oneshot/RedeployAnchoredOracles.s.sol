@@ -8,9 +8,9 @@ import { BatchScript } from "forge-safe/BatchScript.sol";
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import { console } from "forge-std/console.sol";
 
-import { BuildDeploymentJsonNames } from "./utils/BuildDeploymentJsonNames.sol";
-import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
+import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
