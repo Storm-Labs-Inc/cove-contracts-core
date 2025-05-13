@@ -24,6 +24,7 @@ import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 contract GenerateStatesForFrontend is BaseTest {
     // Account used for testing
     address public user = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    uint256 public userPK = uint256(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80);
     address public basketManager;
     address public basketToken;
     address public farmingPlugin;
@@ -52,6 +53,12 @@ contract GenerateStatesForFrontend is BaseTest {
         vm.deal(user, 100 ether);
         deal(ETH_WETH, user, AIRDROP * _getOneUnit(ETH_WETH));
         deal(ETH_USDC, user, AIRDROP * _getOneUnit(ETH_USDC));
+
+        // Undo any EIP-7702 delegations via vm.etch
+        // This is a hacky workaround to remove any EIP-7702 delegations until forge
+        // supports emptying the account code via EIP-7702 txs.
+        // https://github.com/foundry-rs/foundry/pull/10481
+        vm.etch(user, new bytes(0));
 
         _dumpStateWithTimestamp("00_InitialState");
     }
