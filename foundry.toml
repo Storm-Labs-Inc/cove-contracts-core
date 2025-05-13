@@ -9,7 +9,7 @@ fs_permissions = [
 ]
 solc = '0.8.28'
 ffi = true
-evm_version = "cancun"
+evm_version = "prague"
 optimizer = true
 optimizer_runs = 400
 via_ir = true

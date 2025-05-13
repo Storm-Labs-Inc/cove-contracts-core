@@ -53,6 +53,12 @@ contract GenerateStatesForFrontend is BaseTest {
         deal(ETH_WETH, user, AIRDROP * _getOneUnit(ETH_WETH));
         deal(ETH_USDC, user, AIRDROP * _getOneUnit(ETH_USDC));
 
+        // Undo any EIP-7702 delegations via vm.etch
+        // This is a hacky workaround to remove any EIP-7702 delegations until forge
+        // supports emptying the account code via EIP-7702 txs.
+        // https://github.com/foundry-rs/foundry/pull/10481
+        vm.etch(user, new bytes(0));
+
         _dumpStateWithTimestamp("00_InitialState");
     }
 
