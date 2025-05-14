@@ -148,15 +148,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _deployFarmingPluginFactory();
 
         // Add all core contract names to the collection
-        address deadAddress =
-            address(uint160(0xdeadbeef << 128) + uint32(uint256(keccak256(abi.encodePacked("CowSwapAdapter"))) >> 224));
-        _addToMasterRegistryLater("CowSwapAdapter", deadAddress);
         _addToMasterRegistryLater("AssetRegistry", assetRegistry);
         _addToMasterRegistryLater("StrategyRegistry", strategyRegistry);
         _addToMasterRegistryLater("EulerRouter", eulerRouter);
         _addToMasterRegistryLater("BasketManager", getAddressOrRevert(buildBasketManagerName()));
         _addToMasterRegistryLater("FeeCollector", getAddressOrRevert(buildFeeCollectorName()));
-        _addToMasterRegistryLater("CoWSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
+        _addToMasterRegistryLater("CowSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
         _addToMasterRegistryLater("FarmingPluginFactory", getAddressOrRevert(buildFarmingPluginFactoryName()));
     }
 
