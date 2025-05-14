@@ -27,6 +27,8 @@ import { BasketToken } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
+
+import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
@@ -528,6 +530,11 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         for (uint256 i = 0; i < basketTokens.length; i++) {
             _verifyBasketTokenPermissions(BasketToken(basketTokens[i]), bm);
         }
+
+        // --- FarmingPluginFactory ---
+        address farmingPluginFactoryAddr =
+            IMasterRegistry(masterRegistryAddr).resolveNameToLatestAddress("FarmingPluginFactory");
+        _verifyFarmingPluginFactoryPermissions(FarmingPluginFactory(farmingPluginFactoryAddr));
     }
 
     // Helper to print contract header
@@ -938,6 +945,28 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
             string.concat(
                 "  managementFee(): ", vm.toString(BasketManager(target.basketManager()).managementFee(address(target)))
             )
+        );
+    }
+
+    function _verifyFarmingPluginFactoryPermissions(FarmingPluginFactory target) private view {
+        _printContractHeader(buildFarmingPluginFactoryName(), address(target));
+        address[] memory expectedDefaultAdmins = new address[](1);
+        expectedDefaultAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        string[] memory expectedDefaultAdminNames = new string[](1);
+        expectedDefaultAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            target, DEFAULT_ADMIN_ROLE, "DEFAULT_ADMIN_ROLE", expectedDefaultAdmins, expectedDefaultAdminNames
+        );
+        address[] memory expectedManagers = new address[](1);
+        expectedManagers[0] = COVE_STAGING_OPS_MULTISIG;
+        string[] memory expectedManagerNames = new string[](1);
+        expectedManagerNames[0] = "COVE_STAGING_OPS_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(target, MANAGER_ROLE, "MANAGER_ROLE", expectedManagers, expectedManagerNames);
+        _checkAndLogAddress(
+            "defaultPluginOwner()",
+            target.defaultPluginOwner(),
+            COVE_STAGING_COMMUNITY_MULTISIG,
+            "COVE_STAGING_COMMUNITY_MULTISIG"
         );
     }
 }

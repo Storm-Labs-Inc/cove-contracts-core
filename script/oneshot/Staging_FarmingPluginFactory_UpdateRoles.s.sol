@@ -8,16 +8,15 @@ import { IAccessControlEnumerable } from "@openzeppelin/contracts/access/extensi
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
 import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
-import { AssetRegistry } from "src/AssetRegistry.sol";
+import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
 /**
- * @title Staging_AssetRegistry_ReplaceManagerRole
- * @notice Script to replace the current manager with the new manager in the AssetRegistry contract for the staging
- * environment.
+ * @title Staging_FarmingPluginFactory_UpdateRoles
+ * @notice Script to update the roles in the FarmingPluginFactory contract for the staging environment.
  */
 // solhint-disable var-name-mixedcase
-contract ReplaceManagerRole is DeployScript, Constants, BatchScript, BuildDeploymentJsonNames {
+contract UpdateRoles is DeployScript, Constants, BatchScript, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
@@ -30,38 +29,28 @@ contract ReplaceManagerRole is DeployScript, Constants, BatchScript, BuildDeploy
     function deploy() public isBatch(safe) {
         deployer.setAutoBroadcast(true);
 
-        AssetRegistry assetRegistry = AssetRegistry(deployer.getAddress(buildAssetRegistryName()));
-        IAccessControlEnumerable accessControl = IAccessControlEnumerable(address(assetRegistry));
+        FarmingPluginFactory farmingPluginFactory =
+            FarmingPluginFactory(deployer.getAddress(buildFarmingPluginFactoryName()));
+        IAccessControlEnumerable accessControl = IAccessControlEnumerable(address(farmingPluginFactory));
 
+        // Revoke manage role given to deployer
         address oldManager = COVE_DEPLOYER_ADDRESS;
-        address newManager = COVE_STAGING_OPS_MULTISIG;
-
-        if (
-            !accessControl.hasRole(MANAGER_ROLE, oldManager)
-                && accessControl.hasRole(MANAGER_ROLE, COVE_STAGING_OPS_MULTISIG)
-        ) {
-            revert(
-                string.concat(
-                    buildAssetRegistryName(),
-                    " already has the new manager as the manager. Was this script already run?"
-                )
-            );
-        }
 
         if (accessControl.hasRole(MANAGER_ROLE, oldManager)) {
             addToBatch(
-                address(assetRegistry),
+                address(farmingPluginFactory),
                 0,
                 abi.encodeWithSelector(accessControl.revokeRole.selector, MANAGER_ROLE, oldManager)
             );
         }
-        if (!accessControl.hasRole(MANAGER_ROLE, newManager)) {
-            addToBatch(
-                address(assetRegistry),
-                0,
-                abi.encodeWithSelector(accessControl.grantRole.selector, MANAGER_ROLE, newManager)
-            );
-        }
+
+        // Set the default plugin owner to the community multisig
+        addToBatch(
+            address(farmingPluginFactory),
+            0,
+            abi.encodeWithSelector(farmingPluginFactory.setDefaultPluginOwner.selector, COVE_STAGING_COMMUNITY_MULTISIG)
+        );
+
         if (encodedTxns.length > 0) {
             executeBatch(true);
         }

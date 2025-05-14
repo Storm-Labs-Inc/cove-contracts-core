@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-// import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol"; // Not directly used
 import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { BatchScript } from "forge-safe/BatchScript.sol";
-// import { StdAssertions } from "forge-std/StdAssertions.sol"; // Not directly used
-// import { console } from "forge-std/console.sol"; // Not directly used
 
 import { IAccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/IAccessControlEnumerable.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
