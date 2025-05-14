@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 
@@ -19,8 +22,13 @@ import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
+
+import { BasketToken } from "src/BasketManager.sol";
+import { FeeCollector } from "src/FeeCollector.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
+import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
+import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
 
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
@@ -112,6 +120,69 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
         );
         AssetRegistry assetRegistry = AssetRegistry(assetRegistryAddr);
 
+        // Check for FeeCollector
+        address feeCollectorAddr = masterRegistry.resolveNameToLatestAddress("FeeCollector");
+        require(feeCollectorAddr != address(0), "FeeCollector not registered");
+        console.log("\n=== Fee Collector ===");
+        console.log("MR Registered Address:", feeCollectorAddr);
+        console.log(
+            string.concat(
+                "Matches deployment json: ",
+                feeCollectorAddr == deployer.getAddress(buildFeeCollectorName()) ? unicode"✅" : unicode"❌",
+                " (",
+                buildFeeCollectorName(),
+                ")"
+            )
+        );
+        console.log(
+            string.concat(
+                "Matches basketManager.feeCollector(): ",
+                feeCollectorAddr == basketManager.feeCollector() ? unicode"✅" : unicode"❌"
+            )
+        );
+
+        // Check for StrategyRegistry
+        address strategyRegistryAddr = masterRegistry.resolveNameToLatestAddress("StrategyRegistry");
+        require(strategyRegistryAddr != address(0), "StrategyRegistry not registered");
+        console.log("\n=== Strategy Registry ===");
+        console.log("MR Registered Address:", strategyRegistryAddr);
+        console.log(
+            string.concat(
+                "Matches deployment json: ",
+                strategyRegistryAddr == deployer.getAddress(buildStrategyRegistryName()) ? unicode"✅" : unicode"❌",
+                " (",
+                buildStrategyRegistryName(),
+                ")"
+            )
+        );
+        console.log(
+            string.concat(
+                "Matches basketManager.strategyRegistry(): ",
+                strategyRegistryAddr == basketManager.strategyRegistry() ? unicode"✅" : unicode"❌"
+            )
+        );
+
+        // Check for TokenSwapAdapter (CoWSwapAdapter)
+        address tokenSwapAdapterAddr = masterRegistry.resolveNameToLatestAddress("CowSwapAdapter");
+        require(tokenSwapAdapterAddr != address(0), "CowSwapAdapter not registered");
+        console.log("\n=== CowSwapAdapter ===");
+        console.log("MR Registered Address:", tokenSwapAdapterAddr);
+        console.log(
+            string.concat(
+                "Matches deployment json: ",
+                tokenSwapAdapterAddr == deployer.getAddress(buildCowSwapAdapterName()) ? unicode"✅" : unicode"❌",
+                " (",
+                buildCowSwapAdapterName(),
+                ")"
+            )
+        );
+        console.log(
+            string.concat(
+                "Matches basketManager.tokenSwapAdapter(): ",
+                tokenSwapAdapterAddr == basketManager.tokenSwapAdapter() ? unicode"✅" : unicode"❌"
+            )
+        );
+
         // Validate all configured oracles
         console.log("\n=== Validating Oracle Configurations ===");
         basketManager.testLib_validateConfiguredOracles();
@@ -183,6 +254,9 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
             console.log("\nAnchor Oracle (Chainlink sourced):", anchorOracle);
             _traverseOracles(anchorOracle, "");
         }
+
+        // Verify permissions
+        _verifyPermissions();
     }
 
     /// @notice Traverses the oracle path recursively, printing details for each oracle encountered.
@@ -404,5 +478,466 @@ contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNa
 
             return string.concat("0.", padding, fractionStr);
         }
+    }
+
+    function _verifyPermissions() internal {
+        console.log("\n\n=== Permission Checks ===");
+
+        // --- MasterRegistry ---
+        address masterRegistryAddr = _getAddressOrRevert(buildMasterRegistryName());
+        _verifyMasterRegistryPermissions(IMasterRegistry(masterRegistryAddr));
+
+        // --- BasketManager ---
+        address basketManagerAddr = IMasterRegistry(masterRegistryAddr).resolveNameToLatestAddress("BasketManager");
+        _verifyBasketManagerPermissions(BasketManager(basketManagerAddr));
+
+        // --- EulerRouter ---
+        address eulerRouterAddr = IMasterRegistry(masterRegistryAddr).resolveNameToLatestAddress("EulerRouter");
+        _verifyEulerRouterPermissions(EulerRouter(eulerRouterAddr));
+
+        // --- AssetRegistry ---
+        address assetRegistryAddr = IMasterRegistry(masterRegistryAddr).resolveNameToLatestAddress("AssetRegistry");
+        _verifyAssetRegistryPermissions(AssetRegistry(assetRegistryAddr));
+
+        // --- StrategyRegistry ---
+        address strategyRegistryAddr =
+            IMasterRegistry(masterRegistryAddr).resolveNameToLatestAddress("StrategyRegistry");
+        _verifyStrategyRegistryPermissions(StrategyRegistry(strategyRegistryAddr));
+
+        // --- FeeCollector ---
+        address feeCollectorAddr = IMasterRegistry(masterRegistryAddr).resolveNameToLatestAddress("FeeCollector");
+        _verifyFeeCollectorPermissions(FeeCollector(feeCollectorAddr), BasketManager(basketManagerAddr));
+
+        // --- TimelockController ---
+        address timelockControllerAddr =
+            IMasterRegistry(masterRegistryAddr).resolveNameToLatestAddress("TimelockController");
+        if (timelockControllerAddr == address(0)) {
+            console.log(unicode"❌ TimelockController not found in MasterRegistry. Fetching from deployments.json...");
+            timelockControllerAddr = _getAddressOrRevert(buildTimelockControllerName());
+        }
+        _verifyTimelockControllerPermissions(TimelockController(payable(timelockControllerAddr)));
+
+        // --- ManagedWeightStrategy Instances ---
+        // Need to iterate or get known instances. For staging, there's "Gauntlet V1"
+        address gauntletStrategyAddr = _getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1"));
+        _verifyManagedWeightStrategyPermissions(ManagedWeightStrategy(gauntletStrategyAddr), "Gauntlet V1");
+
+        // --- BasketToken Instances ---
+        BasketManager bm = BasketManager(basketManagerAddr);
+        address[] memory basketTokens = bm.basketTokens();
+        for (uint256 i = 0; i < basketTokens.length; i++) {
+            _verifyBasketTokenPermissions(BasketToken(basketTokens[i]), bm);
+        }
+    }
+
+    // Helper to print contract header
+    function _printContractHeader(string memory contractName, address contractAddr) private pure {
+        console.log(string.concat("\n--- ", contractName, " (", vm.toString(contractAddr), ") ---"));
+    }
+
+    // Helper to check and log a single address configuration
+    function _checkAndLogAddress(
+        string memory label,
+        address actual,
+        address expected,
+        string memory expectedName
+    )
+        private
+        pure
+    {
+        string memory checkMark = actual == expected ? unicode"✅" : unicode"❌";
+        console.log(
+            string.concat("  ", label, ": ", vm.toString(actual), " (Expected: ", expectedName, " ", checkMark, ")")
+        );
+    }
+
+    function _checkAndLogRoleMembers(
+        AccessControl target,
+        bytes32 role,
+        string memory roleName,
+        address[] memory expectedMembers,
+        string[] memory expectedMemberNames
+    )
+        private
+        view
+    {
+        console.log(string.concat("  ", roleName, ":"));
+        for (uint256 i = 0; i < expectedMembers.length; i++) {
+            if (target.hasRole(role, expectedMembers[i])) {
+                console.log(
+                    string.concat(
+                        "    - Member: ",
+                        vm.toString(expectedMembers[i]),
+                        " (Is ",
+                        expectedMemberNames[i],
+                        unicode" ✅ )"
+                    )
+                );
+            } else {
+                console.log(string.concat("    - NOT a Member: ", vm.toString(expectedMembers[i]), unicode" ❌"));
+            }
+        }
+    }
+
+    // Helper to check and log role members
+    function _checkAndLogRoleMembersEnumerable(
+        AccessControlEnumerable target,
+        bytes32 role,
+        string memory roleName,
+        address[] memory expectedMembers,
+        string[] memory expectedMemberNames
+    )
+        private
+        view
+    {
+        console.log(string.concat("  ", roleName, ":"));
+        uint256 memberCount = target.getRoleMemberCount(role);
+        bool[] memory foundExpected = new bool[](expectedMembers.length);
+
+        for (uint256 j = 0; j < memberCount; j++) {
+            address member = target.getRoleMember(role, j);
+            string memory memberMatchStatus = unicode" (Is unrecognized ⚠️)";
+            for (uint256 k = 0; k < expectedMembers.length; k++) {
+                if (member == expectedMembers[k]) {
+                    memberMatchStatus = string.concat(" (Is ", expectedMemberNames[k], unicode" ✅ )");
+                    foundExpected[k] = true;
+                    break;
+                }
+            }
+            console.log(string.concat("    - Member: ", vm.toString(member), memberMatchStatus));
+        }
+
+        for (uint256 k = 0; k < expectedMembers.length; k++) {
+            require(
+                foundExpected[k],
+                string.concat(
+                    "Expected member ",
+                    expectedMemberNames[k],
+                    " (",
+                    vm.toString(expectedMembers[k]),
+                    ") not found in role ",
+                    roleName
+                )
+            );
+            if (!foundExpected[k]) {
+                console.log(
+                    string.concat(
+                        "    Missing expected member: ",
+                        vm.toString(expectedMembers[k]),
+                        " (",
+                        expectedMemberNames[k],
+                        unicode") ❌"
+                    )
+                );
+            }
+        }
+        // Optionally, check if memberCount equals expectedMembers.length if the role should be exclusive
+        // For now, just ensuring all expected members are present.
+    }
+
+    function _verifyMasterRegistryPermissions(IMasterRegistry target) private view {
+        _printContractHeader("MasterRegistry", address(target));
+        address[] memory expectedAdmins = new address[](1);
+        expectedAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        string[] memory expectedAdminNames = new string[](1);
+        expectedAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            AccessControlEnumerable(payable(address(target))),
+            DEFAULT_ADMIN_ROLE,
+            "DEFAULT_ADMIN_ROLE",
+            expectedAdmins,
+            expectedAdminNames
+        );
+    }
+
+    function _verifyBasketManagerPermissions(BasketManager target) private view {
+        _printContractHeader("BasketManager", address(target));
+
+        address[] memory expectedDefaultAdmins = new address[](1);
+        expectedDefaultAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        string[] memory expectedDefaultAdminNames = new string[](1);
+        expectedDefaultAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            target, DEFAULT_ADMIN_ROLE, "DEFAULT_ADMIN_ROLE", expectedDefaultAdmins, expectedDefaultAdminNames
+        );
+
+        address[] memory expectedManagers = new address[](1);
+        expectedManagers[0] = COVE_STAGING_OPS_MULTISIG;
+        string[] memory expectedManagerNames = new string[](1);
+        expectedManagerNames[0] = "COVE_STAGING_OPS_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(target, MANAGER_ROLE, "MANAGER_ROLE", expectedManagers, expectedManagerNames);
+
+        address[] memory expectedPausers = new address[](4);
+        expectedPausers[0] = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+        expectedPausers[1] = COVE_STAGING_COMMUNITY_MULTISIG;
+        expectedPausers[2] = COVE_STAGING_OPS_MULTISIG;
+        expectedPausers[3] = COVE_DEPLOYER_ADDRESS;
+        string[] memory expectedPauserNames = new string[](4);
+        expectedPauserNames[0] = "STAGING_COVE_SILVERBACK_AWS_ACCOUNT";
+        expectedPauserNames[1] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        expectedPauserNames[2] = "COVE_STAGING_OPS_MULTISIG";
+        expectedPauserNames[3] = "COVE_DEPLOYER_ADDRESS";
+        _checkAndLogRoleMembersEnumerable(target, PAUSER_ROLE, "PAUSER_ROLE", expectedPausers, expectedPauserNames);
+
+        address[] memory expectedRebalanceProposers = new address[](1);
+        expectedRebalanceProposers[0] = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
+        string[] memory expectedRebalanceProposerNames = new string[](1);
+        expectedRebalanceProposerNames[0] = "STAGING_COVE_SILVERBACK_AWS_ACCOUNT";
+        _checkAndLogRoleMembersEnumerable(
+            target,
+            REBALANCE_PROPOSER_ROLE,
+            "REBALANCE_PROPOSER_ROLE",
+            expectedRebalanceProposers,
+            expectedRebalanceProposerNames
+        );
+        _checkAndLogRoleMembersEnumerable(
+            target,
+            TOKENSWAP_PROPOSER_ROLE,
+            "TOKENSWAP_PROPOSER_ROLE",
+            expectedRebalanceProposers,
+            expectedRebalanceProposerNames
+        ); // Same as rebalance proposer
+        _checkAndLogRoleMembersEnumerable(
+            target,
+            TOKENSWAP_EXECUTOR_ROLE,
+            "TOKENSWAP_EXECUTOR_ROLE",
+            expectedRebalanceProposers,
+            expectedRebalanceProposerNames
+        ); // Same as rebalance proposer
+
+        address expectedTimelockAddr = _getAddressOrRevert(buildTimelockControllerName());
+        address[] memory expectedTimelocks = new address[](1);
+        expectedTimelocks[0] = expectedTimelockAddr;
+        string[] memory expectedTimelockNames = new string[](1);
+        expectedTimelockNames[0] = buildTimelockControllerName();
+        _checkAndLogRoleMembersEnumerable(
+            target, TIMELOCK_ROLE, "TIMELOCK_ROLE", expectedTimelocks, expectedTimelockNames
+        );
+
+        _checkAndLogAddress(
+            "feeCollector()",
+            target.feeCollector(),
+            _getAddressOrRevert(buildFeeCollectorName()),
+            buildFeeCollectorName()
+        );
+        _checkAndLogAddress(
+            "tokenSwapAdapter()",
+            target.tokenSwapAdapter(),
+            _getAddressOrRevert(buildCowSwapAdapterName()),
+            buildCowSwapAdapterName()
+        );
+        _checkAndLogAddress(
+            "assetRegistry()",
+            address(target.assetRegistry()),
+            _getAddressOrRevert(buildAssetRegistryName()),
+            buildAssetRegistryName()
+        );
+        _checkAndLogAddress(
+            "strategyRegistry()",
+            address(target.strategyRegistry()),
+            _getAddressOrRevert(buildStrategyRegistryName()),
+            buildStrategyRegistryName()
+        );
+        _checkAndLogAddress(
+            "eulerRouter()",
+            address(target.eulerRouter()),
+            _getAddressOrRevert(buildEulerRouterName()),
+            buildEulerRouterName()
+        );
+        console.log(string.concat("  swapFee(): ", vm.toString(target.swapFee())));
+        console.log(string.concat("  retryLimit(): ", vm.toString(target.retryLimit())));
+        console.log(string.concat("  stepDelay(): ", vm.toString(target.stepDelay())));
+        console.log(string.concat("  slippageLimit(): ", vm.toString(target.slippageLimit())));
+        console.log(string.concat("  weightDeviationLimit(): ", vm.toString(target.weightDeviationLimit())));
+    }
+
+    function _verifyEulerRouterPermissions(EulerRouter target) private view {
+        _printContractHeader(buildEulerRouterName(), address(target));
+        _checkAndLogAddress(
+            "governor()", target.governor(), COVE_STAGING_COMMUNITY_MULTISIG, "COVE_STAGING_COMMUNITY_MULTISIG"
+        );
+    }
+
+    function _verifyAssetRegistryPermissions(AssetRegistry target) private view {
+        _printContractHeader(buildAssetRegistryName(), address(target));
+        address[] memory expectedDefaultAdmins = new address[](1);
+        expectedDefaultAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        string[] memory expectedDefaultAdminNames = new string[](1);
+        expectedDefaultAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            target, DEFAULT_ADMIN_ROLE, "DEFAULT_ADMIN_ROLE", expectedDefaultAdmins, expectedDefaultAdminNames
+        );
+
+        address[] memory expectedManagers = new address[](1);
+        expectedManagers[0] = COVE_STAGING_OPS_MULTISIG;
+        string[] memory expectedManagerNames = new string[](1);
+        expectedManagerNames[0] = "COVE_STAGING_OPS_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            target, keccak256("MANAGER_ROLE"), "MANAGER_ROLE", expectedManagers, expectedManagerNames
+        );
+    }
+
+    function _verifyStrategyRegistryPermissions(StrategyRegistry target) private view {
+        _printContractHeader(buildStrategyRegistryName(), address(target));
+        address[] memory expectedDefaultAdmins = new address[](1);
+        expectedDefaultAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        string[] memory expectedDefaultAdminNames = new string[](1);
+        expectedDefaultAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            target, DEFAULT_ADMIN_ROLE, "DEFAULT_ADMIN_ROLE", expectedDefaultAdmins, expectedDefaultAdminNames
+        );
+
+        // Check known strategies have WEIGHT_STRATEGY_ROLE
+        address gauntletStrategyAddr = _getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1"));
+        address[] memory expectedStrategies = new address[](1);
+        expectedStrategies[0] = gauntletStrategyAddr;
+        string[] memory expectedStrategyNames = new string[](1);
+        expectedStrategyNames[0] = "Staging_ManagedWeightStrategy_Gauntlet V1";
+        _checkAndLogRoleMembersEnumerable(
+            target, keccak256("WEIGHT_STRATEGY_ROLE"), "WEIGHT_STRATEGY_ROLE", expectedStrategies, expectedStrategyNames
+        );
+    }
+
+    function _verifyFeeCollectorPermissions(FeeCollector target, BasketManager bm) private view {
+        _printContractHeader(buildFeeCollectorName(), address(target));
+        address[] memory expectedDefaultAdmins = new address[](1);
+        expectedDefaultAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        string[] memory expectedDefaultAdminNames = new string[](1);
+        expectedDefaultAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            target, DEFAULT_ADMIN_ROLE, "DEFAULT_ADMIN_ROLE", expectedDefaultAdmins, expectedDefaultAdminNames
+        );
+        _checkAndLogAddress(
+            "protocolTreasury()",
+            target.protocolTreasury(),
+            COVE_STAGING_COMMUNITY_MULTISIG,
+            "COVE_STAGING_COMMUNITY_MULTISIG"
+        );
+
+        // Check sponsor for deployed basket token (if any)
+        address[] memory basketTokens = bm.basketTokens();
+        if (basketTokens.length > 0) {
+            address basketToken = basketTokens[0]; // Assuming at least one basket
+            address expectedSponsor = COVE_STAGING_OPS_MULTISIG;
+            // This needs to be explicitly set in a deployment script for FeeCollector for a given basket.
+            // The default if not set is address(0). For the "Stables" basket, let's assume it's set to OPS.
+            _checkAndLogAddress(
+                string.concat("basketTokenSponsors(", vm.toString(basketToken), ")"),
+                target.basketTokenSponsors(basketToken),
+                expectedSponsor,
+                "GUANTLET MULTISIG (or as configured)"
+            );
+            // Sponsor split might also be default (0) or a configured value.
+            console.log(
+                string.concat(
+                    "  basketTokenSponsorSplits(",
+                    vm.toString(basketToken),
+                    "): ",
+                    vm.toString(target.basketTokenSponsorSplits(basketToken))
+                )
+            );
+        }
+    }
+
+    function _verifyTimelockControllerPermissions(TimelockController target) private view {
+        _printContractHeader(buildTimelockControllerName(), address(target));
+
+        address[] memory expectedProposers = new address[](3);
+        expectedProposers[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        expectedProposers[1] = COVE_STAGING_OPS_MULTISIG;
+        expectedProposers[2] = COVE_DEPLOYER_ADDRESS;
+        string[] memory expectedProposerNames = new string[](3);
+        expectedProposerNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        expectedProposerNames[1] = "COVE_STAGING_OPS_MULTISIG";
+        expectedProposerNames[2] = "COVE_DEPLOYER_ADDRESS";
+        _checkAndLogRoleMembers(
+            AccessControl(payable(address(target))),
+            target.PROPOSER_ROLE(),
+            "PROPOSER_ROLE",
+            expectedProposers,
+            expectedProposerNames
+        );
+
+        // Expect the same proposers to be cancellers
+        _checkAndLogRoleMembers(
+            AccessControl(payable(address(target))),
+            target.CANCELLER_ROLE(),
+            "CANCELLER_ROLE",
+            expectedProposers,
+            expectedProposerNames
+        );
+
+        address[] memory expectedExecutors = new address[](1);
+        expectedExecutors[0] = COVE_DEPLOYER_ADDRESS;
+        string[] memory expectedExecutorNames = new string[](1);
+        expectedExecutorNames[0] = "COVE_DEPLOYER_ADDRESS";
+        _checkAndLogRoleMembers(
+            AccessControl(payable(address(target))),
+            target.EXECUTOR_ROLE(),
+            "EXECUTOR_ROLE",
+            expectedExecutors,
+            expectedExecutorNames
+        );
+
+        // TIMELOCK_ADMIN_ROLE is the DEFAULT_ADMIN_ROLE for TimelockController
+        address[] memory expectedTimelockAdmins = new address[](1);
+        expectedTimelockAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG;
+        string[] memory expectedTimelockAdminNames = new string[](1);
+        expectedTimelockAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembers(
+            AccessControl(payable(address(target))),
+            target.DEFAULT_ADMIN_ROLE(),
+            "DEFAULT_ADMIN_ROLE",
+            expectedTimelockAdmins,
+            expectedTimelockAdminNames
+        );
+    }
+
+    function _verifyManagedWeightStrategyPermissions(
+        ManagedWeightStrategy target,
+        string memory strategyName
+    )
+        private
+    {
+        _printContractHeader(string.concat("ManagedWeightStrategy: ", strategyName), address(target));
+        address[] memory expectedDefaultAdmins = new address[](1);
+        expectedDefaultAdmins[0] = COVE_STAGING_COMMUNITY_MULTISIG; // After _cleanPermissions
+        string[] memory expectedDefaultAdminNames = new string[](1);
+        expectedDefaultAdminNames[0] = "COVE_STAGING_COMMUNITY_MULTISIG";
+        _checkAndLogRoleMembersEnumerable(
+            target, DEFAULT_ADMIN_ROLE, "DEFAULT_ADMIN_ROLE", expectedDefaultAdmins, expectedDefaultAdminNames
+        );
+
+        // In Deployments_Staging.s.sol, _deployManagedStrategy("Gauntlet V1") is called with COVE_DEPLOYER_ADDRESS as
+        // manager.
+        // And admin (COVE_STAGING_COMMUNITY_MULTISIG) is granted DEFAULT_ADMIN_ROLE for the strategy.
+        // The deployer's DEFAULT_ADMIN_ROLE on strategy is revoked.
+        // So, manager of strategy should be COVE_DEPLOYER_ADDRESS.
+        address[] memory expectedManagers = new address[](1);
+        expectedManagers[0] = COVE_DEPLOYER_ADDRESS;
+        string[] memory expectedManagerNames = new string[](1);
+        expectedManagerNames[0] = "COVE_DEPLOYER_ADDRESS";
+        _checkAndLogRoleMembersEnumerable(
+            target, keccak256("MANAGER_ROLE"), "MANAGER_ROLE", expectedManagers, expectedManagerNames
+        );
+    }
+
+    function _verifyBasketTokenPermissions(BasketToken target, BasketManager bm) private view {
+        _printContractHeader(string.concat("BasketToken: ", target.name()), address(target));
+        _checkAndLogAddress("basketManager()", target.basketManager(), address(bm), "Staging_BasketManager");
+        _checkAndLogAddress(
+            "assetRegistry()", target.assetRegistry(), address(bm.assetRegistry()), "Staging_AssetRegistry"
+        );
+        _checkAndLogAddress(
+            "strategy()",
+            target.strategy(),
+            _getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1")),
+            "Staging_ManagedWeightStrategy_Gauntlet V1"
+        );
+        console.log(
+            string.concat(
+                "  managementFee(): ", vm.toString(BasketManager(target.basketManager()).managementFee(address(target)))
+            )
+        );
     }
 }

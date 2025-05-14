@@ -18,7 +18,7 @@ contract DeploymentsStaging is Deployments {
         // Staging deploy
         admin = COVE_STAGING_COMMUNITY_MULTISIG;
         treasury = COVE_STAGING_COMMUNITY_MULTISIG;
-        pauser = COVE_DEPLOYER_ADDRESS;
+        pauser = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
         manager = COVE_STAGING_OPS_MULTISIG;
         timelock = getAddressOrRevert(buildTimelockControllerName());
         rebalanceProposer = STAGING_COVE_SILVERBACK_AWS_ACCOUNT;
