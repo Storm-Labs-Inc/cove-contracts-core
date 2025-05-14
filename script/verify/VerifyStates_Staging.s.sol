@@ -37,7 +37,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
 // solhint-disable contract-name-capwords
-contract VerifyOracles_Staging is DeployScript, Constants, BuildDeploymentJsonNames {
+contract VerifyStates_Staging is DeployScript, Constants, BuildDeploymentJsonNames {
     using BasketManagerValidationLib for BasketManager;
     using Strings for string;
 
