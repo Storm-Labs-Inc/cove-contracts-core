@@ -834,11 +834,11 @@ library BasketManagerValidationLib {
 
         // First pass: Calculate total number of potential trades
         for (uint256 i = 0; i < slot.surplusDeficitCount; i++) {
-            if (slot.surplusDeficits[i].deficit > 0) {
-                // For each deficit, we need to find surplus assets in the same basket
+            if (slot.surplusDeficits[i].surplus > 0) {
+                // For each surplus, we need to find deficit assets in the same basket
                 for (uint256 j = 0; j < slot.surplusDeficitCount; j++) {
                     if (
-                        slot.surplusDeficits[j].surplus > 0
+                        slot.surplusDeficits[j].deficit > 0
                             && slot.surplusDeficits[i].basket == slot.surplusDeficits[j].basket
                     ) {
                         slot.externalTradeCount++;
@@ -853,35 +853,42 @@ library BasketManagerValidationLib {
         slot.externalTrades = new ExternalTrade[](slot.externalTradeCount);
         slot.currentExternalTrade = 0;
 
-        // Second pass: Generate actual trades
+        // Second pass: Generate actual trades - iterate through surpluses first
         for (uint256 i = 0; i < slot.surplusDeficitCount && slot.currentExternalTrade < slot.externalTradeCount; i++) {
-            if (slot.surplusDeficits[i].deficit > 0) {
-                // Calculate USD value of deficit
-                uint256 deficitValueUSD = _getPrimaryOracleQuote(
-                    eulerRouter, slot.surplusDeficits[i].deficit, slot.surplusDeficits[i].asset, USD
+            if (slot.surplusDeficits[i].surplus > 0) {
+                // Calculate USD value of surplus
+                uint256 surplusValueUSD = _getPrimaryOracleQuote(
+                    eulerRouter, slot.surplusDeficits[i].surplus, slot.surplusDeficits[i].asset, USD
                 );
 
-                // Find surplus assets in the same basket to cover this deficit
-                for (uint256 j = 0; j < slot.surplusDeficitCount && deficitValueUSD > 0; j++) {
+                // Find deficit assets in the same basket to match with this surplus
+                for (uint256 j = 0; j < slot.surplusDeficitCount && surplusValueUSD > 0; j++) {
                     if (
-                        slot.surplusDeficits[j].surplus > 0
+                        slot.surplusDeficits[j].deficit > 0
                             && slot.surplusDeficits[i].basket == slot.surplusDeficits[j].basket
                     ) {
-                        // Calculate how much of the surplus we need to use
-                        uint256 surplusValueUSD = _getPrimaryOracleQuote(
-                            eulerRouter, slot.surplusDeficits[j].surplus, slot.surplusDeficits[j].asset, USD
+                        // Calculate USD value of deficit
+                        uint256 deficitValueUSD = _getPrimaryOracleQuote(
+                            eulerRouter, slot.surplusDeficits[j].deficit, slot.surplusDeficits[j].asset, USD
                         );
 
                         // Use either the full surplus or just enough to cover the deficit
-                        uint256 usedSurplusValueUSD =
-                            surplusValueUSD > deficitValueUSD ? deficitValueUSD : surplusValueUSD;
+                        uint256 tradeUSD = surplusValueUSD > deficitValueUSD ? deficitValueUSD : surplusValueUSD;
 
                         // Calculate actual amounts to trade
                         slot.sellAmount =
-                            _getPrimaryOracleQuote(eulerRouter, usedSurplusValueUSD, USD, slot.surplusDeficits[j].asset);
+                            _getPrimaryOracleQuote(eulerRouter, tradeUSD, USD, slot.surplusDeficits[i].asset);
+
+                        // Ensure we don't sell more than available surplus
+                        if (slot.sellAmount > slot.surplusDeficits[i].surplus) {
+                            slot.sellAmount = slot.surplusDeficits[i].surplus;
+                            // Recalculate tradeUSD based on actual sellAmount
+                            tradeUSD =
+                                _getPrimaryOracleQuote(eulerRouter, slot.sellAmount, slot.surplusDeficits[i].asset, USD);
+                        }
 
                         slot.expectedBuyAmount =
-                            _getPrimaryOracleQuote(eulerRouter, usedSurplusValueUSD, USD, slot.surplusDeficits[i].asset);
+                            _getPrimaryOracleQuote(eulerRouter, tradeUSD, USD, slot.surplusDeficits[j].asset);
 
                         // Apply 0.5% slippage
                         slot.minBuyAmount = slot.expectedBuyAmount * 995 / 1000;
@@ -896,8 +903,8 @@ library BasketManagerValidationLib {
 
                         // Create external trade
                         slot.externalTrades[slot.currentExternalTrade] = ExternalTrade({
-                            sellToken: slot.surplusDeficits[j].asset,
-                            buyToken: slot.surplusDeficits[i].asset,
+                            sellToken: slot.surplusDeficits[i].asset,
+                            buyToken: slot.surplusDeficits[j].asset,
                             sellAmount: slot.sellAmount,
                             minAmount: slot.minBuyAmount,
                             basketTradeOwnership: slot.tradeOwnerships
@@ -910,11 +917,11 @@ library BasketManagerValidationLib {
                                 " Basket: ",
                                 vm.toString(slot.surplusDeficits[i].basket),
                                 " Sells: ",
-                                vm.toString(slot.surplusDeficits[j].asset),
+                                vm.toString(slot.surplusDeficits[i].asset),
                                 " Sell Amount: ",
                                 vm.toString(slot.sellAmount),
                                 " Buys: ",
-                                vm.toString(slot.surplusDeficits[i].asset),
+                                vm.toString(slot.surplusDeficits[j].asset),
                                 " Min Buy Amount: ",
                                 vm.toString(slot.minBuyAmount)
                             )
@@ -923,10 +930,20 @@ library BasketManagerValidationLib {
                         slot.currentExternalTrade++;
 
                         // Update remaining surplus and deficit
-                        slot.surplusDeficits[j].surplus -= slot.sellAmount;
-                        deficitValueUSD -= usedSurplusValueUSD;
-                        slot.surplusDeficits[i].deficit =
-                            _getPrimaryOracleQuote(eulerRouter, deficitValueUSD, USD, slot.surplusDeficits[i].asset);
+                        slot.surplusDeficits[i].surplus -= slot.sellAmount;
+                        surplusValueUSD -= tradeUSD;
+
+                        // Update deficit amount
+                        if (slot.expectedBuyAmount >= slot.surplusDeficits[j].deficit) {
+                            slot.surplusDeficits[j].deficit = 0;
+                        } else {
+                            slot.surplusDeficits[j].deficit -= slot.expectedBuyAmount;
+                        }
+
+                        // If we've used all of this surplus, move to the next surplus
+                        if (slot.surplusDeficits[i].surplus == 0 || surplusValueUSD == 0) {
+                            break;
+                        }
                     }
                 }
             }
