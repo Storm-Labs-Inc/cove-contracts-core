@@ -422,8 +422,7 @@ library BasketManagerValidationLib {
         if (basketManager.rebalanceStatus().status == Status.NOT_STARTED) {
             pendingRedeems = BasketToken(basket).totalPendingRedemptions();
         } else {
-            pendingRedeems =
-                BasketToken(basket).getRedeemRequest(BasketToken(basket).nextRedeemRequestId() - 2).totalRedeemShares;
+            pendingRedeems = _getPendingRedemptionSharesBeingProcessed(BasketToken(basket), basketManager);
         }
 
         // Calculate total USD value of the basket
@@ -553,9 +552,7 @@ library BasketManagerValidationLib {
             if (basketManager.rebalanceStatus().status == Status.NOT_STARTED) {
                 slot.pendingRedeems = BasketToken(basket).totalPendingRedemptions();
             } else {
-                slot.pendingRedeems = BasketToken(basket).getRedeemRequest(
-                    BasketToken(basket).nextRedeemRequestId() - 2
-                ).totalRedeemShares;
+                slot.pendingRedeems = _getPendingRedemptionSharesBeingProcessed(BasketToken(basket), basketManager);
             }
             slot.totalSupply = BasketToken(basket).totalSupply();
             slot.redemptionValue = 0;
@@ -563,65 +560,62 @@ library BasketManagerValidationLib {
             console.log("Pending redemptions: ", slot.pendingRedeems);
             console.log("Total supply: ", slot.totalSupply);
 
-            if (slot.pendingRedeems > 0 && slot.totalSupply > 0) {
-                console.log("--- Processing redemptions ---");
-                // Calculate the USD value needed for redemptions
-                slot.redemptionValue =
-                    FixedPointMathLib.fullMulDiv(slot.totalValue, slot.pendingRedeems, slot.totalSupply);
-                console.log("Redemption USD value: ", slot.redemptionValue);
+            console.log("--- Processing redemptions ---");
+            // Calculate the USD value needed for redemptions
+            slot.redemptionValue = FixedPointMathLib.fullMulDiv(slot.totalValue, slot.pendingRedeems, slot.totalSupply);
+            console.log("Redemption USD value: ", slot.redemptionValue);
 
-                // Adjust the target value for base asset to account for redemptions
-                slot.baseAssetTargetValue = FixedPointMathLib.fullMulDiv(
-                    slot.totalValue - slot.redemptionValue, targetWeights[slot.baseAssetIndex], 1e18
-                );
-                slot.baseAssetNeededForRedemption =
-                    _getPrimaryOracleQuote(eulerRouter, slot.redemptionValue, USD, assets[slot.baseAssetIndex]);
-                slot.baseAssetTotalTarget = slot.baseAssetNeededForRedemption
-                    + _getPrimaryOracleQuote(eulerRouter, slot.baseAssetTargetValue, USD, assets[slot.baseAssetIndex]);
+            // Adjust the target value for base asset to account for redemptions
+            slot.baseAssetTargetValue = FixedPointMathLib.fullMulDiv(
+                slot.totalValue - slot.redemptionValue, targetWeights[slot.baseAssetIndex], 1e18
+            );
+            slot.baseAssetNeededForRedemption =
+                _getPrimaryOracleQuote(eulerRouter, slot.redemptionValue, USD, assets[slot.baseAssetIndex]);
+            slot.baseAssetTotalTarget = slot.baseAssetNeededForRedemption
+                + _getPrimaryOracleQuote(eulerRouter, slot.baseAssetTargetValue, USD, assets[slot.baseAssetIndex]);
 
-                console.log("Base asset target value (excl. redemptions): ", slot.baseAssetTargetValue);
-                console.log("Base asset needed for redemptions: ", slot.baseAssetNeededForRedemption);
-                console.log("Base asset total target: ", slot.baseAssetTotalTarget);
+            console.log("Base asset target value (excl. redemptions): ", slot.baseAssetTargetValue);
+            console.log("Base asset needed for redemptions: ", slot.baseAssetNeededForRedemption);
+            console.log("Base asset total target: ", slot.baseAssetTotalTarget);
 
-                // Record surplus/deficit for base asset considering redemptions
-                slot.currentBaseAssetAmount = basketManager.basketBalanceOf(basket, slot.baseAsset);
-                if (slot.currentBaseAssetAmount > slot.baseAssetTotalTarget) {
-                    slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
-                        basket: basket,
-                        asset: slot.baseAsset,
-                        surplus: slot.currentBaseAssetAmount - slot.baseAssetTotalTarget,
-                        deficit: 0,
-                        currentAmount: slot.currentBaseAssetAmount,
-                        targetAmount: slot.baseAssetTotalTarget
-                    });
-                    console.log("Base asset SURPLUS: ", slot.currentBaseAssetAmount - slot.baseAssetTotalTarget);
-                } else if (slot.currentBaseAssetAmount < slot.baseAssetTotalTarget) {
-                    slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
-                        basket: basket,
-                        asset: slot.baseAsset,
-                        surplus: 0,
-                        deficit: slot.baseAssetTotalTarget - slot.currentBaseAssetAmount,
-                        currentAmount: slot.currentBaseAssetAmount,
-                        targetAmount: slot.baseAssetTotalTarget
-                    });
-                    console.log("Base asset DEFICIT: ", slot.baseAssetTotalTarget - slot.currentBaseAssetAmount);
-                } else {
-                    slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
-                        basket: basket,
-                        asset: slot.baseAsset,
-                        surplus: 0,
-                        deficit: 0,
-                        currentAmount: slot.currentBaseAssetAmount,
-                        targetAmount: slot.baseAssetTotalTarget
-                    });
-                    console.log("Base asset BALANCED");
-                }
-                slot.surplusDeficitCount++;
-
-                // Adjust total value to account for redemptions
-                slot.totalValue -= slot.redemptionValue;
-                console.log("Adjusted total USD value (excl. redemptions): ", slot.totalValue);
+            // Record surplus/deficit for base asset considering redemptions
+            slot.currentBaseAssetAmount = basketManager.basketBalanceOf(basket, slot.baseAsset);
+            if (slot.currentBaseAssetAmount > slot.baseAssetTotalTarget) {
+                slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
+                    basket: basket,
+                    asset: slot.baseAsset,
+                    surplus: slot.currentBaseAssetAmount - slot.baseAssetTotalTarget,
+                    deficit: 0,
+                    currentAmount: slot.currentBaseAssetAmount,
+                    targetAmount: slot.baseAssetTotalTarget
+                });
+                console.log("Base asset SURPLUS: ", slot.currentBaseAssetAmount - slot.baseAssetTotalTarget);
+            } else if (slot.currentBaseAssetAmount < slot.baseAssetTotalTarget) {
+                slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
+                    basket: basket,
+                    asset: slot.baseAsset,
+                    surplus: 0,
+                    deficit: slot.baseAssetTotalTarget - slot.currentBaseAssetAmount,
+                    currentAmount: slot.currentBaseAssetAmount,
+                    targetAmount: slot.baseAssetTotalTarget
+                });
+                console.log("Base asset DEFICIT: ", slot.baseAssetTotalTarget - slot.currentBaseAssetAmount);
+            } else {
+                slot.surplusDeficits[slot.surplusDeficitCount] = SurplusDeficit({
+                    basket: basket,
+                    asset: slot.baseAsset,
+                    surplus: 0,
+                    deficit: 0,
+                    currentAmount: slot.currentBaseAssetAmount,
+                    targetAmount: slot.baseAssetTotalTarget
+                });
+                console.log("Base asset BALANCED");
             }
+            slot.surplusDeficitCount++;
+
+            // Adjust total value to account for redemptions
+            slot.totalValue -= slot.redemptionValue;
+            console.log("Adjusted total USD value (excl. redemptions): ", slot.totalValue);
 
             // Calculate surplus/deficit for non-base assets
             console.log("--- Processing non-base assets ---");
@@ -989,6 +983,9 @@ library BasketManagerValidationLib {
         view
         returns (uint256)
     {
+        if (amount == 0) {
+            return 0;
+        }
         address anchoredOracle = eulerRouter.getConfiguredOracle(base, quote);
         if (anchoredOracle == address(0)) {
             revert OracleNotConfigured(base);
@@ -1254,6 +1251,46 @@ library BasketManagerValidationLib {
             return keccak256(bytes(name)) == keccak256(bytes("ChainedERC4626Oracle"));
         } catch {
             return false;
+        }
+    }
+
+    /// @notice Helper function to get the pending redemption shares being processed
+    /// @dev Note that this function is only for locked redemption shares that are being processed in the current
+    /// rebalance cycle. Does not include pending redemption shares in the future epoch that are not yet being
+    /// processed.
+    /// @param bt The BasketToken instance
+    /// @param basketManager The BasketManager instance
+    /// @return pendingRedeems The pending redemption shares being processed
+    function _getPendingRedemptionSharesBeingProcessed(
+        BasketToken bt,
+        BasketManager basketManager
+    )
+        internal
+        view
+        returns (uint256 pendingRedeems)
+    {
+        if (basketManager.rebalanceStatus().status == Status.NOT_STARTED) {
+            revert("No pending redemption shares are being processed");
+        }
+        // When rebalance has started, prepareForRebalance has run.
+        // The redeem request ID that fulfillRedeem will target is nextRedeemRequestId - 2.
+        uint256 currentNextRedeemRequestId = bt.nextRedeemRequestId();
+
+        // nextRedeemRequestId is always >= 3, so currentNextRedeemRequestId - 2 is always >= 1.
+        uint256 reqIdForCurrentCycleProcessing = currentNextRedeemRequestId - 2;
+        BasketToken.RedeemRequestView memory redeemRequest = bt.getRedeemRequest(reqIdForCurrentCycleProcessing);
+
+        // If this request slot is not yet fulfilled and not in fallback,
+        // its shares are considered pending for the current cycle's calculations.
+        if (redeemRequest.fulfilledAssets == 0 && !redeemRequest.fallbackTriggered) {
+            pendingRedeems = redeemRequest.totalRedeemShares;
+        } else {
+            // If the request slot (nextRedeemRequestId - 2) is already settled (fulfilled or fallbacked),
+            // it means that for the purpose of calculating targets for the *current* rebalance cycle,
+            // there are no "pending" shares from this specific processing slot.
+            // This handles the case where prepareForRebalance processed an epoch with 0 actual new redemptions,
+            // did not advance nextRedeemRequestId, and thus nextRedeemRequestId - 2 points to an old, settled request.
+            pendingRedeems = 0;
         }
     }
 }
