@@ -701,7 +701,9 @@ contract BasketManagerHandler is Test, Constants {
         for (uint256 i = 0; i < trades.length; i++) {
             // Transfer tokens to simulate trade execution
             _takeAway(IERC20(trades[i].sellToken), swapContracts[i], trades[i].sellAmount);
-            _airdrop(IERC20(trades[i].buyToken), swapContracts[i], trades[i].minAmount, trades[i].buyToken != ETH_WETH);
+            bool adjustTotalSupply = trades[i].buyToken != ETH_YSYG_YVUSDS_1 && trades[i].buyToken != ETH_SUPERUSDC
+                && trades[i].buyToken != ETH_WETH;
+            _airdrop(IERC20(trades[i].buyToken), swapContracts[i], trades[i].minAmount, adjustTotalSupply);
         }
     }
 
