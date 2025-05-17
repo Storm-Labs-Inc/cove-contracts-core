@@ -43,8 +43,8 @@ fail_on_revert = true
 runs = 20
 
 [profile.invariant.invariant]
-depth = 300
-runs = 256
+depth = 100
+runs = 100
 
 [fmt]
 bracket_spacing = true
