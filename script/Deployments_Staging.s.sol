@@ -9,6 +9,8 @@ contract DeploymentsStaging is Deployments {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
+    uint256 public constant PYTH_MAX_STALENESS = 60 seconds;
+
     function _buildPrefix() internal pure override returns (string memory) {
         return "Staging_";
     }
@@ -55,7 +57,7 @@ contract DeploymentsStaging is Deployments {
             ETH_USDC,
             OracleOptions({
                 pythPriceFeed: PYTH_USDC_USD_FEED,
-                pythMaxStaleness: 30 seconds,
+                pythMaxStaleness: PYTH_MAX_STALENESS,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
@@ -73,7 +75,7 @@ contract DeploymentsStaging is Deployments {
             true,
             OracleOptions({
                 pythPriceFeed: PYTH_USDC_USD_FEED,
-                pythMaxStaleness: 30 seconds,
+                pythMaxStaleness: PYTH_MAX_STALENESS,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
@@ -91,7 +93,7 @@ contract DeploymentsStaging is Deployments {
             true,
             OracleOptions({
                 pythPriceFeed: PYTH_SUSDE_USD_FEED,
-                pythMaxStaleness: 30 seconds,
+                pythMaxStaleness: PYTH_MAX_STALENESS,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
@@ -111,7 +113,7 @@ contract DeploymentsStaging is Deployments {
             1, // sUSDe is the second coin in the pool, but the oracle uses USDe price
             OracleOptions({
                 pythPriceFeed: PYTH_FRXUSD_USD_FEED,
-                pythMaxStaleness: 30 seconds,
+                pythMaxStaleness: PYTH_MAX_STALENESS,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
@@ -128,7 +130,7 @@ contract DeploymentsStaging is Deployments {
             ETH_USDS,
             OracleOptions({
                 pythPriceFeed: PYTH_USDS_USD_FEED,
-                pythMaxStaleness: 30 seconds,
+                pythMaxStaleness: PYTH_MAX_STALENESS,
                 pythMaxConfWidth: 50, //0.5%
                 chainlinkPriceFeed: ETH_CHAINLINK_USDS_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
