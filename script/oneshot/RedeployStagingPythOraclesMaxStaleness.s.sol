@@ -88,7 +88,7 @@ contract RedeployStagingPythOraclesMaxStalenes is
 
         (new VerifyStates_Staging()).verifyDeployment();
 
-        // executeBatch(false);
+        executeBatch(true);
     }
 
     function _printCurrentConfiguration(address[] memory assets_) private {
