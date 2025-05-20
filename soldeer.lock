@@ -40,7 +40,7 @@ rev = "2a0c1987ca8a619fd41a0cc546706ebf38a2d4af"
 name = "forge-safe"
 version = "1"
 git = "https://github.com/Storm-Labs-Inc/forge-safe.git"
-rev = "b050356e4667fc952fe84b66cf2990d9bb35c172"
+rev = "8175a6a60844b86d36b3089fe08c584121c7658d"
 
 [[dependencies]]
 name = "forge-std"
