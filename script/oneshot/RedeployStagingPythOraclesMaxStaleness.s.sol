@@ -14,6 +14,8 @@ import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunction
 
 import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
 import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
+
+import { VerifyStates_Staging } from "script/verify/VerifyStates_Staging.s.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
@@ -47,46 +49,49 @@ contract RedeployStagingPythOraclesMaxStalenes is
     }
 
     function deploy() public isBatch(safe) {
+        deployer.setAutoBroadcast(true);
+
         assets = new address[](5);
+        assets[0] = ETH_USDC;
+        assets[1] = ETH_SUPERUSDC;
+        assets[2] = ETH_SUSDE;
+        assets[3] = ETH_SFRXUSD;
+        assets[4] = ETH_YSYG_YVUSDS_1;
+
+        // Print current configuration
+        _printCurrentConfiguration(assets);
 
         // 0. USD
         // Primary: USDC --(Pyth)--> USD
         // Anchor: USDC --(Chainlink)--> USD
-        assets[0] = ETH_USDC;
         _deployUSDCOracle();
         // 1. SUPERUSDC
         // Primary: SUPERUSDC-->(4626)--> USDC-->(Pyth)--> USD
         // Anchor: SUPERUSDC-->(4626)--> USDC-->(Chainlink)--> USD
-        assets[1] = ETH_SUPERUSDC;
         _deploySUPERUSDCOracle();
         // 2. sUSDe
         // Primary: sUSDe --(Pyth)--> USD
         // Anchor: sUSDe --(4626)--> USDe --(Chainlink)--> USD
-        assets[2] = ETH_SUSDE;
         _deploySUSDEOracle();
         // 3. sfrxUSD
         // Primary: sfrxUSD --(4626)--> frxUSD --(Pyth)--> USD
         // Anchor: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Chainlink)--> USD
         _deploySFRXUSDOracle();
-        assets[3] = ETH_SFRXUSD;
         // 4. ysyG-yvUSDS-1
         // Primary: ysyG-yvUSDS-1 --(ChainedERC4626)--> USDS --(Pyth)--> USD
         // Anchor: ysyG-yvUSDS-1 --(ChainedERC4626)--> USDS --(Chainlink)--> USD
         _deployYSYG_YVUSDSOracle();
-        assets[4] = ETH_YSYG_YVUSDS_1;
-
-        deployer.setAutoBroadcast(true);
-        // Print current configuration
-        _printCurrentConfiguration();
 
         // Print final configuration
         console.log("\n--- Final Configuration ---");
-        _printCurrentConfiguration();
+        _printCurrentConfiguration(assets);
+
+        (new VerifyStates_Staging()).verifyDeployment();
 
         // executeBatch(false);
     }
 
-    function _printCurrentConfiguration() private {
+    function _printCurrentConfiguration(address[] memory assets_) private {
         EulerRouter router = EulerRouter(deployer.getAddress(buildEulerRouterName()));
 
         console.log("--- Current EulerRouter Configuration ---");
@@ -96,8 +101,8 @@ contract RedeployStagingPythOraclesMaxStalenes is
 
         // Check configured oracles
         console.log("\n--- Configured Oracles ---");
-        for (uint256 i = 0; i < assets.length; i++) {
-            address asset = assets[i];
+        for (uint256 i = 0; i < assets_.length; i++) {
+            address asset = assets_[i];
             string memory assetSymbol = IERC20Metadata(asset).symbol();
             address currentAnchoredOracle = router.getConfiguredOracle(asset, USD);
             address primaryOracle = AnchoredOracle(currentAnchoredOracle).primaryOracle();

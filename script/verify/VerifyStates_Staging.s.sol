@@ -51,7 +51,11 @@ contract VerifyStates_Staging is DeployScript, Constants, BuildDeploymentJsonNam
     }
 
     // Due to using DeployScript, we use the deploy() function instead of run()
-    function deploy() external {
+    function deploy() public virtual {
+        verifyDeployment();
+    }
+
+    function verifyDeployment() public {
         // Get the MasterRegistry address from environment
         address masterRegistryAddr = _getAddressOrRevert(buildMasterRegistryName());
 
