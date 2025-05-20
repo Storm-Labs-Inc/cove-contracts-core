@@ -22,6 +22,7 @@
     "const-name-snakecase": "error",
     "no-unused-vars": "error",
     "no-unused-import": "error",
-    "immutable-vars-naming": ["error", { "immutablesAsConstants": false }]
+    "immutable-vars-naming": ["error", { "immutablesAsConstants": false }],
+    "import-path-check": "off"
   }
 }

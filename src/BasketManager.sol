@@ -455,8 +455,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert ZeroAddress();
         }
         _revertIfCurrentlyRebalancing();
-        emit TokenSwapAdapterSet(_bmStorage.tokenSwapAdapter, tokenSwapAdapter_);
+        address oldTokenSwapAdapter = _bmStorage.tokenSwapAdapter;
         _bmStorage.tokenSwapAdapter = tokenSwapAdapter_;
+        emit TokenSwapAdapterSet(oldTokenSwapAdapter, tokenSwapAdapter_);
     }
 
     /// @notice Completes the rebalance for the given baskets. The rebalance can be completed if it has been more than
@@ -521,9 +522,10 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             // slither-disable-next-line reentrancy-no-eth
             BasketToken(basket).harvestManagementFee();
         }
-        // slither-disable-next-line reentrancy-events
-        emit ManagementFeeSet(basket, _bmStorage.managementFees[basket], managementFee_);
+        uint16 oldManagementFee = _bmStorage.managementFees[basket];
         _bmStorage.managementFees[basket] = managementFee_;
+        // slither-disable-next-line reentrancy-events
+        emit ManagementFeeSet(basket, oldManagementFee, managementFee_);
     }
 
     /// @notice Set the swap fee to be given to the treasury on rebalance.
@@ -534,8 +536,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert InvalidSwapFee();
         }
         _revertIfCurrentlyRebalancing();
-        emit SwapFeeSet(_bmStorage.swapFee, swapFee_);
+        uint16 oldSwapFee = _bmStorage.swapFee;
         _bmStorage.swapFee = swapFee_;
+        emit SwapFeeSet(oldSwapFee, swapFee_);
     }
 
     /// @notice Updates the step delay for the rebalance process.
@@ -547,8 +550,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert InvalidStepDelay();
         }
         _revertIfCurrentlyRebalancing();
-        emit StepDelaySet(_bmStorage.stepDelay, stepDelay_);
+        uint40 oldStepDelay = _bmStorage.stepDelay;
         _bmStorage.stepDelay = stepDelay_;
+        emit StepDelaySet(oldStepDelay, stepDelay_);
     }
 
     /// @notice Sets the retry limit for future rebalances.
@@ -558,8 +562,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert InvalidRetryCount();
         }
         _revertIfCurrentlyRebalancing();
-        emit RetryLimitSet(_bmStorage.retryLimit, retryLimit_);
+        uint8 oldRetryLimit = _bmStorage.retryLimit;
         _bmStorage.retryLimit = retryLimit_;
+        emit RetryLimitSet(oldRetryLimit, retryLimit_);
     }
 
     /// @notice Sets the slippage multiplier for token swaps.
@@ -569,8 +574,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert InvalidSlippageLimit();
         }
         _revertIfCurrentlyRebalancing();
-        emit SlippageLimitSet(_bmStorage.slippageLimit, slippageLimit_);
+        uint256 oldSlippageLimit = _bmStorage.slippageLimit;
         _bmStorage.slippageLimit = slippageLimit_;
+        emit SlippageLimitSet(oldSlippageLimit, slippageLimit_);
     }
 
     /// @notice Sets the deviation multiplier to determine if a set of balances has reached the desired target.
@@ -580,8 +586,9 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
             revert InvalidWeightDeviationLimit();
         }
         _revertIfCurrentlyRebalancing();
-        emit WeightDeviationLimitSet(_bmStorage.weightDeviationLimit, weightDeviationLimit_);
+        uint256 oldWeightDeviationLimit = _bmStorage.weightDeviationLimit;
         _bmStorage.weightDeviationLimit = weightDeviationLimit_;
+        emit WeightDeviationLimitSet(oldWeightDeviationLimit, weightDeviationLimit_);
     }
 
     /// @notice Claims the swap fee for the given asset and sends it to protocol treasury defined in the FeeCollector.

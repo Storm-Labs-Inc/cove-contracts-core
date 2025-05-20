@@ -111,6 +111,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
             uint256 amount = inAmount;
             for (uint256 i = 0; i < length;) {
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                // slither-disable-next-line calls-loop
                 amount = IERC4626(vaults[i]).convertToAssets(amount);
                 // Safe to use unchecked as i is bounded by length (which is bounded by _MAX_CHAIN_LENGTH)
                 unchecked {
@@ -127,6 +128,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
                     --i;
                 }
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                // slither-disable-next-line calls-loop
                 amount = IERC4626(vaults[i]).convertToShares(amount);
             }
             return amount;

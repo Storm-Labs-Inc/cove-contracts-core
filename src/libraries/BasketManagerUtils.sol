@@ -327,9 +327,10 @@ library BasketManagerUtils {
 
         // Effects after Interactions. Target weights require external view calls to respective strategies.
         bytes32 basketHash = keccak256(abi.encode(baskets, basketTargetWeights, basketAssets));
+        self.rebalanceStatus.basketHash = basketHash;
+
         // slither-disable-next-line reentrancy-events
         emit RebalanceProposed(self.rebalanceStatus.epoch, baskets, basketTargetWeights, basketAssets, basketHash);
-        self.rebalanceStatus.basketHash = basketHash;
     }
     // solhint-enable code-complexity
 
@@ -429,14 +430,14 @@ library BasketManagerUtils {
         uint8 currentRetryCount = self.rebalanceStatus.retryCount;
         if (currentRetryCount < self.retryLimit) {
             if (!_isTargetWeightMet(self, eulerRouter, baskets, basketTargetWeights, basketAssets, slot)) {
-                // slither-disable-next-line reentrancy-events
-                emit RebalanceRetried(self.rebalanceStatus.epoch, ++currentRetryCount);
                 // If target weights are not met and we have not reached max retries, revert to beginning of rebalance
                 // to allow for additional token swaps to be proposed and increment retryCount.
-                self.rebalanceStatus.retryCount = currentRetryCount;
+                self.rebalanceStatus.retryCount = currentRetryCount + 1;
                 self.rebalanceStatus.timestamp = uint40(block.timestamp);
                 self.externalTradesHash = bytes32(0);
                 self.rebalanceStatus.status = Status.REBALANCE_PROPOSED;
+                // slither-disable-next-line reentrancy-events
+                emit RebalanceRetried(self.rebalanceStatus.epoch, currentRetryCount);
                 return;
             }
         }
@@ -648,7 +649,7 @@ library BasketManagerUtils {
             uint256 pendingRedeems = self.pendingRedeems[basket];
             if (pendingRedeems > 0) {
                 // slither-disable-next-line costly-loop
-                delete self.pendingRedeems[basket]; // nosemgrep
+                self.pendingRedeems[basket] = 0; // nosemgrep
                 uint256 baseAssetIndex = self.basketTokenToBaseAssetIndexPlusOne[basket] - 1;
                 address baseAsset = assets[baseAssetIndex];
                 uint256 baseAssetBalance = balances[baseAssetIndex];
@@ -797,6 +798,7 @@ library BasketManagerUtils {
                 slot.basketBalances[i][j] = currentAssetAmount;
                 if (currentAssetAmount > 0) {
                     // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                    // slither-disable-next-line calls-loop
                     slot.totalValues[i] += eulerRouter.getQuote(currentAssetAmount, asset, _USD_ISO_4217_CODE);
                 }
                 unchecked {
@@ -834,6 +836,7 @@ library BasketManagerUtils {
             if (trade.sellAmount == 0) {
                 revert InternalTradeSellAmountZero();
             }
+            // slither-disable-next-line calls-loop
             InternalTradeInfo memory info = InternalTradeInfo({
                 fromBasketIndex: _indexOf(baskets, trade.fromBasket),
                 toBasketIndex: _indexOf(baskets, trade.toBasket),
@@ -849,8 +852,9 @@ library BasketManagerUtils {
                 feeValue: 0
             });
             uint256 initialBuyAmount = 0;
-            // slither-disable-start timestamp
+            // slither-disable-next-line timestamp
             if (info.sellValue > 0) {
+                // slither-disable-next-line calls-loop
                 initialBuyAmount = eulerRouter.getQuote(info.sellValue, _USD_ISO_4217_CODE, trade.buyToken);
             }
             // Calculate fee on sellAmount
@@ -869,16 +873,17 @@ library BasketManagerUtils {
             info.netSellAmount = trade.sellAmount - info.feeOnSell;
             info.netBuyAmount = initialBuyAmount - info.feeOnBuy;
 
+            // slither-disable-next-line timestamp
             if (info.netBuyAmount < trade.minAmount || trade.maxAmount < initialBuyAmount) {
                 revert InternalTradeMinMaxAmountNotReached();
             }
             if (trade.sellAmount > slot.basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex]) {
                 revert IncorrectTradeTokenAmount();
             }
+            // slither-disable-next-line timestamp
             if (initialBuyAmount > slot.basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex]) {
                 revert IncorrectTradeTokenAmount();
             }
-            // slither-disable-end timestamp
             // Settle the internal trades and track the balance changes.
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.basketBalanceOf[trade.fromBasket][trade.sellToken] =
@@ -941,12 +946,12 @@ library BasketManagerUtils {
                 if (ownershipSellAmount > slot.basketBalances[basketIndex][sellTokenAssetIndex]) {
                     revert IncorrectTradeTokenAmount();
                 }
-                // solhint-disable-next-line max-line-length
                 slot.basketBalances[basketIndex][sellTokenAssetIndex] =
                     slot.basketBalances[basketIndex][sellTokenAssetIndex] - ownershipSellAmount;
                 slot.basketBalances[basketIndex][buyTokenAssetIndex] =
                     slot.basketBalances[basketIndex][buyTokenAssetIndex] + ownershipBuyAmount;
                 // Update total basket value
+                // slither-disable-next-line calls-loop
                 slot.totalValues[basketIndex] = slot.totalValues[basketIndex]
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
                 - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, _USD_ISO_4217_CODE)
@@ -961,6 +966,7 @@ library BasketManagerUtils {
                 revert OwnershipSumMismatch();
             }
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+            // slither-disable-next-line calls-loop
             uint256 internalMinAmount = eulerRouter.getQuote(
                 eulerRouter.getQuote(trade.sellAmount, trade.sellToken, _USD_ISO_4217_CODE),
                 _USD_ISO_4217_CODE,
@@ -1038,6 +1044,7 @@ library BasketManagerUtils {
             // Calculate adjusted target weights accounting for pending redeems
             uint256 pendingRedeems = self.pendingRedeems[baskets[i]];
             if (pendingRedeems > 0) {
+                // slither-disable-next-line calls-loop
                 uint256 totalSupply = BasketToken(baskets[i]).totalSupply();
                 uint256 remainingSupply = totalSupply - pendingRedeems;
 
@@ -1093,6 +1100,7 @@ library BasketManagerUtils {
                     uint256 assetValueInUSD = 0;
                     if (slot.basketBalances[i][j] > 0) {
                         // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                        // slither-disable-next-line calls-loop
                         assetValueInUSD = eulerRouter.getQuote(slot.basketBalances[i][j], assets[j], _USD_ISO_4217_CODE);
                     }
                     // Rounding direction: down

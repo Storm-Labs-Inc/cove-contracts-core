@@ -550,14 +550,14 @@ contract BasketToken is
         // Get current pending deposits
         pendingDeposits = _depositRequests[nextDepositRequestId_].totalDepositAssets;
         if (pendingDeposits > 0) {
-            emit DepositRequestQueued(nextDepositRequestId_, pendingDeposits);
             nextDepositRequestId = nextDepositRequestId_ + 2;
+            emit DepositRequestQueued(nextDepositRequestId_, pendingDeposits);
         }
 
         pendingShares = _redeemRequests[nextRedeemRequestId_].totalRedeemShares;
         if (pendingShares > 0) {
-            emit RedeemRequestQueued(nextRedeemRequestId_, pendingShares);
             nextRedeemRequestId = nextRedeemRequestId_ + 2;
+            emit RedeemRequestQueued(nextRedeemRequestId_, pendingShares);
         }
 
         _harvestManagementFee(feeBps, feeCollector);
