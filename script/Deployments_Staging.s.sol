@@ -9,7 +9,7 @@ contract DeploymentsStaging is Deployments {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
-    uint256 private constant _PYTH_MAX_STALENESS = 60 seconds;
+    uint256 public constant PYTH_MAX_STALENESS = 60 seconds;
 
     function _buildPrefix() internal pure override returns (string memory) {
         return "Staging_";
