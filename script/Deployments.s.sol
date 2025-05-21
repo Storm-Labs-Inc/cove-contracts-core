@@ -782,6 +782,10 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         // AssetRegistry
         AssetRegistry assetRegistry = AssetRegistry(getAddressOrRevert(buildAssetRegistryName()));
         if (assetRegistry.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            if (assetRegistry.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS)) {
+                assetRegistry.grantRole(MANAGER_ROLE, manager);
+                assetRegistry.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+            }
             assetRegistry.grantRole(DEFAULT_ADMIN_ROLE, admin);
             assetRegistry.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         }
@@ -808,6 +812,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             bm.grantRole(TOKENSWAP_EXECUTOR_ROLE, tokenSwapExecutor);
             bm.grantRole(TIMELOCK_ROLE, timelock);
             bm.grantRole(PAUSER_ROLE, pauser);
+            bm.grantRole(PAUSER_ROLE, admin);
+            bm.grantRole(PAUSER_ROLE, manager);
+            bm.grantRole(PAUSER_ROLE, COVE_DEPLOYER_ADDRESS);
             bm.grantRole(DEFAULT_ADMIN_ROLE, admin);
             bm.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
             bm.revokeRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS);
@@ -910,7 +917,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     function _deployFarmingPluginFactory() internal returns (address) {
         address farmingPluginFactory = address(
             deployer.deploy_FarmingPluginFactory(
-                buildFarmingPluginFactoryName(), COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS, manager
+                buildFarmingPluginFactoryName(), COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS, admin
             )
         );
         return farmingPluginFactory;

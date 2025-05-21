@@ -157,6 +157,7 @@ contract FarmingPluginFactory is AccessControlEnumerable {
             revert ZeroAddress();
         }
         bytes32 salt = keccak256(abi.encodePacked(stakingToken, rewardsToken));
+        // slither-disable-next-line too-many-digits,reentrancy-benign
         plugin = _CREATE3_FACTORY.deploy(
             salt,
             abi.encodePacked(type(FarmingPlugin).creationCode, abi.encode(stakingToken, rewardsToken, pluginOwner))
@@ -165,6 +166,7 @@ contract FarmingPluginFactory is AccessControlEnumerable {
         _plugins[address(stakingToken)].push(plugin);
         _allPlugins.push(plugin);
 
+        // slither-disable-next-line reentrancy-events
         emit FarmingPluginCreated(address(stakingToken), address(rewardsToken), plugin, pluginOwner);
     }
 }

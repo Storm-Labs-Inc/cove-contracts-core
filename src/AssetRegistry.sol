@@ -185,7 +185,7 @@ contract AssetRegistry is AccessControlEnumerable {
     ///     - the number of assets exceeds the maximum number of assets
     ///     - an asset is not enabled in the registry
     function getAssetsBitFlag(address[] memory assets) external view returns (uint256) {
-        uint256 bitFlag;
+        uint256 bitFlag = 0;
         uint256 assetsLength = assets.length;
 
         if (assetsLength > _assetList.length) {
