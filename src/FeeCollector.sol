@@ -98,9 +98,8 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
         // claim any outstanding fees for previous sponsor
         address currentSponsor = basketTokenSponsors[basketToken];
         basketTokenSponsors[basketToken] = sponsor;
-        _claimSponsorFee(basketToken, currentSponsor);
-        // slither-disable-next-line reentrancy-events
         emit SponsorSet(basketToken, sponsor);
+        _claimSponsorFee(basketToken, currentSponsor);
     }
 
     /// @notice Set the split of management fees given to the sponsor for a given basket token

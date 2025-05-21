@@ -106,6 +106,7 @@ contract ChainedERC4626Oracle is BaseAdapter {
         if (inAmount == 0) return 0;
         uint256 length = vaults.length;
 
+        // slither-disable-start calls-loop
         if (!inverse) {
             // Convert from vault shares to final asset
             uint256 amount = inAmount;
@@ -131,5 +132,6 @@ contract ChainedERC4626Oracle is BaseAdapter {
             }
             return amount;
         }
+        // slither-disable-end calls-loop
     }
 }
