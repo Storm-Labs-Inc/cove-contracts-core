@@ -19,7 +19,7 @@ jobs:
       id-token: write # To update the deployment status
     steps:
       - name: Checkout repository without submodules
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: false
       - name: Base setup
@@ -32,12 +32,12 @@ jobs:
           pnpm build
           forge doc --build
       - name: Setup Pages
-        uses: actions/configure-pages@v2
+        uses: actions/configure-pages@v5
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire repository
           path: "docs/book"
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v1
+        uses: actions/deploy-pages@v4
