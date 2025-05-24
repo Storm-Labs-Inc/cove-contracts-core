@@ -88,6 +88,7 @@ contract BasicRetryOperator is ReentrancyGuard {
 
         // If there are fallback assets to claim, claim them and send it back to the user.
         uint256 fallbackAssets = bt.claimableFallbackAssets(user);
+        // slither-disable-start unused-return
         if (fallbackAssets != 0) {
             // If the user has disabled retry on failed deposits, claim the fallback assets and send it back to the
             // user.
@@ -103,6 +104,7 @@ contract BasicRetryOperator is ReentrancyGuard {
                 return;
             }
         }
+        // slither-disable-end unused-return
         revert NothingToClaim();
     }
 
@@ -122,6 +124,7 @@ contract BasicRetryOperator is ReentrancyGuard {
         }
 
         uint256 fallbackShares = bt.claimableFallbackShares(user);
+        // slither-disable-start unused-return
         if (fallbackShares != 0) {
             // If the user has disabled retry on failed redeems, claim the fallback shares and send it back to the user.
             if (!isRedeemRetryEnabled(user)) {
@@ -136,6 +139,7 @@ contract BasicRetryOperator is ReentrancyGuard {
                 return;
             }
         }
+        // slither-disable-end unused-return
         revert NothingToClaim();
     }
 

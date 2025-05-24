@@ -6,6 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { console } from "forge-std/console.sol";
 
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketToken } from "src/BasketToken.sol";
@@ -636,7 +637,11 @@ library BasketManagerUtils {
                 if (balances[j] > 0) {
                     // Rounding direction: down
                     // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    basketValue += eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+                    uint256 value = eulerRouter.getQuote(balances[j], assets[j], _USD_ISO_4217_CODE);
+                    console.log("asset", assets[j]);
+                    console.log("balance", balances[j]);
+                    console.log("value", value);
+                    basketValue += value;
                 }
                 unchecked {
                     // Overflow not possible: j is less than assetsLength
@@ -656,11 +661,16 @@ library BasketManagerUtils {
                 // Rounding direction: down
                 // Division-by-zero is not possible: totalSupply is greater than 0 when pendingRedeems is greater than 0
                 // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                console.log("totalSupply", BasketToken(basket).totalSupply());
+                console.log("pendingRedeems", pendingRedeems);
+                console.log("basketValue", basketValue);
                 uint256 withdrawAmount = eulerRouter.getQuote(
                     FixedPointMathLib.fullMulDiv(basketValue, pendingRedeems, BasketToken(basket).totalSupply()),
                     _USD_ISO_4217_CODE,
                     baseAsset
                 );
+                console.log("withdrawAmount", withdrawAmount);
+                console.log("baseAssetBalance", baseAssetBalance);
                 // Set withdrawAmount to zero if it exceeds baseAssetBalance, otherwise keep it unchanged
                 withdrawAmount = withdrawAmount <= baseAssetBalance ? withdrawAmount : 0;
                 if (withdrawAmount > 0) {
