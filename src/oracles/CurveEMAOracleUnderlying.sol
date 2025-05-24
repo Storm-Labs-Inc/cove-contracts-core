@@ -52,8 +52,8 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     /// WARNING: Some StableSwap-NG pools deployed before Dec-12-2023 have a known oracle vulnerability.
     /// See (https://docs.curve.fi/stableswap-exchange/stableswap-ng/pools/oracles/#price-oracles) for more details.
     /// Additionally, verify that the pool has enough liquidity before deploying this adapter.
+    // solhint-disable code-complexity
     // slither-disable-next-line locked-ether
-    // solhint-disable-next-line code-complexity
     constructor(
         address _pool,
         address _base,
@@ -103,6 +103,7 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
         priceOracleIndex = _priceOracleIndex;
         _scale = ScaleUtils.calcScale(baseDecimals, quoteDecimals, 18);
     }
+    // solhint-enable code-complexity
 
     /// @notice Get a quote by calling the Curve oracle.
     /// @param inAmount The amount of `base` to convert.
