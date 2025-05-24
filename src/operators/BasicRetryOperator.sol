@@ -99,7 +99,7 @@ contract BasicRetryOperator is ReentrancyGuard {
             } else {
                 // Otherwise, claim the fallback assets and request a new deposit for the user.
                 bt.claimFallbackAssets(address(this), user);
-                bt.requestDeposit(fallbackAssets, user, user);
+                bt.requestDeposit(fallbackAssets, user, address(this));
                 emit FallbackAssetsRetriedForUser(user, basketToken, fallbackAssets);
                 return;
             }
@@ -134,7 +134,7 @@ contract BasicRetryOperator is ReentrancyGuard {
             } else {
                 // Otherwise, claim the fallback shares and request a new redeem for the user.
                 bt.claimFallbackShares(address(this), user);
-                bt.requestRedeem(fallbackShares, user, user);
+                bt.requestRedeem(fallbackShares, user, address(this));
                 emit FallbackSharesRetriedForUser(user, basketToken, fallbackShares);
                 return;
             }

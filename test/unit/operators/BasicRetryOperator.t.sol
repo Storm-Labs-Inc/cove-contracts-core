@@ -181,7 +181,7 @@ contract BasicRetryOperatorTest is BaseTest {
 
         // 3. Mock _basketToken.requestDeposit(fallbackAmount, _user1, _user1) and expect this call.
         bytes memory expectedRequestDepositData =
-            abi.encodeWithSelector(BasketToken.requestDeposit.selector, fallbackAmount, _user1, _user1);
+            abi.encodeWithSelector(BasketToken.requestDeposit.selector, fallbackAmount, _user1, address(_operator));
         vm.mockCall(_mockBasketToken, expectedRequestDepositData, abi.encode(requestID));
         vm.expectCall(_mockBasketToken, expectedRequestDepositData);
 
@@ -424,7 +424,7 @@ contract BasicRetryOperatorTest is BaseTest {
         // 3. Mock _basketToken.requestRedeem(fallbackShares, _user1, _user1) and expect this call.
         //    requestRedeem usually returns a requestId (uint256), let's say 200.
         bytes memory expectedRequestRedeemData =
-            abi.encodeWithSelector(BasketToken.requestRedeem.selector, fallbackShares, _user1, _user1);
+            abi.encodeWithSelector(BasketToken.requestRedeem.selector, fallbackShares, _user1, address(_operator));
         vm.mockCall(_mockBasketToken, expectedRequestRedeemData, abi.encode(requestID));
         vm.expectCall(_mockBasketToken, expectedRequestRedeemData);
 
