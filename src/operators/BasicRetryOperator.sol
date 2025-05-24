@@ -15,17 +15,53 @@ contract BasicRetryOperator is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Errors
+    /// @notice Reverts when a provided address is the zero address.
     error ZeroAddress();
+    /// @notice Reverts when there is no fulfilled deposit, no fulfilled redeem,
+    /// and no fallback amount available to claim.
     error NothingToClaim();
 
     // Events
+    /// @notice Emitted after successfully claiming a user's fulfilled deposit.
+    /// @param user        The controller whose fulfilled deposit is being claimed.
+    /// @param basketToken The address of the basket token contract the deposit pertains to.
+    /// @param assets      The amount of base assets returned to the user.
+    /// @param shares      The number of basket shares minted to the user.
     event DepositClaimedForUser(address indexed user, address indexed basketToken, uint256 assets, uint256 shares);
+    /// @notice Emitted after successfully claiming a user's fulfilled redemption.
+    /// @param user        The controller whose fulfilled redeem is being claimed.
+    /// @param basketToken The address of the basket token contract the redeem pertains to.
+    /// @param shares      The number of basket shares burned from the user.
+    /// @param assets      The amount of base assets returned to the user.
     event RedeemClaimedForUser(address indexed user, address indexed basketToken, uint256 shares, uint256 assets);
+    /// @notice Emitted when fallback assets are claimed for a user without retrying the deposit.
+    /// @param user        The controller receiving the fallback assets.
+    /// @param basketToken The address of the basket token contract the fallback pertains to.
+    /// @param assets      The amount of base assets sent to the user.
     event FallbackAssetsClaimedForUser(address indexed user, address indexed basketToken, uint256 assets);
+    /// @notice Emitted when fallback assets are claimed and immediately retried
+    /// as a new deposit request on behalf of the user.
+    /// @param user        The controller whose fallback assets are being retried.
+    /// @param basketToken The address of the basket token contract the fallback pertains to.
+    /// @param assets      The amount of base assets retried for deposit.
     event FallbackAssetsRetriedForUser(address indexed user, address indexed basketToken, uint256 assets);
+    /// @notice Emitted when fallback shares are claimed for a user without retrying the redeem.
+    /// @param user        The controller receiving the fallback shares.
+    /// @param basketToken The address of the basket token contract the fallback pertains to.
+    /// @param shares      The amount of basket shares sent to the user.
     event FallbackSharesClaimedForUser(address indexed user, address indexed basketToken, uint256 shares);
+    /// @notice Emitted when fallback shares are claimed and a new redeem request is submitted on behalf of the user.
+    /// @param user        The controller whose fallback shares are being retried.
+    /// @param basketToken The address of the basket token contract the fallback pertains to.
+    /// @param shares      The amount of basket shares retried for redemption.
     event FallbackSharesRetriedForUser(address indexed user, address indexed basketToken, uint256 shares);
+    /// @notice Emitted when a user updates their preference for automatically retrying failed deposits.
+    /// @param user    The user updating the preference.
+    /// @param enabled True if automatic retry for deposits is enabled, false otherwise.
     event DepositRetrySet(address indexed user, bool enabled);
+    /// @notice Emitted when a user updates their preference for automatically retrying failed redeems.
+    /// @param user    The user updating the preference.
+    /// @param enabled True if automatic retry for redeems is enabled, false otherwise.
     event RedeemRetrySet(address indexed user, bool enabled);
 
     // bit-packed retry flags per user. bit0 => deposit, bit1 => redeem

@@ -53,6 +53,7 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
     /// See (https://docs.curve.fi/stableswap-exchange/stableswap-ng/pools/oracles/#price-oracles) for more details.
     /// Additionally, verify that the pool has enough liquidity before deploying this adapter.
     // slither-disable-next-line locked-ether
+    // solhint-disable-next-line code-complexity
     constructor(
         address _pool,
         address _base,
