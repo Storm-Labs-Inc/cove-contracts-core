@@ -55,6 +55,18 @@ contract BasicRetryOperator is ReentrancyGuard {
         emit RedeemRetrySet(msg.sender, enabled);
     }
 
+    /// @notice Returns whether the deposit retry is enabled for `user`.
+    /// @return true if the deposit retry is enabled for `user`, false otherwise.
+    function isDepositRetryEnabled(address user) public view returns (bool) {
+        return _retryDisabledFlags[user] & _DEPOSIT_RETRY_DISABLED_FLAG == 0;
+    }
+
+    /// @notice Returns whether the redeem retry is enabled for `user`.
+    /// @return true if the redeem retry is enabled for `user`, false otherwise.
+    function isRedeemRetryEnabled(address user) public view returns (bool) {
+        return _retryDisabledFlags[user] & _REDEEM_RETRY_DISABLED_FLAG == 0;
+    }
+
     /*//////////////////////////////////////////////////////////////
                            MAIN HANDLER LOGIC
     //////////////////////////////////////////////////////////////*/
@@ -79,7 +91,7 @@ contract BasicRetryOperator is ReentrancyGuard {
         if (fallbackAssets != 0) {
             // If the user has disabled retry on failed deposits, claim the fallback assets and send it back to the
             // user.
-            if (_retryDisabledFlags[user] & _DEPOSIT_RETRY_DISABLED_FLAG == 0) {
+            if (!isDepositRetryEnabled(user)) {
                 bt.claimFallbackAssets(user, user);
                 emit FallbackAssetsClaimedForUser(user, basketToken, fallbackAssets);
                 return;
@@ -112,7 +124,7 @@ contract BasicRetryOperator is ReentrancyGuard {
         uint256 fallbackShares = bt.claimableFallbackShares(user);
         if (fallbackShares != 0) {
             // If the user has disabled retry on failed redeems, claim the fallback shares and send it back to the user.
-            if (_retryDisabledFlags[user] & _REDEEM_RETRY_DISABLED_FLAG == 0) {
+            if (!isRedeemRetryEnabled(user)) {
                 bt.claimFallbackShares(user, user);
                 emit FallbackSharesClaimedForUser(user, basketToken, fallbackShares);
                 return;
@@ -133,6 +145,7 @@ contract BasicRetryOperator is ReentrancyGuard {
 
     /// @notice Approves the asset of `basketToken` to be spent by `basketToken`.
     /// @dev This is necessary to allow retrying deposits to work without approving the asset beforehand every time.
+    ///      Call this function after BasketToken is deployed to approve the asset to be spent by the operator.
     function approveDeposits(BasketToken basketToken) external {
         IERC20(basketToken.asset()).forceApprove(address(basketToken), type(uint256).max);
     }
