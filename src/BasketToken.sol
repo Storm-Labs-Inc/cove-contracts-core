@@ -55,7 +55,7 @@ contract BasketToken is
     /// @notice Maximum management fee (30%) in BPS denominated in 1e4.
     uint16 private constant _MAX_MANAGEMENT_FEE = 3000;
     string private constant _NAME_PREFIX = "CoveBasket ";
-    string private constant _SYMBOL_PREFIX = "cvt";
+    string private constant _SYMBOL_PREFIX = "cove";
 
     /// @notice Struct representing a deposit request.
     struct DepositRequestStruct {
