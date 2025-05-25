@@ -15,6 +15,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
+import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
 
@@ -47,6 +48,13 @@ contract GenerateStatesForFrontend is BaseTest {
         farmingPlugin = farmingPluginFactory.plugins(basketToken)[0];
         super.setUp();
         labelKnownAddresses();
+
+        // Deploy basic retry operator and regiser in master registry
+        address basicRetryOperator = address(new BasicRetryOperator());
+        vm.prank(COVE_DEPLOYER_ADDRESS);
+        IMasterRegistry(COVE_STAGING_MASTER_REGISTRY).addRegistry(
+            bytes32(bytes("BasicRetryOperator")), basicRetryOperator
+        );
 
         // Give some eth to user
         vm.deal(user, 100 ether);

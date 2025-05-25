@@ -146,6 +146,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _deployFeeCollector(_feeCollectorSalt());
         _deployAndSetCowSwapAdapter();
         _deployFarmingPluginFactory();
+        address basicRetryOperator = address(deployer.deploy_BasicRetryOperator(buildBasicRetryOperatorName()));
 
         // Add all core contract names to the collection
         _addToMasterRegistryLater("AssetRegistry", assetRegistry);
@@ -155,6 +156,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _addToMasterRegistryLater("FeeCollector", getAddressOrRevert(buildFeeCollectorName()));
         _addToMasterRegistryLater("CowSwapAdapter", getAddressOrRevert(buildCowSwapAdapterName()));
         _addToMasterRegistryLater("FarmingPluginFactory", getAddressOrRevert(buildFarmingPluginFactoryName()));
+        _addToMasterRegistryLater("BasicRetryOperator", basicRetryOperator);
     }
 
     function _feeCollectorSalt() internal view virtual returns (bytes32);
