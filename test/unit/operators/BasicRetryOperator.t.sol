@@ -421,7 +421,15 @@ contract BasicRetryOperatorTest is BaseTest {
         vm.mockCall(_mockBasketToken, expectedClaimToOperatorData, abi.encode(fallbackShares));
         vm.expectCall(_mockBasketToken, expectedClaimToOperatorData);
 
-        // 3. Mock _basketToken.requestRedeem(fallbackShares, _user1, _user1) and expect this call.
+        // 3. Mock _basketToken.balanceOf(address(_operator)) to return fallbackShares
+        vm.mockCall(
+            _mockBasketToken,
+            abi.encodeWithSelector(BasketToken.balanceOf.selector, address(_operator)),
+            abi.encode(fallbackShares)
+        );
+        vm.expectCall(_mockBasketToken, abi.encodeWithSelector(BasketToken.balanceOf.selector, address(_operator)));
+
+        // 4. Mock _basketToken.requestRedeem(fallbackShares, _user1, _user1) and expect this call.
         //    requestRedeem usually returns a requestId (uint256), let's say 200.
         bytes memory expectedRequestRedeemData =
             abi.encodeWithSelector(BasketToken.requestRedeem.selector, fallbackShares, _user1, address(_operator));
