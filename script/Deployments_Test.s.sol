@@ -145,8 +145,8 @@ contract DeploymentsTest is Deployments {
 
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
-                name: "Gauntlet All Asset", // TODO: confirm basket name. Will be prefixed with "CoveBasket "
-                symbol: "gWETH", // TODO: confirm basket symbol. Will be prefixed with "cvt"
+                name: "Gauntlet All Asset", // TODO: confirm basket name. Will be prefixed with "Cove "
+                symbol: "gWETH", // TODO: confirm basket symbol. Will be prefixed with "cove"
                 rootAsset: ETH_WETH, // TODO: confirm root asset
                 bitFlag: assetsToBitFlag(basketAssets),
                 strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1")), // TODO: confirm strategy

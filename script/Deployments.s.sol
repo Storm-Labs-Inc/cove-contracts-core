@@ -28,8 +28,8 @@ import { Constants } from "test/utils/Constants.t.sol";
 
 struct BasketTokenDeployment {
     // BasketToken initialize arguments
-    string name; // BasketToken name. At initialization this will be prefixed with "CoveBasket "
-    string symbol; // BasketToken symbol. At initialization this will be prefixed with "cvt"
+    string name; // BasketToken name. At initialization this will be prefixed with "Cove "
+    string symbol; // BasketToken symbol. At initialization this will be prefixed with "cove"
     address rootAsset;
     uint256 bitFlag;
     address strategy;
