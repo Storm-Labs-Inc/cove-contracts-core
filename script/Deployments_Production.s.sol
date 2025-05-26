@@ -4,12 +4,16 @@ pragma solidity ^0.8.23;
 import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments.s.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+import { BasketManager } from "src/BasketManager.sol";
+import { FeeCollector } from "src/FeeCollector.sol";
 
 contract DeploymentsProduction is Deployments {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
     uint256 public constant PYTH_MAX_STALENESS = 60 seconds;
+    uint256 public constant TOTAL_MANAGEMENT_FEE = 50; // 50 basis points
+    uint256 public constant SPONSOR_SPLIT = 5000; // 50% to sponsor
 
     function _buildPrefix() internal pure override returns (string memory) {
         return "Production_";
@@ -154,5 +158,20 @@ contract DeploymentsProduction is Deployments {
                 initialWeights: initialWeights
             })
         );
+
+        // Set management fee to 50 basis points
+        address basketManager = deployer.getAddress(buildBasketManagerName());
+        address basketToken = deployer.getAddress(buildBasketTokenName("USD"));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        BasketManager(basketManager).setManagementFee(basketToken, 50);
+
+        // Set fee collector split (50% to sponsor, 50% to COVE)
+        address feeCollector = deployer.getAddress(buildFeeCollectorName());
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        FeeCollector(feeCollector).setSponsorSplit(basketToken, 5000);
     }
 }
