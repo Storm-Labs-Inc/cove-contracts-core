@@ -150,6 +150,7 @@ contract Constants is CommonBase {
     // AWS KEEPER ACCOUNTS
     address public constant BOOSTIES_SILVERBACK_AWS_ACCOUNT = 0xd31336617fC8B5Ee3b162d88e75B9236a9be3d6D;
     address public constant STAGING_COVE_SILVERBACK_AWS_ACCOUNT = 0x63A7c2537e54831d902f6140F7ae07d3802AD256;
+    address public constant PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT = 0xC435ADF59C639ECCcA8fe40e2B9c6E56f0548E3E;
 
     // STAGING
     // 1 out of 5 addresses, ops multisig signers + deployer
