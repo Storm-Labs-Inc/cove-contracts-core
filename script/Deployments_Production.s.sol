@@ -11,9 +11,19 @@ contract DeploymentsProduction is Deployments {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
+    /// PYTH CONFIGS
     uint256 public constant PYTH_MAX_STALENESS = 60 seconds;
-    uint256 public constant TOTAL_MANAGEMENT_FEE = 50; // 50 basis points
-    uint256 public constant SPONSOR_SPLIT = 5000; // 50% to sponsor
+    uint256 public constant PYTH_MAX_CONF_WIDTH_BPS = 50; // 0.5%
+
+    /// CHAINLINK CONFIGS
+    uint256 public constant CHAINLINK_MAX_STALENESS = 1 days;
+
+    /// ANCHORED ORACLE CONFIGS
+    uint256 public constant ANCHORED_ORACLE_MAX_DIVERGENCE_BPS = 0.005e18; // 0.5% (in 1e18 precision)
+
+    /// COVEUSD CONFIGS
+    uint16 public constant COVE_USD_MANAGEMENT_FEE = 100; // 100 basis points
+    uint16 public constant COVE_USD_SPONSOR_SPLIT = 4000; // 40% to sponsor
 
     function _buildPrefix() internal pure override returns (string memory) {
         return "Production_";
@@ -63,11 +73,11 @@ contract DeploymentsProduction is Deployments {
             OracleOptions({
                 pythPriceFeed: PYTH_USDC_USD_FEED,
                 pythMaxStaleness: PYTH_MAX_STALENESS,
-                pythMaxConfWidth: 50, //0.5%
+                pythMaxConfWidth: PYTH_MAX_CONF_WIDTH_BPS,
                 chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
-                chainlinkMaxStaleness: 1 days,
-                maxDivergence: 0.005e18 // 0.5%
-             })
+                chainlinkMaxStaleness: CHAINLINK_MAX_STALENESS,
+                maxDivergence: ANCHORED_ORACLE_MAX_DIVERGENCE_BPS
+            })
         );
         _addAssetToAssetRegistry(ETH_USDC);
 
@@ -81,11 +91,11 @@ contract DeploymentsProduction is Deployments {
             OracleOptions({
                 pythPriceFeed: PYTH_USDC_USD_FEED,
                 pythMaxStaleness: PYTH_MAX_STALENESS,
-                pythMaxConfWidth: 50, //0.5%
+                pythMaxConfWidth: PYTH_MAX_CONF_WIDTH_BPS,
                 chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
-                chainlinkMaxStaleness: 1 days,
-                maxDivergence: 0.005e18 // 0.5%
-             })
+                chainlinkMaxStaleness: CHAINLINK_MAX_STALENESS,
+                maxDivergence: ANCHORED_ORACLE_MAX_DIVERGENCE_BPS
+            })
         );
         _addAssetToAssetRegistry(ETH_SUPERUSDC);
 
@@ -99,11 +109,11 @@ contract DeploymentsProduction is Deployments {
             OracleOptions({
                 pythPriceFeed: PYTH_SUSDE_USD_FEED,
                 pythMaxStaleness: PYTH_MAX_STALENESS,
-                pythMaxConfWidth: 50, //0.5%
+                pythMaxConfWidth: PYTH_MAX_CONF_WIDTH_BPS,
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
-                chainlinkMaxStaleness: 1 days,
-                maxDivergence: 0.005e18 // 0.5%
-             })
+                chainlinkMaxStaleness: CHAINLINK_MAX_STALENESS,
+                maxDivergence: ANCHORED_ORACLE_MAX_DIVERGENCE_BPS
+            })
         );
         _addAssetToAssetRegistry(ETH_SUSDE);
 
@@ -119,11 +129,11 @@ contract DeploymentsProduction is Deployments {
             OracleOptions({
                 pythPriceFeed: PYTH_FRXUSD_USD_FEED,
                 pythMaxStaleness: PYTH_MAX_STALENESS,
-                pythMaxConfWidth: 50, //0.5%
+                pythMaxConfWidth: PYTH_MAX_CONF_WIDTH_BPS,
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
-                chainlinkMaxStaleness: 1 days,
-                maxDivergence: 0.005e18 // 0.5%
-             })
+                chainlinkMaxStaleness: CHAINLINK_MAX_STALENESS,
+                maxDivergence: ANCHORED_ORACLE_MAX_DIVERGENCE_BPS
+            })
         );
         _addAssetToAssetRegistry(ETH_SFRXUSD);
 
@@ -136,11 +146,11 @@ contract DeploymentsProduction is Deployments {
             OracleOptions({
                 pythPriceFeed: PYTH_USDS_USD_FEED,
                 pythMaxStaleness: PYTH_MAX_STALENESS,
-                pythMaxConfWidth: 50, //0.5%
+                pythMaxConfWidth: PYTH_MAX_CONF_WIDTH_BPS,
                 chainlinkPriceFeed: ETH_CHAINLINK_USDS_USD_FEED,
-                chainlinkMaxStaleness: 1 days,
-                maxDivergence: 0.005e18 // 0.5%
-             })
+                chainlinkMaxStaleness: CHAINLINK_MAX_STALENESS,
+                maxDivergence: ANCHORED_ORACLE_MAX_DIVERGENCE_BPS
+            })
         );
         _addAssetToAssetRegistry(ETH_YSYG_YVUSDS_1);
 
@@ -159,19 +169,26 @@ contract DeploymentsProduction is Deployments {
             })
         );
 
-        // Set management fee to 50 basis points
         address basketManager = deployer.getAddress(buildBasketManagerName());
         address basketToken = deployer.getAddress(buildBasketTokenName("USD"));
-        if (shouldBroadcast) {
-            vm.broadcast();
-        }
-        BasketManager(basketManager).setManagementFee(basketToken, 50);
-
-        // Set fee collector split (50% to sponsor, 50% to COVE)
         address feeCollector = deployer.getAddress(buildFeeCollectorName());
+
+        // Set sponsor to Guantlet multisig
         if (shouldBroadcast) {
             vm.broadcast();
         }
-        FeeCollector(feeCollector).setSponsorSplit(basketToken, 5000);
+        FeeCollector(feeCollector).setSponsor(basketToken, SPONSOR_GAUNTLET);
+
+        // Set management fee to 100 basis points
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        BasketManager(basketManager).setManagementFee(basketToken, COVE_USD_MANAGEMENT_FEE);
+
+        // Set fee collector split (40% to sponsor, 60% to COVE)
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        FeeCollector(feeCollector).setSponsorSplit(basketToken, COVE_USD_SPONSOR_SPLIT);
     }
 }

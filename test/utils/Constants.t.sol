@@ -152,6 +152,9 @@ contract Constants is CommonBase {
     address public constant STAGING_COVE_SILVERBACK_AWS_ACCOUNT = 0x63A7c2537e54831d902f6140F7ae07d3802AD256;
     address public constant PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT = 0xC435ADF59C639ECCcA8fe40e2B9c6E56f0548E3E;
 
+    // SPONSORS
+    address public constant SPONSOR_GAUNTLET = 0x581678F6D676dbD0ba57251324613aB48E9E28Db;
+
     // STAGING
     // 1 out of 5 addresses, ops multisig signers + deployer
     // https://app.safe.global/settings/setup?safe=eth:0xaAc26aee89DeEFf5D0BE246391FABDfa547dc70C
