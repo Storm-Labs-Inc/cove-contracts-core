@@ -9,6 +9,8 @@ import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
+import { console } from "forge-std/console.sol";
+
 contract StagingDeployBasicRetryOperator is DeployScript, Constants, StdAssertions, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
 
@@ -35,12 +37,19 @@ contract StagingDeployBasicRetryOperator is DeployScript, Constants, StdAssertio
 
         address basicRetryOperator = address(deployer.deploy_BasicRetryOperator(buildBasicRetryOperatorName()));
 
-        if (shouldBroadcast) {
-            vm.startBroadcast();
-        }
-        stagingMasterRegistry.addRegistry(bytes32(bytes("BasicRetryOperator")), basicRetryOperator);
-        if (shouldBroadcast) {
-            vm.stopBroadcast();
+        try stagingMasterRegistry.resolveNameToLatestAddress("BasicRetryOperator") returns (address currentOperator) {
+            if (basicRetryOperator != currentOperator) {
+                console.log("Current operator:", currentOperator);
+                console.log("New operator:", basicRetryOperator);
+                console.log("Redeploying and updating the registry");
+                if (shouldBroadcast) vm.broadcast();
+                stagingMasterRegistry.updateRegistry("BasicRetryOperator", basicRetryOperator);
+            }
+        } catch {
+            console.log("BasicRetryOperator not deployed");
+            console.log("Deploying and updating the registry");
+            if (shouldBroadcast) vm.broadcast();
+            stagingMasterRegistry.addRegistry("BasicRetryOperator", basicRetryOperator);
         }
     }
 }
