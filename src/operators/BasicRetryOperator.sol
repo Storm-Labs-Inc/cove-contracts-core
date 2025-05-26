@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { AccessControlEnumerable } from "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -11,7 +12,7 @@ import { BasketToken } from "src/BasketToken.sol";
 ///         BasketToken.setOperator, anyone can call the handler functions to automatically claim
 ///         a user's fulfilled deposits/redeems (or their fall-backs) and route the resulting
 ///         assets/shares back to the original user.
-contract BasicRetryOperator is ReentrancyGuard {
+contract BasicRetryOperator is ReentrancyGuard, AccessControlEnumerable {
     using SafeERC20 for IERC20;
 
     // Errors
@@ -70,6 +71,16 @@ contract BasicRetryOperator is ReentrancyGuard {
 
     uint8 private constant _DEPOSIT_RETRY_DISABLED_FLAG = 1 << 0;
     uint8 private constant _REDEEM_RETRY_DISABLED_FLAG = 1 << 1;
+
+    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+
+    /// @notice Constructor for the BasicRetryOperator.
+    /// @param admin The address of the admin who can grant and revoke roles.
+    /// @param manager The address of the manager who can change token approvals.
+    constructor(address admin, address manager) {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(MANAGER_ROLE, manager);
+    }
 
     /*//////////////////////////////////////////////////////////////
                         USER CONFIGURATION HELPERS
@@ -185,8 +196,10 @@ contract BasicRetryOperator is ReentrancyGuard {
 
     /// @notice Approves the asset of `basketToken` to be spent by `basketToken`.
     /// @dev This is necessary to allow retrying deposits to work without approving the asset beforehand every time.
-    ///      Call this function after BasketToken is deployed to approve the asset to be spent by the operator.
-    function approveDeposits(BasketToken basketToken) external {
-        IERC20(basketToken.asset()).forceApprove(address(basketToken), type(uint256).max);
+    ///      Call this function after the BasketToken is deployed to approve the asset to be spent by the operator.
+    ///      In case the basket token misbehaves, the manager can revoke the approval to prevent the operator from
+    ///      being used.
+    function approveDeposits(BasketToken basketToken, uint256 amount) external onlyRole(MANAGER_ROLE) {
+        IERC20(basketToken.asset()).forceApprove(address(basketToken), amount);
     }
 }

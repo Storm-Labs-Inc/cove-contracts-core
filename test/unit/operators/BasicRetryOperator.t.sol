@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
-
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 
 /// @title BasicRetryOperatorTest
@@ -18,6 +18,9 @@ contract BasicRetryOperatorTest is BaseTest {
     address internal _user1;
     address internal _user2;
 
+    address internal _admin;
+    address internal _manager;
+
     /*//////////////////////////////////////////////////////////////
                             SET UP
     //////////////////////////////////////////////////////////////*/
@@ -25,7 +28,10 @@ contract BasicRetryOperatorTest is BaseTest {
     function setUp() public virtual override {
         super.setUp();
 
-        _operator = new BasicRetryOperator();
+        _admin = makeAddr("admin");
+        _manager = makeAddr("manager");
+
+        _operator = new BasicRetryOperator(_admin, _manager);
         _asset = new ERC20Mock();
         _mockBasketToken = makeAddr("mockBasketToken");
 
@@ -37,7 +43,8 @@ contract BasicRetryOperatorTest is BaseTest {
 
         // Operator needs to approve basket token to spend its assets for retries.
         // This will call _mockBasketToken.asset()
-        _operator.approveDeposits(BasketToken(payable(_mockBasketToken)));
+        vm.prank(_manager);
+        _operator.approveDeposits(BasketToken(payable(_mockBasketToken)), _MAX_UINT256);
 
         // Note: BasketToken.setOperator calls are not directly relevant here as we mock BasketToken's behavior.
         // The operator's authorization is implicitly assumed when its calls to the mocked BasketToken succeed.
@@ -438,7 +445,7 @@ contract BasicRetryOperatorTest is BaseTest {
                            EXTERNAL HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function test_approveDeposits() public {
+    function test_approveDeposits(uint256 approvalAmount) public {
         address mockNewBasket = makeAddr("mockNewBasket");
         ERC20Mock asset = new ERC20Mock(); // This is the asset *OF* the new basket
 
@@ -448,23 +455,29 @@ contract BasicRetryOperatorTest is BaseTest {
         // Check initial allowance (should be 0 for operator on the new basket's asset)
         assertEq(asset.allowance(address(_operator), mockNewBasket), 0, "Initial allowance should be 0");
 
-        _operator.approveDeposits(BasketToken(payable(mockNewBasket)));
+        vm.prank(_manager);
+        _operator.approveDeposits(BasketToken(payable(mockNewBasket)), approvalAmount);
 
-        // After approveDeposits, the operator should have approved the mockNewBasket (for its asset).
-        // The BasicRetryOperator.approveDeposits calls: asset.forceApprove(address(mockNewBasket), type(uint256).max);
-        // So, asset should have an allowance for mockNewBasket (the contract) to spend operator's holdings of asset.
-        // However, the operator is approving the *basket* to spend the *operator's* holdings of the *basket's asset*.
-        // The check should be: what did IERC20(basketToken.asset()).forceApprove(address(basketToken),
-        // type(uint256).max) do?
-        // It means the operator approved `address(basketToken)` to spend `type(uint256).max` of `basketToken.asset()`
-        // FROM the operator's balance.
-        assertEq(asset.allowance(address(_operator), mockNewBasket), _MAX_UINT256, "Allowance should be max");
+        // Check that the allowance is set to the correct amount
+        assertEq(
+            asset.allowance(address(_operator), mockNewBasket),
+            approvalAmount,
+            "Allowance should be set to the correct amount"
+        );
     }
 
-    function test_RevertWhen_approveDeposits_ZeroBasketToken() public {
+    function test_RevertWhen_approveDeposits_ZeroBasketToken(uint256 approvalAmount) public {
         // Calling .asset() on address(0) will revert.
         // The cast to BasketToken(payable(address(0))) is fine, the call to .asset() is the problem.
         vm.expectRevert();
-        _operator.approveDeposits(BasketToken(payable(address(0))));
+        vm.prank(_manager);
+        _operator.approveDeposits(BasketToken(payable(address(0))), approvalAmount);
+    }
+
+    function test_RevertWhen_approveDeposits_NotManager(address nonManager, uint256 approvalAmount) public {
+        vm.assume(!_operator.hasRole(_operator.MANAGER_ROLE(), nonManager));
+        vm.prank(nonManager);
+        vm.expectRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
+        _operator.approveDeposits(BasketToken(payable(_mockBasketToken)), approvalAmount);
     }
 }
