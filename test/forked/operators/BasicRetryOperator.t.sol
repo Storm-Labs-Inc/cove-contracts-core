@@ -28,6 +28,7 @@ contract BasicRetryOperatorForkedTest is BaseTest {
     function test_handleDeposit_callerHasClaimableDeposit() public {
         forkNetworkAt("mainnet", callerHasClaimableDeposit);
         basicRetryOperator = new BasicRetryOperator(caller, caller);
+        vm.prank(caller);
         basicRetryOperator.approveDeposits(basketToken, type(uint256).max);
         vm.prank(caller);
         basketToken.setOperator(address(basicRetryOperator), true);
