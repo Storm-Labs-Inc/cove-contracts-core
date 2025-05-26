@@ -77,7 +77,8 @@ contract BasicRetryOperator is ReentrancyGuard, AccessControlEnumerable {
     /// @notice Constructor for the BasicRetryOperator.
     /// @param admin The address of the admin who can grant and revoke roles.
     /// @param manager The address of the manager who can change token approvals.
-    constructor(address admin, address manager) {
+    // slither-disable-next-line locked-ether
+    constructor(address admin, address manager) payable {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MANAGER_ROLE, manager);
     }
