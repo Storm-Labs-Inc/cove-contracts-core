@@ -129,7 +129,7 @@ contract BasicRetryOperator is ReentrancyGuard {
             // If the user has disabled retry on failed deposits, claim the fallback assets and send it back to the
             // user.
             if (!isDepositRetryEnabled(user)) {
-                bt.claimFallbackAssets(user, user);
+                fallbackAssets = bt.claimFallbackAssets(user, user);
                 emit FallbackAssetsClaimedForUser(user, basketToken, fallbackAssets);
                 return;
             } else {
