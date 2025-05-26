@@ -476,8 +476,12 @@ contract BasicRetryOperatorTest is BaseTest {
 
     function test_RevertWhen_approveDeposits_NotManager(address nonManager, uint256 approvalAmount) public {
         vm.assume(!_operator.hasRole(_operator.MANAGER_ROLE(), nonManager));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, nonManager, _operator.MANAGER_ROLE()
+            )
+        );
         vm.prank(nonManager);
-        vm.expectRevert(IAccessControl.AccessControlUnauthorizedAccount.selector);
         _operator.approveDeposits(BasketToken(payable(_mockBasketToken)), approvalAmount);
     }
 }
