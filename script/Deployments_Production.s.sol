@@ -3,6 +3,8 @@ pragma solidity ^0.8.23;
 
 import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments.s.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
+
+import { VerifyStates_Production } from "./verify/VerifyStates_Production.s.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
@@ -47,6 +49,10 @@ contract DeploymentsProduction is Deployments {
         return keccak256(abi.encodePacked("Production_FeeCollector_0525"));
     }
 
+    function _postDeploy() internal override {
+        (new VerifyStates_Production()).verifyDeployment();
+    }
+
     function _deployNonCoreContracts() internal override {
         // Basket assets
         address[] memory basketAssets = new address[](5);
@@ -60,10 +66,10 @@ contract DeploymentsProduction is Deployments {
         // From 2025-05-24, the initial weights are:
         uint64[] memory initialWeights = new uint64[](5);
         initialWeights[0] = 0;
-        initialWeights[1] = 0.1e17; // superUSDC
-        initialWeights[2] = 0.4e17; // sUSDe
-        initialWeights[3] = 0.1e17; // sfrxUSD
-        initialWeights[4] = 0.4e17; // ysyG-yvUSDS-1
+        initialWeights[1] = 0.1e18; // superUSDC
+        initialWeights[2] = 0.4e18; // sUSDe
+        initialWeights[3] = 0.1e18; // sfrxUSD
+        initialWeights[4] = 0.4e18; // ysyG-yvUSDS-1
 
         // 0. USD
         // Primary: USDC --(Pyth)--> USD
@@ -155,7 +161,7 @@ contract DeploymentsProduction is Deployments {
         _addAssetToAssetRegistry(ETH_YSYG_YVUSDS_1);
 
         // Deploy launch strategy
-        _deployManagedStrategy(COVE_DEPLOYER_ADDRESS, "Gauntlet");
+        _deployManagedStrategy(PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT, "Gauntlet V1");
 
         // Set the initial weights for the strategy and deploy basket token
         _setInitialWeightsAndDeployBasketToken(
@@ -164,7 +170,7 @@ contract DeploymentsProduction is Deployments {
                 symbol: "USD",
                 rootAsset: ETH_USDC,
                 bitFlag: assetsToBitFlag(basketAssets),
-                strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet")),
+                strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1")),
                 initialWeights: initialWeights
             })
         );

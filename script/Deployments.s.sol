@@ -111,7 +111,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         if (!shouldBroadcast) {
             vm.stopPrank();
         }
+
+        _postDeploy();
     }
+
+    // solhint-disable-next-line no-empty-blocks
+    function _postDeploy() internal virtual { }
 
     // solhint-disable-next-line no-empty-blocks
     function _setPermissionedAddresses() internal virtual { }
@@ -233,7 +238,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     {
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Prepare constructor arguments for FeeCollector
-        bytes memory constructorArgs = abi.encode(admin, getAddressOrRevert(buildBasketManagerName()), treasury);
+        bytes memory constructorArgs =
+            abi.encode(COVE_DEPLOYER_ADDRESS, getAddressOrRevert(buildBasketManagerName()), treasury);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(FeeCollector).creationCode, constructorArgs);
         if (shouldBroadcast) {
@@ -828,6 +834,13 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             farmingPluginFactory.grantRole(DEFAULT_ADMIN_ROLE, admin);
             farmingPluginFactory.grantRole(MANAGER_ROLE, manager);
             farmingPluginFactory.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
+
+        // FeeCollector
+        FeeCollector feeCollector = FeeCollector(getAddressOrRevert(buildFeeCollectorName()));
+        if (feeCollector.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            feeCollector.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            feeCollector.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         }
 
         if (shouldBroadcast) {
