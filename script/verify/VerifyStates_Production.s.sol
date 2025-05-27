@@ -850,14 +850,10 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
     function _verifyTimelockControllerPermissions(TimelockController target) private view {
         _printContractHeader(buildTimelockControllerName(), address(target));
 
-        address[] memory expectedProposers = new address[](3);
+        address[] memory expectedProposers = new address[](1);
         expectedProposers[0] = COVE_COMMUNITY_MULTISIG;
-        expectedProposers[1] = COVE_OPS_MULTISIG;
-        expectedProposers[2] = COVE_DEPLOYER_ADDRESS;
-        string[] memory expectedProposerNames = new string[](3);
+        string[] memory expectedProposerNames = new string[](1);
         expectedProposerNames[0] = "COVE_COMMUNITY_MULTISIG";
-        expectedProposerNames[1] = "COVE_OPS_MULTISIG";
-        expectedProposerNames[2] = "COVE_DEPLOYER_ADDRESS";
         _checkAndLogRoleMembers(
             AccessControl(payable(address(target))),
             target.PROPOSER_ROLE(),
@@ -889,9 +885,9 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
 
         // TIMELOCK_ADMIN_ROLE is the DEFAULT_ADMIN_ROLE for TimelockController
         address[] memory expectedTimelockAdmins = new address[](1);
-        expectedTimelockAdmins[0] = COVE_COMMUNITY_MULTISIG;
+        expectedTimelockAdmins[0] = address(target);
         string[] memory expectedTimelockAdminNames = new string[](1);
-        expectedTimelockAdminNames[0] = "COVE_COMMUNITY_MULTISIG";
+        expectedTimelockAdminNames[0] = "TimelockController (itself)";
         _checkAndLogRoleMembers(
             AccessControl(payable(address(target))),
             target.DEFAULT_ADMIN_ROLE(),

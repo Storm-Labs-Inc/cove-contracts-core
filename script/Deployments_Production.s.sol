@@ -8,6 +8,7 @@ import { VerifyStates_Production } from "./verify/VerifyStates_Production.s.sol"
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 
 contract DeploymentsProduction is Deployments {
     using DeployerFunctions for Deployer;
@@ -51,6 +52,25 @@ contract DeploymentsProduction is Deployments {
 
     function _postDeploy() internal override {
         (new VerifyStates_Production()).verifyDeployment();
+    }
+
+    function _cleanPermissionsExtra() internal override {
+        // ManagedWeightStrategy
+        ManagedWeightStrategy mwStrategy =
+            ManagedWeightStrategy(getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1")));
+        if (shouldBroadcast) {
+            vm.startBroadcast();
+        }
+        if (mwStrategy.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            if (mwStrategy.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS)) {
+                mwStrategy.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+            }
+            mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
+        if (shouldBroadcast) {
+            vm.stopBroadcast();
+        }
     }
 
     function _deployNonCoreContracts() internal override {

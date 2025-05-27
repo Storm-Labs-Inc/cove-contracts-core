@@ -289,8 +289,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             vm.startBroadcast();
         }
         mwStrategy.grantRole(MANAGER_ROLE, externalManager);
-        mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         StrategyRegistry(getAddressOrRevert(buildStrategyRegistryName())).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
         if (shouldBroadcast) {
             vm.stopBroadcast();
@@ -833,6 +831,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         if (farmingPluginFactory.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
             farmingPluginFactory.grantRole(DEFAULT_ADMIN_ROLE, admin);
             farmingPluginFactory.grantRole(MANAGER_ROLE, manager);
+            if (farmingPluginFactory.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS)) {
+                farmingPluginFactory.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+            }
             farmingPluginFactory.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         }
 
@@ -846,7 +847,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         if (shouldBroadcast) {
             vm.stopBroadcast();
         }
+
+        _cleanPermissionsExtra();
     }
+
+    // solhint-disable-next-line no-empty-blocks
+    function _cleanPermissionsExtra() internal virtual { }
 
     /// @notice Deploys an anchored oracle using ChainedERC4626Oracle for a chain of ERC4626 vaults
     /// @param initialVault The starting ERC4626 vault in the chain
