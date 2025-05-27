@@ -180,11 +180,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             vm.broadcast();
         }
         address basketToken = BasketManager(basketManager).createNewBasket(
-            buildBasketTokenName(deployment.name),
-            deployment.symbol,
-            deployment.rootAsset,
-            deployment.bitFlag,
-            deployment.strategy
+            deployment.name, deployment.symbol, deployment.rootAsset, deployment.bitFlag, deployment.strategy
         );
         deployer.save(buildBasketTokenName(deployment.name), basketToken, "BasketToken.sol:BasketToken");
         require(

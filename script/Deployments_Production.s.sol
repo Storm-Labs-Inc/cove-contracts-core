@@ -47,7 +47,7 @@ contract DeploymentsProduction is Deployments {
     }
 
     function _feeCollectorSalt() internal pure override returns (bytes32) {
-        return keccak256(abi.encodePacked("Production_FeeCollector_0525"));
+        return keccak256(abi.encodePacked("Production_FeeCollector_0526_2"));
     }
 
     function _postDeploy() internal override {
