@@ -847,7 +847,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             farmingPluginFactory.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         }
 
-
         // BasicRetryOperator
         BasicRetryOperator basicRetryOperator = BasicRetryOperator(getAddressOrRevert(buildBasicRetryOperatorName()));
         if (basicRetryOperator.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
