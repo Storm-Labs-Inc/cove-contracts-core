@@ -1,0 +1,242 @@
+{
+  "address": "0xd0b1d686f1EC4879add3Bee2dD0f0befb0C2cE68",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "buyToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "claim",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "claimedSellAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "claimedBuyAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "orderDigest",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "encodedOrder",
+          "type": "bytes"
+        }
+      ],
+      "name": "isValidSignature",
+      "outputs": [
+        {
+          "internalType": "bytes4",
+          "name": "",
+          "type": "bytes4"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "minBuyAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "operator",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "receiver",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sellAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sellToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "validTo",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "",
+          "type": "uint32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sellToken",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "buyToken",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "sellAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "minBuyAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint32",
+          "name": "validTo",
+          "type": "uint32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        }
+      ],
+      "name": "CoWSwapCloneCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "claimedSellAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "claimedBuyAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "OrderClaimed",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "CallerIsNotOperatorOrReceiver",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "SafeERC20FailedOperation",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60808060405234601557610a64908161001a8239f35b5f80fdfe60806040526004361015610011575f80fd5b5f3560e01c80631626ba7e146100b45780633f407b84146100af5780634e71d92d146100aa578063570ca735146100a55780638129fc1c146100a05780639769f0b01461009b578063a482171914610096578063a88780ef14610091578063f66bf2291461008c5763f7260d3e14610087575f80fd5b6105b4565b61058d565b61055a565b610533565b610507565b61034a565b61031a565b610166565b610139565b346101355760403660031901126101355760043560243567ffffffffffffffff8111610135573660238201121561013557806004013567ffffffffffffffff811161013557366024828401011161013557610131926024610116930190610709565b6040516001600160e01b031990911681529081906020820190565b0390f35b5f80fd5b34610135575f3660031901126101355760206028600119368181013560f01c9003015b0135604051908152f35b5f3660031901126101355761018861017c610997565b6001600160a01b031690565b33036102fa575b6101aa61017c600119368181013560f01c9003013560601c90565b6040516370a0823160e01b8152306004820152906020826024816001600160a01b0385165afa9182156102c1575f926102d9575b5081806102c6575b50506101f361017c6109c5565b6040516370a0823160e01b815230600482015291906020836024816001600160a01b0385165afa9283156102c1575f93610290575b508280610277575b6040805184815260208101839052849133917f927c1f4481f4feaa716430d93550a0d37e28218478c7a070df4445114ceda78d9190a2604080519182526020820192909252f35b610289916102836109b0565b9061095b565b5f82610230565b6102b391935060203d6020116102ba575b6102ab81836105db565b810190610941565b915f610228565b503d6102a1565b610950565b6102d2916102836109b0565b5f816101e6565b6102f391925060203d6020116102ba576102ab81836105db565b905f6101de565b61030561017c6109b0565b331461018f57636a644b6f60e01b5f5260045ffd5b34610135575f3660031901126101355760206084600119368181013560f01c9003015b013560601c604051908152f35b5f36600319011261013557600119368181013560f01c90030160405163095ea7b360e01b602080830191825273c92e8bdf79f0507f65a392b0ab4667716bfe011060248401525f196044840152833560601c9392915f906103b7846064810103601f1981018652856105db565b83519082875af15f51903d816104e4575b501590505b610488575b506103db6109c5565b913660011981013560f01c90036046810135927fbf15d244d7a3b7a662a4f8f0915036b637b125d40f8cde18ae5ecefe361c1cd8916001600160a01b03919061048390610433906066013560c01c5b63ffffffff1690565b9161043c6109b0565b9284604051958695169916976028608484013560601c93013585929363ffffffff6001600160a01b0392969560609460808701988752602087015216604085015216910152565b0390a4005b60405163095ea7b360e01b602082015273c92e8bdf79f0507f65a392b0ab4667716bfe011060248201525f60448083019190915281526104de91906104d8906104d26064826105db565b856109da565b836109da565b5f6103d2565b151590506104fb57506103cd833b15155b5f6103c8565b60016103cd91146104f5565b34610135575f366003190112610135576020600119368181013560f01c9003013560601c604051908152f35b34610135575f3660031901126101355760206014600119368181013560f01c90030161033d565b34610135575f3660031901126101355760405160663660011981013560f01c9003013560c01c63ffffffff168152602090f35b34610135575f3660031901126101355760206048600119368181013560f01c90030161015c565b34610135575f3660031901126101355760206070600119368181013560f01c90030161033d565b90601f8019910116810190811067ffffffffffffffff8211176105fd57604052565b634e487b7160e01b5f52604160045260245ffd5b60405190610621610180836105db565b565b35906001600160a01b038216820361013557565b359063ffffffff8216820361013557565b3590811515820361013557565b90816101809103126101355761016061066c610611565b9161067681610623565b835261068460208201610623565b602084015261069560408201610623565b604084015260608101356060840152608081013560808401526106ba60a08201610637565b60a084015260c081013560c084015260e081013560e08401526101008101356101008401526106ec6101208201610648565b610120840152610140810135610140840152013561016082015290565b919061071791810190610655565b9061078a82604290601f190180517fd5a25ba2e97094ad7d83dc28a6572da797d6b3e7fc6663bd93efb789fc17e48982526101a0822091526040519061190160f01b82527fc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943600283015260228201522090565b03610934576107a361017c82516001600160a01b031690565b6001600160a01b036107c661017c600119368181013560f01c9003013560601c90565b911603610934576107e461017c60208301516001600160a01b031690565b6001600160a01b036107f761017c6109c5565b9116036109345760608101513660011981013560f01c900360260135036109345760808101513660011981013560f01c900360460135116109345760a081015163ffffffff1663ffffffff61086161042a61042a60663660011981013560f01c9003013560c01c90565b9116036109345760c08101516109345760e0810151610934577ff3b277728b3fee749481eb3e0b3b48980dbbab78658fc419025cb16eee3467756101008201510361093457610120810151610934577f5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc961014082015103610934577f5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9610160820151036109345760400151306001600160a01b039091160361092857630b135d3f60e11b90565b6001600160e01b031990565b506001600160e01b031990565b90816020910312610135575190565b6040513d5f823e3d90fd5b610621926001600160a01b036040519363a9059cbb60e01b60208601521660248401526044830152604482526109926064836105db565b6109da565b6084600119368181013560f01c9003015b013560601c90565b6070600119368181013560f01c9003016109a8565b6014600119368181013560f01c9003016109a8565b905f602091828151910182855af115610950575f513d610a2557506001600160a01b0381163b155b610a095750565b6001600160a01b0390635274afe760e01b5f521660045260245ffd5b60011415610a0256fea26469706673582212209e1f675e24e2b4ae57b2aa0060be3f393e90a631be6378aad725fea30198a5db64736f6c634300081c0033",
+  "args_data": "0x",
+  "tx_hash": "",
+  "args": [],
+  "data": "",
+  "artifact_path": "CoWSwapClone.sol",
+  "artifact_full_path": "CoWSwapClone.sol:CoWSwapClone"
+}

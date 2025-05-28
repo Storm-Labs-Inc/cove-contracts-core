@@ -111,7 +111,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         if (!shouldBroadcast) {
             vm.stopPrank();
         }
+
+        _postDeploy();
     }
+
+    // solhint-disable-next-line no-empty-blocks
+    function _postDeploy() internal virtual { }
 
     // solhint-disable-next-line no-empty-blocks
     function _setPermissionedAddresses() internal virtual { }
@@ -175,11 +180,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             vm.broadcast();
         }
         address basketToken = BasketManager(basketManager).createNewBasket(
-            buildBasketTokenName(deployment.name),
-            deployment.symbol,
-            deployment.rootAsset,
-            deployment.bitFlag,
-            deployment.strategy
+            deployment.name, deployment.symbol, deployment.rootAsset, deployment.bitFlag, deployment.strategy
         );
         deployer.save(buildBasketTokenName(deployment.name), basketToken, "BasketToken.sol:BasketToken");
         require(
@@ -233,7 +234,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     {
         CREATE3Factory factory = CREATE3Factory(CREATE3_FACTORY);
         // Prepare constructor arguments for FeeCollector
-        bytes memory constructorArgs = abi.encode(admin, getAddressOrRevert(buildBasketManagerName()), treasury);
+        bytes memory constructorArgs =
+            abi.encode(COVE_DEPLOYER_ADDRESS, getAddressOrRevert(buildBasketManagerName()), treasury);
         // Deploy FeeCollector contract using CREATE3
         bytes memory creationBytecode = abi.encodePacked(type(FeeCollector).creationCode, constructorArgs);
         if (shouldBroadcast) {
@@ -283,8 +285,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             vm.startBroadcast();
         }
         mwStrategy.grantRole(MANAGER_ROLE, externalManager);
-        mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
-        mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         StrategyRegistry(getAddressOrRevert(buildStrategyRegistryName())).grantRole(_WEIGHT_STRATEGY_ROLE, strategy);
         if (shouldBroadcast) {
             vm.stopBroadcast();
@@ -827,13 +827,28 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         if (farmingPluginFactory.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
             farmingPluginFactory.grantRole(DEFAULT_ADMIN_ROLE, admin);
             farmingPluginFactory.grantRole(MANAGER_ROLE, manager);
+            if (farmingPluginFactory.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS)) {
+                farmingPluginFactory.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+            }
             farmingPluginFactory.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
+
+        // FeeCollector
+        FeeCollector feeCollector = FeeCollector(getAddressOrRevert(buildFeeCollectorName()));
+        if (feeCollector.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            feeCollector.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            feeCollector.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         }
 
         if (shouldBroadcast) {
             vm.stopBroadcast();
         }
+
+        _cleanPermissionsExtra();
     }
+
+    // solhint-disable-next-line no-empty-blocks
+    function _cleanPermissionsExtra() internal virtual { }
 
     /// @notice Deploys an anchored oracle using ChainedERC4626Oracle for a chain of ERC4626 vaults
     /// @param initialVault The starting ERC4626 vault in the chain

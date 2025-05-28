@@ -1,0 +1,414 @@
+{
+  "address": "0xECC9556F546950619e84C5C70FDF19D89dB8Aad7",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_evc",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_governor",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "EVC",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "fallbackOracle",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "getConfiguredOracle",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "inAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "getQuote",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "inAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "getQuotes",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "oracle",
+          "type": "address"
+        }
+      ],
+      "name": "govSetConfig",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_fallbackOracle",
+          "type": "address"
+        }
+      ],
+      "name": "govSetFallbackOracle",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "vault",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "set",
+          "type": "bool"
+        }
+      ],
+      "name": "govSetResolvedVault",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "governor",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "name",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "inAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "resolveOracle",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "vault",
+          "type": "address"
+        }
+      ],
+      "name": "resolvedVaults",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newGovernor",
+          "type": "address"
+        }
+      ],
+      "name": "transferGovernance",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset0",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset1",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oracle",
+          "type": "address"
+        }
+      ],
+      "name": "ConfigSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "fallbackOracle",
+          "type": "address"
+        }
+      ],
+      "name": "FallbackOracleSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldGovernor",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newGovernor",
+          "type": "address"
+        }
+      ],
+      "name": "GovernorSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "vault",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        }
+      ],
+      "name": "ResolvedVaultSet",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "ControllerDisabled",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "EVC_InvalidAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "Governance_CallerNotGovernor",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NotAuthorized",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "PriceOracle_InvalidConfiguration",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "base",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "quote",
+          "type": "address"
+        }
+      ],
+      "name": "PriceOracle_NotSupported",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60a0346100f857601f610cff38819003918201601f19168301916001600160401b038311848410176100fc5780849260409485528339810103126100f857610052602061004b83610110565b9201610110565b906001600160a01b031680156100e9576080525f8054604051926001600160a01b03908116928392918391908316907ff31bb200dbf42bb9cecaa49dceb87eae178b024ad3cf2930b4aaac5cb0f96ec09080a36001600160a01b031916175f55156100da57610bda9081610125823960805181818161032b0152818161096e0152610adf0152f35b6301a4c16560e21b5f5260045ffd5b638133abd160e01b5f5260045ffd5b5f80fd5b634e487b7160e01b5f52604160045260245ffd5b51906001600160a01b03821682036100f85756fe60806040526004361015610011575f80fd5b5f3560e01c80630579e61f146105c457806306c570c1146104e257806306fdde031461045a5780630c340a24146104355780635ca40017146103f4578063629838e5146103ce5780638418e6f31461038c5780638aa776081461034f578063a70354a11461030c578063ae68676c146102eb578063d38bfff41461025f578063d6c02926146101385763eab49501146100a8575f80fd5b34610134576020366003190112610134576100c16105e9565b6100c9610964565b6100d1610ad4565b6001600160a01b03805f5416911603610125576001600160a01b0316806001600160a01b031960015416176001557fef21cd88756d665855f56a2652b7eda229d6f3102988a95975e46964d24d478a5f80a2005b63f9e36c0360e01b5f5260045ffd5b5f80fd5b34610134576040366003190112610134576101516105e9565b602435801515810361013457610165610964565b61016d610ad4565b6001600160a01b03805f5416911603610125571561024f576040516338d52e0f60e01b81526020816004816001600160a01b0386165afa908115610244575f91610200575b506001600160a01b038091925b1691825f52600260205260405f20828216831982541617905516907f15beaec71c94ee69b5a824e905ca6d1260da10196b715c38b565b80180f630ce5f80a3005b90506020813d60201161023c575b8161021b6020938361064f565b81010312610134576001600160a01b036102358192610950565b91506101b2565b3d915061020e565b6040513d5f823e3d90fd5b6001600160a01b03805f926101bf565b34610134576020366003190112610134576001600160a01b036102806105e9565b610288610964565b610290610ad4565b905f54918383169384911603610125576001600160a01b031680927ff31bb200dbf42bb9cecaa49dceb87eae178b024ad3cf2930b4aaac5cb0f96ec05f80a373ffffffffffffffffffffffffffffffffffffffff1916175f55005b346101345760206103046102fe36610615565b916108aa565b604051908152f35b34610134575f3660031901126101345760206040516001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168152f35b3461013457604036600319011261013457602061037b61036d6105e9565b6103756105ff565b9061086b565b6001600160a01b0360405191168152f35b346101345760806001600160a01b0380806103af6103a936610615565b91610732565b9392959091604051968752166020860152166040840152166060820152f35b34610134575f3660031901126101345760206001600160a01b0360015416604051908152f35b34610134576020366003190112610134576001600160a01b036104156105e9565b165f52600260205260206001600160a01b0360405f205416604051908152f35b34610134575f3660031901126101345760206001600160a01b035f5416604051908152f35b34610134575f366003190112610134576040516040810181811067ffffffffffffffff8211176104ce57604052600b8152604060208201916a22bab632b92937baba32b960a91b83528151928391602083525180918160208501528484015e5f828201840152601f01601f19168101030190f35b634e487b7160e01b5f52604160045260245ffd5b34610134576060366003190112610134576104fb6105e9565b6105036105ff565b90604435916001600160a01b03831680930361013457610521610964565b610529610ad4565b6001600160a01b03805f5416911603610125576001600160a01b0381166001600160a01b038316146105b5576105696001600160a01b0392918392610b7f565b921691825f52600360205260405f208282165f5260205260405f2084831982541617905516907f4ac83f39568b63f952374c82351889b07aff4f7e261232a20ba5a2a6d82b9ce05f80a4005b6301a4c16560e21b5f5260045ffd5b346101345760406105dd6105d736610615565b91610671565b82519182526020820152f35b600435906001600160a01b038216820361013457565b602435906001600160a01b038216820361013457565b606090600319011261013457600435906024356001600160a01b038116810361013457906044356001600160a01b03811681036101345790565b90601f8019910116810190811067ffffffffffffffff8211176104ce57604052565b9061067c9291610732565b90916001600160a01b0383959495166001600160a01b0382161461071c5760408051630579e61f60e01b815260048101969096526001600160a01b039182166024870152928116604486015284916064918391165afa918215610244575f905f936106e657509190565b9250506040823d604011610714575b816107026040938361064f565b81010312610134576020825192015190565b3d91506106f5565b5050508190565b90816020910312610134575190565b90926001600160a01b0384166001600160a01b038416811461086257610758848661086b565b6001600160a01b0381166108595750610792610785866001600160a01b03165f52600260205260405f2090565b546001600160a01b031690565b906001600160a01b0382166107de5750506001546001600160a01b03169182156107bc5793929190565b6304ca22af60e41b5f526001600160a01b03808616600452841660245260445ffd5b6040516303d1689d60e11b8152600481019490945291945091929190602090849060249082905afa80156108545761081d935f91610825575b50610732565b929391929091565b610847915060203d60201161084d575b61083f818361064f565b810190610723565b5f610817565b503d610835565b610244565b92905093929190565b50909291905f90565b6001600160a01b039161087d91610b7f565b91165f5260036020526001600160a01b0360405f2091165f526020526001600160a01b0360405f20541690565b906108b59291610732565b90916001600160a01b0383166001600160a01b0382161461094a57604051632b9a19db60e21b815260048101949094526001600160a01b039081166024850152918216604484015260209183916064918391165afa908115610244575f9161091b575090565b90506020813d602011610942575b816109366020938361064f565b81010312610134575190565b3d9150610929565b50505090565b51906001600160a01b038216820361013457565b6001600160a01b037f0000000000000000000000000000000000000000000000000000000000000000168033146109985750565b604051633a1a3a1d60e01b8152602081600481855afa908115610244575f91610aa2575b5060ff60b81b811615801590610a93575b8015610a84575b610a2a5760206001600160a01b0360249216926040519283809263110ac5cb60e21b82528660048301525afa8015610244575f90610a44575b6001600160a01b031680151592915082610a39575b5050610a2a57565b63ea8e4eb560e01b5f5260045ffd5b141590505f80610a22565b506020813d602011610a7c575b81610a5e6020938361064f565b8101031261013457610a776001600160a01b0391610950565b610a0d565b3d9150610a51565b5060ff60a81b811615156109d4565b5060ff60b01b811615156109cd565b90506020813d602011610acc575b81610abd6020938361064f565b8101031261013457515f6109bc565b3d9150610ab0565b336001600160a01b037f000000000000000000000000000000000000000000000000000000000000000016803314610b0a575090565b60408051630c281d0f60e11b81525f6004820152925090829060249082905afa908115610244575f91610b3b575090565b90506040813d604011610b77575b81610b566040938361064f565b81010312610134576020610b6982610950565b910151801515036101345790565b3d9150610b49565b9190916001600160a01b0383166001600160a01b038216105f14610ba1579190565b9056fea2646970667358221220dc82a18218cf6ad69f1f3f8eea8af68fd96db1f23b85e80c767de80b4af3ad1e64736f6c634300081c0033",
+  "args_data": "0x0000000000000000000000000c9a3dd6b8f28529d72d7f9ce918d493519ee3830000000000000000000000008842fe65a7db9bb5de6d50e49af19496da09f9b5",
+  "tx_hash": "",
+  "args": [],
+  "data": "",
+  "artifact_path": "EulerRouter.sol",
+  "artifact_full_path": "EulerRouter.sol:EulerRouter"
+}
