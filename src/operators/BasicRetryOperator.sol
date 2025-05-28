@@ -129,12 +129,14 @@ contract BasicRetryOperator is ReentrancyGuard {
             // If the user has disabled retry on failed deposits, claim the fallback assets and send it back to the
             // user.
             if (!isDepositRetryEnabled(user)) {
-                bt.claimFallbackAssets(user, user);
+                fallbackAssets = bt.claimFallbackAssets(user, user);
                 emit FallbackAssetsClaimedForUser(user, basketToken, fallbackAssets);
                 return;
             } else {
                 // Otherwise, claim the fallback assets and request a new deposit for the user.
                 bt.claimFallbackAssets(address(this), user);
+                // Use the balance of the operator to ensure we use the correct amount of assets.
+                fallbackAssets = IERC20(bt.asset()).balanceOf(address(this));
                 bt.requestDeposit(fallbackAssets, user, address(this));
                 emit FallbackAssetsRetriedForUser(user, basketToken, fallbackAssets);
                 return;
@@ -164,12 +166,14 @@ contract BasicRetryOperator is ReentrancyGuard {
         if (fallbackShares != 0) {
             // If the user has disabled retry on failed redeems, claim the fallback shares and send it back to the user.
             if (!isRedeemRetryEnabled(user)) {
-                bt.claimFallbackShares(user, user);
+                fallbackShares = bt.claimFallbackShares(user, user);
                 emit FallbackSharesClaimedForUser(user, basketToken, fallbackShares);
                 return;
             } else {
                 // Otherwise, claim the fallback shares and request a new redeem for the user.
                 bt.claimFallbackShares(address(this), user);
+                // Use the balance of the operator to ensure we use the correct amount of shares.
+                fallbackShares = bt.balanceOf(address(this));
                 bt.requestRedeem(fallbackShares, user, address(this));
                 emit FallbackSharesRetriedForUser(user, basketToken, fallbackShares);
                 return;

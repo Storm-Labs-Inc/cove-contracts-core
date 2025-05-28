@@ -204,6 +204,65 @@ contract BasicRetryOperatorTest is BaseTest {
         assertEq(_asset.balanceOf(address(_operator)), 0, "Operator should have used fallback assets for retry");
     }
 
+    function test_handleDeposit_RetryFallbackAssets_RetryEnabled_FallbackReturnsDifferentThanRequested(
+        uint256 fallbackAmount,
+        uint256 actualFallbackAmount,
+        uint256 requestID
+    )
+        public
+    {
+        vm.assume(fallbackAmount > 0);
+        vm.assume(actualFallbackAmount != fallbackAmount && actualFallbackAmount > 0);
+
+        // Setup: maxDeposit returns 0
+        vm.mockCall(_mockBasketToken, abi.encodeWithSelector(BasketToken.maxDeposit.selector, _user1), abi.encode(0));
+        // Setup: User has deposit retry enabled (default, or explicitly set)
+        vm.prank(_user1);
+        _operator.setDepositRetry(true);
+
+        // 1. Mock _basketToken.claimableFallbackAssets(_user1) to return fallbackAmount
+        vm.mockCall(
+            _mockBasketToken,
+            abi.encodeWithSelector(BasketToken.claimableFallbackAssets.selector, _user1),
+            abi.encode(fallbackAmount)
+        );
+
+        // 2. Mock _basketToken.claimFallbackAssets(address(this_operator), _user1)
+        bytes memory expectedClaimToOperatorData =
+            abi.encodeWithSelector(BasketToken.claimFallbackAssets.selector, address(_operator), _user1);
+        vm.mockCall(_mockBasketToken, expectedClaimToOperatorData, abi.encode(actualFallbackAmount));
+        vm.expectCall(_mockBasketToken, expectedClaimToOperatorData);
+
+        // Ensure operator has the assets it supposedly claimed for the retry.
+        deal(address(_asset), address(_operator), actualFallbackAmount);
+
+        // 3. Mock _basketToken.requestDeposit(fallbackAmount, _user1, _user1) and expect this call.
+        bytes memory expectedRequestDepositData = abi.encodeWithSelector(
+            BasketToken.requestDeposit.selector, actualFallbackAmount, _user1, address(_operator)
+        );
+        vm.mockCall(_mockBasketToken, expectedRequestDepositData, abi.encode(requestID));
+        vm.expectCall(_mockBasketToken, expectedRequestDepositData);
+
+        vm.prank(address(this)); // anyone can call handleDeposit
+        vm.expectEmit(true, true, false, true);
+        emit BasicRetryOperator.FallbackAssetsRetriedForUser(_user1, _mockBasketToken, actualFallbackAmount);
+        _operator.handleDeposit(_user1, _mockBasketToken);
+
+        // Simulate BasketToken pulling assets from operator during requestDeposit
+        // If BasicRetryOperator.sol's approveDeposits() was effective, BasketToken can pull _asset from operator.
+        // We check the operator's balance of _asset is now 0.
+        // To make this pass, the mocked requestDeposit should effectively transfer `fallbackAmount` from operator.
+        // Since mocks don't do state changes, we manually model it.
+        // The `deal` gave assets to operator. Now, assume `requestDeposit` took them.
+        // This means the `_asset.transferFrom(address(_operator), address(_mockBasketToken), actualFallbackAmount)`
+        // happened.
+        vm.prank(address(_mockBasketToken)); // Simulate basket token is the one pulling
+        _asset.transferFrom(address(_operator), _mockBasketToken, actualFallbackAmount);
+        vm.stopPrank();
+
+        assertEq(_asset.balanceOf(address(_operator)), 0, "Operator should have used fallback assets for retry");
+    }
+
     function test_handleDeposit_RetryEnabled_NoFallbackAssets_RevertsNothingToClaim() public {
         // Setup: User has deposit retry enabled
         vm.prank(_user1);
@@ -421,7 +480,15 @@ contract BasicRetryOperatorTest is BaseTest {
         vm.mockCall(_mockBasketToken, expectedClaimToOperatorData, abi.encode(fallbackShares));
         vm.expectCall(_mockBasketToken, expectedClaimToOperatorData);
 
-        // 3. Mock _basketToken.requestRedeem(fallbackShares, _user1, _user1) and expect this call.
+        // 3. Mock _basketToken.balanceOf(address(_operator)) to return fallbackShares
+        vm.mockCall(
+            _mockBasketToken,
+            abi.encodeWithSelector(BasketToken.balanceOf.selector, address(_operator)),
+            abi.encode(fallbackShares)
+        );
+        vm.expectCall(_mockBasketToken, abi.encodeWithSelector(BasketToken.balanceOf.selector, address(_operator)));
+
+        // 4. Mock _basketToken.requestRedeem(fallbackShares, _user1, _user1) and expect this call.
         //    requestRedeem usually returns a requestId (uint256), let's say 200.
         bytes memory expectedRequestRedeemData =
             abi.encodeWithSelector(BasketToken.requestRedeem.selector, fallbackShares, _user1, address(_operator));
@@ -431,6 +498,58 @@ contract BasicRetryOperatorTest is BaseTest {
         vm.prank(address(this));
         vm.expectEmit(true, true, false, true);
         emit BasicRetryOperator.FallbackSharesRetriedForUser(_user1, _mockBasketToken, fallbackShares);
+        _operator.handleRedeem(_user1, _mockBasketToken);
+    }
+
+    function test_handleRedeem_RetryFallbackShares_RetryEnabled_FallbackReturnsDifferentThanRequested(
+        uint256 fallbackShares,
+        uint256 actualFallbackShares,
+        uint256 requestID
+    )
+        public
+    {
+        vm.assume(fallbackShares > 0);
+        vm.assume(actualFallbackShares != fallbackShares && actualFallbackShares > 0);
+
+        // Setup: maxRedeem returns 0
+        vm.mockCall(_mockBasketToken, abi.encodeWithSelector(BasketToken.maxRedeem.selector, _user1), abi.encode(0));
+        // Setup: User has redeem retry enabled
+        vm.prank(_user1);
+        _operator.setRedeemRetry(true);
+
+        // 1. Mock _basketToken.claimableFallbackShares(_user1) to return fallbackShares
+        vm.mockCall(
+            _mockBasketToken,
+            abi.encodeWithSelector(BasketToken.claimableFallbackShares.selector, _user1),
+            abi.encode(fallbackShares)
+        );
+
+        // 2. Mock _basketToken.claimFallbackShares(address(this_operator), _user1)
+        //    This implies the BasketToken transfers shares to the operator contract.
+        //    However, BasicRetryOperator doesn't hold shares. It calls requestRedeem with these shares.
+        bytes memory expectedClaimToOperatorData =
+            abi.encodeWithSelector(BasketToken.claimFallbackShares.selector, address(_operator), _user1);
+        vm.mockCall(_mockBasketToken, expectedClaimToOperatorData, abi.encode(actualFallbackShares));
+        vm.expectCall(_mockBasketToken, expectedClaimToOperatorData);
+
+        // 3. Mock _basketToken.balanceOf(address(_operator)) to return actualFallbackShares
+        vm.mockCall(
+            _mockBasketToken,
+            abi.encodeWithSelector(BasketToken.balanceOf.selector, address(_operator)),
+            abi.encode(actualFallbackShares)
+        );
+        vm.expectCall(_mockBasketToken, abi.encodeWithSelector(BasketToken.balanceOf.selector, address(_operator)));
+
+        // 4. Mock _basketToken.requestRedeem(actualFallbackShares, _user1, _user1) and expect this call.
+        //    requestRedeem usually returns a requestId (uint256), let's say 200.
+        bytes memory expectedRequestRedeemData =
+            abi.encodeWithSelector(BasketToken.requestRedeem.selector, actualFallbackShares, _user1, address(_operator));
+        vm.mockCall(_mockBasketToken, expectedRequestRedeemData, abi.encode(requestID));
+        vm.expectCall(_mockBasketToken, expectedRequestRedeemData);
+
+        vm.prank(address(this));
+        vm.expectEmit(true, true, false, true);
+        emit BasicRetryOperator.FallbackSharesRetriedForUser(_user1, _mockBasketToken, actualFallbackShares);
         _operator.handleRedeem(_user1, _mockBasketToken);
     }
 
