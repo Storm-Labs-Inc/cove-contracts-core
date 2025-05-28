@@ -3,7 +3,7 @@
   "rules": {
     "gas-custom-errors": "off",
     "reason-string": "off",
-    "code-complexity": ["error", 12],
+    "code-complexity": ["warn", 12],
     "compiler-version": ["error", ">=0.8.18"],
     "func-name-mixedcase": "off",
     "func-visibility": [

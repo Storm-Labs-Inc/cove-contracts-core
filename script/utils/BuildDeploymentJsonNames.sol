@@ -164,4 +164,8 @@ abstract contract BuildDeploymentJsonNames is Constants {
     function buildMasterRegistryName() public view returns (string memory) {
         return string.concat(_buildPrefix(), "MasterRegistry");
     }
+
+    function buildBasicRetryOperatorName() public view returns (string memory) {
+        return string.concat(_buildPrefix(), "BasicRetryOperator");
+    }
 }
