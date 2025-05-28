@@ -50,7 +50,7 @@ contract GenerateStatesForFrontend is BaseTest {
         labelKnownAddresses();
 
         // Deploy basic retry operator and register in master registry
-        address basicRetryOperator = address(new BasicRetryOperator());
+        address basicRetryOperator = address(new BasicRetryOperator(COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS));
         vm.prank(COVE_DEPLOYER_ADDRESS);
         IMasterRegistry(COVE_STAGING_MASTER_REGISTRY).addRegistry(
             bytes32(bytes("BasicRetryOperator")), basicRetryOperator

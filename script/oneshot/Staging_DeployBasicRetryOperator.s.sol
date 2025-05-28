@@ -35,7 +35,11 @@ contract StagingDeployBasicRetryOperator is DeployScript, Constants, StdAssertio
 
         stagingMasterRegistry = IMasterRegistry(COVE_STAGING_MASTER_REGISTRY);
 
-        address basicRetryOperator = address(deployer.deploy_BasicRetryOperator(buildBasicRetryOperatorName()));
+        address basicRetryOperator = address(
+            deployer.deploy_BasicRetryOperator(
+                buildBasicRetryOperatorName(), COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS
+            )
+        );
 
         try stagingMasterRegistry.resolveNameToLatestAddress("BasicRetryOperator") returns (address currentOperator) {
             if (basicRetryOperator != currentOperator) {

@@ -16,6 +16,8 @@ import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
+
+import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
@@ -146,7 +148,11 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         _deployFeeCollector(_feeCollectorSalt());
         _deployAndSetCowSwapAdapter();
         _deployFarmingPluginFactory();
-        address basicRetryOperator = address(deployer.deploy_BasicRetryOperator(buildBasicRetryOperatorName()));
+        address basicRetryOperator = address(
+            deployer.deploy_BasicRetryOperator(
+                buildBasicRetryOperatorName(), COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS
+            )
+        );
 
         // Add all core contract names to the collection
         _addToMasterRegistryLater("AssetRegistry", assetRegistry);
@@ -194,6 +200,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             AssetRegistry(getAddressOrRevert(buildAssetRegistryName())).getAssets(deployment.bitFlag),
             "Failed to set basket assets in BasketManager"
         );
+        // Set approvals for the BasicRetryOperator
+        BasicRetryOperator basicRetryOperator = BasicRetryOperator(getAddressOrRevert(buildBasicRetryOperatorName()));
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        basicRetryOperator.approveDeposits(BasketToken(basketToken), type(uint256).max);
     }
 
     // Deploys basket manager given a fee collector salt which must be used to deploy the fee collector using CREATE3.
@@ -830,6 +842,17 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             farmingPluginFactory.grantRole(DEFAULT_ADMIN_ROLE, admin);
             farmingPluginFactory.grantRole(MANAGER_ROLE, manager);
             farmingPluginFactory.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
+        }
+
+        // BasicRetryOperator
+        BasicRetryOperator basicRetryOperator = BasicRetryOperator(getAddressOrRevert(buildBasicRetryOperatorName()));
+        if (basicRetryOperator.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            basicRetryOperator.grantRole(DEFAULT_ADMIN_ROLE, admin);
+            basicRetryOperator.grantRole(MANAGER_ROLE, manager);
+            if (basicRetryOperator.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS)) {
+                basicRetryOperator.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
+            }
+            basicRetryOperator.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
         }
 
         if (shouldBroadcast) {
