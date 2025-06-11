@@ -6,13 +6,13 @@ on:
 
 env:
   FOUNDRY_PROFILE: ci
-  NODE_VERSION: 18.16.1
+  NODE_VERSION: 20.14.0
   PYTHON_VERSION: 3.9.17
 
 jobs:
   deploy:
     name: Deploy forge doc to GitHub Pages
-    runs-on: blacksmith-2vcpu-ubuntu-2204
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: write # To push a branch
       pages: write # To push to a GitHub Pages site
