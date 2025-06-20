@@ -168,4 +168,8 @@ abstract contract BuildDeploymentJsonNames is Constants {
     function buildBasicRetryOperatorName() public view returns (string memory) {
         return string.concat(_buildPrefix(), "BasicRetryOperator");
     }
+
+    function buildCoveYearnGaugeFactoryName() public view returns (string memory) {
+        return string.concat(_buildPrefix(), "CoveYearnGaugeFactory");
+    }
 }
