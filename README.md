@@ -121,6 +121,73 @@ This command uses the `deployLocal` script defined in `package.json`. It sets th
 
 ![architecture](./assets/architecture.png)
 
+## Basket Tokens
+
+Basket tokens are ERC-4626 compliant vault tokens that represent a diversified portfolio of underlying assets. They implement the ERC-7540 standard for asynchronous deposits and redemptions, allowing for efficient management of multi-asset baskets.
+
+### Key Features
+
+#### Asynchronous Deposit/Redeem Mechanism
+- **Two-Step Process**: Users first request deposits/redemptions, which are then fulfilled during the next rebalance cycle
+- **Request IDs**: Each deposit/redeem request is assigned a unique ID for tracking
+- **Controller Model**: Supports delegation where operators can manage positions on behalf of controllers
+
+#### Rebalancing Process
+1. **Proposal Phase**: Rebalance proposers initiate rebalancing for baskets that deviate from target weights
+2. **Token Swap Phase**: Internal trades between baskets and external trades via adapters are proposed and executed
+3. **Completion Phase**: Pending deposits/redemptions are fulfilled, and basket weights are adjusted
+
+#### Asset Management
+- **BitFlag System**: Each basket uses a bitflag to select eligible assets from the AssetRegistry
+- **Weight Strategies**: Target weights are determined by strategy contracts (AutomaticWeightStrategy or ManagedWeightStrategy)
+- **Dynamic Asset Universe**: Assets can be added/removed from baskets by updating the bitflag
+
+#### Fee Structure
+- **Management Fees**: Continuously accruing fees (max 30%) harvested during rebalances
+- **Swap Fees**: Applied during rebalancing trades (max 5%)
+
+### Important Integration Considerations
+
+#### Griefing Protection
+When integrating BasketToken into other contracts, be aware of a potential griefing vector:
+- An attacker can call `requestDeposit` or `requestRedeem` with dust amounts, specifying another user as the controller
+- This prevents the target controller from making new requests until they claim the pending request
+- **Recommendation**: Always check for and claim any pending/claimable deposits or redemptions before making new requests
+
+#### Fallback Mechanisms
+- **Failed Deposits**: If a deposit cannot be fulfilled, users can claim back their original assets via `claimFallbackAssets`
+- **Failed Redemptions**: If a redemption cannot be fulfilled, users can claim back their shares via `claimFallbackShares`
+
+#### Pro-Rata Redemption
+- **Emergency Exit**: Users can bypass the asynchronous process using `proRataRedeem`
+- **Immediate Settlement**: Receives a proportional share of all basket assets
+- **Use Cases**: Exiting baskets with paused assets or when rebalancing is not possible
+
+### Lifecycle Example
+
+1. **User deposits assets**:
+   ```solidity
+   basketToken.requestDeposit(amount, controller, owner);
+   ```
+
+2. **Wait for rebalance** (typically within 15-60 minutes)
+
+3. **Claim shares after fulfillment**:
+   ```solidity
+   basketToken.deposit(amount, receiver, controller);
+   ```
+
+4. **For redemptions**:
+   ```solidity
+   basketToken.requestRedeem(shares, controller, owner);
+   // After rebalance...
+   basketToken.redeem(shares, receiver, controller);
+   ```
+
+### Token Naming Convention
+- **Name**: Prefixed with "Cove " (e.g., "Cove USD")
+- **Symbol**: Prefixed with "cove" (e.g., "coveUSD")
+
 ## Audits
 
 Smart contract audits of the Cove Protocol are available [here](https://github.com/Storm-Labs-Inc/cove-audits).
