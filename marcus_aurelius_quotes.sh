@@ -111,7 +111,43 @@ quotes=(
 CYAN='\033[0;36m'
 YELLOW='\033[0;33m'
 GRAY='\033[0;90m'
+PURPLE='\033[0;35m'
 NC='\033[0m' # No Color
+
+# ASCII art of Marcus Aurelius
+marcus_art=(
+"     ___..._     "
+"   .::::::::.    "
+"  .:::::::::::.  "
+" .:::::::::::::: "
+" ::::::::::::::' "
+" ::::::::::::'   "
+" .:::::::::::.   "
+" ::' \\  / '::   "
+".:    ''    :.   "
+"::   o  o   ::   "
+"::     >     ::  "
+"::    ---    ::  "
+" ::  \\_/  ::'   "
+"  ':::::::::'    "
+"    ':::::'      "
+"      ':'        "
+)
+
+# Alternative simpler ASCII art (bust style)
+marcus_bust=(
+"    .===========."
+"   /    _____    \\"
+"  |   /       \\   |"
+"  |  |  ^   ^  |  |"
+"  |  |    >    |  |"
+"  |  |   ___   |  |"
+"  |   \\  '-'  /   |"
+"  |    '-----'    |"
+"  |  M. AURELIUS  |"
+"   \\  IMPERATOR  /"
+"    '==========="
+)
 
 # Function to display a random quote
 display_quote() {
@@ -123,24 +159,60 @@ display_quote() {
     local term_width=$(tput cols 2>/dev/null || echo 80)
     
     # Create a nice border
-    local border_char="─"
+    local border_char="═"
+    local corner_tl="╔"
+    local corner_tr="╗"
+    local corner_bl="╚"
+    local corner_br="╝"
+    local vertical="║"
+    
+    # Calculate border width
+    local border_width=$((term_width - 2))
     local border=""
-    for ((i=0; i<$term_width; i++)); do
+    for ((i=0; i<$border_width; i++)); do
         border+="$border_char"
     done
     
     # Display the quote with nice formatting
     echo
-    echo -e "${GRAY}${border}${NC}"
-    echo
+    echo -e "${PURPLE}${corner_tl}${border}${corner_tr}${NC}"
+    
+    # Display ASCII art centered
+    echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $((term_width - 2)) ' ')${PURPLE}${vertical}${NC}"
+    
+    # Choose which ASCII art to use based on terminal width
+    if [ $term_width -gt 60 ]; then
+        # Use detailed ASCII art for wider terminals
+        for line in "${marcus_art[@]}"; do
+            local padding=$(( (term_width - ${#line} - 2) / 2 ))
+            echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $padding ' ')${GRAY}${line}${NC}$(printf '%*s' $((term_width - padding - ${#line} - 2)) ' ')${PURPLE}${vertical}${NC}"
+        done
+    else
+        # Use simpler ASCII art for narrower terminals
+        for line in "${marcus_bust[@]}"; do
+            local padding=$(( (term_width - ${#line} - 2) / 2 ))
+            echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $padding ' ')${GRAY}${line}${NC}$(printf '%*s' $((term_width - padding - ${#line} - 2)) ' ')${PURPLE}${vertical}${NC}"
+        done
+    fi
+    
+    echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $((term_width - 2)) ' ')${PURPLE}${vertical}${NC}"
+    echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $((term_width - 2)) ' ')${PURPLE}${vertical}${NC}"
     
     # Word wrap and display the quote
-    echo -e "${CYAN}\"${quote}\"${NC}" | fold -s -w $((term_width - 4)) | sed 's/^/  /'
+    echo -e "${CYAN}\"${quote}\"${NC}" | fold -s -w $((term_width - 6)) | while IFS= read -r line; do
+        local padding=$(( (term_width - ${#line} - 2) / 2 ))
+        echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $((padding - 1)) ' ')${CYAN}${line}${NC}$(printf '%*s' $((term_width - padding - ${#line} - 1)) ' ')${PURPLE}${vertical}${NC}"
+    done
     
-    echo
-    echo -e "${YELLOW}  — Marcus Aurelius${NC}"
-    echo
-    echo -e "${GRAY}${border}${NC}"
+    echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $((term_width - 2)) ' ')${PURPLE}${vertical}${NC}"
+    
+    # Attribution
+    local attribution="— Marcus Aurelius"
+    local attr_padding=$(( (term_width - ${#attribution} - 2) / 2 ))
+    echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $attr_padding ' ')${YELLOW}${attribution}${NC}$(printf '%*s' $((term_width - attr_padding - ${#attribution} - 2)) ' ')${PURPLE}${vertical}${NC}"
+    
+    echo -e "${PURPLE}${vertical}${NC}$(printf '%*s' $((term_width - 2)) ' ')${PURPLE}${vertical}${NC}"
+    echo -e "${PURPLE}${corner_bl}${border}${corner_br}${NC}"
     echo
 }
 
