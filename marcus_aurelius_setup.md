@@ -1,5 +1,7 @@
 # Marcus Aurelius Quotes for Terminal - Setup Guide
 
+A collection of 100 inspiring Marcus Aurelius quotes that display randomly when you open your terminal.
+
 ## Installation
 
 1. **Move the script to a permanent location** (optional but recommended):
