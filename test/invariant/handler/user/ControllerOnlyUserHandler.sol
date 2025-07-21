@@ -109,7 +109,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
      * @param idx Index of the basket to redeem from
      * @custom:preconditions none
      * @custom:action Call the redeem function
-     * @custom:postcondition If the call is succesfull the caller was not a "malicious" actor
+     * @custom:postcondition If the call is successful the caller was not a "malicious" actor
      */
     function redeem(uint256 idx) public {
         BasketToken basketToken = _get_basket(idx);
