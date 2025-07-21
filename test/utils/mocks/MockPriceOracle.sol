@@ -6,7 +6,7 @@ import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 contract MockPriceOracle {
     mapping(address => mapping(address => uint256)) internal prices;
 
-    // require for OracleHandler
+    // required for OracleHandler
     address[] public _all_assets;
     mapping(address => bool) _assets_seen;
 
