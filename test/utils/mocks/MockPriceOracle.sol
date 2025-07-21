@@ -50,7 +50,7 @@ contract MockPriceOracle {
         return FixedPointMathLib.fullMulDiv(inAmount, prices[base][quote], 1e18);
     }
 
-    // require for _getPrimaryOracleQuote in BasketManagerValidationLib
+    // required for _getPrimaryOracleQuote in BasketManagerValidationLib
     function getConfiguredOracle(address, address) public view returns (address) {
         return address(this);
     }
