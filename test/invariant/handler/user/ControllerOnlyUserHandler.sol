@@ -131,7 +131,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
      * @param idx Index of the basket to withdraw from
      * @custom:preconditions none
      * @custom:action Call the withdraw function
-     * @custom:postcondition If the call is succesfull the caller was not a "malicious" actor
+     * @custom:postcondition If the call is successful the caller was not a "malicious" actor
      */
     function withdraw(uint256 idx) public {
         BasketToken basketToken = _get_basket(idx);
