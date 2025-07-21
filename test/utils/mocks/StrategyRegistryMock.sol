@@ -66,7 +66,7 @@ contract StrategyRegistryMock is AccessControlEnumerable {
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        require(strategies.length == bitFlags.length, "Arrays length mismatch");
+        require(strategies.length == bitFlags.length, "Array lengths mismatch");
         for (uint256 i = 0; i < strategies.length; i++) {
             mockBitFlagSupport[strategies[i]][bitFlags[i]] = supported;
         }
