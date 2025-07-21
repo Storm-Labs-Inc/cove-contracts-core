@@ -115,7 +115,7 @@ contract UserHandlerBase is Test {
      * @notice Called on successful operations - malicious actors should fail
      */
     function _success() internal virtual {
-        // Malicious actor should not be able to do succesfull operations
+        // Malicious actor should not be able to do successful operations
         if (_is_malicious) {
             assert(false);
         }
