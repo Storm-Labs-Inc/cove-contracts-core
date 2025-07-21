@@ -87,7 +87,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
      * @param idx Index of the basket to claim from
      * @custom:preconditions none
      * @custom:action Call the claimFallbackAssets function
-     * @custom:postcondition If the call is succesfull the caller was not a "malicious" actor
+     * @custom:postcondition If the call is successful the caller was not a "malicious" actor
      */
     function claimFallbackAssets(uint256 idx) public {
         BasketToken basketToken = _get_basket(idx);
