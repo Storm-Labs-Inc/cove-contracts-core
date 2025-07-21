@@ -60,7 +60,7 @@ contract MockPriceOracle {
         return address(this);
     }
 
-    // require for OracleHandler
+    // required for OracleHandler
     function all_assets() public view returns (address[] memory) {
         return _all_assets;
     }
