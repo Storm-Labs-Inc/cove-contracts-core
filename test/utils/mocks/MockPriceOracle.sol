@@ -55,7 +55,7 @@ contract MockPriceOracle {
         return address(this);
     }
 
-    // require for _getPrimaryOracleQuote in BasketManagerValidationLib
+    // required for _getPrimaryOracleQuote in BasketManagerValidationLib
     function primaryOracle() public view returns (address) {
         return address(this);
     }
