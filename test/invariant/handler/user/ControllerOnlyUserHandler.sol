@@ -7,18 +7,18 @@ import { GlobalState } from "test/invariant/handler/GlobalState.sol";
 import { UserHandlerBase } from "test/invariant/handler/user/UserBaseHandler.sol";
 
 abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
-    uint256 successfull_deposit;
-    uint256 successfull_mint;
-    uint256 successfull_claimFallbackAssets;
-    uint256 successfull_redeem;
-    uint256 successfull_claimFallbackShares;
+    uint256 successful_deposit;
+    uint256 successful_mint;
+    uint256 successful_claimFallbackAssets;
+    uint256 successful_redeem;
+    uint256 successful_claimFallbackShares;
 
     /**
      * @notice Attempts to deposit maximum available amount for a basket
-     * git zd     * @param idx Index of the basket to deposit into
+     * @param idx Index of the basket to deposit into
      * @custom:preconditions none
      * @custom:action Call the deposit function
-     * @custom:postcondition If the call is succesfull the caller was not a "malicious" actor
+     * @custom:postcondition If the call is successful the caller was not a "malicious" actor
      */
     function deposit(uint256 idx) public {
         BasketToken basketToken = _get_basket(idx);
@@ -28,7 +28,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
         }
 
         try basketToken.deposit(maxDeposit, address(this), _controller()) {
-            successfull_deposit++;
+            successful_deposit++;
             _success(); // This will check that the caller was not a "malicious" actor
         } catch {
             revert();
@@ -40,7 +40,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
      * @param idx Index of the basket to mint from
      * @custom:preconditions none
      * @custom:action Call the mint function
-     * @custom:postcondition If the call is succesfull the caller was not a "malicious" actor
+     * @custom:postcondition If the call is successful the caller was not a "malicious" actor
      */
     function mint(uint256 idx) public {
         BasketToken basketToken = _get_basket(idx);
@@ -50,7 +50,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
         }
 
         try basketToken.mint(maxMint, address(this), _controller()) {
-            successfull_mint++;
+            successful_mint++;
             _success(); // This will check that the caller was not a "malicious" actor
         } catch {
             revert();
@@ -97,7 +97,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
         }
 
         try basketToken.claimFallbackAssets(address(this), _controller()) {
-            successfull_claimFallbackAssets++;
+            successful_claimFallbackAssets++;
             _success(); // This will check that the caller was not a "malicious" actor
         } catch {
             revert();
@@ -119,7 +119,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
         }
 
         try basketToken.redeem(maxRedeem, address(this), _controller()) {
-            successfull_redeem++;
+            successful_redeem++;
             _success(); // This will check that the caller was not a "malicious" actor
         } catch {
             revert();
@@ -141,7 +141,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
         }
 
         try basketToken.withdraw(maxWithdraw, address(this), _controller()) {
-            successfull_redeem++;
+            successful_redeem++;
             _success(); // This will check that the caller was not a "malicious" actor
         } catch {
             revert();
@@ -189,7 +189,7 @@ abstract contract ControllerOnlyUserHandlerBase is UserHandlerBase {
 
         try basketToken.claimFallbackShares(address(this), _controller()) {
             _success(); // This will check that the caller was not a "malicious" actor
-            successfull_claimFallbackShares++;
+            successful_claimFallbackShares++;
         } catch {
             revert();
         }

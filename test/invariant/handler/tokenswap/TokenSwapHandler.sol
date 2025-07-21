@@ -143,7 +143,7 @@ contract TokenSwapHandler is Test {
         ) {
             successfull_rebalance++;
 
-            globalState.rebalance_compeleted();
+            globalState.rebalance_completed();
         } catch {
             revert();
         }

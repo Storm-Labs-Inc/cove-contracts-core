@@ -12,11 +12,11 @@ abstract contract RequesterOnlyUserHandlerBase is UserHandlerBase {
     uint256 requestIDDeposit;
     uint256 requestIDRedeem;
 
-    uint256 successfull_requestDeposit;
-    uint256 successfull_requestRedeem;
+    uint256 successful_requestDeposit;
+    uint256 successful_requestRedeem;
 
-    uint256 succesfull_cancelDeposit;
-    uint256 succesfull_cancelRedeem;
+    uint256 successful_cancelDeposit;
+    uint256 successful_cancelRedeem;
 
     /**
      * @notice Requests a deposit for a specific basket and amount
@@ -40,7 +40,7 @@ abstract contract RequesterOnlyUserHandlerBase is UserHandlerBase {
         try basketToken.requestDeposit(amount, _controller(), _owner()) returns (uint256 id) {
             requestIDDeposit = id;
 
-            successfull_requestDeposit++;
+            successful_requestDeposit++;
 
             globalState.add_request_deposit_controller(address(basketToken), id, _controller());
 
@@ -58,7 +58,7 @@ abstract contract RequesterOnlyUserHandlerBase is UserHandlerBase {
         BasketToken basketToken = _get_basket(idxBasket);
 
         try basketToken.cancelDepositRequest() {
-            succesfull_cancelDeposit++;
+            successful_cancelDeposit++;
         } catch {
             _could_revert();
         }
@@ -83,7 +83,7 @@ abstract contract RequesterOnlyUserHandlerBase is UserHandlerBase {
         try basketToken.requestRedeem(amount, _controller(), _owner()) returns (uint256 id) {
             requestIDRedeem = id;
 
-            successfull_requestRedeem++;
+            successful_requestRedeem++;
 
             // Do not call success, as anyone can call requestDeposit on incorrect controller
         } catch {
@@ -99,7 +99,7 @@ abstract contract RequesterOnlyUserHandlerBase is UserHandlerBase {
         BasketToken basketToken = _get_basket(idxBasket);
 
         try basketToken.cancelRedeemRequest() {
-            succesfull_cancelRedeem++;
+            successful_cancelRedeem++;
         } catch {
             _could_revert();
         }
