@@ -5,7 +5,7 @@ import { ERC20DecimalsMock } from "test/utils/mocks/ERC20DecimalsMock.sol";
 
 /// @notice This mock behaves as a perfect token swapper, where the exact amount of tokens are sold and bought
 contract TokenSwapAdapterMock {
-    // This address hold the token that are sold
+    // This address holds the tokens that are sold
     address constant COW_SINK = address(0xdeadbeef);
 
     /// @notice Executes series of token swaps and returns the hashes of the orders submitted/executed
