@@ -28,7 +28,7 @@ contract GlobalState {
     /**
      * @notice Resets price update flag when rebalance completes
      */
-    function rebalance_compeleted() public {
+    function rebalance_completed() public {
         price_was_updated = false;
     }
 
