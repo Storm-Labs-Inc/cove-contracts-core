@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { BasketToken } from "src/BasketToken.sol";
-import { BasketManagerHandlers } from "test/invariant/handler/BasketManagerHandlers.deployement.t.sol";
+import { BasketManagerHandlers } from "test/invariant/handler/BasketManagerHandlers.deployment.t.sol";
 
 import { console } from "forge-std/console.sol";
 

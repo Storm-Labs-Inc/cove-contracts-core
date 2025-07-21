@@ -1,7 +1,7 @@
 pragma solidity 0.8.28;
 
 import { BasketTradeOwnership, ExternalTrade, InternalTrade } from "src/types/Trades.sol";
-import { BasketManagerHandlers } from "test/invariant/handler/BasketManagerHandlers.deployement.t.sol";
+import { BasketManagerHandlers } from "test/invariant/handler/BasketManagerHandlers.deployment.t.sol";
 
 import { console } from "forge-std/console.sol";
 import { UserHandler } from "test/invariant/handler/user/UserHandler.sol";

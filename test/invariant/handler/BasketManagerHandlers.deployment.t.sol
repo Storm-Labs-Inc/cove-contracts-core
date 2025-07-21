@@ -99,7 +99,7 @@ contract BasketManagerHandlers is Test, Constants {
         BasketToken basketTokenImplementation = new BasketToken();
 
         // Deploy FeeCollector first with a temporary basketManager address
-        // We use a fake manager here. The real deployement use create3
+        // We use a fake manager here. The real deployment use create3
         FakeBasketManagerForFeeCollector fakeManager = new FakeBasketManagerForFeeCollector();
 
         protocolTreasury = makeAddr("protocolTreasury");

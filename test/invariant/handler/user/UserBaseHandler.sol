@@ -123,7 +123,7 @@ contract UserHandlerBase is Test {
 
     /**
      * @notice Called when operations could revert. If used with foundry
-     * fail_on_revert = true, this should be overidden to prevent the revert
+     * fail_on_revert = true, this should be overridden to prevent the revert
      */
     function _could_revert() internal virtual {
         revert();

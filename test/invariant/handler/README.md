@@ -9,7 +9,7 @@
   - [Architecture](#architecture)
     - [Interactions](#interactions)
     - [Components](#components)
-      - [Deployment System (`BasketManagerHandlers.deployement.t.sol`)](#deployment-system-basketmanagerhandlersdeployementtsol)
+      - [Deployment System (`BasketManagerHandlers.deployment.t.sol`)](#deployment-system-basketmanagerhandlersdeploymenttsol)
       - [Mocks (`/test/utils/mocks`)](#mocks-testutilsmocks)
       - [User Handlers (`/user/`)](#user-handlers-user)
       - [Other Handlers](#other-handlers)
@@ -158,11 +158,11 @@ sequenceDiagram
 
 The system is organized
 
-- Local deployement contract
+- Local deployment contract
 - Mock contracts
 - And specialized handlers, each responsible for specific operations
 
-#### Deployment System (`BasketManagerHandlers.deployement.t.sol`)
+#### Deployment System (`BasketManagerHandlers.deployment.t.sol`)
 
 Deploy all the relevant contracts and set the access controls.
 
@@ -180,7 +180,7 @@ The user logic is split into multiple contracts:
 - **RequesterOnlyUserHandler**: Request deposits/redeems only
 - **UserBaseHandler**: Base functionality for all user handlers
 
-The inheritance tree of the user handlers allow to create users with partial responsabilities (ex: having a user only creating request for other users).
+The inheritance tree of the user handlers allow to create users with partial responsibilities (ex: having a user only creating request for other users).
 
 For example
 
@@ -205,7 +205,7 @@ In the above setup:
 - `aliceController` will call `deposit` on alice's behalf
 - `eve` will call `deposit` on alice's behalf, but the call will fail
 
-If `eve` could succesfully call `deposit` using Alice's address (e.g. if `_onlySelfOrOperator(controller);` is removed from `deposit`), then the fuzzer will automatically find the issue (see `UserBaseHandler._success`'s logic and `INV-014`).
+If `eve` could successfully call `deposit` using Alice's address (e.g. if `_onlySelfOrOperator(controller);` is removed from `deposit`), then the fuzzer will automatically find the issue (see `UserBaseHandler._success`'s logic and `INV-014`).
 
 #### Other Handlers
 
@@ -388,7 +388,7 @@ The fuzzing harness tests the following invariants to ensure protocol correctnes
 | INV-010 | Verifies ERC20 total supply consistency: totalSupply equals sum of all holder balances                | [`BasketManagerHandlers.medusa.t.sol`](BasketManagerHandlers.medusa.t.sol#L335-L360) | Stateful fuzzing (invariant)                |
 | INV-011 | Verifies that max functions (maxDeposit, maxMint, maxRedeem, maxWithdraw) don't revert                | [`BasketManagerHandlers.medusa.t.sol`](BasketManagerHandlers.medusa.t.sol#L368-L385) | Stateful fuzzing (assertion)                |
 | INV-012 | Verifies that totalAssets() approximates sum of oracle quotes within 1% tolerance                     | [`BasketManagerHandlers.medusa.t.sol`](BasketManagerHandlers.medusa.t.sol#L396-L450) | Stateful fuzzing (invariant) (**disabled**) |
-| INV-013 | Verifies the deposit request asset consistency                 | [`BasketManagerHandlers.medusa.t.sol`](BasketManagerHandlers.medusa.t.sol#L450-L484) | Stateful fuzzing (invariant) |
+| INV-013 | Verifies the deposit request asset consistency                                                        | [`BasketManagerHandlers.medusa.t.sol`](BasketManagerHandlers.medusa.t.sol#L450-L484) | Stateful fuzzing (invariant)                |
 | INV-014 | Verifies that successful deposit operations indicate non-malicious caller                             | [`user/ControllerOnlyUserHandler.sol`](user/ControllerOnlyUserHandler.sol#L15-L30)   | Stateful fuzzing (assertion)                |
 | INV-015 | Verifies that successful mint operations indicate non-malicious caller                                | [`user/ControllerOnlyUserHandler.sol`](user/ControllerOnlyUserHandler.sol#L32-L47)   | Stateful fuzzing (assertion)                |
 | INV-016 | Verifies that deposit with wrong amount (different from maxDeposit) should revert                     | [`user/ControllerOnlyUserHandler.sol`](user/ControllerOnlyUserHandler.sol#L58-L75)   | Stateful fuzzing (assertion)                |
