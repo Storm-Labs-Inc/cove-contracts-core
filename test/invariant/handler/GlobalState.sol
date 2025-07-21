@@ -9,7 +9,7 @@ contract GlobalState {
     bool public price_was_updated;
 
     mapping(address => mapping(uint256 => address[])) public requestDepositToController;
-    // Keep an internal mapping to avoid dupplicate
+    // Keep an internal mapping to avoid duplicate
     mapping(address => mapping(uint256 => mapping(address => bool))) requestDepositToController_internal;
 
     /**
