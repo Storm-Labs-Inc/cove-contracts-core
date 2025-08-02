@@ -484,4 +484,46 @@ contract ScenarioSimpleMedusa is BasketManagerHandlers {
             }
         }
     }
+
+    /**
+     * @notice Verifies the redeem request share consistency
+     * @custom:preconditions None
+     * @custom:action Sum all the shares redeemed on a request by all the controllers
+     * @custom:postcondition The sum must be equal to totalRedeemShares
+     */
+    function invariant_redeem_request() public {
+        address[] memory baskets = basketManager.basketTokens();
+
+        for (uint256 i = 0; i < baskets.length; i++) {
+            uint256 maxRedeemRequest = BasketToken(baskets[i]).nextRedeemRequestId();
+
+            // Redeem request IDs are odd numbers starting from 3
+            for (uint256 redeemId = 3; redeemId <= maxRedeemRequest; redeemId += 2) {
+                BasketToken.RedeemRequestView memory requestView = BasketToken(baskets[i]).getRedeemRequest(redeemId);
+
+                uint256 totalRedeemShares = requestView.totalRedeemShares;
+                if (totalRedeemShares == 0) {
+                    continue;
+                }
+
+                // Skip if request has been fulfilled or fallback triggered
+                // Because we can't access _redeemRequests directly
+                // So we can't see redeemRequest.redeemShares[controller]
+                if (!(requestView.fulfilledAssets == 0 && !requestView.fallbackTriggered)) {
+                    continue;
+                }
+
+                // Since we don't have a similar tracking mechanism for redeem requests
+                // we need to check all users who might have pending redeems
+                uint256 sumShares;
+                for (uint256 j = 0; j < users.length; j++) {
+                    address userAddr = address(users[j]);
+                    uint256 pendingShares = BasketToken(baskets[i]).pendingRedeemRequest(redeemId, userAddr);
+                    sumShares += pendingShares;
+                }
+
+                assert(sumShares == totalRedeemShares);
+            }
+        }
+    }
 }
