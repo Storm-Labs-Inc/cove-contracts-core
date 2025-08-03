@@ -5,6 +5,8 @@ import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 
 import { VerifyStates_Production } from "./verify/VerifyStates_Production.s.sol";
+
+import { console } from "forge-std/console.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
@@ -145,18 +147,16 @@ contract DeploymentsProduction is Deployments {
 
         // 3. sfrxUSD
         // Primary: sfrxUSD --(4626)--> frxUSD --(Pyth)--> USD
-        // Anchor: sfrxUSD --(4626)--> frxUSD --(CurveEMA)--> USDE --(Chainlink)--> USD
-        _deployAnchoredOracleWith4626CurveEMAOracleUnderlying(
+        // Anchor: sfrxUSD --(4626)--> frxUSD --(Chainlink)--> USD
+        _deployAnchoredOracleWith4626ForAsset(
             ETH_SFRXUSD,
-            ETH_CURVE_SFRXUSD_SUSDE_POOL,
-            ETH_USDE,
-            0, // sfrxUSD is the first coin in the pool, but the oracle uses frxUSD price
-            1, // sUSDe is the second coin in the pool, but the oracle uses USDe price
+            true,
+            true,
             OracleOptions({
                 pythPriceFeed: PYTH_FRXUSD_USD_FEED,
                 pythMaxStaleness: PYTH_MAX_STALENESS,
                 pythMaxConfWidth: PYTH_MAX_CONF_WIDTH_BPS,
-                chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
+                chainlinkPriceFeed: ETH_CHAINLINK_FRXUSD_USD_FEED,
                 chainlinkMaxStaleness: CHAINLINK_MAX_STALENESS,
                 maxDivergence: ANCHORED_ORACLE_MAX_DIVERGENCE_BPS
             })
@@ -200,21 +200,39 @@ contract DeploymentsProduction is Deployments {
         address feeCollector = deployer.getAddress(buildFeeCollectorName());
 
         // Set sponsor to Guantlet multisig
-        if (shouldBroadcast) {
-            vm.broadcast();
+        if (FeeCollector(feeCollector).hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            FeeCollector(feeCollector).setSponsor(basketToken, SPONSOR_GAUNTLET);
+        } else {
+            console.log(
+                "Not setting sponsor to Guantlet multisig because FeeCollector does not have DEFAULT_ADMIN_ROLE"
+            );
         }
-        FeeCollector(feeCollector).setSponsor(basketToken, SPONSOR_GAUNTLET);
 
         // Set management fee to 100 basis points
-        if (shouldBroadcast) {
-            vm.broadcast();
+        if (BasketManager(basketManager).hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            BasketManager(basketManager).setManagementFee(basketToken, COVE_USD_MANAGEMENT_FEE);
+        } else {
+            console.log(
+                "Not setting management fee to 100 basis points because BasketManager does not have DEFAULT_ADMIN_ROLE"
+            );
         }
-        BasketManager(basketManager).setManagementFee(basketToken, COVE_USD_MANAGEMENT_FEE);
 
         // Set fee collector split (40% to sponsor, 60% to COVE)
-        if (shouldBroadcast) {
-            vm.broadcast();
+        if (FeeCollector(feeCollector).hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
+            if (shouldBroadcast) {
+                vm.broadcast();
+            }
+            FeeCollector(feeCollector).setSponsorSplit(basketToken, COVE_USD_SPONSOR_SPLIT);
+        } else {
+            console.log(
+                "Not setting fee collector split to 40% to sponsor because FeeCollector does not have DEFAULT_ADMIN_ROLE"
+            );
         }
-        FeeCollector(feeCollector).setSponsorSplit(basketToken, COVE_USD_SPONSOR_SPLIT);
     }
 }
