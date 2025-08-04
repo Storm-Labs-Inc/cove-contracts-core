@@ -136,6 +136,7 @@ contract Constants is CommonBase {
 
     // frxUSD
     bytes32 public constant PYTH_FRXUSD_USD_FEED = 0x7c53208632935ba5122c3cf65a0f4b3e72ba4955b49ad6ba0acf3d9ba405aef3;
+    address public constant ETH_CHAINLINK_FRXUSD_USD_FEED = 0x9B4a96210bc8D9D55b1908B465D8B0de68B7fF83;
 
     // USDS
     bytes32 public constant PYTH_USDS_USD_FEED = 0x77f0971af11cc8bac224917275c1bf55f2319ed5c654a1ca955c82fa2d297ea1;

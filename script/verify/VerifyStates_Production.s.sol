@@ -237,7 +237,6 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
 
             // Use single unit of asset to measure the price
             uint256 amount = 10 ** IERC20Metadata(asset).decimals();
-            uint256 eulerRouterPrice = eulerRouter.getQuote(amount, asset, USD);
 
             // Get primary and anchor oracles
             AnchoredOracle anchoredOracle = AnchoredOracle(oracleAddr);
@@ -248,9 +247,11 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
             uint256 primaryPrice = IPriceOracle(primaryOracle).getQuote(amount, asset, USD);
             uint256 anchorPrice = IPriceOracle(anchorOracle).getQuote(amount, asset, USD);
 
-            console.log(string.concat("EulerRouter Price   : $", _formatEther(eulerRouterPrice)));
             console.log(string.concat("Primary Oracle Price: $", _formatEther(primaryPrice)));
             console.log(string.concat("Anchor Oracle Price : $", _formatEther(anchorPrice)));
+
+            uint256 eulerRouterPrice = eulerRouter.getQuote(amount, asset, USD);
+            console.log(string.concat("EulerRouter Price   : $", _formatEther(eulerRouterPrice)));
 
             // Print primary oracle details
             console.log("\nPrimary Oracle (Pyth sourced):", primaryOracle);
