@@ -10,6 +10,7 @@ fs_permissions = [
 solc = '0.8.28'
 ffi = true
 evm_version = "prague"
+script_execution_protection = false
 optimizer = true
 optimizer_runs = 400
 via_ir = true

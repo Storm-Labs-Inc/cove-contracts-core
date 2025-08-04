@@ -779,10 +779,21 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         console.log("Previously configured oracle for %s/USD: %s", asset, configuredOracle);
         if (configuredOracle != oracle) {
             console.log("Registering anchored oracle for %s/USD with oracle %s", asset, oracle);
-            if (shouldBroadcast) {
-                vm.broadcast();
+            if (eulerRouter.governor() == COVE_DEPLOYER_ADDRESS) {
+                if (shouldBroadcast) {
+                    vm.broadcast();
+                }
+                eulerRouter.govSetConfig(asset, USD, oracle);
+            } else {
+                console.log(
+                    "Pranking eulerRouter governor %s to register anchored oracle for %s/USD with oracle %s",
+                    eulerRouter.governor(),
+                    asset,
+                    oracle
+                );
+                vm.prank(eulerRouter.governor());
+                eulerRouter.govSetConfig(asset, USD, oracle);
             }
-            eulerRouter.govSetConfig(asset, USD, oracle);
         } else {
             console.log("Anchored oracle for %s/USD already registered correctly", asset);
         }
