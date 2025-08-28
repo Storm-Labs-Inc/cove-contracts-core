@@ -6,10 +6,11 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { AutopoolCompounder } from "src/compounder/AutopoolCompounder.sol";
-import { MockAutopool } from "test/mocks/MockAutopool.sol";
-import { MockAutopoolMainRewarder } from "test/mocks/MockAutopoolMainRewarder.sol";
-import { MockMilkman } from "test/mocks/MockMilkman.sol";
-import { MockPriceOracle } from "test/mocks/MockPriceOracle.sol";
+import { IPriceOracle } from "euler-price-oracle-1/src/interfaces/IPriceOracle.sol";
+import { MockAutopool } from "test/utils/mocks/MockAutopool.sol";
+import { MockAutopoolMainRewarder } from "test/utils/mocks/MockAutopoolMainRewarder.sol";
+import { MockMilkman } from "test/utils/mocks/MockMilkman.sol";
+import { MockPriceOracle } from "test/utils/mocks/MockPriceOracle.sol";
 import { OraclePriceChecker } from "src/compounder/pricecheckers/OraclePriceChecker.sol";
 import { ITokenizedStrategy } from "tokenized-strategy-3.0.4/src/interfaces/ITokenizedStrategy.sol";
 
@@ -74,8 +75,8 @@ contract AutopoolCompounderTest is BaseTest {
         ITokenizedStrategy(address(strategy)).setKeeper(keeper);
         
         // Fund users with base asset
-        baseAsset.mint(alice, 10000e6); // 10,000 USDC
-        baseAsset.mint(bob, 10000e6);
+        baseAsset.mint(alice, 10000000e6); // 10 million USDC for fuzz tests
+        baseAsset.mint(bob, 10000000e6);
         
         // Fund rewarder with reward tokens
         rewardToken.mint(address(rewarder), 1000000e18);
@@ -83,7 +84,7 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// DEPLOYMENT TESTS ///
     
-    function test_Deployment() public {
+    function test_deployment() public {
         assertEq(address(strategy.autopool()), address(autopool));
         assertEq(address(strategy.rewarder()), address(rewarder));
         assertEq(address(strategy.milkman()), address(milkman));
@@ -91,7 +92,7 @@ contract AutopoolCompounderTest is BaseTest {
         assertEq(strategy.maxPriceDeviationBps(), 500);
     }
     
-    function test_DeploymentRevertsOnZeroAddress() public {
+    function test_deployment_revertsWhen_zeroAddress() public {
         vm.expectRevert(AutopoolCompounder.ZeroAddress.selector);
         new AutopoolCompounder(address(0), address(rewarder), address(milkman));
         
@@ -104,8 +105,9 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// DEPOSIT AND STAKE TESTS ///
     
-    function test_DepositAndStake() public {
-        uint256 depositAmount = 1000e6; // 1000 USDC
+    function testFuzz_depositAndStake(uint256 depositAmount) public {
+        // Bound the deposit amount to reasonable values (1 USDC to 10k USDC)
+        depositAmount = bound(depositAmount, 1e6, 10000e6);
         
         // Alice deposits base asset to autopool first
         vm.startPrank(alice);
@@ -125,7 +127,7 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// PRICE CHECKER MANAGEMENT TESTS ///
     
-    function test_UpdatePriceChecker() public {
+    function test_updatePriceChecker() public {
         vm.prank(management);
         strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
         
@@ -136,13 +138,13 @@ contract AutopoolCompounderTest is BaseTest {
         assertEq(configuredTokens[0], address(rewardToken));
     }
     
-    function test_UpdatePriceCheckerRevertsForAsset() public {
+    function test_updatePriceChecker_revertsWhen_settingForAsset() public {
         vm.prank(management);
         vm.expectRevert(AutopoolCompounder.CannotSetCheckerForAsset.selector);
         strategy.updatePriceChecker(address(autopool), address(priceChecker));
     }
     
-    function test_RemovePriceChecker() public {
+    function test_removePriceChecker() public {
         // First add
         vm.prank(management);
         strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
@@ -159,7 +161,7 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// HARVEST AND COMPOUND TESTS ///
     
-    function test_ClaimRewardsAndSwap() public {
+    function test_claimRewardsAndSwap() public {
         // Setup: deposit and stake
         uint256 depositAmount = 1000e6;
         vm.startPrank(alice);
@@ -170,7 +172,7 @@ contract AutopoolCompounderTest is BaseTest {
         vm.stopPrank();
         
         // Set up oracle exchange rate (1 TOKE = 0.001 USDC for testing)
-        priceOracle.setExchangeRate(address(rewardToken), address(baseAsset), 1e15); // 0.001 * 1e18
+        priceOracle.setPrice(address(rewardToken), address(baseAsset), 1e15); // 0.001 * 1e18
         
         // Configure price checker
         vm.prank(management);
@@ -187,7 +189,7 @@ contract AutopoolCompounderTest is BaseTest {
         // Note: In real implementation, we'd check Milkman events
     }
     
-    function test_HarvestAndReport() public {
+    function test_harvestAndReport() public {
         // Setup: deposit and stake
         uint256 depositAmount = 1000e6;
         vm.startPrank(alice);
@@ -198,7 +200,7 @@ contract AutopoolCompounderTest is BaseTest {
         vm.stopPrank();
         
         // Set up oracle exchange rate
-        priceOracle.setExchangeRate(address(rewardToken), address(baseAsset), 1e15);
+        priceOracle.setPrice(address(rewardToken), address(baseAsset), 1e15);
         
         // Configure price checker
         vm.prank(management);
@@ -221,9 +223,11 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// WITHDRAWAL TESTS ///
     
-    function test_Withdrawal() public {
+    function testFuzz_withdrawal(uint256 depositAmount) public {
+        // Bound deposit amount to reasonable values
+        depositAmount = bound(depositAmount, 1e6, 10000e6);
+        
         // Setup: deposit
-        uint256 depositAmount = 1000e6;
         vm.startPrank(alice);
         baseAsset.approve(address(autopool), depositAmount);
         uint256 shares = autopool.deposit(depositAmount, alice);
@@ -245,7 +249,7 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// ACCESS CONTROL TESTS ///
     
-    function test_OnlyManagementCanUpdatePriceChecker() public {
+    function test_updatePriceChecker_revertsWhen_notManagement() public {
         vm.prank(alice);
         vm.expectRevert();
         strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
@@ -254,7 +258,7 @@ contract AutopoolCompounderTest is BaseTest {
         strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
     }
     
-    function test_OnlyKeepersCanClaimRewards() public {
+    function test_claimRewardsAndSwap_revertsWhen_notKeeper() public {
         vm.prank(alice);
         vm.expectRevert();
         strategy.claimRewardsAndSwap();
@@ -268,28 +272,25 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// PARAMETER SETTING TESTS ///
     
-    // Removed test_SetMinRewardToSell and test_SetMinBaseAssetToCompound - functions no longer exist
-    
-    function test_SetMaxPriceDeviation() public {
-        vm.prank(management);
-        strategy.setMaxPriceDeviation(1000); // 10%
+    function testFuzz_setMaxPriceDeviation(uint256 deviation) public {
+        // Bound deviation to valid range (0 to 10000 bps = 100%)
+        deviation = bound(deviation, 0, 10000);
         
-        assertEq(strategy.maxPriceDeviationBps(), 1000);
+        vm.prank(management);
+        strategy.setMaxPriceDeviation(deviation);
+        
+        assertEq(strategy.maxPriceDeviationBps(), deviation);
     }
     
-    function test_SetMaxPriceDeviationReverts() public {
+    function test_setMaxPriceDeviation_revertsWhen_tooHigh() public {
         vm.prank(management);
         vm.expectRevert(AutopoolCompounder.InvalidMaxDeviation.selector);
         strategy.setMaxPriceDeviation(10001); // > 100%
     }
     
-    /// HARVEST TRIGGER TESTS ///
-    
-    // Removed harvest trigger tests - harvestTrigger function no longer exists
-    
     /// VIEW FUNCTION TESTS ///
     
-    function test_GetConfiguredRewardTokens() public {
+    function test_getConfiguredRewardTokens() public {
         vm.startPrank(management);
         strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
         
@@ -306,7 +307,7 @@ contract AutopoolCompounderTest is BaseTest {
         assertTrue(tokens[0] == address(extraReward) || tokens[1] == address(extraReward));
     }
     
-    function test_StakedBalance() public {
+    function test_stakedBalance() public {
         // Deposit and check staked balance
         uint256 depositAmount = 1000e6;
         vm.startPrank(alice);
@@ -320,7 +321,7 @@ contract AutopoolCompounderTest is BaseTest {
         assertEq(strategy.stakedBalance(), rewarder.balanceOf(address(strategy)));
     }
     
-    function test_PendingRewards() public {
+    function test_pendingRewards() public {
         rewarder.setEarned(address(strategy), 123e18);
         assertEq(strategy.pendingRewards(), 123e18);
     }

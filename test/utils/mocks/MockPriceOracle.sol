@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { IPriceOracle } from "euler-price-oracle-1/src/interfaces/IPriceOracle.sol";
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 
-contract MockPriceOracle {
+contract MockPriceOracle is IPriceOracle {
     mapping(address => mapping(address => uint256)) internal prices;
 
     function setPrice(address base, address quote, uint256 price) external {
@@ -20,5 +21,9 @@ contract MockPriceOracle {
 
     function _calcQuote(uint256 inAmount, address base, address quote) internal view returns (uint256) {
         return FixedPointMathLib.fullMulDiv(inAmount, prices[base][quote], 1e18);
+    }
+
+    function name() external pure returns (string memory) {
+        return "MockPriceOracle";
     }
 }
