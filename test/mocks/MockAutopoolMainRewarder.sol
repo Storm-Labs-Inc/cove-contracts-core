@@ -35,7 +35,7 @@ contract MockAutopoolMainRewarder is IAutopoolMainRewarder {
         IERC20(stakingToken).safeTransfer(account, amount);
         
         if (claim) {
-            getReward(account, account, true);
+            this.getReward(account, account, true);
         }
     }
     

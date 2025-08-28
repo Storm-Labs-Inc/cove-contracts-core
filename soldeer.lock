@@ -56,6 +56,12 @@ git = "https://github.com/lifinance/create3-factory.git"
 rev = "93b667acda0dafcafb6e193610b421ea003f46a9"
 
 [[dependencies]]
+name = "milkman"
+version = "1"
+git = "https://github.com/charlesndalton/milkman"
+rev = "f7719b59c349eb60eadaed734270a440c77345f8"
+
+[[dependencies]]
 name = "solady"
 version = "0.1.17"
 url = "https://soldeer-revisions.s3.amazonaws.com/solady/0_1_17_30-04-2025_11:52:21_solady.zip"
@@ -73,3 +79,9 @@ name = "token-plugins-upgradeable"
 version = "1"
 git = "https://github.com/Storm-Labs-Inc/token-plugins-upgradeable.git"
 rev = "439806ce46954563a921059b6d44f792f4375312"
+
+[[dependencies]]
+name = "tokenized-strategy"
+version = "3.0.4"
+git = "https://github.com/yearn/tokenized-strategy.git"
+rev = "82806289f967590c4efbf6bc3d237e4e7f0a0966"

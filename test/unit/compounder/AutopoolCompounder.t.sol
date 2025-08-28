@@ -9,7 +9,8 @@ import { AutopoolCompounder } from "src/compounder/AutopoolCompounder.sol";
 import { MockAutopool } from "test/mocks/MockAutopool.sol";
 import { MockAutopoolMainRewarder } from "test/mocks/MockAutopoolMainRewarder.sol";
 import { MockMilkman } from "test/mocks/MockMilkman.sol";
-import { MockPriceChecker } from "test/mocks/MockPriceChecker.sol";
+import { MockPriceOracle } from "test/mocks/MockPriceOracle.sol";
+import { OraclePriceChecker } from "src/compounder/pricecheckers/OraclePriceChecker.sol";
 import { ITokenizedStrategy } from "tokenized-strategy-3.0.4/src/interfaces/ITokenizedStrategy.sol";
 
 contract MockERC20 is ERC20 {
@@ -25,7 +26,8 @@ contract AutopoolCompounderTest is BaseTest {
     MockAutopool public autopool;
     MockAutopoolMainRewarder public rewarder;
     MockMilkman public milkman;
-    MockPriceChecker public priceChecker;
+    MockPriceOracle public priceOracle;
+    OraclePriceChecker public priceChecker;
     
     MockERC20 public baseAsset; // e.g., USDC
     MockERC20 public rewardToken; // e.g., TOKE
@@ -54,9 +56,10 @@ contract AutopoolCompounderTest is BaseTest {
         // Deploy mock rewarder
         rewarder = new MockAutopoolMainRewarder(address(autopool), address(rewardToken));
         
-        // Deploy mock Milkman and price checker
+        // Deploy mock Milkman and price oracle/checker
         milkman = new MockMilkman();
-        priceChecker = new MockPriceChecker();
+        priceOracle = new MockPriceOracle();
+        priceChecker = new OraclePriceChecker(priceOracle, 500); // 5% max deviation
         
         // Deploy strategy
         vm.prank(management);
@@ -66,10 +69,9 @@ contract AutopoolCompounderTest is BaseTest {
             address(milkman)
         );
         
-        // Set up roles
-        vm.startPrank(strategy.management());
+        // Set up keeper role
+        vm.prank(management);
         ITokenizedStrategy(address(strategy)).setKeeper(keeper);
-        vm.stopPrank();
         
         // Fund users with base asset
         baseAsset.mint(alice, 10000e6); // 10,000 USDC
@@ -112,13 +114,13 @@ contract AutopoolCompounderTest is BaseTest {
         
         // Now deposit autopool shares to strategy
         autopool.approve(address(strategy), shares);
-        uint256 strategyShares = strategy.deposit(shares, alice);
+        uint256 strategyShares = ITokenizedStrategy(address(strategy)).deposit(shares, alice);
         vm.stopPrank();
         
         // Check that funds are staked
         assertEq(rewarder.balanceOf(address(strategy)), shares);
         assertEq(strategy.stakedBalance(), shares);
-        assertEq(strategy.totalAssets(), shares);
+        assertEq(ITokenizedStrategy(address(strategy)).totalAssets(), shares);
     }
     
     /// PRICE CHECKER MANAGEMENT TESTS ///
@@ -164,8 +166,11 @@ contract AutopoolCompounderTest is BaseTest {
         baseAsset.approve(address(autopool), depositAmount);
         uint256 shares = autopool.deposit(depositAmount, alice);
         autopool.approve(address(strategy), shares);
-        strategy.deposit(shares, alice);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
         vm.stopPrank();
+        
+        // Set up oracle exchange rate (1 TOKE = 0.001 USDC for testing)
+        priceOracle.setExchangeRate(address(rewardToken), address(baseAsset), 1e15); // 0.001 * 1e18
         
         // Configure price checker
         vm.prank(management);
@@ -189,14 +194,15 @@ contract AutopoolCompounderTest is BaseTest {
         baseAsset.approve(address(autopool), depositAmount);
         uint256 shares = autopool.deposit(depositAmount, alice);
         autopool.approve(address(strategy), shares);
-        strategy.deposit(shares, alice);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
         vm.stopPrank();
         
-        // Configure price checker and minimums
-        vm.startPrank(management);
+        // Set up oracle exchange rate
+        priceOracle.setExchangeRate(address(rewardToken), address(baseAsset), 1e15);
+        
+        // Configure price checker
+        vm.prank(management);
         strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
-        strategy.setMinBaseAssetToCompound(10e6); // 10 USDC
-        vm.stopPrank();
         
         // Set up rewards
         rewarder.setEarned(address(strategy), 100e18);
@@ -206,10 +212,11 @@ contract AutopoolCompounderTest is BaseTest {
         
         // Report
         vm.prank(keeper);
-        uint256 totalAssets = strategy.report();
+        (uint256 profit, uint256 loss) = ITokenizedStrategy(address(strategy)).report();
         
-        // Should have compounded the base asset
-        assertTrue(totalAssets > shares);
+        // Should have compounded the base asset (profit should be positive)
+        assertTrue(profit > 0);
+        assertEq(loss, 0);
     }
     
     /// WITHDRAWAL TESTS ///
@@ -221,7 +228,7 @@ contract AutopoolCompounderTest is BaseTest {
         baseAsset.approve(address(autopool), depositAmount);
         uint256 shares = autopool.deposit(depositAmount, alice);
         autopool.approve(address(strategy), shares);
-        uint256 strategyShares = strategy.deposit(shares, alice);
+        uint256 strategyShares = ITokenizedStrategy(address(strategy)).deposit(shares, alice);
         vm.stopPrank();
         
         // Fast forward time
@@ -229,11 +236,11 @@ contract AutopoolCompounderTest is BaseTest {
         
         // Withdraw
         vm.prank(alice);
-        uint256 withdrawn = strategy.redeem(strategyShares, alice, alice);
+        uint256 withdrawn = ITokenizedStrategy(address(strategy)).redeem(strategyShares, alice, alice);
         
         assertEq(withdrawn, shares);
         assertEq(autopool.balanceOf(alice), shares);
-        assertEq(strategy.balanceOf(alice), 0);
+        assertEq(ITokenizedStrategy(address(strategy)).balanceOf(alice), 0);
     }
     
     /// ACCESS CONTROL TESTS ///
@@ -261,19 +268,7 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// PARAMETER SETTING TESTS ///
     
-    function test_SetMinRewardToSell() public {
-        vm.prank(management);
-        strategy.setMinRewardToSell(address(rewardToken), 10e18);
-        
-        assertEq(strategy.minRewardToSell(address(rewardToken)), 10e18);
-    }
-    
-    function test_SetMinBaseAssetToCompound() public {
-        vm.prank(management);
-        strategy.setMinBaseAssetToCompound(100e6);
-        
-        assertEq(strategy.minBaseAssetToCompound(), 100e6);
-    }
+    // Removed test_SetMinRewardToSell and test_SetMinBaseAssetToCompound - functions no longer exist
     
     function test_SetMaxPriceDeviation() public {
         vm.prank(management);
@@ -290,33 +285,7 @@ contract AutopoolCompounderTest is BaseTest {
     
     /// HARVEST TRIGGER TESTS ///
     
-    function test_HarvestTriggerOnRewards() public {
-        // Setup
-        vm.prank(management);
-        strategy.setMinRewardToSell(address(rewardToken), 10e18);
-        
-        // Set earned rewards below threshold
-        rewarder.setEarned(address(strategy), 5e18);
-        assertFalse(strategy.harvestTrigger(0));
-        
-        // Set earned rewards above threshold
-        rewarder.setEarned(address(strategy), 15e18);
-        assertTrue(strategy.harvestTrigger(0));
-    }
-    
-    function test_HarvestTriggerOnBaseAsset() public {
-        // Setup
-        vm.prank(management);
-        strategy.setMinBaseAssetToCompound(10e6);
-        
-        // Put base asset below threshold
-        baseAsset.mint(address(strategy), 5e6);
-        assertFalse(strategy.harvestTrigger(0));
-        
-        // Put base asset above threshold
-        baseAsset.mint(address(strategy), 10e6);
-        assertTrue(strategy.harvestTrigger(0));
-    }
+    // Removed harvest trigger tests - harvestTrigger function no longer exists
     
     /// VIEW FUNCTION TESTS ///
     
@@ -325,7 +294,10 @@ contract AutopoolCompounderTest is BaseTest {
         strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
         
         MockERC20 extraReward = new MockERC20("EXTRA", "EXTRA");
-        strategy.updatePriceChecker(address(extraReward), address(priceChecker));
+        // Create a separate price checker for the extra reward token
+        MockPriceOracle extraOracle = new MockPriceOracle();
+        OraclePriceChecker extraChecker = new OraclePriceChecker(extraOracle, 500);
+        strategy.updatePriceChecker(address(extraReward), address(extraChecker));
         vm.stopPrank();
         
         address[] memory tokens = strategy.getConfiguredRewardTokens();
@@ -341,7 +313,7 @@ contract AutopoolCompounderTest is BaseTest {
         baseAsset.approve(address(autopool), depositAmount);
         uint256 shares = autopool.deposit(depositAmount, alice);
         autopool.approve(address(strategy), shares);
-        strategy.deposit(shares, alice);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
         vm.stopPrank();
         
         assertEq(strategy.stakedBalance(), shares);
