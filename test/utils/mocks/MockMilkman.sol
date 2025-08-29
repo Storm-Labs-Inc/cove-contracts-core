@@ -61,15 +61,35 @@ contract MockMilkman is IMilkman {
     }
     
     function cancelSwap(
-        uint256,
-        IERC20,
-        IERC20,
-        address,
-        address,
-        bytes calldata
-    ) external pure {
-        // Mock implementation - not needed for basic tests
-        revert("Not implemented");
+        uint256 amountIn,
+        IERC20 fromToken,
+        IERC20 toToken,
+        address to,
+        address priceChecker,
+        bytes calldata priceCheckerData
+    ) external {
+        // For testing: Find the matching swap request and mark as cancelled
+        // In real Milkman, this would verify the swap hash
+        for (uint256 i = 0; i < nextRequestId; i++) {
+            SwapRequest storage request = swapRequests[i];
+            if (
+                !request.executed &&
+                request.amountIn == amountIn &&
+                request.fromToken == address(fromToken) &&
+                request.toToken == address(toToken) &&
+                request.to == to &&
+                request.priceChecker == priceChecker
+            ) {
+                // Transfer tokens back to the sender (strategy)
+                fromToken.safeTransfer(msg.sender, amountIn);
+                request.executed = true; // Mark as handled
+                return;
+            }
+        }
+        
+        // If no matching swap found, just transfer tokens back
+        // (simulating that Milkman has the tokens)
+        fromToken.safeTransfer(msg.sender, amountIn);
     }
     
     // Mock function to simulate swap execution

@@ -119,6 +119,31 @@ contract AutopoolCompounder is BaseStrategy {
         emit MaxPriceDeviationUpdated(_maxDeviationBps);
     }
 
+    /// @notice Cancel a stuck swap and recover tokens
+    /// @param amountIn The amount of tokens in the swap
+    /// @param fromToken The token being swapped from
+    /// @param toToken The token being swapped to
+    /// @param priceChecker The price checker used in the swap
+    /// @param priceCheckerData The data passed to the price checker
+    /// @dev Only callable by management to recover stuck swaps
+    function cancelSwap(
+        uint256 amountIn,
+        address fromToken,
+        address toToken,
+        address priceChecker,
+        bytes calldata priceCheckerData
+    ) external onlyManagement {
+        // Cancel the swap in Milkman, which will transfer the tokens back to this contract
+        milkman.cancelSwap(
+            amountIn,
+            IERC20(fromToken),
+            IERC20(toToken),
+            address(this),
+            priceChecker,
+            priceCheckerData
+        );
+    }
+
     /// KEEPER FUNCTIONS ///
 
     /// @notice Claim rewards and initiate swaps via Milkman

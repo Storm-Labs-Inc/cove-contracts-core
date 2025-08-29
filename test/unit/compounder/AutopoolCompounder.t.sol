@@ -260,7 +260,7 @@ contract AutopoolCompounderTest is BaseTest {
         baseAsset.approve(address(autopool), depositAmount);
         uint256 shares = autopool.deposit(depositAmount, alice);
         autopool.approve(address(strategy), shares);
-        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        uint256 strategyShares = ITokenizedStrategy(address(strategy)).deposit(shares, alice);
         vm.stopPrank();
         
         // Fast forward time
@@ -296,6 +296,51 @@ contract AutopoolCompounderTest is BaseTest {
         
         vm.prank(management);
         strategy.claimRewardsAndSwap(); // Management can also call keeper functions
+    }
+    
+    /// CANCEL SWAP TESTS ///
+    
+    function test_cancelSwap() public {
+        // Setup: First initiate a swap
+        rewardToken.mint(address(strategy), 100e18);
+        
+        // Configure price checker
+        vm.prank(management);
+        strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
+        
+        // Claim rewards and initiate swap
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+        
+        // Verify tokens were transferred to Milkman
+        assertEq(rewardToken.balanceOf(address(milkman)), 100e18);
+        assertEq(rewardToken.balanceOf(address(strategy)), 0);
+        
+        // Now cancel the swap as management
+        vm.prank(management);
+        strategy.cancelSwap(
+            100e18,
+            address(rewardToken),
+            address(baseAsset),
+            address(priceChecker),
+            abi.encode(500) // 5% max deviation
+        );
+        
+        // Verify tokens were returned
+        assertEq(rewardToken.balanceOf(address(strategy)), 100e18);
+        assertEq(rewardToken.balanceOf(address(milkman)), 0);
+    }
+    
+    function test_cancelSwap_revertsWhen_notManagement() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        strategy.cancelSwap(
+            100e18,
+            address(rewardToken),
+            address(baseAsset),
+            address(priceChecker),
+            abi.encode(500)
+        );
     }
     
     /// PARAMETER SETTING TESTS ///
