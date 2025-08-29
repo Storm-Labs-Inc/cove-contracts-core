@@ -12,3 +12,4 @@ token-plugins-upgradeable/=dependencies/token-plugins-upgradeable-1/
 forge-deploy/=dependencies/forge-deploy-1/contracts/
 forge-safe/=dependencies/forge-safe-1/src/
 @solady/=dependencies/solady-0.1.17/src/
+dependencies/tokenized-strategy-3.0.4/:@openzeppelin/=dependencies/tokenized-strategy-3.0.4/lib/openzeppelin-contracts/

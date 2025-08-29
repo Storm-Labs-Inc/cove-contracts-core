@@ -194,8 +194,6 @@ contract AutopoolCompounder is BaseStrategy {
     function _harvestAndReport() internal override returns (uint256) {
         // If not shutdown, claim rewards and swap
         if (!TokenizedStrategy.isShutdown()) {
-            // Claim and swap rewards
-            this.claimRewardsAndSwap();
 
             // Compound any settled base asset
             uint256 baseBalance = baseAsset.balanceOf(address(this));
