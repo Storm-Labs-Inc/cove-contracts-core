@@ -21,7 +21,7 @@ contract OraclePriceChecker is IPriceChecker {
     /// @notice Constructor
     /// @param _oracle The IPriceOracle implementation to use
     /// @param _defaultMaxDeviationBps Maximum allowed deviation in basis points (e.g., 500 = 5%)
-    constructor(IPriceOracle _oracle, uint256 _defaultMaxDeviationBps) {
+    constructor(IPriceOracle _oracle, uint256 _defaultMaxDeviationBps) payable {
         if (_defaultMaxDeviationBps > 10_000) {
             revert InvalidDeviationBps();
         }

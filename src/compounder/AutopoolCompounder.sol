@@ -64,7 +64,14 @@ contract AutopoolCompounder is BaseStrategy {
     /// @param _autopool The Tokemak Autopool vault to manage
     /// @param _rewarder The AutopoolMainRewarder contract
     /// @param _milkman The Milkman contract for swaps
-    constructor(address _autopool, address _rewarder, address _milkman) BaseStrategy(_autopool, "AutopoolCompounder") {
+    constructor(
+        address _autopool,
+        address _rewarder,
+        address _milkman
+    )
+        payable
+        BaseStrategy(_autopool, "AutopoolCompounder")
+    {
         if (_autopool == address(0) || _rewarder == address(0) || _milkman == address(0)) {
             revert ZeroAddress();
         }
@@ -95,23 +102,26 @@ contract AutopoolCompounder is BaseStrategy {
 
         priceCheckerByToken[rewardToken] = priceChecker;
 
+        bool success;
         if (priceChecker == address(0)) {
-            _configuredRewardTokens.remove(rewardToken);
+            // Remove returns true if element was present, false otherwise
+            success = _configuredRewardTokens.remove(rewardToken);
         } else {
-            _configuredRewardTokens.add(rewardToken);
+            // Add returns true if element was added, false if already present
+            success = _configuredRewardTokens.add(rewardToken);
         }
 
         emit PriceCheckerUpdated(rewardToken, priceChecker);
     }
 
     /// @notice Set the maximum price deviation for swaps
-    /// @param _maxDeviationBps The max deviation in basis points
-    function setMaxPriceDeviation(uint256 _maxDeviationBps) external onlyManagement {
-        if (_maxDeviationBps > 10_000) {
+    /// @param maxDeviationBps_ The max deviation in basis points
+    function setMaxPriceDeviation(uint256 maxDeviationBps_) external onlyManagement {
+        if (maxDeviationBps_ > 10_000) {
             revert InvalidMaxDeviation();
         }
-        maxPriceDeviationBps = _maxDeviationBps;
-        emit MaxPriceDeviationUpdated(_maxDeviationBps);
+        maxPriceDeviationBps = maxDeviationBps_;
+        emit MaxPriceDeviationUpdated(maxDeviationBps_);
     }
 
     /// KEEPER FUNCTIONS ///
@@ -140,6 +150,7 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Claim rewards and initiate swaps via Milkman
     function claimRewardsAndSwap() external onlyKeepers {
         // Claim all rewards including extras
+        // slither-disable-next-line reentrancy-events
         rewarder.getReward(address(this), address(this), true);
 
         // Process main reward token
@@ -148,9 +159,12 @@ contract AutopoolCompounder is BaseStrategy {
 
         // Also process any configured tokens that might not be in the rewarder
         uint256 configuredLen = _configuredRewardTokens.length();
-        for (uint256 i = 0; i < configuredLen; i++) {
+        for (uint256 i; i < configuredLen;) {
             address token = _configuredRewardTokens.at(i);
             _processRewardToken(token);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -158,7 +172,8 @@ contract AutopoolCompounder is BaseStrategy {
     function _processRewardToken(address token) internal {
         uint256 balance = IERC20(token).balanceOf(address(this));
 
-        // Skip if balance is below minimum or no price checker configured
+        // Skip if balance is zero
+        // slither-disable-next-line incorrect-equality
         if (balance == 0) {
             return;
         }
@@ -170,6 +185,7 @@ contract AutopoolCompounder is BaseStrategy {
 
         // Approve Milkman and request swap
         IERC20(token).forceApprove(address(milkman), balance);
+        // slither-disable-next-line reentrancy-events
         milkman.requestSwapExactTokensForTokens(
             balance, IERC20(token), baseAsset, address(this), priceChecker, abi.encode(maxPriceDeviationBps)
         );
@@ -182,6 +198,7 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Deploy funds by staking autopool tokens
     /// @param amount The amount to deploy
     function _deployFunds(uint256 amount) internal override {
+        // slither-disable-next-line incorrect-equality
         if (amount == 0) return;
 
         // Approve and stake autopool tokens
@@ -192,6 +209,7 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Free funds by unstaking autopool tokens
     /// @param amount The amount to free
     function _freeFunds(uint256 amount) internal override {
+        // slither-disable-next-line incorrect-equality
         if (amount == 0) return;
 
         // Withdraw without claiming rewards
