@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { BaseStrategy, ERC20 } from "tokenized-strategy-3.0.4/src/BaseStrategy.sol";
+import { BaseStrategy } from "tokenized-strategy-3.0.4/src/BaseStrategy.sol";
 
 import { IMilkman } from "src/interfaces/deps/milkman/IMilkman.sol";
-import { IPriceChecker } from "src/interfaces/deps/milkman/IPriceChecker.sol";
 import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
 import { IAutopoolMainRewarder } from "src/interfaces/deps/tokemak/IAutopoolMainRewarder.sol";
 
@@ -40,10 +38,7 @@ contract AutopoolCompounder is BaseStrategy {
     mapping(address => address) public priceCheckerByToken;
 
     /// @notice Set of configured reward tokens
-    EnumerableSet.AddressSet private configuredRewardTokens;
-
-    /// @notice Minimum amount of reward token to trigger a swap
-    mapping(address => uint256) public minRewardToSell;
+    EnumerableSet.AddressSet private _configuredRewardTokens;
 
     /// @notice Maximum deviation allowed for price checks (in basis points)
     uint256 public maxPriceDeviationBps = 500; // 5%
@@ -101,9 +96,9 @@ contract AutopoolCompounder is BaseStrategy {
         priceCheckerByToken[rewardToken] = priceChecker;
 
         if (priceChecker == address(0)) {
-            configuredRewardTokens.remove(rewardToken);
+            _configuredRewardTokens.remove(rewardToken);
         } else {
-            configuredRewardTokens.add(rewardToken);
+            _configuredRewardTokens.add(rewardToken);
         }
 
         emit PriceCheckerUpdated(rewardToken, priceChecker);
@@ -119,6 +114,8 @@ contract AutopoolCompounder is BaseStrategy {
         emit MaxPriceDeviationUpdated(_maxDeviationBps);
     }
 
+    /// KEEPER FUNCTIONS ///
+
     /// @notice Cancel a stuck swap and recover tokens
     /// @param amountIn The amount of tokens in the swap
     /// @param fromToken The token being swapped from
@@ -132,19 +129,13 @@ contract AutopoolCompounder is BaseStrategy {
         address toToken,
         address priceChecker,
         bytes calldata priceCheckerData
-    ) external onlyManagement {
+    )
+        external
+        onlyKeepers
+    {
         // Cancel the swap in Milkman, which will transfer the tokens back to this contract
-        milkman.cancelSwap(
-            amountIn,
-            IERC20(fromToken),
-            IERC20(toToken),
-            address(this),
-            priceChecker,
-            priceCheckerData
-        );
+        milkman.cancelSwap(amountIn, IERC20(fromToken), IERC20(toToken), address(this), priceChecker, priceCheckerData);
     }
-
-    /// KEEPER FUNCTIONS ///
 
     /// @notice Claim rewards and initiate swaps via Milkman
     function claimRewardsAndSwap() external onlyKeepers {
@@ -155,17 +146,10 @@ contract AutopoolCompounder is BaseStrategy {
         address mainReward = rewarder.rewardToken();
         _processRewardToken(mainReward);
 
-        // Process extra rewards
-        uint256 extraRewardsLen = rewarder.extraRewardsLength();
-        for (uint256 i = 0; i < extraRewardsLen; i++) {
-            address extraReward = rewarder.extraRewards(i);
-            _processRewardToken(extraReward);
-        }
-
         // Also process any configured tokens that might not be in the rewarder
-        uint256 configuredLen = configuredRewardTokens.length();
+        uint256 configuredLen = _configuredRewardTokens.length();
         for (uint256 i = 0; i < configuredLen; i++) {
-            address token = configuredRewardTokens.at(i);
+            address token = _configuredRewardTokens.at(i);
             _processRewardToken(token);
         }
     }
@@ -175,7 +159,7 @@ contract AutopoolCompounder is BaseStrategy {
         uint256 balance = IERC20(token).balanceOf(address(this));
 
         // Skip if balance is below minimum or no price checker configured
-        if (balance == 0 || balance < minRewardToSell[token]) {
+        if (balance == 0) {
             return;
         }
 
@@ -219,7 +203,6 @@ contract AutopoolCompounder is BaseStrategy {
     function _harvestAndReport() internal override returns (uint256) {
         // If not shutdown, claim rewards and swap
         if (!TokenizedStrategy.isShutdown()) {
-
             // Compound any settled base asset
             uint256 baseBalance = baseAsset.balanceOf(address(this));
             if (baseBalance > 0) {
@@ -241,7 +224,7 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Get all configured reward tokens
     /// @return An array of configured reward token addresses
     function getConfiguredRewardTokens() external view returns (address[] memory) {
-        return configuredRewardTokens.values();
+        return _configuredRewardTokens.values();
     }
 
     /// @notice Get the total staked balance
