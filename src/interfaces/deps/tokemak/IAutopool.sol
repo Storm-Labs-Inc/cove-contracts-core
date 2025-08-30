@@ -12,4 +12,8 @@ interface IAutopool is IERC4626, IERC20Permit {
     /// @dev If this timestamp is older than 1 day, the basket value may be inaccurate
     /// @return The oldest debt timestamp
     function oldestDebtReporting() external view returns (uint256);
+
+    /// @notice Returns whether the vault is shutdown
+    /// @return True if shutdown
+    function isShutdown() external view returns (bool);
 }

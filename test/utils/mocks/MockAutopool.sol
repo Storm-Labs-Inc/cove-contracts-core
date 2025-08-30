@@ -9,6 +9,7 @@ import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
 contract MockAutopool is ERC4626, IAutopool {
     bool public isShutdown;
     bool public paused;
+    uint256 public oldestDebtReporting;
 
     constructor(
         address _baseAsset,
@@ -44,5 +45,9 @@ contract MockAutopool is ERC4626, IAutopool {
 
     function DOMAIN_SEPARATOR() external pure returns (bytes32) {
         return bytes32(0);
+    }
+
+    function setOldestDebtReporting(uint256 timestamp) external {
+        oldestDebtReporting = timestamp;
     }
 }
