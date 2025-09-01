@@ -158,11 +158,10 @@ contract AutopoolCompounder is BaseStrategy {
         _processRewardToken(mainReward);
 
         // Also process any configured tokens that might not be in the rewarder
-        // Cache configured tokens array to avoid state reads in loop
-        address[] memory configuredTokens = _configuredRewardTokens.values();
-        uint256 configuredLen = configuredTokens.length;
+        uint256 configuredLen = _configuredRewardTokens.length();
         for (uint256 i; i < configuredLen;) {
-            _processRewardToken(configuredTokens[i]);
+            address token = _configuredRewardTokens.at(i);
+            _processRewardToken(token);
             unchecked {
                 ++i;
             }
