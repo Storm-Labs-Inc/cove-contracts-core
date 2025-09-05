@@ -1,0 +1,60 @@
+---
+description: Used when retrieving information from GitHub. Useful for reviewing issues or pull requests.
+globs: 
+alwaysApply: false
+---
+# GitHub CLI Usage Rules
+
+This rule defines how to effectively use the GitHub CLI (`gh`) for retrieving information about issues and pull requests.
+
+## Core Commands
+
+### Issue Commands
+```bash
+# List issues
+gh issue list --limit 10 | cat
+
+# View specific issue details
+gh issue view ISSUE_NUMBER | cat
+
+# List issues with specific state
+gh issue list --state {open|closed|all} | cat
+
+# Search issues with specific label
+gh issue list --label "bug" | cat
+```
+
+### Pull Request Commands
+```bash
+# List pull requests
+gh pr list --limit 10 | cat
+
+# View specific PR details with comments
+gh pr view [PR_NUMBER | URL | BRANCH] -c | cat
+
+# List PRs with specific state
+gh pr list --state {open|closed|merged|all} | cat
+
+# View PR diff
+gh pr diff [PR_NUMBER | URL | BRANCH] | cat
+```
+
+## Important Notes
+
+1. Always append `| cat` to commands to prevent pager issues in the terminal
+2. Use `--json` flag for structured output when needed
+3. Default limit is set to 10 items to prevent overwhelming output
+4. Commands should be run from within the repository directory
+
+## Common Patterns
+
+### Viewing Issue/PR Status and Comments```mermaid
+flowchart TD
+    Start[Start] --> Check{Issue or PR?}
+    Check -->|Issue| IL[gh issue list]
+    Check -->|PR| PL[gh pr list]
+    IL --> Details[gh issue view]
+    PL --> PRDetails[gh pr view -c]
+    Details --> Comments[View comments]
+    PRDetails --> Comments
+    Comments --> End[End review]

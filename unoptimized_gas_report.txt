@@ -1,0 +1,95 @@
+Compiler run failed:
+Warning (2519): This declaration shadows an existing declaration.
+   --> test/forked/IntegrationTest.t.sol:259:13:
+    |
+259 |             address[][] memory basketAssets_ = new address[][](basketTokens.length);
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> test/forked/IntegrationTest.t.sol:294:9:
+    |
+294 |         address[][] memory basketAssets_ = new address[][](basketTokens.length);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> test/forked/IntegrationTest.t.sol:267:14:
+    |
+267 |             (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> test/forked/IntegrationTest.t.sol:302:10:
+    |
+302 |         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> test/forked/IntegrationTest.t.sol:267:53:
+    |
+267 |             (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> test/forked/IntegrationTest.t.sol:302:49:
+    |
+302 |         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> test/forked/IntegrationTest.t.sol:900:13:
+    |
+900 |             address[][] memory basketAssets_ = new address[][](basketTokens.length);
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> test/forked/IntegrationTest.t.sol:935:9:
+    |
+935 |         address[][] memory basketAssets_ = new address[][](basketTokens.length);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> test/forked/IntegrationTest.t.sol:908:14:
+    |
+908 |             (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> test/forked/IntegrationTest.t.sol:943:10:
+    |
+943 |         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> test/forked/IntegrationTest.t.sol:908:53:
+    |
+908 |             (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> test/forked/IntegrationTest.t.sol:943:49:
+    |
+943 |         (InternalTrade[] memory internalTrades, ExternalTrade[] memory externalTrades) =
+    |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (3628): This contract has a payable fallback function, but no receive ether function. Consider adding a receive ether function.
+ --> test/utils/mocks/MockTarget.sol:4:1:
+  |
+4 | contract MockTarget {
+  | ^ (Relevant source part starts here and spans across multiple lines).
+Note: The payable fallback function is defined here.
+ --> test/utils/mocks/MockTarget.sol:8:5:
+  |
+8 |     fallback() external payable {
+  |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Error (3656): Contract "MockAutopool" should be marked as abstract.
+ --> test/utils/mocks/MockAutopool.sol:9:1:
+  |
+9 | contract MockAutopool is ERC4626, IAutopool {
+  | ^ (Relevant source part starts here and spans across multiple lines).
+Note: Missing implementation: 
+  --> src/interfaces/deps/tokemak/IAutopool.sol:14:5:
+   |
+14 |     function oldestDebtReporting() external view returns (uint256);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (9582): Member "isShutdown" not found or not visible after argument-dependent lookup in contract IAutopool.
+   --> test/forked/compounder/AutopoolCompounderForked.t.sol:170:21:
+    |
+170 |         assertFalse(autoUSD.isShutdown(), "Vault should not be shutdown");
+    |                     ^^^^^^^^^^^^^^^^^^
+

@@ -1,0 +1,2 @@
+Current commit (AFTER optimization) gas usage for claimRewardsAndSwap: 245545
+Previous commit (BEFORE optimization) gas usage for claimRewardsAndSwap: 245447

@@ -28,6 +28,8 @@ contract AutoPoolCompounderOracle is ChainedERC4626Oracle {
 
     /// @notice Thrown when the Autopool's debt reporting is stale (older than 24 hours)
     error StaleDebtReporting(uint256 oldestTimestamp, uint256 currentTimestamp);
+    /// @notice Thrown when the vault chain length is invalid
+    error InvalidChainLength();
 
     /// @notice Constructor for the AutoPoolCompounderOracle contract
     /// @param _compounder The AutopoolCompounder (Yearn V3 Strategy) contract
@@ -36,7 +38,7 @@ contract AutoPoolCompounderOracle is ChainedERC4626Oracle {
     constructor(IERC4626 _compounder) ChainedERC4626Oracle(_compounder, _getBaseAsset(_compounder)) {
         // The second vault in the chain should be the Autopool
         // vaults[0] is the compounder, vaults[1] is the autopool
-        require(vaults.length >= 2, "Invalid chain length");
+        if (vaults.length < 2) revert InvalidChainLength();
         autopool = IAutopool(vaults[1]);
 
         // Validate debt reporting is fresh at deployment
