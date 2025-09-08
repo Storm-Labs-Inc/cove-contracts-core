@@ -399,10 +399,8 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
         address vault1 = apco.vaults(1); // Autopool
 
         console.log(string.concat(indent, "Vault Chain:"));
-        console.log(
-            string.concat(indent, "  Compounder (Vault 0): ", vm.toString(vault0), " (", _getSymbol(vault0), ")")
-        );
-        console.log(string.concat(indent, "  Autopool (Vault 1): ", vm.toString(vault1), " (", _getSymbol(vault1), ")"));
+        console.log(string.concat(indent, "  Compounder (Vault 0): ", vm.toString(vault0)));
+        console.log(string.concat(indent, "  Autopool (Vault 1): ", vm.toString(vault1)));
 
         string memory deploymentJsonName = buildAutoPoolCompounderOracleName(
             IPriceOracleWithBaseAndQuote(oracle).base(), IPriceOracleWithBaseAndQuote(oracle).quote()
