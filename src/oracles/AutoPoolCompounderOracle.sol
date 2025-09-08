@@ -35,7 +35,7 @@ contract AutoPoolCompounderOracle is ChainedERC4626Oracle {
     /// @param _compounder The AutopoolCompounder (Yearn V3 Strategy) contract
     /// @dev The constructor automatically discovers the chain from compounder to base asset
     /// and validates that the autopool's debt reporting is fresh
-    constructor(IERC4626 _compounder) ChainedERC4626Oracle(_compounder, _getBaseAsset(_compounder)) {
+    constructor(IERC4626 _compounder) payable ChainedERC4626Oracle(_compounder, _getBaseAsset(_compounder)) {
         // The second vault in the chain should be the Autopool
         // vaults[0] is the compounder, vaults[1] is the autopool
         if (vaults.length < 2) revert InvalidChainLength();
