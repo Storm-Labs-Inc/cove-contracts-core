@@ -304,7 +304,7 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         console.log("\n==== Verifying Deployment ====");
 
         // Verify compounder configuration
-        require(address(compounder.autopool()) == TOKEMAK_AUTOUSD, "Invalid autopool");
+        require(ITokenizedStrategy(address(compounder)).asset() == TOKEMAK_AUTOUSD, "Invalid autopool");
         require(address(compounder.rewarder()) == TOKEMAK_AUTOUSD_REWARDER, "Invalid rewarder");
         require(address(compounder.milkman()) == TOKEMAK_MILKMAN, "Invalid milkman");
         console.log(unicode"✅ Compounder configuration verified");

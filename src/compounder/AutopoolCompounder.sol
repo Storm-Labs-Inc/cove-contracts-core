@@ -20,9 +20,6 @@ contract AutopoolCompounder is BaseStrategy {
 
     /// CONSTANTS ///
 
-    /// @notice The Autopool vault (ERC4626) that this strategy manages
-    IAutopool public immutable autopool;
-
     /// @notice The base asset of the autopool (e.g., USDC for autoUSD)
     IERC20 public immutable baseAsset;
 
@@ -47,8 +44,6 @@ contract AutopoolCompounder is BaseStrategy {
 
     event PriceCheckerUpdated(address indexed rewardToken, address indexed priceChecker);
     event MaxPriceDeviationUpdated(uint256 maxDeviationBps);
-    event RewardsClaimedAndSwapped(address indexed rewardToken, uint256 amount);
-    event BaseAssetCompounded(uint256 amount, uint256 sharesMinted);
 
     /// ERRORS ///
 
@@ -76,17 +71,15 @@ contract AutopoolCompounder is BaseStrategy {
             revert ZeroAddress();
         }
 
-        autopool = IAutopool(_autopool);
         rewarder = IAutopoolMainRewarder(_rewarder);
         milkman = IMilkman(_milkman);
 
         // Verify the rewarder accepts our autopool token
-        if (rewarder.stakingToken() != _autopool) {
+        if (IAutopoolMainRewarder(_rewarder).stakingToken() != _autopool) {
             revert InvalidAsset();
         }
-
         // Get the base asset from the autopool
-        baseAsset = IERC20(autopool.asset());
+        baseAsset = IERC20(IAutopool(_autopool).asset());
     }
 
     /// MANAGEMENT FUNCTIONS ///
@@ -96,7 +89,7 @@ contract AutopoolCompounder is BaseStrategy {
     /// @param priceChecker The price checker contract address
     function updatePriceChecker(address rewardToken, address priceChecker) external onlyManagement {
         // Prevent setting a price checker for the autopool asset
-        if (rewardToken == address(autopool)) {
+        if (rewardToken == address(asset)) {
             revert CannotSetCheckerForAsset();
         }
 
@@ -150,15 +143,9 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Claim rewards and initiate swaps via Milkman
     function claimRewardsAndSwap() external onlyKeepers {
         // Claim all rewards including extras
-        // slither-disable-next-line reentrancy-events
         rewarder.getReward(address(this), address(this), true);
 
-        // Process main reward token
-        address mainReward = rewarder.rewardToken();
-        _processRewardToken(mainReward);
-
-        // Also process any configured tokens that might not be in the rewarder
-        // Cache the array values to avoid multiple storage reads
+        // Process configured tokens
         address[] memory configuredTokens = _configuredRewardTokens.values();
         uint256 configuredLen = configuredTokens.length;
         for (uint256 i; i < configuredLen;) {
@@ -186,12 +173,9 @@ contract AutopoolCompounder is BaseStrategy {
 
         // Approve Milkman and request swap
         IERC20(token).forceApprove(address(milkman), balance);
-        // slither-disable-next-line reentrancy-events
         milkman.requestSwapExactTokensForTokens(
             balance, IERC20(token), baseAsset, address(this), priceChecker, abi.encode(maxPriceDeviationBps)
         );
-
-        emit RewardsClaimedAndSwapped(token, balance);
     }
 
     /// YEARN V3 STRATEGY HOOKS ///
@@ -226,9 +210,9 @@ contract AutopoolCompounder is BaseStrategy {
             uint256 baseBalance = baseAsset.balanceOf(address(this));
             if (baseBalance > 0) {
                 // Approve and deposit base asset to get autopool shares
-                baseAsset.forceApprove(address(autopool), baseBalance);
+                baseAsset.forceApprove(address(asset), baseBalance);
 
-                uint256 sharesMinted = autopool.deposit(baseBalance, address(this));
+                uint256 sharesMinted = IAutopool(address(asset)).deposit(baseBalance, address(this));
                 _deployFunds(sharesMinted);
             }
         }

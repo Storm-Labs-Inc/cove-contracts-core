@@ -108,7 +108,7 @@ contract AutopoolCompounderTest is BaseTest {
     /// DEPLOYMENT TESTS ///
 
     function test_deployment() public {
-        assertEq(address(strategy.autopool()), address(autopool));
+        assertEq(ITokenizedStrategy(address(strategy)).asset(), address(autopool));
         assertEq(address(strategy.rewarder()), address(rewarder));
         assertEq(address(strategy.milkman()), address(milkman));
         assertEq(address(strategy.baseAsset()), address(baseAsset));

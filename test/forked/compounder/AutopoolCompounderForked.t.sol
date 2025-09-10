@@ -83,7 +83,7 @@ contract AutopoolCompounderForkedTest is BaseTest {
     }
 
     function test_deployment() public view {
-        assertEq(address(strategy.autopool()), address(autoUSD));
+        assertEq(ITokenizedStrategy(address(strategy)).asset(), address(autoUSD));
         assertEq(address(strategy.rewarder()), address(rewarder));
         assertEq(address(strategy.milkman()), TOKEMAK_MILKMAN);
         assertEq(address(strategy.baseAsset()), address(usdc));
