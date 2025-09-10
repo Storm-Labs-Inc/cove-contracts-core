@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title IMilkman
 /// @notice Interface for the Milkman contract that handles async swaps via CoW Protocol
+/// https://github.com/charlesndalton/milkman/blob/f7719b59c349eb60eadaed734270a440c77345f8/src/Milkman.sol
 interface IMilkman {
     /// @notice Event emitted when a swap is requested
     event SwapRequested(
