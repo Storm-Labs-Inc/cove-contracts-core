@@ -307,13 +307,13 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         require(ITokenizedStrategy(address(compounder)).asset() == TOKEMAK_AUTOUSD, "Invalid autopool");
         require(address(compounder.rewarder()) == TOKEMAK_AUTOUSD_REWARDER, "Invalid rewarder");
         require(address(compounder.milkman()) == TOKEMAK_MILKMAN, "Invalid milkman");
-        console.log(unicode"✅ Compounder configuration verified");
+        console.log(unicode"✅", " Compounder configuration verified");
 
         // Verify oracle configuration
         require(oracle.base() == address(compounder), "Invalid oracle base");
         require(oracle.quote() == ETH_USDC, "Invalid oracle quote");
         require(address(oracle.autopool()) == TOKEMAK_AUTOUSD, "Invalid oracle autopool");
-        console.log(unicode"✅ Oracle configuration verified");
+        console.log(unicode"✅", " Oracle configuration verified");
 
         // Test oracle pricing (only if debt reporting is fresh)
         IAutopool autoUSD = IAutopool(TOKEMAK_AUTOUSD);
@@ -322,11 +322,11 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
             uint256 price = oracle.getQuote(1e18, address(compounder), ETH_USDC);
             console.log("Oracle price (1 compounder in USDC):", price);
             require(price > 0, "Invalid oracle price");
-            console.log(unicode"✅ Oracle pricing verified");
+            console.log(unicode"✅", " Oracle pricing verified");
         } else {
-            console.log(unicode"⚠️  Oracle pricing not tested (stale debt reporting)");
+            console.log(unicode"⚠️", " Oracle pricing not tested (stale debt reporting)");
         }
 
-        console.log(unicode"\n✅ All verifications passed!");
+        console.log(unicode"\n✅", " All verifications passed!");
     }
 }
