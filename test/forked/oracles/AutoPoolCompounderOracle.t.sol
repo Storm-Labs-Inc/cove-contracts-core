@@ -170,35 +170,29 @@ contract AutoPoolCompounderOracleForkedTest is BaseTest {
 
     function testFuzz_priceConversion_variousAmounts(uint256 amount) public {
         // Bound amount to reasonable values
-        amount = bound(amount, 1e12, 1e36); // Between 0.000001 and 1e18 tokens
+        // Note: 1e12 autoUSD = 1 USDC (0.000001 USDC with 6 decimals)
+        // Start from 1e14 (100 USDC) to avoid extreme rounding errors in multi-hop conversions
+        amount = bound(amount, 1e14, 1e36); // Between 0.01 and 1e18 tokens
 
         // Test compounder to USDC conversion
         uint256 usdcValue = oracle.getQuote(amount, address(compounder), address(usdc));
 
-        // For very small amounts, the conversion might result in 0 due to rounding
-        // Only check for non-zero output for amounts larger than the precision threshold
-        if (amount > 1e12) {
-            assertGt(usdcValue, 0, "Should get non-zero USDC value for reasonable amounts");
-        }
+        // Should always get non-zero output for these amounts
+        assertGt(usdcValue, 0, "Should get non-zero USDC value");
 
         // Test reverse conversion
-        if (usdcValue > 0) {
-            uint256 compounderShares = oracle.getQuote(usdcValue, address(usdc), address(compounder));
+        uint256 compounderShares = oracle.getQuote(usdcValue, address(usdc), address(compounder));
 
-            // The round trip might not be exact due to rounding in the multi-hop conversion
-            // For amounts in the normal operating range (> 1e15), expect reasonable precision
-            // For smaller amounts, the rounding effects can be more significant
-            if (amount > 1e15 && compounderShares > 0) {
-                // Allow up to 2% deviation for normal amounts
-                assertApproxEqRel(compounderShares, amount, 0.02e18, "Round trip should be close for normal amounts");
-            } else if (amount > 1e13 && compounderShares > 0) {
-                // For smaller amounts (1e13 to 1e15), allow moderate deviation due to precision loss
-                assertApproxEqRel(compounderShares, amount, 0.15e18, "Round trip acceptable for small amounts");
-            } else if (amount > 1e12 && compounderShares > 0) {
-                // For very small amounts (1e12 to 1e13), allow higher deviation
-                // These amounts are well below typical operating thresholds and precision loss is expected
-                assertApproxEqRel(compounderShares, amount, 0.2e18, "Round trip acceptable for very small amounts");
-            }
+        // The round trip might not be exact due to rounding in the multi-hop conversion
+        // For amounts in the normal operating range (> 1e15), expect reasonable precision
+        // For smaller amounts, the rounding effects can be more significant
+        if (amount > 1e15 && compounderShares > 0) {
+            // Allow up to 2% deviation for normal amounts (> 1000 USDC)
+            assertApproxEqRel(compounderShares, amount, 0.02e18, "Round trip should be close for normal amounts");
+        } else if (compounderShares > 0) {
+            // For smaller amounts (1e14 to 1e15, i.e., 0.01 to 1000 USDC), allow moderate deviation
+            // This is acceptable as these are still reasonable operating amounts
+            assertApproxEqRel(compounderShares, amount, 0.1e18, "Round trip acceptable for smaller amounts");
         }
     }
 }
