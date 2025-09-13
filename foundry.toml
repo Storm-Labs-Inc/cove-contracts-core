@@ -49,6 +49,14 @@ runs = 20
 depth = 100
 runs = 100
 
+[profile.ci_invariant]
+match_contract = "Invariant"
+no_match_path = "test/invariant/handler/*"
+
+[profile.ci_invariant.invariant]
+depth = 50
+runs = 50
+
 [fmt]
 bracket_spacing = true
 int_types = "long"
