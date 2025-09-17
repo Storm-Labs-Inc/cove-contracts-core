@@ -5,7 +5,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title IMilkman
 /// @notice Interface for the Milkman contract that handles async swaps via CoW Protocol
-/// https://github.com/charlesndalton/milkman/blob/f7719b59c349eb60eadaed734270a440c77345f8/src/Milkman.sol
 interface IMilkman {
     /// @notice Event emitted when a swap is requested
     event SwapRequested(
@@ -15,6 +14,7 @@ interface IMilkman {
         address fromToken,
         address toToken,
         address to,
+        bytes32 appData,
         address priceChecker,
         bytes priceCheckerData
     );
@@ -24,6 +24,7 @@ interface IMilkman {
     /// @param fromToken The token to swap from
     /// @param toToken The token to swap to
     /// @param to The recipient of the output tokens
+    /// @param appData The app data to be used in the CoW Protocol order
     /// @param priceChecker The price checker contract to validate the swap
     /// @param priceCheckerData Data to pass to the price checker
     function requestSwapExactTokensForTokens(
@@ -31,6 +32,7 @@ interface IMilkman {
         IERC20 fromToken,
         IERC20 toToken,
         address to,
+        bytes32 appData,
         address priceChecker,
         bytes calldata priceCheckerData
     ) external;
