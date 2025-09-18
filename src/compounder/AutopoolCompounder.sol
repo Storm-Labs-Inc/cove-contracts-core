@@ -93,6 +93,11 @@ contract AutopoolCompounder is BaseStrategy {
             revert CannotSetCheckerForAsset();
         }
 
+        // Prevent setting a price checker for the base asset
+        if (rewardToken == address(baseAsset)) {
+            revert CannotSetCheckerForAsset();
+        }
+
         priceCheckerByToken[rewardToken] = priceChecker;
 
         bool success;
@@ -163,6 +168,11 @@ contract AutopoolCompounder is BaseStrategy {
         // Skip if balance is zero
         // slither-disable-next-line incorrect-equality
         if (balance == 0) {
+            return;
+        }
+
+        // Skip swap if reward token is already the base asset
+        if (token == address(baseAsset)) {
             return;
         }
 
