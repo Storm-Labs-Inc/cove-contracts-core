@@ -47,6 +47,7 @@ interface IMilkman {
         IERC20 fromToken,
         IERC20 toToken,
         address to,
+        bytes32 appData,
         address priceChecker,
         bytes calldata priceCheckerData
     ) external;
