@@ -352,6 +352,215 @@ contract AutopoolCompounderTest is BaseTest {
         strategy.setMaxPriceDeviation(10_001); // > 100%
     }
 
+    /// PENDING SWAPS TESTS ///
+
+    function test_report_revertsWhen_swapsPending() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Configure price checker and mint rewards
+        vm.prank(management);
+        strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
+        rewardToken.mint(address(strategy), 100e18);
+
+        // Initiate a swap (this increments pendingSwapCount)
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+
+        // Check that pendingSwapCount is incremented
+        assertEq(strategy.pendingSwapCount(), 1);
+
+        // Attempt to report - should revert due to pending swaps
+        vm.prank(keeper);
+        vm.expectRevert(AutopoolCompounder.SwapsPending.selector);
+        ITokenizedStrategy(address(strategy)).report();
+    }
+
+    function test_markSwapsSettled() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Configure price checker and mint rewards
+        vm.prank(management);
+        strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
+        rewardToken.mint(address(strategy), 100e18);
+
+        // Initiate swap
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+        assertEq(strategy.pendingSwapCount(), 1);
+
+        // Mark swap as settled
+        vm.prank(keeper);
+        strategy.markSwapsSettled(1);
+        assertEq(strategy.pendingSwapCount(), 0);
+
+        // Now report should work
+        vm.prank(keeper);
+        ITokenizedStrategy(address(strategy)).report(); // Should not revert
+    }
+
+    function test_markSwapsSettled_multipleSwaps() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Configure price checkers for multiple tokens
+        MockERC20 extraReward = new MockERC20("EXTRA", "EXTRA");
+        MockPriceOracle extraOracle = new MockPriceOracle();
+        OraclePriceChecker extraChecker = new OraclePriceChecker(extraOracle, 500);
+
+        vm.startPrank(management);
+        strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
+        strategy.updatePriceChecker(address(extraReward), address(extraChecker));
+        vm.stopPrank();
+
+        // Mint rewards to strategy
+        rewardToken.mint(address(strategy), 100e18);
+        extraReward.mint(address(strategy), 200e18);
+
+        // Initiate swaps (should increment count by 2)
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+        assertEq(strategy.pendingSwapCount(), 2);
+
+        // Partially settle swaps
+        vm.prank(keeper);
+        strategy.markSwapsSettled(1);
+        assertEq(strategy.pendingSwapCount(), 1);
+
+        // Report should still revert
+        vm.prank(keeper);
+        vm.expectRevert(AutopoolCompounder.SwapsPending.selector);
+        ITokenizedStrategy(address(strategy)).report();
+
+        // Settle remaining swap
+        vm.prank(keeper);
+        strategy.markSwapsSettled(1);
+        assertEq(strategy.pendingSwapCount(), 0);
+
+        // Now report should work
+        vm.prank(keeper);
+        ITokenizedStrategy(address(strategy)).report();
+    }
+
+    function test_markSwapsSettled_overSettlement() public {
+        // Setup and initiate one swap
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        vm.prank(management);
+        strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
+        rewardToken.mint(address(strategy), 100e18);
+
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+        assertEq(strategy.pendingSwapCount(), 1);
+
+        // Try to settle more swaps than pending
+        vm.prank(keeper);
+        strategy.markSwapsSettled(5); // More than pending
+        assertEq(strategy.pendingSwapCount(), 0); // Should be clamped to 0
+    }
+
+    function test_cancelSwap_decrementsPendingCount() public {
+        // Setup and initiate swap
+        rewardToken.mint(address(strategy), 100e18);
+
+        vm.prank(management);
+        strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
+
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+        assertEq(strategy.pendingSwapCount(), 1);
+
+        // Cancel the swap
+        vm.prank(keeper);
+        strategy.cancelSwap(100e18, address(rewardToken), address(baseAsset), address(priceChecker), abi.encode(500));
+
+        // Pending count should be decremented
+        assertEq(strategy.pendingSwapCount(), 0);
+
+        // Report should now work
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        vm.prank(keeper);
+        ITokenizedStrategy(address(strategy)).report(); // Should not revert
+    }
+
+    function test_markSwapsSettled_accessControl() public {
+        // Setup
+        vm.prank(management);
+        strategy.updatePriceChecker(address(rewardToken), address(priceChecker));
+        rewardToken.mint(address(strategy), 100e18);
+
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+
+        // Non-keeper should not be able to mark swaps settled
+        vm.prank(alice);
+        vm.expectRevert();
+        strategy.markSwapsSettled(1);
+
+        // Keeper should be able to
+        vm.prank(keeper);
+        strategy.markSwapsSettled(1);
+        assertEq(strategy.pendingSwapCount(), 0);
+    }
+
+    function test_harvestAndReport_compoundsWhenNoSwapsPending() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Simulate base asset from a previously settled swap
+        baseAsset.mint(address(strategy), 100e6);
+
+        // Report should work and compound the base asset
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = ITokenizedStrategy(address(strategy)).report();
+
+        // Should have compounded and shown profit
+        assertTrue(profit > 0);
+        assertEq(loss, 0);
+
+        // Base asset should be deposited into autopool
+        assertEq(baseAsset.balanceOf(address(strategy)), 0);
+    }
+
     /// VIEW FUNCTION TESTS ///
 
     function test_getConfiguredRewardTokens() public {

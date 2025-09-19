@@ -40,6 +40,9 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Maximum deviation allowed for price checks (in basis points)
     uint256 public maxPriceDeviationBps = 500; // 5%
 
+    /// @notice Counter for pending Milkman swaps
+    uint256 public pendingSwapCount;
+
     /// EVENTS ///
 
     event PriceCheckerUpdated(address indexed rewardToken, address indexed priceChecker);
@@ -52,6 +55,7 @@ contract AutopoolCompounder is BaseStrategy {
     error CannotSetCheckerForAsset();
     error InvalidPriceChecker();
     error InvalidMaxDeviation();
+    error SwapsPending();
 
     /// CONSTRUCTOR ///
 
@@ -136,6 +140,11 @@ contract AutopoolCompounder is BaseStrategy {
         external
         onlyKeepers
     {
+        // Decrement pending swap count
+        if (pendingSwapCount > 0) {
+            pendingSwapCount--;
+        }
+
         // Cancel the swap in Milkman, which will transfer the tokens back to this contract
         milkman.cancelSwap(amountIn, IERC20(fromToken), IERC20(toToken), address(this), priceChecker, priceCheckerData);
     }
@@ -148,27 +157,35 @@ contract AutopoolCompounder is BaseStrategy {
         // Process configured tokens
         address[] memory configuredTokens = _configuredRewardTokens.values();
         uint256 configuredLen = configuredTokens.length;
+        uint256 swapsInitiated = 0;
+
         for (uint256 i; i < configuredLen;) {
-            _processRewardToken(configuredTokens[i]);
+            if (_processRewardToken(configuredTokens[i])) {
+                swapsInitiated++;
+            }
             unchecked {
                 ++i;
             }
         }
+
+        // Increment pending swap count by number of swaps initiated
+        pendingSwapCount += swapsInitiated;
     }
 
     /// @notice Process a single reward token for swapping
-    function _processRewardToken(address token) internal {
+    /// @return swapInitiated True if a swap was initiated
+    function _processRewardToken(address token) internal returns (bool swapInitiated) {
         uint256 balance = IERC20(token).balanceOf(address(this));
 
         // Skip if balance is zero
         // slither-disable-next-line incorrect-equality
         if (balance == 0) {
-            return;
+            return false;
         }
 
         address priceChecker = priceCheckerByToken[token];
         if (priceChecker == address(0)) {
-            return;
+            return false;
         }
 
         // Approve Milkman and request swap
@@ -176,6 +193,8 @@ contract AutopoolCompounder is BaseStrategy {
         milkman.requestSwapExactTokensForTokens(
             balance, IERC20(token), baseAsset, address(this), priceChecker, abi.encode(maxPriceDeviationBps)
         );
+
+        return true;
     }
 
     /// YEARN V3 STRATEGY HOOKS ///
@@ -204,11 +223,20 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Harvest and report strategy performance
     /// @return The total assets under management
     function _harvestAndReport() internal override returns (uint256) {
-        // If not shutdown, claim rewards and swap
+        // Revert if there are pending swaps to prevent incorrect loss reporting
+        if (pendingSwapCount > 0) {
+            revert SwapsPending();
+        }
+
+        // If not shutdown, compound any settled base asset
         if (!TokenizedStrategy.isShutdown()) {
-            // Compound any settled base asset
             uint256 baseBalance = baseAsset.balanceOf(address(this));
             if (baseBalance > 0) {
+                // Decrement swap counter as base asset has arrived
+                if (pendingSwapCount > 0) {
+                    pendingSwapCount--;
+                }
+
                 // Approve and deposit base asset to get autopool shares
                 baseAsset.forceApprove(address(asset), baseBalance);
 
@@ -240,5 +268,16 @@ contract AutopoolCompounder is BaseStrategy {
     /// @return The amount of pending main rewards (TOKE)
     function pendingRewards() external view returns (uint256) {
         return rewarder.earned(address(this));
+    }
+
+    /// @notice Manually decrement pending swap count when swaps have settled
+    /// @param count Number of swaps that have settled
+    /// @dev Only callable by keepers to sync the counter after swaps complete
+    function markSwapsSettled(uint256 count) external onlyKeepers {
+        if (count > pendingSwapCount) {
+            pendingSwapCount = 0;
+        } else {
+            pendingSwapCount -= count;
+        }
     }
 }
