@@ -222,6 +222,32 @@ contract AutopoolCompounder is BaseStrategy {
         return stakedBalance() + looseBalance;
     }
 
+    /// @notice Emergency withdraw function for shutdown scenarios
+    /// @dev Allows management to withdraw staked autopool shares when strategy is shutdown
+    /// @param _amount The amount of autopool shares to withdraw
+    function _emergencyWithdraw(uint256 _amount) internal override {
+        // Free any staked autopool tokens if requested
+        uint256 staked = stakedBalance();
+        if (_amount > 0 && staked > 0) {
+            uint256 toWithdraw = _amount > staked ? staked : _amount;
+            _freeFunds(toWithdraw);
+        }
+    }
+
+    /// @notice Recover base assets stuck in the contract
+    /// @dev Can only be called when strategy is shutdown to prevent griefing
+    function recoverBaseAssets() external onlyManagement {
+        require(TokenizedStrategy.isShutdown(), "Strategy not shutdown");
+
+        uint256 baseBalance = baseAsset.balanceOf(address(this));
+        if (baseBalance > 0) {
+            // Transfer base assets to the strategy vault for proper accounting
+            baseAsset.forceApprove(address(asset), baseBalance);
+            IAutopool(address(asset)).deposit(baseBalance, address(this));
+            // The shares are now available for normal withdrawal
+        }
+    }
+
     /// VIEW FUNCTIONS ///
 
     /// @notice Get all configured reward tokens
