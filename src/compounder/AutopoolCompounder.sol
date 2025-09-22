@@ -20,6 +20,9 @@ contract AutopoolCompounder is BaseStrategy {
 
     /// CONSTANTS ///
 
+    /// @notice Maximum basis points (100%)
+    uint256 public constant MAX_SLIPPAGE_BPS = 10_000;
+
     /// @notice The base asset of the autopool (e.g., USDC for autoUSD)
     IERC20 public immutable baseAsset;
 
@@ -40,10 +43,14 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Maximum deviation allowed for price checks (in basis points)
     uint256 public maxPriceDeviationBps = 500; // 5%
 
+    /// @notice Maximum slippage allowed when depositing to autopool (in basis points)
+    uint256 public maxDepositSlippageBps = 100; // 1%
+
     /// EVENTS ///
 
     event PriceCheckerUpdated(address indexed rewardToken, address indexed priceChecker);
     event MaxPriceDeviationUpdated(uint256 maxDeviationBps);
+    event MaxDepositSlippageUpdated(uint256 maxSlippageBps);
 
     /// ERRORS ///
 
@@ -52,6 +59,7 @@ contract AutopoolCompounder is BaseStrategy {
     error CannotSetCheckerForAsset();
     error InvalidPriceChecker();
     error InvalidMaxDeviation();
+    error SlippageExceeded(uint256 expectedShares, uint256 actualShares, uint256 minShares);
 
     /// CONSTRUCTOR ///
 
@@ -110,11 +118,21 @@ contract AutopoolCompounder is BaseStrategy {
     /// @notice Set the maximum price deviation for swaps
     /// @param maxDeviationBps_ The max deviation in basis points
     function setMaxPriceDeviation(uint256 maxDeviationBps_) external onlyManagement {
-        if (maxDeviationBps_ > 10_000) {
+        if (maxDeviationBps_ > MAX_SLIPPAGE_BPS) {
             revert InvalidMaxDeviation();
         }
         maxPriceDeviationBps = maxDeviationBps_;
         emit MaxPriceDeviationUpdated(maxDeviationBps_);
+    }
+
+    /// @notice Set the maximum slippage allowed when depositing to autopool
+    /// @param maxSlippageBps_ The max slippage in basis points
+    function setMaxDepositSlippage(uint256 maxSlippageBps_) external onlyManagement {
+        if (maxSlippageBps_ > MAX_SLIPPAGE_BPS) {
+            revert InvalidMaxDeviation();
+        }
+        maxDepositSlippageBps = maxSlippageBps_;
+        emit MaxDepositSlippageUpdated(maxSlippageBps_);
     }
 
     /// KEEPER FUNCTIONS ///
@@ -209,10 +227,20 @@ contract AutopoolCompounder is BaseStrategy {
             // Compound any settled base asset
             uint256 baseBalance = baseAsset.balanceOf(address(this));
             if (baseBalance > 0) {
+                // Calculate expected shares with slippage protection
+                uint256 expectedShares = IAutopool(address(asset)).previewDeposit(baseBalance);
+                uint256 minShares = (expectedShares * (MAX_SLIPPAGE_BPS - maxDepositSlippageBps)) / MAX_SLIPPAGE_BPS;
+
                 // Approve and deposit base asset to get autopool shares
                 baseAsset.forceApprove(address(asset), baseBalance);
 
                 uint256 sharesMinted = IAutopool(address(asset)).deposit(baseBalance, address(this));
+
+                // Check slippage protection
+                if (sharesMinted < minShares) {
+                    revert SlippageExceeded(expectedShares, sharesMinted, minShares);
+                }
+
                 _deployFunds(sharesMinted);
             }
         }

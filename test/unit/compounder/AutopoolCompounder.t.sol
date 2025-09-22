@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.28;
 
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { AutopoolCompounder } from "src/compounder/AutopoolCompounder.sol";
+import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
 
 import { OraclePriceChecker } from "src/compounder/pricecheckers/OraclePriceChecker.sol";
 import { MockAutopool } from "test/utils/mocks/MockAutopool.sol";
@@ -21,6 +25,75 @@ contract MockERC20 is ERC20 {
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
+    }
+}
+
+/// @dev Mock autopool that can simulate slippage by returning fewer shares than expected
+contract MockMaliciousAutopool is ERC4626, IAutopool {
+    bool public isShutdown;
+    bool public paused;
+    uint256 public oldestDebtReporting;
+    uint256 public slippageRatio = 10_000; // Basis points, 10000 = 100% (no slippage)
+
+    constructor(
+        address _baseAsset,
+        string memory name,
+        string memory symbol
+    )
+        ERC20(name, symbol)
+        ERC4626(IERC20(_baseAsset))
+    {
+        // baseAsset is stored in ERC4626's _asset variable
+    }
+
+    function setSlippageRatio(uint256 _slippageRatio) external {
+        slippageRatio = _slippageRatio;
+    }
+
+    function deposit(uint256 assets, address receiver) public override(ERC4626, IERC4626) returns (uint256 shares) {
+        // Normal preview calculation
+        shares = previewDeposit(assets);
+
+        // Apply slippage - return fewer shares than expected
+        uint256 actualShares = (shares * slippageRatio) / 10_000;
+
+        // Transfer assets from sender
+        IERC20(asset()).transferFrom(msg.sender, address(this), assets);
+
+        // Mint the reduced amount of shares (simulating slippage)
+        _mint(receiver, actualShares);
+
+        emit Deposit(msg.sender, receiver, assets, actualShares);
+        return actualShares;
+    }
+
+    function pause() external {
+        paused = true;
+    }
+
+    function unpause() external {
+        paused = false;
+    }
+
+    function shutdown() external {
+        isShutdown = true;
+    }
+
+    // ERC20Permit functions (stub implementation)
+    function permit(address, address, uint256, uint256, uint8, bytes32, bytes32) external pure {
+        // Stub implementation
+    }
+
+    function nonces(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function DOMAIN_SEPARATOR() external pure returns (bytes32) {
+        return bytes32(0);
+    }
+
+    function setOldestDebtReporting(uint256 timestamp) external {
+        oldestDebtReporting = timestamp;
     }
 }
 
@@ -113,6 +186,7 @@ contract AutopoolCompounderTest is BaseTest {
         assertEq(address(strategy.milkman()), address(milkman));
         assertEq(address(strategy.baseAsset()), address(baseAsset));
         assertEq(strategy.maxPriceDeviationBps(), 500);
+        assertEq(strategy.maxDepositSlippageBps(), 100);
     }
 
     function test_deployment_revertsWhen_zeroAddress() public {
@@ -245,6 +319,90 @@ contract AutopoolCompounderTest is BaseTest {
         assertEq(loss, 0);
     }
 
+    function test_harvestAndReport_withSlippageProtection() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Put base asset in strategy (simulating settled swap)
+        uint256 baseBalance = 50e6;
+        baseAsset.mint(address(strategy), baseBalance);
+
+        // Store initial state
+        uint256 initialStakedBalance = strategy.stakedBalance();
+
+        // Report should succeed with normal conditions
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = ITokenizedStrategy(address(strategy)).report();
+
+        // Should have compounded the base asset
+        assertTrue(profit > 0);
+        assertEq(loss, 0);
+        assertTrue(strategy.stakedBalance() > initialStakedBalance);
+    }
+
+    function test_harvestAndReport_revertsWhen_slippageExceeded() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Set very low slippage tolerance (0.1%)
+        vm.prank(management);
+        strategy.setMaxDepositSlippage(10);
+
+        // Put base asset in strategy
+        uint256 baseBalance = 50e6;
+        baseAsset.mint(address(strategy), baseBalance);
+
+        // Create a malicious mock autopool that returns fewer shares than expected
+        // This simulates the slippage scenario
+        MockMaliciousAutopool maliciousPool = new MockMaliciousAutopool(address(baseAsset), "Malicious", "MAL");
+
+        // Create a rewarder for the malicious autopool
+        MockAutopoolMainRewarder maliciousRewarder =
+            new MockAutopoolMainRewarder(address(maliciousPool), address(rewardToken));
+
+        // Deploy a new strategy with the malicious autopool
+        vm.prank(management);
+        AutopoolCompounder maliciousStrategy =
+            new AutopoolCompounder(address(maliciousPool), address(maliciousRewarder), address(milkman));
+
+        vm.prank(management);
+        maliciousStrategy.setMaxDepositSlippage(10); // 0.1%
+
+        // Set up keeper role for the malicious strategy
+        vm.prank(management);
+        ITokenizedStrategy(address(maliciousStrategy)).setKeeper(keeper);
+
+        // Put base asset in the malicious strategy
+        baseAsset.mint(address(maliciousStrategy), baseBalance);
+
+        // Set the malicious pool to return 90% fewer shares (simulating extreme slippage)
+        maliciousPool.setSlippageRatio(100); // 1% of expected shares
+
+        // Report should revert due to slippage
+        vm.prank(keeper);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                AutopoolCompounder.SlippageExceeded.selector,
+                baseBalance, // expectedShares (1:1 in previewDeposit)
+                baseBalance / 100, // actualShares (1% due to slippage)
+                (baseBalance * 9990) / 10_000 // minShares (99.9% of expected)
+            )
+        );
+        ITokenizedStrategy(address(maliciousStrategy)).report();
+    }
+
     /// WITHDRAWAL TESTS ///
 
     function testFuzz_withdrawal(uint256 depositAmount) public {
@@ -352,6 +510,31 @@ contract AutopoolCompounderTest is BaseTest {
         strategy.setMaxPriceDeviation(10_001); // > 100%
     }
 
+    function testFuzz_setMaxDepositSlippage(uint256 slippage) public {
+        // Bound slippage to valid range (0 to 10000 bps = 100%)
+        slippage = bound(slippage, 0, 10_000);
+
+        vm.prank(management);
+        strategy.setMaxDepositSlippage(slippage);
+
+        assertEq(strategy.maxDepositSlippageBps(), slippage);
+    }
+
+    function test_setMaxDepositSlippage_revertsWhen_tooHigh() public {
+        vm.prank(management);
+        vm.expectRevert(AutopoolCompounder.InvalidMaxDeviation.selector);
+        strategy.setMaxDepositSlippage(10_001); // > 100%
+    }
+
+    function test_setMaxDepositSlippage_revertsWhen_notManagement() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        strategy.setMaxDepositSlippage(200);
+
+        vm.prank(management);
+        strategy.setMaxDepositSlippage(200);
+    }
+
     /// VIEW FUNCTION TESTS ///
 
     function test_getConfiguredRewardTokens() public {
@@ -371,6 +554,28 @@ contract AutopoolCompounderTest is BaseTest {
         assertTrue(tokens[0] == address(extraReward) || tokens[1] == address(extraReward));
     }
 
+    function test_harvestAndReport_skipWhen_noBaseBalance() public {
+        // Setup: deposit and stake but no base asset to compound
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        uint256 initialStakedBalance = strategy.stakedBalance();
+
+        // Report without any base balance to compound
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = ITokenizedStrategy(address(strategy)).report();
+
+        // Should report no change since no base balance to compound
+        assertEq(profit, 0);
+        assertEq(loss, 0);
+        assertEq(strategy.stakedBalance(), initialStakedBalance);
+    }
+
     function test_stakedBalance() public {
         // Deposit and check staked balance
         uint256 depositAmount = 1000e6;
@@ -388,6 +593,10 @@ contract AutopoolCompounderTest is BaseTest {
     function test_pendingRewards() public {
         rewarder.setEarned(address(strategy), 123e18);
         assertEq(strategy.pendingRewards(), 123e18);
+    }
+
+    function test_maxDepositSlippageBps_defaultValue() public {
+        assertEq(strategy.maxDepositSlippageBps(), 100); // 1%
     }
 
     /// HELPER FUNCTIONS ///
