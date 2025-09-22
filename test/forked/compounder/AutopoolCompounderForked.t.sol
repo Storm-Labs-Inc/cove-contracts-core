@@ -196,6 +196,7 @@ contract AutopoolCompounderForkedTest is BaseTest {
             oneToken,
             address(toke),
             address(usdc),
+            0, // feeAmount (0 for this test)
             usdcFromToke * 95 / 100, // 5% slippage tolerance
             ""
         );

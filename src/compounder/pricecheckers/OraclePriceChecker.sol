@@ -30,9 +30,10 @@ contract OraclePriceChecker is IPriceChecker {
     }
 
     /// @notice Check if a swap price meets the oracle requirements
-    /// @param amountIn The amount of input tokens
+    /// @param amountIn The amount of input tokens (including fee)
     /// @param fromToken The input token address
     /// @param toToken The output token address
+    /// @param feeAmount The fee amount in input tokens
     /// @param minOut The minimum output amount from the solver
     /// @param data Additional data (used for max deviation bps)
     /// @return True if the price is acceptable
@@ -40,6 +41,7 @@ contract OraclePriceChecker is IPriceChecker {
         uint256 amountIn,
         address fromToken,
         address toToken,
+        uint256 feeAmount,
         uint256 minOut,
         bytes calldata data
     )
@@ -48,8 +50,11 @@ contract OraclePriceChecker is IPriceChecker {
         override
         returns (bool)
     {
-        // Get expected output from oracle
-        uint256 expectedOut = oracle.getQuote(amountIn, fromToken, toToken);
+        // Calculate the actual swap amount (excluding fee)
+        uint256 actualSwapAmount = amountIn - feeAmount;
+
+        // Get expected output from oracle for the actual swap amount
+        uint256 expectedOut = oracle.getQuote(actualSwapAmount, fromToken, toToken);
 
         // Get max deviation bps from data, if not provided, use default
         uint256 maxDeviationBps = data.length > 0 ? abi.decode(data, (uint256)) : defaultMaxDeviationBps;
