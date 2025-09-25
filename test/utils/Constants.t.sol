@@ -176,7 +176,7 @@ contract Constants is CommonBase {
     address public constant TOKEMAK_TOKE = 0x2e9d63788249371f1DFC918a52f8d799F4a38C94;
 
     /// @notice Milkman - MEV-protected swap protocol
-    address public constant TOKEMAK_MILKMAN = 0x11C76AD590ABDFFCD980afEC9ad951B160F02797;
+    address public constant TOKEMAK_MILKMAN = 0x060373D064d0168931dE2AB8DDA7410923d06E88;
 
     /// @notice Address with large USDC balance for testing
     address public constant USDC_WHALE = 0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa;
