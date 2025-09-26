@@ -203,6 +203,25 @@ contract AutopoolCompounderForkedTest is BaseTest {
         assertTrue(priceOk, "Price should be within tolerance");
     }
 
+    function test_priceCheckerAccountsForFeeAmount() public view {
+        uint256 amountIn = 100e18;
+        uint256 feeAmount = 5e18;
+        bytes memory zeroDeviation = abi.encode(uint256(0));
+
+        uint256 expectedWithoutFee = crossAdapter.getQuote(amountIn, address(toke), address(usdc));
+        uint256 expectedWithFee = crossAdapter.getQuote(amountIn - feeAmount, address(toke), address(usdc));
+
+        assertGt(expectedWithoutFee, expectedWithFee, "fee should reduce expected output");
+
+        bool acceptsWithFee =
+            priceChecker.checkPrice(amountIn, address(toke), address(usdc), feeAmount, expectedWithFee, zeroDeviation);
+        assertTrue(acceptsWithFee, "checker should approve net-of-fee quote");
+
+        bool rejectsWhenFeeIgnored =
+            priceChecker.checkPrice(amountIn, address(toke), address(usdc), 0, expectedWithFee, zeroDeviation);
+        assertFalse(rejectsWhenFeeIgnored, "checker must reject when fee parameter is omitted");
+    }
+
     function test_claimAndSwapWithRealOracle() public {
         // Setup: deposit first
         vm.startPrank(user);

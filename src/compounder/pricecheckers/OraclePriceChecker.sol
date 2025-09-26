@@ -50,7 +50,7 @@ contract OraclePriceChecker is IPriceChecker {
         override
         returns (bool)
     {
-        // Calculate the actual swap amount (excluding fee)
+        // Milkman forwards the gross sell amount (swap + solver fee); subtract fees to evaluate the net swap size.
         uint256 actualSwapAmount = amountIn - feeAmount;
 
         // Get expected output from oracle for the actual swap amount
