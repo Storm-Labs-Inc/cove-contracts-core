@@ -52,6 +52,7 @@ contract AutopoolCompounder is BaseStrategy {
     error CannotSetCheckerForAsset();
     error InvalidPriceChecker();
     error InvalidMaxDeviation();
+    error StrategyNotShutdown();
 
     /// CONSTRUCTOR ///
 
@@ -228,16 +229,20 @@ contract AutopoolCompounder is BaseStrategy {
     function _emergencyWithdraw(uint256 _amount) internal override {
         // Free any staked autopool tokens if requested
         uint256 staked = stakedBalance();
-        if (_amount > 0 && staked > 0) {
-            uint256 toWithdraw = _amount > staked ? staked : _amount;
-            _freeFunds(toWithdraw);
+        if (_amount == 0 || staked == 0) {
+            return;
         }
+
+        uint256 toWithdraw = _amount > staked ? staked : _amount;
+        _freeFunds(toWithdraw);
     }
 
     /// @notice Recover base assets stuck in the contract
     /// @dev Can only be called when strategy is shutdown to prevent griefing
     function recoverBaseAssets() external onlyManagement {
-        require(TokenizedStrategy.isShutdown(), "Strategy not shutdown");
+        if (!TokenizedStrategy.isShutdown()) {
+            revert StrategyNotShutdown();
+        }
 
         uint256 baseBalance = baseAsset.balanceOf(address(this));
         if (baseBalance > 0) {
