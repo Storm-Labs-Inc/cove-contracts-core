@@ -246,10 +246,9 @@ contract AutopoolCompounder is BaseStrategy {
 
         uint256 baseBalance = baseAsset.balanceOf(address(this));
         if (baseBalance > 0) {
-            // Transfer base assets to the strategy vault for proper accounting
-            baseAsset.forceApprove(address(asset), baseBalance);
-            IAutopool(address(asset)).deposit(baseBalance, address(this));
-            // The shares are now available for normal withdrawal
+            // Clear any stale allowance before handing assets back to management for manual recovery.
+            baseAsset.forceApprove(address(asset), 0);
+            baseAsset.safeTransfer(msg.sender, baseBalance);
         }
     }
 
