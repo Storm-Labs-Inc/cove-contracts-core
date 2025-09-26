@@ -13,7 +13,8 @@ import { IAutopoolMainRewarder } from "src/interfaces/deps/tokemak/IAutopoolMain
 
 /// @title AutopoolCompounder
 /// @notice A Yearn V3 strategy that compounds Tokemak Autopool rewards
-/// @dev Accepts any Tokemak Autopool ERC4626 vault as the asset, stakes it, and compounds rewards
+/// @dev Accepts any Tokemak Autopool ERC4626 vault as the asset, stakes it, and compounds rewards. Deployers should
+/// seed the underlying Autopool immediately after deployment to avoid the standard first-depositor inflation risk.
 contract AutopoolCompounder is BaseStrategy {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -80,6 +81,10 @@ contract AutopoolCompounder is BaseStrategy {
         }
         // Get the base asset from the autopool
         baseAsset = IERC20(IAutopool(_autopool).asset());
+
+        // NOTE: The first depositor into the underlying Autopool bears the standard ERC4626 inflation risk. Deployers
+        // should seed a small amount of shares immediately after deployment so keepers cannot grief the first user by
+        // front-running their deposit.
     }
 
     /// MANAGEMENT FUNCTIONS ///
