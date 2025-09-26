@@ -6,6 +6,7 @@ import { console } from "forge-std/console.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { AutopoolCompounder } from "src/compounder/AutopoolCompounder.sol";
+import { IMilkman } from "src/interfaces/deps/milkman/IMilkman.sol";
 
 import { OraclePriceChecker } from "src/compounder/pricecheckers/OraclePriceChecker.sol";
 import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
@@ -200,6 +201,33 @@ contract AutopoolCompounderForkedTest is BaseTest {
             ""
         );
         assertTrue(priceOk, "Price should be within tolerance");
+    }
+
+    function test_cancelSwapIncludesZeroAppData() public {
+        uint256 amountIn = 1e18;
+        address fromToken = address(toke);
+        address toToken = address(usdc);
+        address checker = address(priceChecker);
+        bytes memory checkerData = abi.encode(uint256(123));
+
+        bytes memory encodedCall = abi.encodeWithSelector(
+            IMilkman.cancelSwap.selector,
+            amountIn,
+            IERC20(fromToken),
+            IERC20(toToken),
+            address(strategy),
+            bytes32(0),
+            checker,
+            checkerData
+        );
+
+        vm.mockCall(TOKEMAK_MILKMAN, encodedCall, "");
+        vm.expectCall(TOKEMAK_MILKMAN, encodedCall);
+
+        vm.prank(keeper);
+        strategy.cancelSwap(amountIn, fromToken, toToken, checker, checkerData);
+
+        vm.clearMockedCalls();
     }
 
     function test_claimAndSwapWithRealOracle() public {
