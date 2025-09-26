@@ -197,7 +197,8 @@ contract AutopoolCompounder is BaseStrategy {
         // slither-disable-next-line incorrect-equality
         if (amount == 0) return;
 
-        // Withdraw without claiming rewards
+        // Withdraw without claiming rewards. Keeping this leg gas-light and deferring reward handling to harvest lets
+        // us process incentives deliberately alongside pricing checks.
         rewarder.withdraw(address(this), amount, false);
     }
 
