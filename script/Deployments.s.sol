@@ -144,7 +144,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         require(addr != address(0), string.concat("Deployment ", name, " not found"));
     }
 
-    function _deployCoreContracts() internal {
+    function _deployCoreContracts() internal virtual {
         address assetRegistry = address(deployer.deploy_AssetRegistry(buildAssetRegistryName(), COVE_DEPLOYER_ADDRESS));
         address strategyRegistry =
             address(deployer.deploy_StrategyRegistry(buildStrategyRegistryName(), COVE_DEPLOYER_ADDRESS));
@@ -974,7 +974,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         return farmingPluginFactory;
     }
 
-    function _deployPluginsViaFactory() internal {
+    function _deployPluginsViaFactory() internal virtual {
         address farmingPluginFactory = getAddressOrRevert(buildFarmingPluginFactoryName());
         address basketManager = getAddressOrRevert(buildBasketManagerName());
         address[] memory basketTokens = BasketManager(basketManager).basketTokens();
