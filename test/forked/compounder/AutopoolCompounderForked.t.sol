@@ -2,10 +2,13 @@
 pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 import { BaseTest } from "test/utils/BaseTest.t.sol";
 
 import { AutopoolCompounder } from "src/compounder/AutopoolCompounder.sol";
+import { IMilkman } from "src/interfaces/deps/milkman/IMilkman.sol";
 
 import { OraclePriceChecker } from "src/compounder/pricecheckers/OraclePriceChecker.sol";
 import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
@@ -27,6 +30,9 @@ contract AutopoolCompounderForkedTest is BaseTest {
     IAutopoolMainRewarder public rewarder;
     IERC20 public usdc;
     IERC20 public toke;
+
+    bytes32 internal constant SWAP_REQUESTED_TOPIC =
+        keccak256("SwapRequested(address,address,uint256,address,address,address,bytes32,address,bytes)");
 
     // Price oracles
     CurveEMAOracle public curveOracle; // TOKE/ETH
@@ -196,10 +202,57 @@ contract AutopoolCompounderForkedTest is BaseTest {
             oneToken,
             address(toke),
             address(usdc),
+            0, // feeAmount (0 for this test)
             usdcFromToke * 95 / 100, // 5% slippage tolerance
             ""
         );
         assertTrue(priceOk, "Price should be within tolerance");
+    }
+
+    function test_priceCheckerAccountsForFeeAmount() public view {
+        uint256 amountIn = 100e18;
+        uint256 feeAmount = 5e18;
+        bytes memory zeroDeviation = abi.encode(uint256(0));
+
+        uint256 expectedWithoutFee = crossAdapter.getQuote(amountIn, address(toke), address(usdc));
+        uint256 expectedWithFee = crossAdapter.getQuote(amountIn - feeAmount, address(toke), address(usdc));
+
+        assertGt(expectedWithoutFee, expectedWithFee, "fee should reduce expected output");
+
+        bool acceptsWithFee =
+            priceChecker.checkPrice(amountIn, address(toke), address(usdc), feeAmount, expectedWithFee, zeroDeviation);
+        assertTrue(acceptsWithFee, "checker should approve net-of-fee quote");
+
+        bool rejectsWhenFeeIgnored =
+            priceChecker.checkPrice(amountIn, address(toke), address(usdc), 0, expectedWithFee, zeroDeviation);
+        assertFalse(rejectsWhenFeeIgnored, "checker must reject when fee parameter is omitted");
+    }
+
+    function test_cancelSwapIncludesZeroAppData() public {
+        uint256 amountIn = 1e18;
+        address fromToken = address(toke);
+        address toToken = address(usdc);
+        address checker = address(priceChecker);
+        bytes memory checkerData = abi.encode(uint256(123));
+
+        bytes memory encodedCall = abi.encodeWithSelector(
+            IMilkman.cancelSwap.selector,
+            amountIn,
+            IERC20(fromToken),
+            IERC20(toToken),
+            address(strategy),
+            bytes32(0),
+            checker,
+            checkerData
+        );
+
+        vm.mockCall(TOKEMAK_MILKMAN, encodedCall, "");
+        vm.expectCall(TOKEMAK_MILKMAN, encodedCall);
+
+        vm.prank(keeper);
+        strategy.cancelSwap(amountIn, fromToken, toToken, checker, checkerData);
+
+        vm.clearMockedCalls();
     }
 
     function test_claimAndSwapWithRealOracle() public {
@@ -231,6 +284,47 @@ contract AutopoolCompounderForkedTest is BaseTest {
 
         // Note: In a real scenario, Milkman would execute the swap asynchronously
         // and we'd need to wait for the swap to settle before harvesting
+    }
+
+    function test_claimRewardsAndSwap_usesZeroAppData() public {
+        bytes memory swapData = _performMilkmanSwap(1e18);
+        (,,,,,, bytes32 appData,,) =
+            abi.decode(swapData, (address, address, uint256, address, address, address, bytes32, address, bytes));
+        assertEq(appData, bytes32(0), "appData should default to zero");
+    }
+
+    function test_claimRewardsAndSwap_encodesMaxDeviationInPriceCheckerData() public {
+        uint256 newDeviation = 765;
+        vm.prank(management);
+        strategy.setMaxPriceDeviation(newDeviation);
+
+        bytes memory swapData = _performMilkmanSwap(2e18);
+        (,,,,,,,, bytes memory priceCheckerData) =
+            abi.decode(swapData, (address, address, uint256, address, address, address, bytes32, address, bytes));
+        assertEq(priceCheckerData, abi.encode(newDeviation), "price checker data should encode max deviation");
+    }
+
+    function _performMilkmanSwap(uint256 rewardAmount) internal returns (bytes memory) {
+        vm.mockCall(
+            address(rewarder),
+            abi.encodeWithSelector(IAutopoolMainRewarder.getReward.selector, address(strategy), address(strategy), true),
+            abi.encode()
+        );
+
+        deal(address(toke), address(strategy), rewardAmount);
+
+        vm.recordLogs();
+        vm.prank(keeper);
+        strategy.claimRewardsAndSwap();
+        vm.clearMockedCalls();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].topics.length > 0 && logs[i].topics[0] == SWAP_REQUESTED_TOPIC) {
+                return logs[i].data;
+            }
+        }
+
+        revert("SwapRequested not emitted");
     }
 
     /// HELPER FUNCTIONS ///
