@@ -183,7 +183,14 @@ contract AutopoolCompounder is BaseStrategy {
         // Approve Milkman and request swap
         IERC20(token).forceApprove(address(milkman), balance);
         milkman.requestSwapExactTokensForTokens(
-            balance, IERC20(token), baseAsset, address(this), priceChecker, abi.encode(maxPriceDeviationBps)
+            balance,
+            IERC20(token),
+            baseAsset,
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            abi.encode(maxPriceDeviationBps)
         );
     }
 
