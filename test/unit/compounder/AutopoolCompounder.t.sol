@@ -168,6 +168,12 @@ contract AutopoolCompounderTest is BaseTest {
         strategy.updatePriceChecker(address(autopool), address(priceChecker));
     }
 
+    function test_updatePriceChecker_revertsWhen_settingForBaseAsset() public {
+        vm.prank(management);
+        vm.expectRevert(AutopoolCompounder.CannotSetCheckerForAsset.selector);
+        strategy.updatePriceChecker(address(baseAsset), address(priceChecker));
+    }
+
     function test_removePriceChecker() public {
         // First add
         vm.prank(management);
@@ -184,6 +190,44 @@ contract AutopoolCompounderTest is BaseTest {
     }
 
     /// HARVEST AND COMPOUND TESTS ///
+
+    function test_claimRewardsAndSwap_skipsSwapWhenRewardTokenIsBaseAsset() public {
+        // Create a mock rewarder that rewards in base asset (USDC)
+        MockAutopoolMainRewarder baseAssetRewarder = new MockAutopoolMainRewarder(address(autopool), address(baseAsset));
+
+        // Deploy new strategy with base asset as reward
+        vm.prank(management);
+        AutopoolCompounder baseAssetStrategy =
+            new AutopoolCompounder(address(autopool), address(baseAssetRewarder), address(milkman));
+
+        // Set up keeper role
+        vm.prank(management);
+        ITokenizedStrategy(address(baseAssetStrategy)).setKeeper(keeper);
+
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(baseAssetStrategy), shares);
+        ITokenizedStrategy(address(baseAssetStrategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Fund rewarder with base asset rewards
+        baseAsset.mint(address(baseAssetRewarder), 100e6);
+        baseAssetRewarder.setEarned(address(baseAssetStrategy), 100e6);
+
+        // Initial base asset balance in strategy
+        uint256 initialBalance = baseAsset.balanceOf(address(baseAssetStrategy));
+
+        // Claim rewards - should NOT trigger a swap since reward is already base asset
+        vm.prank(keeper);
+        baseAssetStrategy.claimRewardsAndSwap();
+
+        // Verify that the base asset was claimed but NOT sent to Milkman for swapping
+        assertEq(baseAsset.balanceOf(address(baseAssetStrategy)), initialBalance + 100e6);
+        assertEq(baseAsset.balanceOf(address(milkman)), 0);
+    }
 
     function test_claimRewardsAndSwap() public {
         // Setup: deposit and stake
@@ -388,6 +432,130 @@ contract AutopoolCompounderTest is BaseTest {
     function test_pendingRewards() public {
         rewarder.setEarned(address(strategy), 123e18);
         assertEq(strategy.pendingRewards(), 123e18);
+    }
+
+    /// EMERGENCY WITHDRAWAL AND RECOVERY TESTS ///
+
+    function test_recoverBaseAssets_whenShutdown() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Simulate base assets sitting in the contract (e.g., from settled swaps)
+        uint256 baseAssetAmount = 100e6; // 100 USDC
+        baseAsset.mint(address(strategy), baseAssetAmount);
+
+        // Shutdown the strategy
+        vm.prank(management);
+        ITokenizedStrategy(address(strategy)).shutdownStrategy();
+
+        // Recover base assets - they should be transferred to management
+        vm.prank(management);
+        strategy.recoverBaseAssets();
+
+        // Check that base assets were transferred to management
+        assertEq(baseAsset.balanceOf(address(strategy)), 0);
+        assertEq(baseAsset.balanceOf(management), baseAssetAmount);
+    }
+
+    function test_recoverBaseAssets_revertsWhenNotShutdown() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Simulate base assets sitting in the contract
+        uint256 baseAssetAmount = 50e6; // 50 USDC
+        baseAsset.mint(address(strategy), baseAssetAmount);
+
+        // Should revert when not shutdown
+        vm.prank(management);
+        vm.expectRevert(abi.encodeWithSignature("StrategyNotShutdown()"));
+        strategy.recoverBaseAssets();
+    }
+
+    function test_emergencyWithdraw_partialWithdrawal() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Shutdown the strategy
+        vm.prank(management);
+        ITokenizedStrategy(address(strategy)).shutdownStrategy();
+
+        // Emergency withdraw half of the staked amount
+        uint256 withdrawAmount = shares / 2;
+        vm.prank(management);
+        ITokenizedStrategy(address(strategy)).emergencyWithdraw(withdrawAmount);
+
+        // Check partial withdrawal of staked autopool shares
+        assertEq(strategy.stakedBalance(), shares - withdrawAmount);
+        assertEq(autopool.balanceOf(address(strategy)), withdrawAmount);
+    }
+
+    function test_recoverBaseAssets_revertsWhenNotManagement() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Simulate base assets sitting in the contract
+        uint256 baseAssetAmount = 50e6; // 50 USDC
+        baseAsset.mint(address(strategy), baseAssetAmount);
+
+        // Shutdown the strategy
+        vm.prank(management);
+        ITokenizedStrategy(address(strategy)).shutdownStrategy();
+
+        // Should revert when not management
+        vm.prank(alice);
+        vm.expectRevert();
+        strategy.recoverBaseAssets();
+    }
+
+    function test_harvestAndReport_doesNotCompoundWhenShutdown() public {
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(strategy), shares);
+        ITokenizedStrategy(address(strategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Shutdown the strategy
+        vm.prank(management);
+        ITokenizedStrategy(address(strategy)).shutdownStrategy();
+
+        // Put some base asset in strategy (simulating settled swap)
+        uint256 baseAssetAmount = 50e6;
+        baseAsset.mint(address(strategy), baseAssetAmount);
+
+        // Report - should NOT compound the base asset
+        vm.prank(keeper);
+        ITokenizedStrategy(address(strategy)).report();
+
+        // Base asset should still be sitting in the contract, not deposited
+        assertEq(baseAsset.balanceOf(address(strategy)), baseAssetAmount);
+        assertEq(strategy.stakedBalance(), shares); // Only original stake
     }
 
     /// HELPER FUNCTIONS ///

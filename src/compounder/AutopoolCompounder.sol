@@ -54,6 +54,7 @@ contract AutopoolCompounder is BaseStrategy {
     error CannotSetCheckerForAsset();
     error InvalidPriceChecker();
     error InvalidMaxDeviation();
+    error StrategyNotShutdown();
 
     /// CONSTRUCTOR ///
 
@@ -92,6 +93,11 @@ contract AutopoolCompounder is BaseStrategy {
     function updatePriceChecker(address rewardToken, address priceChecker) external onlyManagement {
         // Prevent setting a price checker for the autopool asset
         if (rewardToken == address(asset)) {
+            revert CannotSetCheckerForAsset();
+        }
+
+        // Prevent setting a price checker for the base asset
+        if (rewardToken == address(baseAsset)) {
             revert CannotSetCheckerForAsset();
         }
 
@@ -139,7 +145,16 @@ contract AutopoolCompounder is BaseStrategy {
         onlyKeepers
     {
         // Cancel the swap in Milkman, which will transfer the tokens back to this contract
-        milkman.cancelSwap(amountIn, IERC20(fromToken), IERC20(toToken), address(this), priceChecker, priceCheckerData);
+        milkman.cancelSwap(
+            amountIn,
+            IERC20(fromToken),
+            IERC20(toToken),
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            priceCheckerData
+        );
     }
 
     /// @notice Claim rewards and initiate swaps via Milkman
@@ -168,6 +183,11 @@ contract AutopoolCompounder is BaseStrategy {
             return;
         }
 
+        // Skip swap if reward token is already the base asset
+        if (token == address(baseAsset)) {
+            return;
+        }
+
         address priceChecker = priceCheckerByToken[token];
         if (priceChecker == address(0)) {
             return;
@@ -176,7 +196,14 @@ contract AutopoolCompounder is BaseStrategy {
         // Approve Milkman and request swap
         IERC20(token).forceApprove(address(milkman), balance);
         milkman.requestSwapExactTokensForTokens(
-            balance, IERC20(token), baseAsset, address(this), priceChecker, abi.encode(maxPriceDeviationBps)
+            balance,
+            IERC20(token),
+            baseAsset,
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            abi.encode(maxPriceDeviationBps)
         );
     }
 
@@ -226,6 +253,35 @@ contract AutopoolCompounder is BaseStrategy {
         // Return the total balance of the strategy
         uint256 looseBalance = IERC20(address(asset)).balanceOf(address(this));
         return stakedBalance() + looseBalance;
+    }
+
+    /// @notice Emergency withdraw function for shutdown scenarios
+    /// @dev Allows management to withdraw staked autopool shares when strategy is shutdown
+    /// @param _amount The amount of autopool shares to withdraw
+    function _emergencyWithdraw(uint256 _amount) internal override {
+        // Free any staked autopool tokens if requested
+        uint256 staked = stakedBalance();
+        if (_amount == 0 || staked == 0) {
+            return;
+        }
+
+        uint256 toWithdraw = _amount > staked ? staked : _amount;
+        _freeFunds(toWithdraw);
+    }
+
+    /// @notice Recover base assets stuck in the contract
+    /// @dev Can only be called when strategy is shutdown to prevent griefing
+    function recoverBaseAssets() external onlyManagement {
+        if (!TokenizedStrategy.isShutdown()) {
+            revert StrategyNotShutdown();
+        }
+
+        uint256 baseBalance = baseAsset.balanceOf(address(this));
+        if (baseBalance > 0) {
+            // Clear any stale allowance before handing assets back to management for manual recovery.
+            baseAsset.forceApprove(address(asset), 0);
+            baseAsset.safeTransfer(msg.sender, baseBalance);
+        }
     }
 
     /// VIEW FUNCTIONS ///
