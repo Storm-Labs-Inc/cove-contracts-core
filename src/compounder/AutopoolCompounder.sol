@@ -137,7 +137,16 @@ contract AutopoolCompounder is BaseStrategy {
         onlyKeepers
     {
         // Cancel the swap in Milkman, which will transfer the tokens back to this contract
-        milkman.cancelSwap(amountIn, IERC20(fromToken), IERC20(toToken), address(this), priceChecker, priceCheckerData);
+        milkman.cancelSwap(
+            amountIn,
+            IERC20(fromToken),
+            IERC20(toToken),
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            priceCheckerData
+        );
     }
 
     /// @notice Claim rewards and initiate swaps via Milkman
