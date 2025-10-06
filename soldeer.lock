@@ -58,8 +58,8 @@ rev = "93b667acda0dafcafb6e193610b421ea003f46a9"
 [[dependencies]]
 name = "milkman"
 version = "1"
-git = "https://github.com/charlesndalton/milkman"
-rev = "f7719b59c349eb60eadaed734270a440c77345f8"
+git = "https://github.com/cowdao-grants/milkman"
+rev = "7ace2e3ef33a8eeb218793900af1c7504c5b0f35"
 
 [[dependencies]]
 name = "solady"

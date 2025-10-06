@@ -94,6 +94,11 @@ contract AutopoolCompounder is BaseStrategy {
             revert CannotSetCheckerForAsset();
         }
 
+        // Prevent setting a price checker for the base asset
+        if (rewardToken == address(baseAsset)) {
+            revert CannotSetCheckerForAsset();
+        }
+
         priceCheckerByToken[rewardToken] = priceChecker;
 
         bool success;
@@ -138,7 +143,16 @@ contract AutopoolCompounder is BaseStrategy {
         onlyKeepers
     {
         // Cancel the swap in Milkman, which will transfer the tokens back to this contract
-        milkman.cancelSwap(amountIn, IERC20(fromToken), IERC20(toToken), address(this), priceChecker, priceCheckerData);
+        milkman.cancelSwap(
+            amountIn,
+            IERC20(fromToken),
+            IERC20(toToken),
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            priceCheckerData
+        );
     }
 
     /// @notice Claim rewards and initiate swaps via Milkman
@@ -167,6 +181,11 @@ contract AutopoolCompounder is BaseStrategy {
             return;
         }
 
+        // Skip swap if reward token is already the base asset
+        if (token == address(baseAsset)) {
+            return;
+        }
+
         address priceChecker = priceCheckerByToken[token];
         if (priceChecker == address(0)) {
             return;
@@ -175,7 +194,14 @@ contract AutopoolCompounder is BaseStrategy {
         // Approve Milkman and request swap
         IERC20(token).forceApprove(address(milkman), balance);
         milkman.requestSwapExactTokensForTokens(
-            balance, IERC20(token), baseAsset, address(this), priceChecker, abi.encode(maxPriceDeviationBps)
+            balance,
+            IERC20(token),
+            baseAsset,
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            abi.encode(maxPriceDeviationBps)
         );
     }
 
