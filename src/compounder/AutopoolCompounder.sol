@@ -13,7 +13,10 @@ import { IAutopoolMainRewarder } from "src/interfaces/deps/tokemak/IAutopoolMain
 
 /// @title AutopoolCompounder
 /// @notice A Yearn V3 strategy that compounds Tokemak Autopool rewards
-/// @dev Accepts any Tokemak Autopool ERC4626 vault as the asset, stakes it, and compounds rewards
+/// @dev Accepts any Tokemak Autopool ERC4626 vault as the asset, stakes it, and compounds rewards. Deployers should
+/// seed the underlying Autopool immediately after deployment to avoid the standard first-depositor inflation risk.
+/// @dev Using private RPCs to call report() is recommended to avoid any frontrunning activities when
+/// @dev depositing rewards back into the autopool.
 contract AutopoolCompounder is BaseStrategy {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -52,6 +55,7 @@ contract AutopoolCompounder is BaseStrategy {
     error CannotSetCheckerForAsset();
     error InvalidPriceChecker();
     error InvalidMaxDeviation();
+    error StrategyNotShutdown();
 
     /// CONSTRUCTOR ///
 
@@ -80,6 +84,10 @@ contract AutopoolCompounder is BaseStrategy {
         }
         // Get the base asset from the autopool
         baseAsset = IERC20(IAutopool(_autopool).asset());
+
+        // NOTE: The first depositor into the underlying Autopool bears the standard ERC4626 inflation risk. Deployers
+        // should seed a small amount of shares immediately after deployment so keepers cannot grief the first user by
+        // front-running their deposit.
     }
 
     /// MANAGEMENT FUNCTIONS ///
@@ -90,6 +98,11 @@ contract AutopoolCompounder is BaseStrategy {
     function updatePriceChecker(address rewardToken, address priceChecker) external onlyManagement {
         // Prevent setting a price checker for the autopool asset
         if (rewardToken == address(asset)) {
+            revert CannotSetCheckerForAsset();
+        }
+
+        // Prevent setting a price checker for the base asset
+        if (rewardToken == address(baseAsset)) {
             revert CannotSetCheckerForAsset();
         }
 
@@ -137,7 +150,16 @@ contract AutopoolCompounder is BaseStrategy {
         onlyKeepers
     {
         // Cancel the swap in Milkman, which will transfer the tokens back to this contract
-        milkman.cancelSwap(amountIn, IERC20(fromToken), IERC20(toToken), address(this), priceChecker, priceCheckerData);
+        milkman.cancelSwap(
+            amountIn,
+            IERC20(fromToken),
+            IERC20(toToken),
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            priceCheckerData
+        );
     }
 
     /// @notice Claim rewards and initiate swaps via Milkman
@@ -166,6 +188,11 @@ contract AutopoolCompounder is BaseStrategy {
             return;
         }
 
+        // Skip swap if reward token is already the base asset
+        if (token == address(baseAsset)) {
+            return;
+        }
+
         address priceChecker = priceCheckerByToken[token];
         if (priceChecker == address(0)) {
             return;
@@ -174,7 +201,14 @@ contract AutopoolCompounder is BaseStrategy {
         // Approve Milkman and request swap
         IERC20(token).forceApprove(address(milkman), balance);
         milkman.requestSwapExactTokensForTokens(
-            balance, IERC20(token), baseAsset, address(this), priceChecker, abi.encode(maxPriceDeviationBps)
+            balance,
+            IERC20(token),
+            baseAsset,
+            address(this),
+            // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
+            bytes32(0),
+            priceChecker,
+            abi.encode(maxPriceDeviationBps)
         );
     }
 
@@ -197,7 +231,8 @@ contract AutopoolCompounder is BaseStrategy {
         // slither-disable-next-line incorrect-equality
         if (amount == 0) return;
 
-        // Withdraw without claiming rewards
+        // Withdraw without claiming rewards. Keeping this leg gas-light and deferring reward handling to harvest lets
+        // us process incentives deliberately alongside pricing checks.
         rewarder.withdraw(address(this), amount, false);
     }
 
@@ -210,6 +245,10 @@ contract AutopoolCompounder is BaseStrategy {
             // Compound any settled base asset
             uint256 baseBalance = baseAsset.balanceOf(address(this));
             if (baseBalance > 0) {
+                // ERC4626 deposits mint shares at the current NAV, so this inherits the vault's valuation. While
+                // donation attacks are theoretically possible, harvests run via Flashbots and Yearn's profit unlock
+                // window (10 days by default) drips profits in slowly, keeping the reinvestment size small enough that
+                // an extra slippage guard is unnecessary here.
                 // Approve and deposit base asset to get autopool shares
                 baseAsset.forceApprove(address(asset), baseBalance);
 
@@ -221,6 +260,35 @@ contract AutopoolCompounder is BaseStrategy {
         // Return the total balance of the strategy
         uint256 looseBalance = IERC20(address(asset)).balanceOf(address(this));
         return stakedBalance() + looseBalance;
+    }
+
+    /// @notice Emergency withdraw function for shutdown scenarios
+    /// @dev Allows management to withdraw staked autopool shares when strategy is shutdown
+    /// @param _amount The amount of autopool shares to withdraw
+    function _emergencyWithdraw(uint256 _amount) internal override {
+        // Free any staked autopool tokens if requested
+        uint256 staked = stakedBalance();
+        if (_amount == 0 || staked == 0) {
+            return;
+        }
+
+        uint256 toWithdraw = _amount > staked ? staked : _amount;
+        _freeFunds(toWithdraw);
+    }
+
+    /// @notice Recover base assets stuck in the contract
+    /// @dev Can only be called when strategy is shutdown to prevent griefing
+    function recoverBaseAssets() external onlyManagement {
+        if (!TokenizedStrategy.isShutdown()) {
+            revert StrategyNotShutdown();
+        }
+
+        uint256 baseBalance = baseAsset.balanceOf(address(this));
+        if (baseBalance > 0) {
+            // Clear any stale allowance before handing assets back to management for manual recovery.
+            baseAsset.forceApprove(address(asset), 0);
+            baseAsset.safeTransfer(msg.sender, baseBalance);
+        }
     }
 
     /// VIEW FUNCTIONS ///

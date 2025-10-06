@@ -13,6 +13,7 @@ contract MockMilkman is IMilkman {
         address fromToken;
         address toToken;
         address to;
+        bytes32 appData;
         address priceChecker;
         bytes priceCheckerData;
         bool executed;
@@ -29,6 +30,7 @@ contract MockMilkman is IMilkman {
         IERC20 fromToken,
         IERC20 toToken,
         address to,
+        bytes32 appData,
         address priceChecker,
         bytes calldata priceCheckerData
     )
@@ -43,6 +45,7 @@ contract MockMilkman is IMilkman {
             fromToken: address(fromToken),
             toToken: address(toToken),
             to: to,
+            appData: appData,
             priceChecker: priceChecker,
             priceCheckerData: priceCheckerData,
             executed: false
@@ -55,6 +58,7 @@ contract MockMilkman is IMilkman {
             address(fromToken),
             address(toToken),
             to,
+            appData,
             priceChecker,
             priceCheckerData
         );
@@ -67,6 +71,7 @@ contract MockMilkman is IMilkman {
         IERC20 fromToken,
         IERC20 toToken,
         address to,
+        bytes32, /*appData*/
         address priceChecker,
         bytes calldata /*priceCheckerData*/
     )
