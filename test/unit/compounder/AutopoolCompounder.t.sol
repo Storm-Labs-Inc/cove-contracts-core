@@ -454,14 +454,13 @@ contract AutopoolCompounderTest is BaseTest {
         vm.prank(management);
         ITokenizedStrategy(address(strategy)).shutdownStrategy();
 
-        // Recover base assets - they should be converted to autopool shares
-        uint256 expectedShares = autopool.convertToShares(baseAssetAmount);
+        // Recover base assets - they should be transferred to management
         vm.prank(management);
         strategy.recoverBaseAssets();
 
-        // Check that base assets were converted to autopool shares
+        // Check that base assets were transferred to management
         assertEq(baseAsset.balanceOf(address(strategy)), 0);
-        assertEq(autopool.balanceOf(address(strategy)), expectedShares);
+        assertEq(baseAsset.balanceOf(management), baseAssetAmount);
     }
 
     function test_recoverBaseAssets_revertsWhenNotShutdown() public {
@@ -480,7 +479,7 @@ contract AutopoolCompounderTest is BaseTest {
 
         // Should revert when not shutdown
         vm.prank(management);
-        vm.expectRevert("Strategy not shutdown");
+        vm.expectRevert(abi.encodeWithSignature("StrategyNotShutdown()"));
         strategy.recoverBaseAssets();
     }
 
