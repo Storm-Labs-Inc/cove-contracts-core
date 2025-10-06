@@ -163,6 +163,7 @@ contract AutopoolCompounder is BaseStrategy {
     }
 
     /// @notice Claim rewards and initiate swaps via Milkman
+    /// @dev Initiates async swaps. In-flight assets don't affect reported share balance.
     function claimRewardsAndSwap() external onlyKeepers {
         // Claim all rewards including extras
         rewarder.getReward(address(this), address(this), true);
@@ -237,10 +238,13 @@ contract AutopoolCompounder is BaseStrategy {
     }
 
     /// @notice Harvest and report strategy performance
-    /// @return The total assets under management
+    /// @dev Strategy accounts for autopool shares, not base assets. In-flight Milkman swaps do not affect share
+    /// @dev balance. Gains are realized in the next report() after swaps settle.
+    /// @return The total assets under management (in autopool shares)
     function _harvestAndReport() internal override returns (uint256) {
-        // If not shutdown, compound any settled base asset. Reward claiming is triggered separately via
-        // `claimRewardsAndSwap()` so keepers can decide when to pay Milkman fees and handle in-flight swaps.
+        // If not shutdown, compound any settled base asset from completed Milkman swaps. Reward claiming is
+        // triggered separately via `claimRewardsAndSwap()` so keepers can decide when to pay Milkman fees and
+        // handle in-flight swaps.
         if (!TokenizedStrategy.isShutdown()) {
             // Compound any settled base asset
             uint256 baseBalance = baseAsset.balanceOf(address(this));
