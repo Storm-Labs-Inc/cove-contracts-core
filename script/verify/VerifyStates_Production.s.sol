@@ -16,6 +16,8 @@ import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { console } from "forge-std/console.sol";
 
 import { IPriceOracleWithBaseAndQuote } from "src/interfaces/deps/IPriceOracleWithBaseAndQuote.sol";
+
+import { AutoPoolCompounderOracle } from "src/oracles/AutoPoolCompounderOracle.sol";
 import { CurveEMAOracleUnderlying } from "src/oracles/CurveEMAOracleUnderlying.sol";
 
 import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
@@ -295,6 +297,8 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
             _printCurveEMAOracleUnderlyingDetails(oracle, currentIndent);
         } else if (oracleName.equal("ChainedERC4626Oracle")) {
             _printChainedERC4626OracleDetails(oracle, currentIndent);
+        } else if (oracleName.equal("AutoPoolCompounderOracle")) {
+            _printAutoPoolCompounderOracleDetails(oracle, currentIndent);
         } else {
             console.log(string.concat(currentIndent, unicode"⚠️ Unknown Oracle Implementation: ", oracleName));
             // We cannot reliably determine base/quote for unknown types via IPriceOracle
@@ -382,6 +386,29 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
         _printBaseAndQuote(oracle, indent);
     }
 
+    function _printAutoPoolCompounderOracleDetails(address oracle, string memory indent) internal view {
+        console.log(string.concat(indent, "Type: AutoPoolCompounderOracle"));
+        AutoPoolCompounderOracle apco = AutoPoolCompounderOracle(oracle);
+
+        // Print the autopool address
+        console.log(string.concat(indent, "Autopool: ", vm.toString(address(apco.autopool()))));
+
+        // Print key vaults in the chain (compounder and autopool)
+        // We know the chain is typically 2 vaults: compounder -> autopool
+        address vault0 = apco.vaults(0); // Compounder
+        address vault1 = apco.vaults(1); // Autopool
+
+        console.log(string.concat(indent, "Vault Chain:"));
+        console.log(string.concat(indent, "  Compounder (Vault 0): ", vm.toString(vault0)));
+        console.log(string.concat(indent, "  Autopool (Vault 1): ", vm.toString(vault1)));
+
+        string memory deploymentJsonName = buildAutoPoolCompounderOracleName(
+            IPriceOracleWithBaseAndQuote(oracle).base(), IPriceOracleWithBaseAndQuote(oracle).quote()
+        );
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
+        _printBaseAndQuote(oracle, indent);
+    }
+
     function _printBaseAndQuote(address oracle, string memory indent) internal view {
         if (IPriceOracleWithBaseAndQuote(oracle).base() != address(0)) {
             console.log(
@@ -442,6 +469,8 @@ contract VerifyStates_Production is DeployScript, Constants, BuildDeploymentJson
             return "CurveEMAUnderlying";
         } else if (oracleName.equal("ChainedERC4626Oracle")) {
             return "ChainedERC4626";
+        } else if (oracleName.equal("AutoPoolCompounderOracle")) {
+            return "AutoPoolCompounder";
         } else {
             return "Unknown";
         }

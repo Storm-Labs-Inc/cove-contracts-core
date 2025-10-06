@@ -165,6 +165,25 @@ contract Constants is CommonBase {
     address public constant COVE_STAGING_COMMUNITY_MULTISIG = 0xC8edE693E4B8cdf4F3C42bf141D9054050E5a728;
     address public constant COVE_STAGING_MASTER_REGISTRY = 0x44bB20e5A3CC2cBdfB7520Aa76281019723382Cb;
 
+    // TOKEMAK MAINNET ADDRESSES
+    /// @notice autoUSD vault - ERC4626 vault that accepts USDC deposits
+    address public constant TOKEMAK_AUTOUSD = 0xa7569A44f348d3D70d8ad5889e50F78E33d80D35;
+
+    /// @notice AutopoolMainRewarder for autoUSD - staking and rewards contract
+    address public constant TOKEMAK_AUTOUSD_REWARDER = 0x726104CfBd7ece2d1f5b3654a19109A9e2b6c27B;
+
+    /// @notice TOKE - reward token from rewarder
+    address public constant TOKEMAK_TOKE = 0x2e9d63788249371f1DFC918a52f8d799F4a38C94;
+
+    /// @notice Milkman - MEV-protected swap protocol
+    address public constant TOKEMAK_MILKMAN = 0x060373D064d0168931dE2AB8DDA7410923d06E88;
+
+    /// @notice Address with large USDC balance for testing
+    address public constant USDC_WHALE = 0x4B16c5dE96EB2117bBE5fd171E4d203624B014aa;
+
+    /// @notice Address with large autoUSD balance for testing
+    address public constant TOKEMAK_AUTOUSD_WHALE = 0xa7569A44f348d3D70d8ad5889e50F78E33d80D35; // The vault itself
+
     // Constants hardcoded in the contracts, replicated here for testing.
     uint16 public constant MAX_MANAGEMENT_FEE = 3000;
     uint16 public constant MANAGEMENT_FEE_DECIMALS = 1e4;
@@ -247,5 +266,13 @@ contract Constants is CommonBase {
 
         // External addresses
         vm.label(GAUNTLET_STRATEGIST, "GAUNTLET STRATEGIST");
+
+        // Tokemak addresses
+        vm.label(TOKEMAK_AUTOUSD, "TOKEMAK AUTOUSD");
+        vm.label(TOKEMAK_AUTOUSD_REWARDER, "TOKEMAK AUTOUSD REWARDER");
+        vm.label(TOKEMAK_TOKE, "TOKE");
+        vm.label(TOKEMAK_MILKMAN, "MILKMAN");
+        vm.label(USDC_WHALE, "USDC WHALE");
+        vm.label(TOKEMAK_AUTOUSD_WHALE, "TOKEMAK AUTOUSD WHALE");
     }
 }
