@@ -168,6 +168,12 @@ contract AutopoolCompounderTest is BaseTest {
         strategy.updatePriceChecker(address(autopool), address(priceChecker));
     }
 
+    function test_updatePriceChecker_revertsWhen_settingForBaseAsset() public {
+        vm.prank(management);
+        vm.expectRevert(AutopoolCompounder.CannotSetCheckerForAsset.selector);
+        strategy.updatePriceChecker(address(baseAsset), address(priceChecker));
+    }
+
     function test_removePriceChecker() public {
         // First add
         vm.prank(management);
@@ -184,6 +190,44 @@ contract AutopoolCompounderTest is BaseTest {
     }
 
     /// HARVEST AND COMPOUND TESTS ///
+
+    function test_claimRewardsAndSwap_skipsSwapWhenRewardTokenIsBaseAsset() public {
+        // Create a mock rewarder that rewards in base asset (USDC)
+        MockAutopoolMainRewarder baseAssetRewarder = new MockAutopoolMainRewarder(address(autopool), address(baseAsset));
+
+        // Deploy new strategy with base asset as reward
+        vm.prank(management);
+        AutopoolCompounder baseAssetStrategy =
+            new AutopoolCompounder(address(autopool), address(baseAssetRewarder), address(milkman));
+
+        // Set up keeper role
+        vm.prank(management);
+        ITokenizedStrategy(address(baseAssetStrategy)).setKeeper(keeper);
+
+        // Setup: deposit and stake
+        uint256 depositAmount = 1000e6;
+        vm.startPrank(alice);
+        baseAsset.approve(address(autopool), depositAmount);
+        uint256 shares = autopool.deposit(depositAmount, alice);
+        autopool.approve(address(baseAssetStrategy), shares);
+        ITokenizedStrategy(address(baseAssetStrategy)).deposit(shares, alice);
+        vm.stopPrank();
+
+        // Fund rewarder with base asset rewards
+        baseAsset.mint(address(baseAssetRewarder), 100e6);
+        baseAssetRewarder.setEarned(address(baseAssetStrategy), 100e6);
+
+        // Initial base asset balance in strategy
+        uint256 initialBalance = baseAsset.balanceOf(address(baseAssetStrategy));
+
+        // Claim rewards - should NOT trigger a swap since reward is already base asset
+        vm.prank(keeper);
+        baseAssetStrategy.claimRewardsAndSwap();
+
+        // Verify that the base asset was claimed but NOT sent to Milkman for swapping
+        assertEq(baseAsset.balanceOf(address(baseAssetStrategy)), initialBalance + 100e6);
+        assertEq(baseAsset.balanceOf(address(milkman)), 0);
+    }
 
     function test_claimRewardsAndSwap() public {
         // Setup: deposit and stake
