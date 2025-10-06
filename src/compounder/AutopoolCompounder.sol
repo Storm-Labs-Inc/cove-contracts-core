@@ -13,7 +13,9 @@ import { IAutopoolMainRewarder } from "src/interfaces/deps/tokemak/IAutopoolMain
 
 /// @title AutopoolCompounder
 /// @notice A Yearn V3 strategy that compounds Tokemak Autopool rewards
-/// @dev Accepts any Tokemak Autopool ERC4626 vault as the asset, stakes it, and compounds rewards
+/// @dev Accepts any Tokemak Autopool ERC4626 vault as the asset, stakes it, and compounds rewards.
+/// @dev Using private RPCs to call report() is recommended to avoid any frontrunning activities when
+/// @dev depositing rewards back into the autopool.
 contract AutopoolCompounder is BaseStrategy {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -236,6 +238,10 @@ contract AutopoolCompounder is BaseStrategy {
             // Compound any settled base asset
             uint256 baseBalance = baseAsset.balanceOf(address(this));
             if (baseBalance > 0) {
+                // ERC4626 deposits mint shares at the current NAV, so this inherits the vault's valuation. While
+                // donation attacks are theoretically possible, harvests run via Flashbots and Yearn's profit unlock
+                // window (10 days by default) drips profits in slowly, keeping the reinvestment size small enough that
+                // an extra slippage guard is unnecessary here.
                 // Approve and deposit base asset to get autopool shares
                 baseAsset.forceApprove(address(asset), baseBalance);
 
