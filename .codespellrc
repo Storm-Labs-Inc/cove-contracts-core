@@ -1,2 +1,3 @@
 [codespell]
-skip = ./out,./lib,*.yaml,package-lock.json,./src/deps
+skip = ./out,./lib,*.yaml,package-lock.json,./src/deps,./dependencies
+ignore-words-list = TOKE,toke,amountIn,amountOut
