@@ -5,7 +5,7 @@ import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
-import { VerifyStates_Base_Production } from "./verify/VerifyStates_Base_Production.s.sol";
+import { VerifyStatesBaseProduction } from "./verify/VerifyStates_Base_Production.s.sol";
 
 import { console } from "forge-std/console.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
@@ -80,7 +80,7 @@ contract DeploymentsBaseProduction is Deployments {
     }
 
     function _postDeploy() internal override {
-        (new VerifyStates_Base_Production()).verifyDeployment();
+        (new VerifyStatesBaseProduction()).verifyDeployment();
     }
 
     function _cleanPermissionsExtra() internal override {
