@@ -94,6 +94,8 @@ contract DeploymentsBaseStaging is Deployments {
         if (mwStrategy.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS)) {
             mwStrategy.grantRole(DEFAULT_ADMIN_ROLE, admin);
             if (mwStrategy.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS)) {
+                // Grant MANAGER_ROLE to AWS Keeper before revoking from deployer
+                mwStrategy.grantRole(MANAGER_ROLE, BASE_STAGING_AWS_KEEPER);
                 mwStrategy.revokeRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS);
             }
             mwStrategy.revokeRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS);
@@ -191,10 +193,11 @@ contract DeploymentsBaseStaging is Deployments {
         _deployManagedStrategy(BASE_STAGING_GAUNTLET_SPONSOR, "Gauntlet V1 Base Staging");
 
         // Set the initial weights for the strategy and deploy basket token
+        // Note: BasketToken will prefix symbol with "cove", so "bUSDstg" becomes "covebUSDstg"
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
                 name: "bcoveUSD-staging",
-                symbol: "bcoveUSDstg",
+                symbol: "bUSDstg",
                 rootAsset: BASE_USDC,
                 bitFlag: assetsToBitFlag(basketAssets),
                 strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1 Base Staging")),

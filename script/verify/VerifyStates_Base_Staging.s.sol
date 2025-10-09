@@ -191,7 +191,7 @@ contract VerifyStatesBaseStaging is Script, Constants, BuildDeploymentJsonNames 
 
         // Verify basic properties
         require(keccak256(bytes(bt.name())) == keccak256(bytes("Cove bcoveUSD-staging")), "BasketToken: Incorrect name");
-        require(keccak256(bytes(bt.symbol())) == keccak256(bytes("bcoveUSDstg")), "BasketToken: Incorrect symbol");
+        require(keccak256(bytes(bt.symbol())) == keccak256(bytes("covebUSDstg")), "BasketToken: Incorrect symbol");
 
         // Verify root asset
         require(bt.asset() == BASE_USDC, "BasketToken: Incorrect root asset");
