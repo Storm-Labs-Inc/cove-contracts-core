@@ -65,9 +65,11 @@ ignore = ["src/deps/**/*", "src/interfaces/deps/**/*"]
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"
+base="${BASE_RPC_URL}"
 
 [etherscan]
 mainnet = { key = "${API_KEY_ETHERSCAN}" }
+base = { key = "${API_KEY_ETHERSCAN}" }
 
 [dependencies]
 forge-std = "1.9.6"
