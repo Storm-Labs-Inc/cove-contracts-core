@@ -56,10 +56,14 @@ contract VerifyStatesBaseProduction is Script, Constants, BuildDeploymentJsonNam
 
         BasketManager bm = BasketManager(basketManager);
 
-        // Verify roles
-        require(bm.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "BasketManager: Admin role not set");
-        require(bm.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS), "BasketManager: Manager role not set");
-        require(bm.hasRole(TIMELOCK_ROLE, COVE_DEPLOYER_ADDRESS), "BasketManager: Timelock role not set");
+        // Verify roles are transferred to Community Multisig and Ops Multisig
+        require(bm.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "BasketManager: Admin role not set");
+        require(bm.hasRole(MANAGER_ROLE, BASE_OPS_MULTISIG), "BasketManager: Manager role not set");
+
+        // Verify timelock role is set on the timelock contract
+        address timelockAddr = deployer.getAddress(buildTimelockControllerName());
+        require(timelockAddr != address(0), "Timelock not deployed");
+        require(bm.hasRole(TIMELOCK_ROLE, timelockAddr), "BasketManager: Timelock role not set");
 
         // Verify fee collector is set
         require(address(bm.feeCollector()) != address(0), "BasketManager: FeeCollector not set");
@@ -74,8 +78,8 @@ contract VerifyStatesBaseProduction is Script, Constants, BuildDeploymentJsonNam
 
         FeeCollector fc = FeeCollector(feeCollector);
 
-        // Verify admin role
-        require(fc.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "FeeCollector: Admin role not set");
+        // Verify admin role is transferred to Community Multisig
+        require(fc.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "FeeCollector: Admin role not set");
 
         console.log("  [OK] FeeCollector verified");
     }
@@ -126,8 +130,8 @@ contract VerifyStatesBaseProduction is Script, Constants, BuildDeploymentJsonNam
 
         BasicRetryOperator bro = BasicRetryOperator(basicRetryOperator);
 
-        // Verify admin role
-        require(bro.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "BasicRetryOperator: Admin role not set");
+        // Verify admin role is transferred to Community Multisig
+        require(bro.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "BasicRetryOperator: Admin role not set");
 
         console.log("  [OK] BasicRetryOperator verified");
     }
@@ -162,8 +166,8 @@ contract VerifyStatesBaseProduction is Script, Constants, BuildDeploymentJsonNam
 
         ManagedWeightStrategy mws = ManagedWeightStrategy(strategy);
 
-        // Verify roles
-        require(mws.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "Strategy: Admin role not set");
+        // Verify roles are transferred to Community Multisig
+        require(mws.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "Strategy: Admin role not set");
         require(
             mws.hasRole(MANAGER_ROLE, BASE_GAUNTLET_SPONSOR), "Strategy: Manager role not set for Gauntlet placeholder"
         );
