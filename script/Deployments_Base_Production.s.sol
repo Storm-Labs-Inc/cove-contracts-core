@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments.s.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 import { VerifyStates_Base_Production } from "./verify/VerifyStates_Base_Production.s.sol";
 
@@ -57,7 +56,9 @@ contract DeploymentsBaseProduction is Deployments {
             executors[2] = COVE_DEPLOYER_ADDRESS;
             address timelockAdmin = admin;
             timelock = address(
-                deployer.deploy_TimelockController(buildTimelockControllerName(), 0, proposers, executors, timelockAdmin)
+                deployer.deploy_TimelockController(
+                    buildTimelockControllerName(), 0, proposers, executors, timelockAdmin
+                )
             );
         } else {
             timelock = existingTimelock;
@@ -100,7 +101,6 @@ contract DeploymentsBaseProduction is Deployments {
             vm.stopBroadcast();
         }
     }
-
 
     function _deployNonCoreContracts() internal override {
         // Override Pyth address for Base network
@@ -256,7 +256,9 @@ contract DeploymentsBaseProduction is Deployments {
         address asset,
         address pythAddress,
         OracleOptions memory oracleOptions
-    ) internal {
+    )
+        internal
+    {
         // Deploy Pyth oracle with Base-specific Pyth address
         address primary = address(
             deployer.deploy_PythOracle(
@@ -294,7 +296,9 @@ contract DeploymentsBaseProduction is Deployments {
         bool shouldChain4626ForPyth,
         bool shouldChain4626ForChainlink,
         OracleOptions memory oracleOptions
-    ) internal {
+    )
+        internal
+    {
         address primaryOracle;
         address underlyingAsset = IERC4626(asset).asset();
         if (shouldChain4626ForPyth) {

@@ -8,15 +8,16 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+
+import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
-import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 
-import { Constants } from "test/utils/Constants.t.sol";
 import { BuildDeploymentJsonNames } from "../utils/BuildDeploymentJsonNames.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+import { Constants } from "test/utils/Constants.t.sol";
 
-contract VerifyStates_Base_Staging is Script, Constants, BuildDeploymentJsonNames {
+contract VerifyStatesBaseStaging is Script, Constants, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
 
     Deployer public deployer;
@@ -93,13 +94,9 @@ contract VerifyStates_Base_Staging is Script, Constants, BuildDeploymentJsonName
         AssetRegistry ar = AssetRegistry(assetRegistry);
 
         // Verify Base assets are registered
+        require(ar.getAssetStatus(BASE_USDC) == AssetRegistry.AssetStatus.ENABLED, "AssetRegistry: USDC not enabled");
         require(
-            ar.getAssetStatus(BASE_USDC) == AssetRegistry.AssetStatus.ENABLED,
-            "AssetRegistry: USDC not enabled"
-        );
-        require(
-            ar.getAssetStatus(BASE_BASEUSD) == AssetRegistry.AssetStatus.ENABLED,
-            "AssetRegistry: baseUSD not enabled"
+            ar.getAssetStatus(BASE_BASEUSD) == AssetRegistry.AssetStatus.ENABLED, "AssetRegistry: baseUSD not enabled"
         );
         require(
             ar.getAssetStatus(BASE_SUPERUSDC) == AssetRegistry.AssetStatus.ENABLED,
@@ -136,8 +133,12 @@ contract VerifyStates_Base_Staging is Script, Constants, BuildDeploymentJsonName
         BasicRetryOperator bro = BasicRetryOperator(basicRetryOperator);
 
         // Verify admin role was transferred
-        require(!bro.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "BasicRetryOperator: Deployer still has admin role");
-        require(bro.hasRole(DEFAULT_ADMIN_ROLE, BASE_STAGING_COMMUNITY_MULTISIG), "BasicRetryOperator: Admin role not set");
+        require(
+            !bro.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "BasicRetryOperator: Deployer still has admin role"
+        );
+        require(
+            bro.hasRole(DEFAULT_ADMIN_ROLE, BASE_STAGING_COMMUNITY_MULTISIG), "BasicRetryOperator: Admin role not set"
+        );
 
         console.log("  [OK] BasicRetryOperator verified");
     }
@@ -175,10 +176,7 @@ contract VerifyStates_Base_Staging is Script, Constants, BuildDeploymentJsonName
         // Verify roles were transferred
         require(!mws.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "Strategy: Deployer still has admin role");
         require(mws.hasRole(DEFAULT_ADMIN_ROLE, BASE_STAGING_COMMUNITY_MULTISIG), "Strategy: Admin role not set");
-        require(
-            mws.hasRole(MANAGER_ROLE, BASE_STAGING_AWS_KEEPER),
-            "Strategy: Manager role not set to AWS Keeper"
-        );
+        require(mws.hasRole(MANAGER_ROLE, BASE_STAGING_AWS_KEEPER), "Strategy: Manager role not set to AWS Keeper");
 
         console.log("  [OK] ManagedWeightStrategy verified");
     }
@@ -192,14 +190,8 @@ contract VerifyStates_Base_Staging is Script, Constants, BuildDeploymentJsonName
         BasketToken bt = BasketToken(basketToken);
 
         // Verify basic properties
-        require(
-            keccak256(bytes(bt.name())) == keccak256(bytes("Cove bcoveUSD-staging")),
-            "BasketToken: Incorrect name"
-        );
-        require(
-            keccak256(bytes(bt.symbol())) == keccak256(bytes("bcoveUSDstg")),
-            "BasketToken: Incorrect symbol"
-        );
+        require(keccak256(bytes(bt.name())) == keccak256(bytes("Cove bcoveUSD-staging")), "BasketToken: Incorrect name");
+        require(keccak256(bytes(bt.symbol())) == keccak256(bytes("bcoveUSDstg")), "BasketToken: Incorrect symbol");
 
         // Verify root asset
         require(bt.asset() == BASE_USDC, "BasketToken: Incorrect root asset");

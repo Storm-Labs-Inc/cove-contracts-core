@@ -8,15 +8,16 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+
+import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
-import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 
-import { Constants } from "test/utils/Constants.t.sol";
 import { BuildDeploymentJsonNames } from "../utils/BuildDeploymentJsonNames.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
+import { Constants } from "test/utils/Constants.t.sol";
 
-contract VerifyStates_Base_Production is Script, Constants, BuildDeploymentJsonNames {
+contract VerifyStatesBaseProduction is Script, Constants, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
 
     Deployer public deployer;
@@ -87,13 +88,9 @@ contract VerifyStates_Base_Production is Script, Constants, BuildDeploymentJsonN
         AssetRegistry ar = AssetRegistry(assetRegistry);
 
         // Verify Base assets are registered
+        require(ar.getAssetStatus(BASE_USDC) == AssetRegistry.AssetStatus.ENABLED, "AssetRegistry: USDC not enabled");
         require(
-            ar.getAssetStatus(BASE_USDC) == AssetRegistry.AssetStatus.ENABLED,
-            "AssetRegistry: USDC not enabled"
-        );
-        require(
-            ar.getAssetStatus(BASE_BASEUSD) == AssetRegistry.AssetStatus.ENABLED,
-            "AssetRegistry: baseUSD not enabled"
+            ar.getAssetStatus(BASE_BASEUSD) == AssetRegistry.AssetStatus.ENABLED, "AssetRegistry: baseUSD not enabled"
         );
         require(
             ar.getAssetStatus(BASE_SUPERUSDC) == AssetRegistry.AssetStatus.ENABLED,
@@ -168,8 +165,7 @@ contract VerifyStates_Base_Production is Script, Constants, BuildDeploymentJsonN
         // Verify roles
         require(mws.hasRole(DEFAULT_ADMIN_ROLE, COVE_DEPLOYER_ADDRESS), "Strategy: Admin role not set");
         require(
-            mws.hasRole(MANAGER_ROLE, BASE_GAUNTLET_SPONSOR),
-            "Strategy: Manager role not set for Gauntlet placeholder"
+            mws.hasRole(MANAGER_ROLE, BASE_GAUNTLET_SPONSOR), "Strategy: Manager role not set for Gauntlet placeholder"
         );
 
         console.log("  [OK] ManagedWeightStrategy verified");
@@ -184,14 +180,8 @@ contract VerifyStates_Base_Production is Script, Constants, BuildDeploymentJsonN
         BasketToken bt = BasketToken(basketToken);
 
         // Verify basic properties
-        require(
-            keccak256(bytes(bt.name())) == keccak256(bytes("Cove bcoveUSD")),
-            "BasketToken: Incorrect name"
-        );
-        require(
-            keccak256(bytes(bt.symbol())) == keccak256(bytes("covebcoveUSD")),
-            "BasketToken: Incorrect symbol"
-        );
+        require(keccak256(bytes(bt.name())) == keccak256(bytes("Cove bcoveUSD")), "BasketToken: Incorrect name");
+        require(keccak256(bytes(bt.symbol())) == keccak256(bytes("covebcoveUSD")), "BasketToken: Incorrect symbol");
 
         // Verify root asset
         require(bt.asset() == BASE_USDC, "BasketToken: Incorrect root asset");

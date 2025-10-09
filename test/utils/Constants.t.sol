@@ -218,13 +218,16 @@ contract Constants is CommonBase {
     // Base Addresses for Permissions
     address public constant BASE_COMMUNITY_MULTISIG = COVE_COMMUNITY_MULTISIG;
     address public constant BASE_OPS_MULTISIG = COVE_OPS_MULTISIG;
-    address public constant BASE_GAUNTLET_SPONSOR = 0x3333333333333333333333333333333333333333; // TODO: confirm sponsor address
-    address public constant BASE_AWS_KEEPER = 0x4444444444444444444444444444444444444444; // TODO: confirm aws keeper address
+    // TODO: confirm sponsor
+    address public constant BASE_GAUNTLET_SPONSOR = 0x3333333333333333333333333333333333333333;
+    // TODO: confirm aws keeper
+    address public constant BASE_AWS_KEEPER = 0x4444444444444444444444444444444444444444;
 
     address public constant BASE_STAGING_COMMUNITY_MULTISIG = COVE_STAGING_COMMUNITY_MULTISIG;
     address public constant BASE_STAGING_OPS_MULTISIG = COVE_STAGING_OPS_MULTISIG;
     address public constant BASE_STAGING_GAUNTLET_SPONSOR = COVE_DEPLOYER_ADDRESS;
-    address public constant BASE_STAGING_AWS_KEEPER = 0x5555555555555555555555555555555555555555; // TODO: confirm aws keeper address
+    // TODO: confirm aws keeper on staging
+    address public constant BASE_STAGING_AWS_KEEPER = 0x5555555555555555555555555555555555555555;
 
     function labelKnownAddresses() public {
         // Cove addresses
