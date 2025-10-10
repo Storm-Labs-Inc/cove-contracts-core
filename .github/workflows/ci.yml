@@ -147,6 +147,7 @@ jobs:
           # due to non-deterministic fuzzing (but still use pseudo-random fuzzing seeds)
           FOUNDRY_FUZZ_SEED: 0x${{ github.event.pull_request.base.sha || github.sha }}
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
 
   invariant:
     name: Invariant
@@ -169,6 +170,7 @@ jobs:
           # due to non-deterministic fuzzing (but still use pseudo-random fuzzing seeds)
           FOUNDRY_FUZZ_SEED: 0x${{ github.event.pull_request.base.sha || github.sha }}
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
           FOUNDRY_PROFILE: invariant
 
   compare-gas-reports:
@@ -190,6 +192,7 @@ jobs:
           forge test --gas-report --fuzz-seed 0 | tee gasreport.ansi
         env:
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
 
       - name: Compare gas reports
         if: success() || failure()
@@ -231,6 +234,7 @@ jobs:
           # due to non-deterministic fuzzing (but still use pseudo-random fuzzing seeds)
           FOUNDRY_FUZZ_SEED: 0x${{ github.event.pull_request.base.sha || github.sha }}
           MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
