@@ -1,0 +1,141 @@
+{
+  "fuzzing": {
+    "workers": 10,
+    "workerResetLimit": 50,
+    "timeout": 0,
+    "testLimit": 0,
+    "shrinkLimit": 500000,
+    "callSequenceLength": 200,
+    "corpusDirectory": "corpus",
+    "coverageEnabled": true,
+    "coverageFormats": ["html", "lcov"],
+    "revertReporterEnabled": false,
+    "targetContracts": ["ScenarioSimpleMedusa"],
+    "predeployedContracts": {
+      "BasketManagerUtils": "0x1f"
+    },
+    "targetContractsBalances": [],
+    "targetContractsInitFunctions": ["setUp()"],
+    "constructorArgs": {},
+    "initializationArgs": {},
+    "deployerAddress": "0x30000",
+    "senderAddresses": ["0x10000", "0x20000", "0x30000"],
+    "blockNumberDelayMax": 60480,
+    "blockTimestampDelayMax": 604800,
+    "blockGasLimit": 1250000000,
+    "transactionGasLimit": 125000000,
+    "testing": {
+      "stopOnFailedTest": true,
+      "stopOnFailedContractMatching": false,
+      "stopOnNoTests": true,
+      "testAllContracts": true,
+      "testViewMethods": false,
+      "verbosity": 1,
+      "assertionTesting": {
+        "enabled": true,
+        "panicCodeConfig": {
+          "failOnCompilerInsertedPanic": false,
+          "failOnAssertion": true,
+          "failOnArithmeticUnderflow": false,
+          "failOnDivideByZero": false,
+          "failOnEnumTypeConversionOutOfBounds": false,
+          "failOnIncorrectStorageAccess": false,
+          "failOnPopEmptyArray": false,
+          "failOnOutOfBoundsArrayAccess": false,
+          "failOnAllocateTooMuchMemory": false,
+          "failOnCallUninitializedVariable": false
+        }
+      },
+      "propertyTesting": {
+        "enabled": true,
+        "testPrefixes": ["invariant_"],
+        "returnBool": false
+      },
+      "optimizationTesting": {
+        "enabled": false,
+        "testPrefixes": ["optimize_"]
+      },
+      "targetFunctionSignatures": [
+        "TokenSwapHandler.executeSwap()",
+        "TokenSwapHandler.proposeAndExecuteSwap((address,address,address,address,uint256,uint256,uint256)[],(address,address,uint256,uint256,(address,uint96)[])[],address[],uint64[][],address[][])",
+        "TokenSwapHandler.proposeSmartSwap()",
+        "TokenSwapHandler.proposeSwap((address,address,address,address,uint256,uint256,uint256)[],(address,address,uint256,uint256,(address,uint96)[])[],address[],uint64[][],address[][])",
+        "TokenSwapHandler.completeRebalance()",
+        "UserHandler.deposit(uint256)",
+        "UserHandler.requestDeposit(uint256,uint256)",
+        "UserHandler.cancelDepositRequest(uint256)",
+        "UserHandler.depositWrongAmount(uint256,uint256)",
+        "UserHandler.claimFallbackAssets(uint256)",
+        "UserHandler.requestRedeem(uint256,uint256)",
+        "UserHandler.cancelRedeemRequest(uint256)",
+        "UserHandler.redeem(uint256)",
+        "UserHandler.mint(uint256)",
+        "UserHandler.withdraw(uint256)",
+        "UserHandler.redeemWrongAmount(uint256,uint256)",
+        "UserHandler.claimFallbackShares(uint256)",
+        "UserHandler.proRataRedeem(uint256,uint256)",
+        "UserHandler.mint(uint256,uint256,uint256)",
+        "ControllerOnlyUserHandler.deposit(uint256)",
+        "ControllerOnlyUserHandler.depositWrongAmount(uint256,uint256)",
+        "ControllerOnlyUserHandler.claimFallbackAssets(uint256)",
+        "ControllerOnlyUserHandler.redeem(uint256)",
+        "ControllerOnlyUserHandler.redeemWrongAmount(uint256,uint256)",
+        "ControllerOnlyUserHandler.claimFallbackShares(uint256)",
+        "ControllerOnlyUserHandler.mint(uint256,uint256,uint256)",
+        "ControllerOnlyUserHandler.mint(uint256)",
+        "ControllerOnlyUserHandler.mint(uint256)",
+        "ControllerOnlyUserHandler.withdraw(uint256)",
+        "RebalancerHandler.proposeRebalancer(bool[])",
+        "RebalancerHandler.proposeRebalancerOnAll()",
+        "RebalancerHandler.proposeRebalancerOnBasket(address)",
+        "OracleHandler.changePrice(uint8,bool,uint256)",
+        "BasketManagerAdminHandler.setManagementFee(address,uint16)",
+        "BasketManagerAdminHandler.setSwapFee(uint16)",
+        "BasketManagerAdminHandler.setStepDelay(uint40)",
+        "BasketManagerAdminHandler.setRetryLimit(uint8)",
+        "BasketManagerAdminHandler.setSlippageLimit(uint256)",
+        "BasketManagerAdminHandler.setWeightDeviation(uint256)",
+        "BasketManagerAdminHandler.collectSwapFee(address)",
+        "BasketManagerAdminHandler.pause()",
+        "BasketManagerAdminHandler.unpause()",
+        "FeeCollectorHandler.claimSponsorFee(uint256)",
+        "FeeCollectorHandler.claimTreasuryFee(uint256)",
+        "ScenarioSimpleMedusa.max_no_revert(address)"
+      ],
+      "excludeFunctionSignatures": []
+    },
+    "chainConfig": {
+      "codeSizeCheckDisabled": true,
+      "cheatCodes": {
+        "cheatCodesEnabled": true,
+        "enableFFI": false
+      },
+      "skipAccountChecks": true,
+      "forkConfig": {
+        "forkModeEnabled": false,
+        "rpcUrl": "",
+        "rpcBlock": 1,
+        "poolSize": 20
+      }
+    }
+  },
+  "compilation": {
+    "platform": "crytic-compile",
+    "platformConfig": {
+      "target": "test/invariant/handler/BasketManagerHandlers.medusa.t.sol",
+      "solcVersion": "",
+      "exportDirectory": "",
+      "args": ["--compile-libraries=(BasketManagerUtils,0x1f)"]
+    }
+  },
+  "slither": {
+    "useSlither": true,
+    "cachePath": "slither_results.json",
+    "args": []
+  },
+  "logging": {
+    "level": "info",
+    "logDirectory": "",
+    "noColor": false
+  }
+}

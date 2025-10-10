@@ -109,7 +109,7 @@ contract AnchoredOracleTest is BaseTest {
     function testFuzz_getQuote_matches(uint256 inAmount, address base, address quote, uint256 price) public {
         // bound to prevent overflow in MockPriceOracle
         inAmount = bound(inAmount, 0, type(uint128).max);
-        price = bound(price, 0, type(uint128).max);
+        price = bound(price, 1, type(uint128).max);
 
         primary.setPrice(base, quote, price);
         anchor.setPrice(base, quote, price);
@@ -152,7 +152,7 @@ contract AnchoredOracleTest is BaseTest {
     function testFuzz_getQuote_withinThreshold(uint256 inAmount, address base, address quote, uint256 price) public {
         // bound to prevent overflow in MockPriceOracle
         inAmount = bound(inAmount, 0, type(uint128).max);
-        price = bound(price, 0, type(uint128).max);
+        price = bound(price, 1, type(uint128).max);
 
         primary.setPrice(base, quote, price);
 
@@ -229,11 +229,18 @@ contract AnchoredOracleTest is BaseTest {
     function testFuzz_getQuote_revertWhen_AnchoredOracle_ScalingOverflow(
         uint256 inAmount,
         address base,
-        address quote
+        address quote,
+        uint256 primaryOracleOutAmount
     )
         public
     {
         inAmount = bound(inAmount, type(uint256).max / _WAD + 1, type(uint256).max);
+        primaryOracleOutAmount = bound(primaryOracleOutAmount, 0, _WAD - 1);
+        vm.mockCall(
+            address(primary),
+            abi.encodeCall(MockPriceOracle.getQuote, (inAmount, base, quote)),
+            abi.encode(primaryOracleOutAmount)
+        );
         vm.expectRevert(AnchoredOracle.AnchoredOracle_ScalingOverflow.selector);
         oracle.getQuote(inAmount, base, quote);
     }

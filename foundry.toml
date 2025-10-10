@@ -11,6 +11,7 @@ solc = '0.8.28'
 ffi = true
 evm_version = "prague"
 script_execution_protection = false
+no_match_path = "test/invariant/handler/*"
 optimizer = true
 optimizer_runs = 400
 via_ir = true
@@ -33,6 +34,7 @@ remappings = [
 
 [profile.invariant]
 match_contract = "Invariant"
+no_match_path = "test/invariant/handler/*"
 
 [profile.default.fuzz]
 max_test_rejects = 1_000_000 # Number of times `vm.assume` can fail
@@ -48,6 +50,14 @@ runs = 20
 [profile.invariant.invariant]
 depth = 100
 runs = 100
+
+[profile.ci_invariant]
+match_contract = "Invariant"
+no_match_path = "test/invariant/handler/*"
+
+[profile.ci_invariant.invariant]
+depth = 50
+runs = 50
 
 [fmt]
 bracket_spacing = true
