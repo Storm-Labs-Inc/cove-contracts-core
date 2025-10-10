@@ -68,8 +68,10 @@ contract AutopoolOracle is BaseAdapter {
         uint256 oldestDebtTimestamp = autopool.oldestDebtReporting();
         if (oldestDebtTimestamp == 0) return;
         uint256 nowTs = block.timestamp;
-        if (nowTs > oldestDebtTimestamp && (nowTs - oldestDebtTimestamp > _MAX_DEBT_REPORTING_AGE)) {
-            revert StaleDebtReporting(oldestDebtTimestamp, nowTs);
+        if (nowTs > oldestDebtTimestamp) {
+            if (nowTs - oldestDebtTimestamp > _MAX_DEBT_REPORTING_AGE) {
+                revert StaleDebtReporting(oldestDebtTimestamp, nowTs);
+            }
         }
     }
 }
