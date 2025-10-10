@@ -15,16 +15,10 @@ contract GlobalState {
     /**
      * @notice Marks that a price update has occurred
      */
-    /**
-     * @notice Marks that a price update has occurred
-     */
     function price_updated() public {
         price_was_updated = true;
     }
 
-    /**
-     * @notice Resets price update flag when rebalance completes
-     */
     /**
      * @notice Resets price update flag when rebalance completes
      */

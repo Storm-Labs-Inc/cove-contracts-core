@@ -139,7 +139,9 @@ contract ScenarioSimpleMedusa is BasketManagerHandlers {
             // Verify basket has valid index by checking if basketTokenToIndex() doesn't revert
             // If the basket is not properly registered, this will revert with BasketTokenNotFound
             uint256 index = basketManager.basketTokenToIndex(basket);
-            assertTrue(index < type(uint256).max, "Basket has invalid index"); // Always true if above doesn't revert
+            // This assertion is always true if the above call doesn't revert, but it's kept explicit
+            // for invariant test clarity and to document the expected property
+            assertTrue(index < type(uint256).max, "Basket has invalid index");
         }
 
         // Additional check: Verify all known basketIds point to baskets with valid indices
@@ -154,8 +156,9 @@ contract ScenarioSimpleMedusa is BasketManagerHandlers {
             if (registeredBasket != address(0)) {
                 // This will revert with BasketTokenNotFound if the basket is not properly registered
                 uint256 index = basketManager.basketTokenToIndex(registeredBasket);
-                assertTrue(index < type(uint256).max, "Known basket has invalid index"); // Always true if above doesn't
-                    // revert
+                // This assertion is always true if the above call doesn't revert, but it's kept explicit
+                // for invariant test clarity and to document the expected property
+                assertTrue(index < type(uint256).max, "Known basket has invalid index");
             }
         }
     }

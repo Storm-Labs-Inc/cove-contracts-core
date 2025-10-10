@@ -115,7 +115,7 @@ contract OracleHandler is Constants, Test {
     function _get_base_assets() internal view returns (address[] memory) {
         address[] memory candidates = basketManager.basketTokens();
 
-        // candidates might have dupp, but it's
+        // candidates might have duplicates, but it's acceptable for this purpose
         for (uint256 i = 0; i < candidates.length; i++) {
             candidates[i] = BasketToken(candidates[i]).asset();
         }
