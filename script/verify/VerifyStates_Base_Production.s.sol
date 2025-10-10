@@ -4,23 +4,45 @@ pragma solidity ^0.8.23;
 import { Script } from "forge-std/Script.sol";
 import { console } from "forge-std/console.sol";
 
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+
+import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
+import { IPriceOracle } from "euler-price-oracle/src/interfaces/IPriceOracle.sol";
+
 import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
+import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 
 import { BasicRetryOperator } from "src/operators/BasicRetryOperator.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
-import { BuildDeploymentJsonNames } from "../utils/BuildDeploymentJsonNames.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
-import { Constants } from "test/utils/Constants.t.sol";
+import { VerifyStatesCommon } from "script/verify/utils/VerifyStates_Common.s.sol";
 
-contract VerifyStatesBaseProduction is Script, Constants, BuildDeploymentJsonNames {
+import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
+
+contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
     using DeployerFunctions for Deployer;
+    using BasketManagerValidationLib for BasketManager;
 
     Deployer public deployer;
+    IMasterRegistry public masterRegistry;
+    BasketManager public basketManager;
+    AssetRegistry public assetRegistry;
+    EulerRouter public eulerRouter;
+    FeeCollector public feeCollector;
+    StrategyRegistry public strategyRegistry;
+    BasicRetryOperator public basicRetryOperator;
+    TimelockController public timelockController;
+
+    function _getDeployer() internal view override returns (Deployer) {
+        return deployer;
+    }
 
     function _buildPrefix() internal pure override returns (string memory) {
         return "Production_";
@@ -30,199 +52,344 @@ contract VerifyStatesBaseProduction is Script, Constants, BuildDeploymentJsonNam
         deployer = Deployer(msg.sender);
         console.log("===== Verifying Base Production Deployment =====");
 
-        // Verify core contracts deployment
+        _resolveCoreContracts();
+
         _verifyBasketManager();
         _verifyFeeCollector();
         _verifyAssetRegistry();
         _verifyStrategyRegistry();
         _verifyBasicRetryOperator();
 
-        // Verify oracles
         _verifyOracles();
 
-        // Verify strategy
         _verifyManagedWeightStrategy();
-
-        // Verify basket token
         _verifyBasketToken();
 
         console.log("===== Base Production Deployment Verification Complete =====");
     }
 
+    function _resolveCoreContracts() internal {
+        address masterRegistryAddr = deployer.getAddress(buildMasterRegistryName());
+        require(masterRegistryAddr != address(0), "MasterRegistry not deployed");
+        masterRegistry = IMasterRegistry(masterRegistryAddr);
+        console.log(
+            string.concat("\nMasterRegistry: ", vm.toString(masterRegistryAddr), " (", buildMasterRegistryName(), ")")
+        );
+
+        basketManager = BasketManager(_resolveAndConfirm("BasketManager", buildBasketManagerName()));
+        eulerRouter = EulerRouter(_resolveAndConfirm("EulerRouter", buildEulerRouterName()));
+        assetRegistry = AssetRegistry(_resolveAndConfirm("AssetRegistry", buildAssetRegistryName()));
+        feeCollector = FeeCollector(_resolveAndConfirm("FeeCollector", buildFeeCollectorName()));
+        strategyRegistry = StrategyRegistry(_resolveAndConfirm("StrategyRegistry", buildStrategyRegistryName()));
+        basicRetryOperator = BasicRetryOperator(_resolveAndConfirm("BasicRetryOperator", buildBasicRetryOperatorName()));
+
+        address timelockAddr = masterRegistry.resolveNameToLatestAddress("TimelockController");
+        address timelockFromDeployments = deployer.getAddress(buildTimelockControllerName());
+        string memory matchStatus = timelockAddr == timelockFromDeployments ? unicode"✅" : unicode"❌";
+        console.log(
+            string.concat(
+                "TimelockController: ",
+                vm.toString(timelockAddr),
+                " (registry) | ",
+                vm.toString(timelockFromDeployments),
+                " (deployments) ",
+                matchStatus
+            )
+        );
+        require(timelockAddr != address(0), "TimelockController address missing");
+        timelockController = TimelockController(payable(timelockAddr));
+    }
+
+    function _resolveAndConfirm(
+        string memory registryName,
+        string memory deploymentName
+    )
+        internal
+        view
+        returns (address)
+    {
+        bytes32 registryKey = bytes32(bytes(registryName));
+        address registryAddr = masterRegistry.resolveNameToLatestAddress(registryKey);
+        require(registryAddr != address(0), string.concat(registryName, " not registered in MasterRegistry"));
+        address deploymentAddr = deployer.getAddress(deploymentName);
+        require(deploymentAddr != address(0), string.concat(deploymentName, " not found in deployments"));
+        string memory status = registryAddr == deploymentAddr ? unicode"✅" : unicode"❌";
+        console.log(
+            string.concat(
+                registryName,
+                ": ",
+                vm.toString(registryAddr),
+                " (registry) | ",
+                vm.toString(deploymentAddr),
+                " (deployments) ",
+                status
+            )
+        );
+        require(
+            registryAddr == deploymentAddr,
+            string.concat(registryName, " mismatch between MasterRegistry and deployments")
+        );
+        return registryAddr;
+    }
+
     function _verifyBasketManager() internal view {
-        console.log("Verifying BasketManager...");
-        address basketManager = deployer.getAddress(buildBasketManagerName());
-        require(basketManager != address(0), "BasketManager not deployed");
+        console.log("\nVerifying BasketManager roles and configuration...");
 
-        BasketManager bm = BasketManager(basketManager);
+        _logRoleCheck(
+            "DEFAULT_ADMIN_ROLE",
+            basketManager.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG),
+            BASE_COMMUNITY_MULTISIG
+        );
+        _logRoleCheck("MANAGER_ROLE", basketManager.hasRole(MANAGER_ROLE, BASE_OPS_MULTISIG), BASE_OPS_MULTISIG);
+        _logRoleCheck(
+            "TIMELOCK_ROLE",
+            basketManager.hasRole(TIMELOCK_ROLE, address(timelockController)),
+            address(timelockController)
+        );
 
-        // Verify roles are transferred to Community Multisig and Ops Multisig
-        require(bm.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "BasketManager: Admin role not set");
-        require(bm.hasRole(MANAGER_ROLE, BASE_OPS_MULTISIG), "BasketManager: Manager role not set");
-
-        // Verify timelock role is set on the timelock contract
-        address timelockAddr = deployer.getAddress(buildTimelockControllerName());
-        require(timelockAddr != address(0), "Timelock not deployed");
-        require(bm.hasRole(TIMELOCK_ROLE, timelockAddr), "BasketManager: Timelock role not set");
-
-        // Verify fee collector is set
-        require(address(bm.feeCollector()) != address(0), "BasketManager: FeeCollector not set");
-
-        console.log("  [OK] BasketManager verified");
+        require(address(basketManager.feeCollector()) == address(feeCollector), "BasketManager: FeeCollector mismatch");
+        console.log(string.concat("  FeeCollector configured: ", vm.toString(address(feeCollector)), unicode" ✅"));
     }
 
     function _verifyFeeCollector() internal view {
-        console.log("Verifying FeeCollector...");
-        address feeCollector = deployer.getAddress(buildFeeCollectorName());
-        require(feeCollector != address(0), "FeeCollector not deployed");
-
-        FeeCollector fc = FeeCollector(feeCollector);
-
-        // Verify admin role is transferred to Community Multisig
-        require(fc.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "FeeCollector: Admin role not set");
-
-        console.log("  [OK] FeeCollector verified");
+        console.log("\nVerifying FeeCollector roles...");
+        _logRoleCheck(
+            "DEFAULT_ADMIN_ROLE",
+            feeCollector.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG),
+            BASE_COMMUNITY_MULTISIG
+        );
     }
 
     function _verifyAssetRegistry() internal view {
-        console.log("Verifying AssetRegistry...");
-        address assetRegistry = deployer.getAddress(buildAssetRegistryName());
-        require(assetRegistry != address(0), "AssetRegistry not deployed");
+        console.log("\nVerifying AssetRegistry contents...");
 
-        AssetRegistry ar = AssetRegistry(assetRegistry);
+        _assertAssetEnabled("BASE_USDC", BASE_USDC);
+        _assertAssetEnabled("BASE_BASEUSD", BASE_BASEUSD);
+        _assertAssetEnabled("BASE_SUPERUSDC", BASE_SUPERUSDC);
+        _assertAssetEnabled("BASE_SPARKUSDC", BASE_SPARKUSDC);
 
-        // Verify Base assets are registered
-        require(ar.getAssetStatus(BASE_USDC) == AssetRegistry.AssetStatus.ENABLED, "AssetRegistry: USDC not enabled");
-        require(
-            ar.getAssetStatus(BASE_BASEUSD) == AssetRegistry.AssetStatus.ENABLED, "AssetRegistry: baseUSD not enabled"
-        );
-        require(
-            ar.getAssetStatus(BASE_SUPERUSDC) == AssetRegistry.AssetStatus.ENABLED,
-            "AssetRegistry: superUSDC not enabled"
-        );
-        require(
-            ar.getAssetStatus(BASE_SPARKUSDC) == AssetRegistry.AssetStatus.ENABLED,
-            "AssetRegistry: sparkUSDC not enabled"
-        );
-
-        console.log("  [OK] AssetRegistry verified");
+        address[] memory allAssets = assetRegistry.getAllAssets();
+        console.log(string.concat("  Total registered assets: ", vm.toString(allAssets.length)));
     }
 
     function _verifyStrategyRegistry() internal view {
-        console.log("Verifying StrategyRegistry...");
-        address strategyRegistry = deployer.getAddress(buildStrategyRegistryName());
-        require(strategyRegistry != address(0), "StrategyRegistry not deployed");
+        console.log("\nVerifying StrategyRegistry configuration...");
 
-        StrategyRegistry sr = StrategyRegistry(strategyRegistry);
+        bytes32 weightRole = keccak256("WEIGHT_STRATEGY_ROLE");
+        address strategyAddr = deployer.getAddress(buildManagedWeightStrategyName("Gauntlet V1 Base"));
+        require(strategyAddr != address(0), "ManagedWeightStrategy not deployed");
+        require(strategyRegistry.hasRole(weightRole, strategyAddr), "StrategyRegistry: strategy not registered");
 
-        // Verify strategy is registered
-        address strategy = deployer.getAddress(buildManagedWeightStrategyName("Gauntlet V1 Base"));
-        require(strategy != address(0), "ManagedWeightStrategy not deployed");
-        require(sr.hasRole(keccak256("WEIGHT_STRATEGY_ROLE"), strategy), "Strategy not registered");
-
-        console.log("  [OK] StrategyRegistry verified");
+        console.log(
+            string.concat(
+                "  ManagedWeightStrategy registered: ",
+                vm.toString(strategyAddr),
+                " (",
+                buildManagedWeightStrategyName("Gauntlet V1 Base"),
+                ")"
+            )
+        );
     }
 
     function _verifyBasicRetryOperator() internal view {
-        console.log("Verifying BasicRetryOperator...");
-        address basicRetryOperator = deployer.getAddress(buildBasicRetryOperatorName());
-        require(basicRetryOperator != address(0), "BasicRetryOperator not deployed");
-
-        BasicRetryOperator bro = BasicRetryOperator(basicRetryOperator);
-
-        // Verify admin role is transferred to Community Multisig
-        require(bro.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "BasicRetryOperator: Admin role not set");
-
-        console.log("  [OK] BasicRetryOperator verified");
+        console.log("\nVerifying BasicRetryOperator roles...");
+        _logRoleCheck(
+            "DEFAULT_ADMIN_ROLE",
+            basicRetryOperator.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG),
+            BASE_COMMUNITY_MULTISIG
+        );
     }
 
-    function _verifyOracles() internal view {
-        console.log("Verifying Oracles...");
+    function _verifyOracles() internal {
+        console.log("\nVerifying oracle configuration...");
 
-        // Verify USDC oracle
-        address usdcOracle = deployer.getAddress(buildAnchoredOracleName(BASE_USDC, USD));
-        require(usdcOracle != address(0), "USDC Anchored Oracle not deployed");
+        basketManager.testLib_validateConfiguredOracles();
+        console.log(unicode"  ✓ BasketManager oracle configuration passes validation library checks");
 
-        // Verify baseUSD oracle
-        address baseUsdOracle = deployer.getAddress(buildAnchoredOracleName(BASE_BASEUSD, USD));
-        require(baseUsdOracle != address(0), "baseUSD Anchored Oracle not deployed");
+        _tryUpdateOracleTimestamps();
 
-        // Verify superUSDC oracle
-        address superUsdcOracle = deployer.getAddress(buildAnchoredOracleName(BASE_SUPERUSDC, USD));
-        require(superUsdcOracle != address(0), "superUSDC Anchored Oracle not deployed");
-
-        // Verify sparkUSDC oracle
-        address sparkUsdcOracle = deployer.getAddress(buildAnchoredOracleName(BASE_SPARKUSDC, USD));
-        require(sparkUsdcOracle != address(0), "sparkUSDC Anchored Oracle not deployed");
-
-        console.log("  [OK] All oracles verified");
+        address[] memory assets = assetRegistry.getAllAssets();
+        for (uint256 i = 0; i < assets.length; i++) {
+            _logOracleDetails(assets[i]);
+        }
     }
 
     function _verifyManagedWeightStrategy() internal view {
-        console.log("Verifying ManagedWeightStrategy...");
+        console.log("\nVerifying ManagedWeightStrategy permissions...");
 
-        address strategy = deployer.getAddress(buildManagedWeightStrategyName("Gauntlet V1 Base"));
-        require(strategy != address(0), "ManagedWeightStrategy not deployed");
+        address strategyAddr = deployer.getAddress(buildManagedWeightStrategyName("Gauntlet V1 Base"));
+        require(strategyAddr != address(0), "ManagedWeightStrategy not deployed");
 
-        ManagedWeightStrategy mws = ManagedWeightStrategy(strategy);
+        ManagedWeightStrategy mws = ManagedWeightStrategy(strategyAddr);
 
-        // Verify roles are transferred to Community Multisig
-        require(mws.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), "Strategy: Admin role not set");
-        require(
-            mws.hasRole(MANAGER_ROLE, BASE_GAUNTLET_SPONSOR), "Strategy: Manager role not set for Gauntlet placeholder"
+        _logRoleCheck(
+            "DEFAULT_ADMIN_ROLE", mws.hasRole(DEFAULT_ADMIN_ROLE, BASE_COMMUNITY_MULTISIG), BASE_COMMUNITY_MULTISIG
         );
-
-        console.log("  [OK] ManagedWeightStrategy verified");
+        _logRoleCheck("MANAGER_ROLE", mws.hasRole(MANAGER_ROLE, BASE_GAUNTLET_SPONSOR), BASE_GAUNTLET_SPONSOR);
+        require(
+            !mws.hasRole(MANAGER_ROLE, COVE_DEPLOYER_ADDRESS),
+            "ManagedWeightStrategy: deployer should not retain manager role"
+        );
     }
 
     function _verifyBasketToken() internal view {
-        console.log("Verifying BasketToken...");
+        console.log("\nVerifying BasketToken configuration...");
 
-        address basketToken = deployer.getAddress(buildBasketTokenName("bcoveUSD"));
-        require(basketToken != address(0), "BasketToken not deployed");
+        address basketTokenAddr = deployer.getAddress(buildBasketTokenName("bcoveUSD"));
+        require(basketTokenAddr != address(0), "BasketToken not deployed");
 
-        BasketToken bt = BasketToken(basketToken);
+        BasketToken basketToken = BasketToken(basketTokenAddr);
 
-        // Verify basic properties
-        require(keccak256(bytes(bt.name())) == keccak256(bytes("Cove bcoveUSD")), "BasketToken: Incorrect name");
-        require(keccak256(bytes(bt.symbol())) == keccak256(bytes("covebcoveUSD")), "BasketToken: Incorrect symbol");
+        console.log(string.concat("  BasketToken address: ", vm.toString(basketTokenAddr)));
+        console.log(string.concat("  Name  : ", basketToken.name()));
+        console.log(string.concat("  Symbol: ", basketToken.symbol()));
 
-        // Verify root asset
-        require(bt.asset() == BASE_USDC, "BasketToken: Incorrect root asset");
+        require(basketToken.asset() == BASE_USDC, "BasketToken: incorrect root asset");
 
-        // Verify bitFlag includes all assets
-        uint256 bitFlag = bt.bitFlag();
-        AssetRegistry ar = AssetRegistry(deployer.getAddress(buildAssetRegistryName()));
-        address[] memory assets = ar.getAssets(bitFlag);
-
-        require(assets.length == 4, "BasketToken: Incorrect number of assets");
-
-        // Verify all expected assets are included
-        bool hasUsdc = false;
-        bool hasBaseUsd = false;
-        bool hasSuperUsdc = false;
-        bool hasSparkUsdc = false;
+        uint64[] memory weights = basketToken.getTargetWeights();
+        address[] memory assets = basketToken.getAssets();
+        console.log(string.concat("  Assets in basket: ", vm.toString(assets.length)));
 
         for (uint256 i = 0; i < assets.length; i++) {
-            if (assets[i] == BASE_USDC) hasUsdc = true;
-            if (assets[i] == BASE_BASEUSD) hasBaseUsd = true;
-            if (assets[i] == BASE_SUPERUSDC) hasSuperUsdc = true;
-            if (assets[i] == BASE_SPARKUSDC) hasSparkUsdc = true;
+            console.log(
+                string.concat(
+                    "    - ",
+                    _getSymbol(assets[i]),
+                    " (",
+                    vm.toString(assets[i]),
+                    ") weight: ",
+                    _formatEther(weights[i])
+                )
+            );
         }
 
-        require(hasUsdc, "BasketToken: USDC not in basket");
-        require(hasBaseUsd, "BasketToken: baseUSD not in basket");
-        require(hasSuperUsdc, "BasketToken: superUSDC not in basket");
-        require(hasSparkUsdc, "BasketToken: sparkUSDC not in basket");
+        require(assets.length == 4, "BasketToken: expected four assets");
+        require(_containsAsset(assets, BASE_USDC), "BasketToken: USDC missing");
+        require(_containsAsset(assets, BASE_BASEUSD), "BasketToken: baseUSD missing");
+        require(_containsAsset(assets, BASE_SUPERUSDC), "BasketToken: superUSDC missing");
+        require(_containsAsset(assets, BASE_SPARKUSDC), "BasketToken: sparkUSDC missing");
 
-        // Verify management fee
-        BasketManager bm = BasketManager(deployer.getAddress(buildBasketManagerName()));
-        require(bm.managementFee(basketToken) == 100, "BasketToken: Incorrect management fee");
+        require(basketManager.managementFee(basketTokenAddr) == 100, "BasketToken: incorrect management fee");
+        require(feeCollector.basketTokenSponsorSplits(basketTokenAddr) == 4000, "BasketToken: incorrect sponsor split");
+    }
 
-        // Verify fee collector split
-        FeeCollector fc = FeeCollector(deployer.getAddress(buildFeeCollectorName()));
-        require(fc.basketTokenSponsorSplits(basketToken) == 4000, "BasketToken: Incorrect sponsor split");
+    function _tryUpdateOracleTimestamps() internal {
+        try this.updateOracleTimestampsExternal() {
+            console.log(unicode"  ✓ Oracle timestamps refreshed");
+        } catch {
+            console.log("  [WARN] Skipped oracle timestamp refresh (likely missing upstream oracle contracts on fork)");
+        }
+    }
 
-        console.log("  [OK] BasketToken verified");
+    function updateOracleTimestampsExternal() external {
+        basketManager.testLib_updateOracleTimestamps();
+    }
+
+    function _logOracleDetails(address asset) internal view {
+        address oracleAddr = eulerRouter.getConfiguredOracle(asset, USD);
+        string memory symbol = _getSymbol(asset);
+
+        if (oracleAddr == address(0)) {
+            console.log(string.concat("  [WARN] No oracle configured for ", symbol, " (", vm.toString(asset), ")"));
+            return;
+        }
+
+        string memory oracleName = _safeOracleName(oracleAddr);
+        console.log(
+            string.concat(
+                "  Asset ",
+                symbol,
+                " (",
+                vm.toString(asset),
+                ") -> Oracle ",
+                vm.toString(oracleAddr),
+                " (",
+                oracleName,
+                ")"
+            )
+        );
+
+        uint256 amount = _oneUnit(asset);
+        _logPrice("    EulerRouter price", oracleAddr, amount, asset, true);
+
+        if (_equals(oracleName, "AnchoredOracle")) {
+            AnchoredOracle anchored = AnchoredOracle(oracleAddr);
+            address primary = anchored.primaryOracle();
+            address anchor = anchored.anchorOracle();
+
+            console.log(
+                string.concat("    Primary Oracle: ", vm.toString(primary), " (", _safeOracleName(primary), ")")
+            );
+            _printBaseAndQuote(primary, "      ");
+            _logPrice("      Primary price", primary, amount, asset, false);
+
+            console.log(string.concat("    Anchor Oracle : ", vm.toString(anchor), " (", _safeOracleName(anchor), ")"));
+            _printBaseAndQuote(anchor, "      ");
+            _logPrice("      Anchor price", anchor, amount, asset, false);
+        } else {
+            _printBaseAndQuote(oracleAddr, "    ");
+        }
+
+        console.log("    Oracle structure:");
+        _traverseOracles(oracleAddr, "    ");
+    }
+
+    function _logRoleCheck(string memory roleName, bool condition, address expected) internal view {
+        console.log(string.concat("  ", roleName, ": ", vm.toString(expected), condition ? unicode" ✅" : unicode" ❌"));
+        require(condition, string.concat("Role check failed for ", roleName));
+    }
+
+    function _assertAssetEnabled(string memory label, address asset) internal view {
+        require(
+            assetRegistry.getAssetStatus(asset) == AssetRegistry.AssetStatus.ENABLED,
+            string.concat("AssetRegistry: ", label, " not enabled")
+        );
+        console.log(string.concat("  ", label, " enabled: ", vm.toString(asset), unicode" ✅"));
+    }
+
+    function _containsAsset(address[] memory assets, address target) internal pure returns (bool) {
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (assets[i] == target) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function _logPrice(
+        string memory label,
+        address oracle,
+        uint256 amount,
+        address asset,
+        bool useRouter
+    )
+        internal
+        view
+    {
+        if (useRouter) {
+            try eulerRouter.getQuote(amount, asset, USD) returns (uint256 quote) {
+                console.log(string.concat(label, ": $", _formatEther(quote)));
+            } catch {
+                console.log(string.concat(label, ": <quote reverted>"));
+            }
+        } else {
+            try IPriceOracle(oracle).getQuote(amount, asset, USD) returns (uint256 quote) {
+                console.log(string.concat(label, ": $", _formatEther(quote)));
+            } catch {
+                console.log(string.concat(label, ": <quote reverted>"));
+            }
+        }
+    }
+
+    function _equals(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
+
+    function _oneUnit(address asset) internal view returns (uint256) {
+        try IERC20Metadata(asset).decimals() returns (uint8 decimals) {
+            return 10 ** decimals;
+        } catch {
+            return 1e18;
+        }
     }
 }

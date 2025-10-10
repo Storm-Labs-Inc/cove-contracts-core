@@ -62,6 +62,7 @@ contract DeploymentsBaseProduction is Deployments {
                     buildTimelockControllerName(), 0, proposers, executors, timelockAdmin
                 )
             );
+            _addToMasterRegistryLater("TimelockController", timelock);
         } else {
             timelock = existingTimelock;
         }

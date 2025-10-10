@@ -197,6 +197,7 @@ contract Constants is CommonBase {
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
+    address public constant BASE_EVC = 0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989;
 
     // This block number includes all pyth oracle updates
     // https://etherscan.io/tx/0xdb4a012e6c07cc6417c6c2fd020e110ea40fd1207221bbbc5e346045b9b26ecd
