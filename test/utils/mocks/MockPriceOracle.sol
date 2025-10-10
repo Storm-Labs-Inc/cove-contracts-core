@@ -2,8 +2,9 @@
 pragma solidity 0.8.28;
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { IPriceOracle } from "euler-price-oracle-1/src/interfaces/IPriceOracle.sol";
 
-contract MockPriceOracle {
+contract MockPriceOracle is IPriceOracle {
     mapping(address => mapping(address => uint256)) internal prices;
 
     // required for OracleHandler
@@ -63,5 +64,9 @@ contract MockPriceOracle {
     // required for OracleHandler
     function all_assets() public view returns (address[] memory) {
         return _all_assets;
+    }
+
+    function name() external pure returns (string memory) {
+        return "MockPriceOracle";
     }
 }

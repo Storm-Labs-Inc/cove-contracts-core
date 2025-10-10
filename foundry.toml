@@ -25,9 +25,11 @@ remappings = [
     "forge-safe-1/=dependencies/forge-safe-1/",
     "forge-std-1.9.6/=dependencies/forge-std-1.9.6/",
     "lifinance/create3-factory-0/=dependencies/lifinance-create3-factory-0/",
+    "milkman-1/=dependencies/milkman-1/",
     "solady-0.1.17/=dependencies/solady-0.1.17/",
     "solidity-utils-5.3.0/=dependencies/solidity-utils-5.3.0/",
     "token-plugins-upgradeable-1/=dependencies/token-plugins-upgradeable-1/",
+    "tokenized-strategy-3.0.4/=dependencies/tokenized-strategy-3.0.4/",
 ]
 
 [profile.invariant]
@@ -90,6 +92,8 @@ euler-price-oracle = { version = "1", git = "https://github.com/Storm-Labs-Inc/e
 forge-safe = { version = "1", git = "https://github.com/Storm-Labs-Inc/forge-safe.git", rev = "8175a6a60844b86d36b3089fe08c584121c7658d" }
 forge-deploy = { version = "1", git = "https://github.com/Storm-Labs-Inc/forge-deploy.git", rev = "2a0c1987ca8a619fd41a0cc546706ebf38a2d4af" }
 solady = "0.1.17"
+tokenized-strategy = { version = "3.0.4", git = "https://github.com/yearn/tokenized-strategy.git", tag = "v3.0.4" }
+milkman = { version = "1", git = "https://github.com/charlesndalton/milkman", rev = "f7719b59c349eb60eadaed734270a440c77345f8" }
 
 [soldeer]
 recursive_deps = true
