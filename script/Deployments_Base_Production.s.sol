@@ -11,6 +11,8 @@ import { console } from "forge-std/console.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+
+import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 
 contract DeploymentsBaseProduction is Deployments {
@@ -138,10 +140,10 @@ contract DeploymentsBaseProduction is Deployments {
         );
         _addAssetToAssetRegistry(BASE_USDC);
 
-        // 1. baseUSD (Auto Finance Tokemak baseUSD)
-        // Primary: baseUSD-->(4626)--> USDC-->(Pyth)--> USD
-        // Anchor: baseUSD-->(4626)--> USDC-->(Chainlink)--> USD
-        _deployAnchoredOracleWith4626ForAssetBase(
+        // 1. baseUSD (Auto Finance Tokemak baseUSD - Autopool)
+        // Primary: baseUSD-->(Autopool)--> USDC-->(Pyth)--> USD
+        // Anchor: baseUSD-->(Autopool)--> USDC-->(Chainlink)--> USD
+        _deployAnchoredOracleWithAutopoolForAssetBase(
             BASE_BASEUSD,
             basePyth,
             true,
@@ -359,6 +361,102 @@ contract DeploymentsBaseProduction is Deployments {
                     underlyingAsset,
                     USD,
                     erc4626Oracle,
+                    chainlinkOracle
+                )
+            );
+        } else {
+            anchorOracle = address(
+                deployer.deploy_ChainlinkOracle(
+                    buildChainlinkOracleName(asset, USD),
+                    asset,
+                    USD,
+                    oracleOptions.chainlinkPriceFeed,
+                    oracleOptions.chainlinkMaxStaleness
+                )
+            );
+        }
+
+        address anchoredOracle = address(
+            deployer.deploy_AnchoredOracle(
+                buildAnchoredOracleName(asset, USD), primaryOracle, anchorOracle, oracleOptions.maxDivergence
+            )
+        );
+        // Register the asset/USD anchored oracle if it's not already registered
+        _registerAnchoredOracleWithEulerRouter(asset, anchoredOracle);
+    }
+
+    // Helper function for Base network Autopool assets with custom Pyth address
+    function _deployAnchoredOracleWithAutopoolForAssetBase(
+        address asset,
+        address pythAddress,
+        bool shouldChainAutopoolForPyth,
+        bool shouldChainAutopoolForChainlink,
+        OracleOptions memory oracleOptions
+    )
+        internal
+    {
+        address primaryOracle;
+        address underlyingAsset = IAutopool(asset).asset();
+        if (shouldChainAutopoolForPyth) {
+            address pythOracle = address(
+                deployer.deploy_PythOracle(
+                    buildPythOracleName(underlyingAsset, USD),
+                    pythAddress,
+                    underlyingAsset,
+                    USD,
+                    oracleOptions.pythPriceFeed,
+                    oracleOptions.pythMaxStaleness,
+                    oracleOptions.pythMaxConfWidth
+                )
+            );
+            address autopoolOracle = address(
+                deployer.deploy_AutopoolOracle(buildAutopoolOracleName(asset, underlyingAsset), IAutopool(asset))
+            );
+            primaryOracle = address(
+                deployer.deploy_CrossAdapter(
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "Autopool", "Pyth"),
+                    asset,
+                    underlyingAsset,
+                    USD,
+                    autopoolOracle,
+                    pythOracle
+                )
+            );
+        } else {
+            primaryOracle = address(
+                deployer.deploy_PythOracle(
+                    buildPythOracleName(asset, USD),
+                    pythAddress,
+                    asset,
+                    USD,
+                    oracleOptions.pythPriceFeed,
+                    oracleOptions.pythMaxStaleness,
+                    oracleOptions.pythMaxConfWidth
+                )
+            );
+        }
+
+        address anchorOracle;
+        if (shouldChainAutopoolForChainlink) {
+            address chainlinkOracle = address(
+                deployer.deploy_ChainlinkOracle(
+                    buildChainlinkOracleName(underlyingAsset, USD),
+                    underlyingAsset,
+                    USD,
+                    oracleOptions.chainlinkPriceFeed,
+                    oracleOptions.chainlinkMaxStaleness
+                )
+            );
+            address autopoolOracle = address(
+                deployer.deploy_AutopoolOracle(buildAutopoolOracleName(asset, underlyingAsset), IAutopool(asset))
+            );
+            anchorOracle = address(
+                deployer.deploy_CrossAdapter(
+                    buildCrossAdapterName(asset, underlyingAsset, USD, "Autopool", "Chainlink"),
+                    asset,
+                    underlyingAsset,
+                    USD,
+                    autopoolOracle,
                     chainlinkOracle
                 )
             );
