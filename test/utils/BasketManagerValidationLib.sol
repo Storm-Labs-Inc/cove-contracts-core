@@ -20,6 +20,9 @@ import { BasketToken } from "src/BasketToken.sol";
 import { IChainlinkAggregatorV3Interface } from "src/interfaces/deps/IChainlinkAggregatorV3Interface.sol";
 import { IPriceOracleWithBaseAndQuote } from "src/interfaces/deps/IPriceOracleWithBaseAndQuote.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
+
+import { AutoPoolCompounderOracle } from "src/oracles/AutoPoolCompounderOracle.sol";
+import { AutopoolOracle } from "src/oracles/AutopoolOracle.sol";
 import { ChainedERC4626Oracle } from "src/oracles/ChainedERC4626Oracle.sol";
 import { ERC4626Oracle } from "src/oracles/ERC4626Oracle.sol";
 import { Status } from "src/types/BasketManagerStorage.sol";
@@ -114,6 +117,7 @@ library BasketManagerValidationLib {
     /// @notice USD address constant (using ISO 4217 currency code)
     address internal constant USD = address(840);
     address internal constant PYTH = address(0x4305FB66699C3B2702D4d05CF36551390A4c69C6);
+    address internal constant BASE_PYTH = address(0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a);
     address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
     // solhint-disable-next-line const-name-snakecase
     Vm internal constant vm = Vm(VM_ADDRESS);
@@ -1012,16 +1016,27 @@ library BasketManagerValidationLib {
             // Do nothing
         } else if (_isChainedERC4626Oracle(oracle)) {
             // Do nothing
+        } else if (_isAutoPoolCompounderOracle(oracle)) {
+            // Do nothing
+        } else if (_isAutopoolOracle(oracle)) {
+            // Do nothing
         } else {
             revert InvalidOracle(oracle);
         }
     }
 
+    function _pyth() internal view returns (address) {
+        if (block.chainid == 8453) {
+            return BASE_PYTH;
+        }
+        return PYTH;
+    }
+
     // Updates the timestamp of a Pyth oracle response to the current block timestamp
     function _updatePythOracleTimeStamp(bytes32 pythPriceFeed) internal {
         vm.record();
-        IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
-        (bytes32[] memory readSlots,) = vm.accesses(PYTH);
+        IPyth(_pyth()).getPriceUnsafe(pythPriceFeed);
+        (bytes32[] memory readSlots,) = vm.accesses(_pyth());
         // Second read slot contains the timestamp in the last 32 bits
         // key   "0x28b01e5f9379f2a22698d286ce7faa0c31f6e4041ee32933d99cfe45a4a8ced5":
         // value "0x0000000000000000071021bc0000003f435df940fffffff80000000067a59cb0",
@@ -1029,11 +1044,11 @@ library BasketManagerValidationLib {
         // overwrite this by using vm.store(readSlots[1], modified state)
         uint256 newPublishTime = vm.getBlockTimestamp();
         bytes32 modifiedStorageData =
-            bytes32((uint256(vm.load(PYTH, readSlots[1])) & ~uint256(0xFFFFFFFF)) | newPublishTime);
-        vm.store(PYTH, readSlots[1], modifiedStorageData);
+            bytes32((uint256(vm.load(_pyth(), readSlots[1])) & ~uint256(0xFFFFFFFF)) | newPublishTime);
+        vm.store(_pyth(), readSlots[1], modifiedStorageData);
 
         // Verify the storage was updated.
-        PythStructs.Price memory res = IPyth(PYTH).getPriceUnsafe(pythPriceFeed);
+        PythStructs.Price memory res = IPyth(_pyth()).getPriceUnsafe(pythPriceFeed);
         require(res.publishTime == newPublishTime, "PythOracle timestamp was not updated correctly");
     }
 
@@ -1041,14 +1056,27 @@ library BasketManagerValidationLib {
     function _updateChainLinkOracleTimeStamp(address chainlinkOracle) internal {
         address aggregator = IChainlinkAggregatorV3Interface(chainlinkOracle).aggregator();
         vm.record();
-        IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
+        (,,, uint256 oldTimestamp,) = IChainlinkAggregatorV3Interface(chainlinkOracle).latestRoundData();
         (bytes32[] memory readSlots,) = vm.accesses(aggregator);
-        // The third slot of the aggregator reads contains the timestamp in the first 32 bits
+        // The third slot that is read is the storage slot in which the timestamp is stored in
         // Format: 0x67a4876b67a48757000000000000000000000000000000000f806f93b728efc0
         // Where 0x67a4876b is the timestamp
+        // It also could be shifted by 32 bits to the right so in case the first 32 bits are not the same as
+        // oldTimestamp, check if the next
+        // 32 bits are the same as oldTimestamp
+        uint256 maybeOldTimestamp = uint256(vm.load(aggregator, readSlots[2])) >> (224);
+        uint256 offset = 0;
+        if (maybeOldTimestamp != oldTimestamp) {
+            maybeOldTimestamp = (uint256(vm.load(aggregator, readSlots[2])) << 32) >> 224;
+            if (maybeOldTimestamp != oldTimestamp) {
+                revert("Slot could not be found");
+            }
+            offset = 32;
+        }
         uint256 newPublishTime = vm.getBlockTimestamp();
         bytes32 modifiedStorageData = bytes32(
-            (uint256(vm.load(aggregator, readSlots[2])) & ~uint256(0xFFFFFFFF << 224)) | (newPublishTime << 224)
+            (uint256(vm.load(aggregator, readSlots[2])) & ~(uint256(0xFFFFFFFF) << (224 - offset)))
+                | (newPublishTime << (224 - offset))
         );
         vm.store(aggregator, readSlots[2], modifiedStorageData);
 
@@ -1249,6 +1277,22 @@ library BasketManagerValidationLib {
     function _isChainedERC4626Oracle(address oracle) private view returns (bool) {
         try ChainedERC4626Oracle(oracle).name() returns (string memory name) {
             return keccak256(bytes(name)) == keccak256(bytes("ChainedERC4626Oracle"));
+        } catch {
+            return false;
+        }
+    }
+
+    function _isAutoPoolCompounderOracle(address oracle) private view returns (bool) {
+        try AutoPoolCompounderOracle(oracle).name() returns (string memory name) {
+            return keccak256(bytes(name)) == keccak256(bytes("AutoPoolCompounderOracle"));
+        } catch {
+            return false;
+        }
+    }
+
+    function _isAutopoolOracle(address oracle) private view returns (bool) {
+        try AutopoolOracle(oracle).name() returns (string memory name) {
+            return keccak256(bytes(name)) == keccak256(bytes("AutopoolOracle"));
         } catch {
             return false;
         }

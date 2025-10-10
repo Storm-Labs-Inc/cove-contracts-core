@@ -220,7 +220,7 @@ contract VerifyStatesBaseStaging is Script, VerifyStatesCommon {
         basketManager.testLib_validateConfiguredOracles();
         console.log(unicode"  ✓ BasketManager oracle configuration passes validation library checks");
 
-        _tryUpdateOracleTimestamps();
+        basketManager.testLib_updateOracleTimestamps();
 
         address[] memory assets = assetRegistry.getAllAssets();
         for (uint256 i = 0; i < assets.length; i++) {
@@ -287,18 +287,6 @@ contract VerifyStatesBaseStaging is Script, VerifyStatesCommon {
 
         require(basketManager.managementFee(basketTokenAddr) == 100, "BasketToken: incorrect management fee");
         require(feeCollector.basketTokenSponsorSplits(basketTokenAddr) == 4000, "BasketToken: incorrect sponsor split");
-    }
-
-    function _tryUpdateOracleTimestamps() internal {
-        try this.updateOracleTimestampsExternal() {
-            console.log(unicode"  ✓ Oracle timestamps refreshed");
-        } catch {
-            console.log("  [WARN] Skipped oracle timestamp refresh (likely missing upstream oracle contracts on fork)");
-        }
-    }
-
-    function updateOracleTimestampsExternal() external {
-        basketManager.testLib_updateOracleTimestamps();
     }
 
     function _logOracleDetails(address asset) internal view {
