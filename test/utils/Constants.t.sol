@@ -197,10 +197,38 @@ contract Constants is CommonBase {
 
     // https://evc.wtf/docs/contracts/deployment-addresses/
     address public constant EVC = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
+    address public constant BASE_EVC = 0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989;
 
     // This block number includes all pyth oracle updates
     // https://etherscan.io/tx/0xdb4a012e6c07cc6417c6c2fd020e110ea40fd1207221bbbc5e346045b9b26ecd
     uint256 public constant BLOCK_NUMBER_MAINNET_FORK = 21_792_603;
+
+    // BASE NETWORK CONSTANTS
+    uint256 public constant BASE_CHAIN_ID = 8453;
+    address public constant BASE_PYTH = 0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a;
+
+    // Base Asset Addresses
+    address public constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address public constant BASE_BASEUSD = 0x9c6864105AEC23388C89600046213a44C384c831;
+    address public constant BASE_SUPERUSDC = 0xe9F2a5F9f3c846f29066d7fB3564F8E6B6b2D65b;
+    address public constant BASE_SPARKUSDC = 0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A;
+
+    // Base Chainlink Price Feeds
+    address public constant BASE_CHAINLINK_USDC_USD_FEED = 0x7e860098F58bBFC8648a4311b374B1D669a2bc6B;
+
+    // Base Addresses for Permissions
+    address public constant BASE_COMMUNITY_MULTISIG = COVE_COMMUNITY_MULTISIG;
+    address public constant BASE_OPS_MULTISIG = COVE_OPS_MULTISIG;
+    // TODO: confirm sponsor
+    address public constant BASE_GAUNTLET_SPONSOR = 0x3333333333333333333333333333333333333333;
+    // Base production AWS keeper (Production_Base_CoveBotKey)
+    address public constant BASE_AWS_KEEPER = 0x652da08ce63860773005F642384a37e40DCea73B;
+
+    address public constant BASE_STAGING_COMMUNITY_MULTISIG = COVE_STAGING_COMMUNITY_MULTISIG;
+    address public constant BASE_STAGING_OPS_MULTISIG = COVE_STAGING_OPS_MULTISIG;
+    address public constant BASE_STAGING_GAUNTLET_SPONSOR = COVE_DEPLOYER_ADDRESS;
+    // Base staging AWS keeper (Staging_Base_CoveBotKey)
+    address public constant BASE_STAGING_AWS_KEEPER = 0x413656b968256622587f4Aef09daa07cFFB81273;
 
     function labelKnownAddresses() public {
         // Cove addresses

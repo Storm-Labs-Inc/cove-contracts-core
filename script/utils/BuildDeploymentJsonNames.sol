@@ -87,6 +87,12 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "ERC4626Oracle_", assetSymbol, "-", quoteSymbol);
     }
 
+    function buildAutopoolOracleName(address asset, address quote) public view returns (string memory) {
+        string memory assetSymbol = _getOracleAssetSymbol(asset);
+        string memory quoteSymbol = _getOracleAssetSymbol(quote);
+        return string.concat(_buildPrefix(), "AutopoolOracle_", assetSymbol, "-", quoteSymbol);
+    }
+
     function buildAnchoredOracleName(address base, address quote) public view returns (string memory) {
         string memory baseSymbol = _getOracleAssetSymbol(base);
         string memory quoteSymbol = _getOracleAssetSymbol(quote);

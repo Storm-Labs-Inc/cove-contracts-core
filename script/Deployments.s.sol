@@ -144,11 +144,12 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         require(addr != address(0), string.concat("Deployment ", name, " not found"));
     }
 
-    function _deployCoreContracts() internal {
+    function _deployCoreContracts() internal virtual {
         address assetRegistry = address(deployer.deploy_AssetRegistry(buildAssetRegistryName(), COVE_DEPLOYER_ADDRESS));
         address strategyRegistry =
             address(deployer.deploy_StrategyRegistry(buildStrategyRegistryName(), COVE_DEPLOYER_ADDRESS));
-        address eulerRouter = address(deployer.deploy_EulerRouter(buildEulerRouterName(), EVC, COVE_DEPLOYER_ADDRESS));
+        address eulerRouter =
+            address(deployer.deploy_EulerRouter(buildEulerRouterName(), _evc(), COVE_DEPLOYER_ADDRESS));
         _deployBasketManager(_feeCollectorSalt());
         _deployFeeCollector(_feeCollectorSalt());
         _deployAndSetCowSwapAdapter();
@@ -171,6 +172,13 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     }
 
     function _feeCollectorSalt() internal view virtual returns (bytes32);
+
+    function _evc() internal view virtual returns (address) {
+        if (block.chainid == BASE_CHAIN_ID) {
+            return BASE_EVC;
+        }
+        return EVC;
+    }
 
     function _setInitialWeightsAndDeployBasketToken(BasketTokenDeployment memory deployment)
         internal
@@ -974,7 +982,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         return farmingPluginFactory;
     }
 
-    function _deployPluginsViaFactory() internal {
+    function _deployPluginsViaFactory() internal virtual {
         address farmingPluginFactory = getAddressOrRevert(buildFarmingPluginFactoryName());
         address basketManager = getAddressOrRevert(buildBasketManagerName());
         address[] memory basketTokens = BasketManager(basketManager).basketTokens();
