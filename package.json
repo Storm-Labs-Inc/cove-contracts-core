@@ -16,6 +16,7 @@
     "fork:clean:mainnet": "./bash/clean-fork.sh --network mainnet",
     "fork:clean:base": "./bash/clean-fork.sh --network base",
     "fork:start:mainnet": "./bash/start-fork.sh --network mainnet",
+    "fork:start:mainnet:oct15": "./bash/start-fork.sh --network mainnet --fork-block 23583881",
     "fork:start:base": "./bash/start-fork.sh --network base",
     "deploy:fork:mainnet": "./bash/deploy.sh --network mainnet",
     "deploy:fork:base:staging": "./bash/deploy.sh --network base --env staging",
