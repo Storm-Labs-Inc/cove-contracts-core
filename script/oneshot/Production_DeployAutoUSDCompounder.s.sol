@@ -65,6 +65,13 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
     ChainlinkOracle public chainlinkOracle;
     CrossAdapter public crossAdapter;
 
+    IMasterRegistry public masterRegistry;
+    EulerRouter public eulerRouter;
+
+    function _compounderName() internal pure returns (string memory) {
+        return "Production_AutopoolCompounder_autoUSD";
+    }
+
     function _buildPrefix() internal pure override returns (string memory) {
         return "Production_";
     }
@@ -76,7 +83,7 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         console.log("Deployer address:", msg.sender);
 
         // Get required addresses
-        IMasterRegistry masterRegistry = IMasterRegistry(deployer.getAddress(buildMasterRegistryName()));
+        masterRegistry = IMasterRegistry(deployer.getAddress(buildMasterRegistryName()));
         require(address(masterRegistry) != address(0), "MasterRegistry not found");
 
         AssetRegistry assetRegistry = AssetRegistry(masterRegistry.resolveNameToLatestAddress("AssetRegistry"));
@@ -85,7 +92,7 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         BasketManager basketManager = BasketManager(masterRegistry.resolveNameToLatestAddress("BasketManager"));
         require(address(basketManager) != address(0), "BasketManager not found");
 
-        EulerRouter eulerRouter = EulerRouter(masterRegistry.resolveNameToLatestAddress("EulerRouter"));
+        eulerRouter = EulerRouter(masterRegistry.resolveNameToLatestAddress("EulerRouter"));
         require(address(eulerRouter) != address(0), "EulerRouter not found");
 
         address basketTokenUSD = deployer.getAddress("Production_BasketToken_USD");
@@ -112,12 +119,16 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
 
         // Deploy AutopoolCompounder
         console.log("\n==== Deploying AutopoolCompounder ====");
-        compounder = new AutopoolCompounder(TOKEMAK_AUTOUSD, TOKEMAK_AUTOUSD_REWARDER, TOKEMAK_MILKMAN);
+        compounder = deployer.deploy_AutopoolCompounder(
+            _compounderName(), TOKEMAK_AUTOUSD, TOKEMAK_AUTOUSD_REWARDER, TOKEMAK_MILKMAN
+        );
         console.log("AutopoolCompounder deployed at:", address(compounder));
 
         // Deploy AutoPoolCompounderOracle
         console.log("\n==== Deploying AutoPoolCompounderOracle ====");
-        oracle = new AutoPoolCompounderOracle(IERC4626(address(compounder)));
+        oracle = deployer.deploy_AutoPoolCompounderOracle(
+            buildAutoPoolCompounderOracleName(address(compounder), ETH_USDC), IERC4626(address(compounder))
+        );
         console.log("AutoPoolCompounderOracle deployed at:", address(oracle));
 
         // Deploy price oracles for TOKE rewards
@@ -126,11 +137,13 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
 
         // Configure price checker for TOKE rewards
         console.log("\n==== Configuring Price Checker ====");
+        vm.broadcast(msg.sender);
         compounder.updatePriceChecker(TOKEMAK_TOKE, address(priceChecker));
         console.log("Price checker configured for TOKE");
 
         // Set keeper role for the compounder (using PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT)
         console.log("\n==== Setting Keeper Role ====");
+        vm.broadcast(msg.sender);
         ITokenizedStrategy(address(compounder)).setKeeper(PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT);
         console.log("Keeper set to:", PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT);
 
@@ -141,10 +154,6 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         // Update basket bitflag to include compounder
         console.log("\n==== Updating Basket Bitflag ====");
         _updateBasketBitflag(basketManager, basketTokenUSD);
-
-        // Register oracle in EulerRouter
-        console.log("\n==== Registering Oracle in EulerRouter ====");
-        _registerOracle(eulerRouter);
 
         // Deploy anchored oracle for compounder/USD
         console.log("\n==== Deploying Anchored Oracle ====");
@@ -165,20 +174,24 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
     function _deployPriceOracles() private {
         // Deploy CurveEMAOracle for TOKE/ETH
         // Note: For TOKE/ETH pool, TOKE is coins[1] so priceOracleIndex = 0
-        curveOracle = new CurveEMAOracle(
-            CURVE_TOKE_ETH_POOL,
+        curveOracle = deployer.deploy_CurveEMAOracle(
+            buildCurveEMAOracleName(TOKEMAK_TOKE, WETH),
             TOKEMAK_TOKE,
+            CURVE_TOKE_ETH_POOL,
             0 // priceOracleIndex for TOKE (coins[1])
         );
         console.log("CurveEMAOracle (TOKE/ETH) deployed at:", address(curveOracle));
 
         // Deploy ChainlinkOracle for ETH/USD
-        chainlinkOracle = new ChainlinkOracle(WETH, USD, CHAINLINK_ETH_USD_FEED, CHAINLINK_MAX_STALENESS);
+        chainlinkOracle = deployer.deploy_ChainlinkOracle(
+            buildChainlinkOracleName(WETH, USD), WETH, USD, CHAINLINK_ETH_USD_FEED, CHAINLINK_MAX_STALENESS
+        );
         console.log("ChainlinkOracle (ETH/USD) deployed at:", address(chainlinkOracle));
 
         // Deploy CrossAdapter for TOKE -> ETH -> USD
         // CrossAdapter(base, cross, quote, oracleBaseCross, oracleCrossQuote)
-        crossAdapter = new CrossAdapter(
+        crossAdapter = deployer.deploy_CrossAdapter(
+            buildCrossAdapterName(TOKEMAK_TOKE, WETH, USD, "CurveEMA", "Chainlink"),
             TOKEMAK_TOKE, // base: TOKE
             WETH, // cross: ETH (intermediate asset)
             USD, // quote: USD
@@ -188,7 +201,9 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         console.log("CrossAdapter (TOKE/USD) deployed at:", address(crossAdapter));
 
         // Deploy OraclePriceChecker
-        priceChecker = new OraclePriceChecker(IPriceOracle(address(crossAdapter)), MAX_PRICE_DEVIATION_BPS);
+        priceChecker = deployer.deploy_OraclePriceChecker(
+            "Production_OraclePriceChecker_TOKE", IPriceOracle(address(crossAdapter)), MAX_PRICE_DEVIATION_BPS
+        );
         console.log("OraclePriceChecker deployed at:", address(priceChecker));
     }
 
@@ -214,7 +229,7 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         require(finalStatus == AssetRegistry.AssetStatus.ENABLED, "Asset not enabled in registry");
     }
 
-    function _updateBasketBitflag(BasketManager basketManager, address basketTokenUSD) private view {
+    function _updateBasketBitflag(BasketManager basketManager, address basketTokenUSD) private {
         // Get current basket assets
         address[] memory currentAssets = basketManager.basketAssets(basketTokenUSD);
         uint256 currentBitflag = BasketToken(basketTokenUSD).bitFlag();
@@ -235,9 +250,19 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
         console.log("  basketToken:", basketTokenUSD);
         console.log("  newBitflag:", newBitflag);
         console.log("  Compounder added at index:", currentAssets.length);
+
+        address timelock = masterRegistry.resolveNameToLatestAddress("TimelockController");
+        if (timelock == address(0)) {
+            timelock = deployer.getAddress(buildTimelockControllerName());
+        }
+        console.log("Timelock controller (required caller):", timelock);
+
+        vm.prank(timelock);
+        basketManager.updateBitFlag(basketTokenUSD, newBitflag);
+        console.log("Basket updated with new bitflag (pranked)");
     }
 
-    function _registerOracle(EulerRouter eulerRouter) private {
+    function _registerOracle() private {
         // Register oracle for compounder/USD pair
         address governor = eulerRouter.governor();
         console.log("EulerRouter governor:", governor);
@@ -255,48 +280,59 @@ contract ProductionDeployAutoUSDCompounder is DeployScript, Constants, StdAssert
     }
 
     function _deployAnchoredOracle() private {
-        // Get the base oracle (compounder/USDC from AutoPoolCompounderOracle)
-        // For anchored oracle, we need compounder -> USD pricing
-
-        // Primary: AutoPoolCompounderOracle provides compounder -> USDC -> USD
-        // Anchor: Can use the same oracle or a different source
-
         console.log("\n==== Creating Anchored Oracle for Compounder/USD ====");
-
-        // For production, we might want to create an anchored oracle with multiple sources
-        // For now, we'll use the AutoPoolCompounderOracle directly
 
         // Deploy CrossAdapter to convert from compounder/USDC to compounder/USD
         // Get USDC/USD oracle from EulerRouter
-        EulerRouter eulerRouter = EulerRouter(deployer.getAddress(buildEulerRouterName()));
         address usdcOracle = eulerRouter.getConfiguredOracle(ETH_USDC, USD);
         require(usdcOracle != address(0), "USDC/USD oracle not found");
 
+        // get primary USDC oracle and secondary USDC oracle from reading usdcOracle as AnchoredOracle
+        address usdcPrimaryOracle = AnchoredOracle(usdcOracle).primaryOracle();
+        address usdcAnchorOracle = AnchoredOracle(usdcOracle).anchorOracle();
+
         // Create CrossAdapter: compounder -> USDC (via oracle) -> USD (via USDC oracle)
         // CrossAdapter(base, cross, quote, oracleBaseCross, oracleCrossQuote)
-        CrossAdapter compounderUsdAdapter = new CrossAdapter(
+        CrossAdapter compounderUsdAdapterPyth = deployer.deploy_CrossAdapter(
+            buildCrossAdapterName(address(compounder), ETH_USDC, USD, "AutoPoolCompounder", "Pyth"),
             address(compounder), // base: compounder
             ETH_USDC, // cross: USDC (intermediate asset)
             USD, // quote: USD
             address(oracle), // oracleBaseCross: compounder -> USDC
-            usdcOracle // oracleCrossQuote: USDC -> USD
+            usdcPrimaryOracle // oracleCrossQuote: USDC -> USD
         );
-        console.log("CrossAdapter (Compounder/USD) deployed at:", address(compounderUsdAdapter));
+        console.log("Primary CrossAdapter (Compounder/USD) deployed at:", address(compounderUsdAdapterPyth));
+
+        // Create CrossAdapter: compounder -> USDC (via oracle) -> USD (via USDC oracle)
+        // CrossAdapter(base, cross, quote, oracleBaseCross, oracleCrossQuote)
+        CrossAdapter compounderUsdAdapterChainlink = deployer.deploy_CrossAdapter(
+            buildCrossAdapterName(address(compounder), ETH_USDC, USD, "AutoPoolCompounder", "Chainlink"),
+            address(compounder), // base: compounder
+            ETH_USDC, // cross: USDC (intermediate asset)
+            USD, // quote: USD
+            address(oracle), // oracleBaseCross: compounder -> USDC
+            usdcAnchorOracle // oracleCrossQuote: USDC -> USD
+        );
+        console.log("Secondary CrossAdapter (Compounder/USD) deployed at:", address(compounderUsdAdapterChainlink));
 
         // Deploy AnchoredOracle with the CrossAdapter as both primary and anchor (for simplicity)
         // In production, you might want different sources
-        AnchoredOracle anchoredOracle = new AnchoredOracle(
-            address(compounderUsdAdapter), // primary oracle
-            address(compounderUsdAdapter), // anchor oracle (same for now)
+        AnchoredOracle anchoredOracle = deployer.deploy_AnchoredOracle(
+            buildAnchoredOracleName(address(compounder), USD),
+            address(compounderUsdAdapterPyth), // primary oracle using pyth derived price
+            address(compounderUsdAdapterChainlink), // anchor oracle using chainlink derived price
             0.01e18 // 1% max divergence
         );
         console.log("AnchoredOracle (Compounder/USD) deployed at:", address(anchoredOracle));
 
         // Register the anchored oracle instead of the raw oracle
-        EulerRouter router = EulerRouter(deployer.getAddress(buildEulerRouterName()));
-        address governor = router.governor();
+        address governor = eulerRouter.governor();
+        console.log("EulerRouter governor:", governor);
+
+        // NOTE: On mainnet production this call MUST be executed by the EulerRouter governor multisig.
+        //       vm.prank impersonates the governor for local fork simulations only.
         vm.prank(governor);
-        router.govSetConfig(address(compounder), USD, address(anchoredOracle));
+        eulerRouter.govSetConfig(address(compounder), USD, address(anchoredOracle));
         console.log("Anchored oracle registered for compounder/USD pair");
     }
 
