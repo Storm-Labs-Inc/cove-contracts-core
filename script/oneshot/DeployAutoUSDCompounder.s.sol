@@ -24,19 +24,19 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
 
         console.log("\n==== Deploy Shared AutoUSD AutopoolCompounder ====");
 
-        address existing = deployer.getAddress(PRODUCTION_KEY);
+        address existing = deployer.getAddress(_PRODUCTION_KEY);
         if (existing != address(0)) {
             compounder = AutopoolCompounder(existing);
             console.log("AutopoolCompounder already deployed at:", existing);
         } else {
             compounder = deployer.deploy_AutopoolCompounder(
-                PRODUCTION_KEY, TOKEMAK_AUTOUSD, TOKEMAK_AUTOUSD_REWARDER, TOKEMAK_MILKMAN
+                _PRODUCTION_KEY, TOKEMAK_AUTOUSD, TOKEMAK_AUTOUSD_REWARDER, TOKEMAK_MILKMAN
             );
             console.log("AutopoolCompounder deployed at:", address(compounder));
         }
 
-        if (deployer.getAddress(STAGING_KEY) == address(0)) {
-            deployer.save(STAGING_KEY, address(compounder), ARTIFACT);
+        if (deployer.getAddress(_STAGING_KEY) == address(0)) {
+            deployer.save(_STAGING_KEY, address(compounder), _ARTIFACT);
             console.log("Staging alias saved for AutopoolCompounder");
         } else {
             console.log("Staging alias already present for AutopoolCompounder");

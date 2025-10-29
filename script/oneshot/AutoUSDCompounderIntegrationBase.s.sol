@@ -48,7 +48,6 @@ abstract contract AutoUSDCompounderIntegrationBase is
     string internal constant _SHARED_PREFIX = "Production_";
 
     address internal constant _SUSHISWAP_ROUTER = 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
-    address internal constant _SUSHISWAP_TOKE_WETH_PAIR = 0xd4e7a6e2D03e4e48DfC27dd3f46DF1c176647E38;
 
     AutopoolCompounder public compounder;
     AutoPoolCompounderOracle public compounderOracle;
@@ -87,7 +86,7 @@ abstract contract AutoUSDCompounderIntegrationBase is
     }
 
     function _sharedName(string memory suffix) internal pure returns (string memory) {
-        return string.concat(SHARED_PREFIX, suffix);
+        return string.concat(_SHARED_PREFIX, suffix);
     }
 
     function _localName(string memory suffix) internal view returns (string memory) {
@@ -127,20 +126,19 @@ abstract contract AutoUSDCompounderIntegrationBase is
         console.log("BasketManager:", address(basketManager));
         console.log("EulerRouter:", address(eulerRouter));
         console.log("BasketToken target:", basketToken);
-        console.log("SushiSwap Router:", SUSHISWAP_ROUTER);
-        console.log("Sushi TOKE/WETH pair:", SUSHISWAP_TOKE_WETH_PAIR);
+        console.log("SushiSwap Router:", _SUSHISWAP_ROUTER);
     }
 
     function _loadCompounder() internal {
-        string memory localKey = _localName(COMPOUNDER_SUFFIX);
-        string memory sharedKey = _sharedName(COMPOUNDER_SUFFIX);
+        string memory localKey = _localName(_COMPOUNDER_SUFFIX);
+        string memory sharedKey = _sharedName(_COMPOUNDER_SUFFIX);
 
         address compounderAddr = deployer.getAddress(localKey);
         if (compounderAddr == address(0)) {
             compounderAddr = deployer.getAddress(sharedKey);
             require(compounderAddr != address(0), "AutopoolCompounder not deployed");
             if (!_stringsEqual(localKey, sharedKey)) {
-                deployer.save(localKey, compounderAddr, AUTOCOMPOUNDER_ARTIFACT);
+                deployer.save(localKey, compounderAddr, _AUTOCOMPOUNDER_ARTIFACT);
             }
         }
 
@@ -164,18 +162,18 @@ abstract contract AutoUSDCompounderIntegrationBase is
     }
 
     function _ensureExpectedOutCalculator() internal {
-        string memory sharedKey = _sharedName(EXPECTED_OUT_SUFFIX);
-        string memory localKey = _localName(EXPECTED_OUT_SUFFIX);
+        string memory sharedKey = _sharedName(_EXPECTED_OUT_SUFFIX);
+        string memory localKey = _localName(_EXPECTED_OUT_SUFFIX);
 
         address expectedOut = deployer.getAddress(sharedKey);
         if (expectedOut == address(0)) {
             expectedOut = address(
-                deployer.deploy_UniV2ExpectedOutCalculator(sharedKey, "SushiSwap UniV2 ExpectedOut", SUSHISWAP_ROUTER)
+                deployer.deploy_UniV2ExpectedOutCalculator(sharedKey, "SushiSwap UniV2 ExpectedOut", _SUSHISWAP_ROUTER)
             );
         }
 
         if (!_stringsEqual(sharedKey, localKey) && deployer.getAddress(localKey) == address(0)) {
-            deployer.save(localKey, expectedOut, EXPECTED_OUT_ARTIFACT);
+            deployer.save(localKey, expectedOut, _EXPECTED_OUT_ARTIFACT);
         }
 
         expectedOutCalculator = UniV2ExpectedOutCalculator(expectedOut);
@@ -184,8 +182,8 @@ abstract contract AutoUSDCompounderIntegrationBase is
     }
 
     function _ensurePriceChecker() internal {
-        string memory sharedKey = _sharedName(PRICE_CHECKER_SUFFIX);
-        string memory localKey = _localName(PRICE_CHECKER_SUFFIX);
+        string memory sharedKey = _sharedName(_PRICE_CHECKER_SUFFIX);
+        string memory localKey = _localName(_PRICE_CHECKER_SUFFIX);
 
         address checker = deployer.getAddress(sharedKey);
         if (checker == address(0)) {
@@ -197,7 +195,7 @@ abstract contract AutoUSDCompounderIntegrationBase is
         }
 
         if (!_stringsEqual(sharedKey, localKey) && deployer.getAddress(localKey) == address(0)) {
-            deployer.save(localKey, checker, PRICE_CHECKER_ARTIFACT);
+            deployer.save(localKey, checker, _PRICE_CHECKER_ARTIFACT);
         }
 
         priceChecker = DynamicSlippageChecker(checker);
@@ -339,7 +337,7 @@ abstract contract AutoUSDCompounderIntegrationBase is
         require(ITokenizedStrategy(address(compounder)).asset() == TOKEMAK_AUTOUSD, "Invalid AutoUSD vault");
 
         require(bytes(priceChecker.NAME()).length != 0, "Price checker not initialised");
-        require(address(expectedOutCalculator.UNIV2_ROUTER()) == SUSHISWAP_ROUTER, "Unexpected router");
+        require(address(expectedOutCalculator.UNIV2_ROUTER()) == _SUSHISWAP_ROUTER, "Unexpected router");
 
         uint256 reportTimestamp = IAutopool(TOKEMAK_AUTOUSD).oldestDebtReporting();
         if (reportTimestamp > 0 && block.timestamp - reportTimestamp <= 24 hours) {

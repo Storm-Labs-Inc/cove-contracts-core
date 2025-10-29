@@ -15,8 +15,6 @@ import { CurveEMAOracle } from "euler-price-oracle/src/adapter/curve/CurveEMAOra
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
 
 import { BasketManager } from "src/BasketManager.sol";
-import { DynamicSlippageChecker } from "src/deps/milkman/pricecheckers/DynamicSlippageChecker.sol";
-import { UniV2ExpectedOutCalculator } from "src/deps/milkman/pricecheckers/UniV2ExpectedOutCalculator.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
 // Artifact constants
@@ -214,68 +212,6 @@ library CustomDeployerFunctions {
         bytes memory args = abi.encode(minDelay, proposers, executors, admin);
         return TimelockController(
             DefaultDeployerFunction.deploy(deployer, name, Artifact_TimelockController, args, options)
-        );
-    }
-
-    function deploy_DynamicSlippageChecker(
-        Deployer deployer,
-        string memory name,
-        string memory checkerName,
-        address expectedOutCalculator
-    )
-        internal
-        returns (DynamicSlippageChecker)
-    {
-        bytes memory args = abi.encode(checkerName, expectedOutCalculator);
-        return DynamicSlippageChecker(
-            DefaultDeployerFunction.deploy(deployer, name, Artifact_DynamicSlippageChecker, args)
-        );
-    }
-
-    function deploy_DynamicSlippageChecker(
-        Deployer deployer,
-        string memory name,
-        string memory checkerName,
-        address expectedOutCalculator,
-        DeployOptions memory options
-    )
-        internal
-        returns (DynamicSlippageChecker)
-    {
-        bytes memory args = abi.encode(checkerName, expectedOutCalculator);
-        return DynamicSlippageChecker(
-            DefaultDeployerFunction.deploy(deployer, name, Artifact_DynamicSlippageChecker, args, options)
-        );
-    }
-
-    function deploy_UniV2ExpectedOutCalculator(
-        Deployer deployer,
-        string memory name,
-        string memory calculatorName,
-        address router
-    )
-        internal
-        returns (UniV2ExpectedOutCalculator)
-    {
-        bytes memory args = abi.encode(calculatorName, router);
-        return UniV2ExpectedOutCalculator(
-            DefaultDeployerFunction.deploy(deployer, name, Artifact_UniV2ExpectedOutCalculator, args)
-        );
-    }
-
-    function deploy_UniV2ExpectedOutCalculator(
-        Deployer deployer,
-        string memory name,
-        string memory calculatorName,
-        address router,
-        DeployOptions memory options
-    )
-        internal
-        returns (UniV2ExpectedOutCalculator)
-    {
-        bytes memory args = abi.encode(calculatorName, router);
-        return UniV2ExpectedOutCalculator(
-            DefaultDeployerFunction.deploy(deployer, name, Artifact_UniV2ExpectedOutCalculator, args, options)
         );
     }
 
