@@ -111,7 +111,10 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "CurveEMAOracleUnderlying_", baseSymbol, "-", quoteSymbol);
     }
 
-    function buildChainedERC4626OracleName(address initialVault, address targetAsset)
+    function buildChainedERC4626OracleName(
+        address initialVault,
+        address targetAsset
+    )
         public
         view
         returns (string memory)
@@ -121,7 +124,10 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "ChainedERC4626Oracle_", vaultSymbol, "-", assetSymbol);
     }
 
-    function buildAutoPoolCompounderOracleName(address compounder, address baseAsset)
+    function buildAutoPoolCompounderOracleName(
+        address compounder,
+        address baseAsset
+    )
         public
         view
         returns (string memory)
@@ -172,6 +178,14 @@ abstract contract BuildDeploymentJsonNames is Constants {
             "-",
             crossOracleType
         );
+    }
+
+    function buildUniV2ExpectedOutCalculatorName(string memory label) public view returns (string memory) {
+        return string.concat(_buildPrefix(), "UniV2ExpectedOutCalculator_", label);
+    }
+
+    function buildDynamicSlippageCheckerName(string memory label) public view returns (string memory) {
+        return string.concat(_buildPrefix(), "DynamicSlippageChecker_", label);
     }
 
     function buildMasterRegistryName() public view returns (string memory) {
