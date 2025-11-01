@@ -19,8 +19,6 @@ import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
 import { AutoPoolCompounderOracle } from "src/oracles/AutoPoolCompounderOracle.sol";
 
-import { DynamicSlippageChecker } from "src/deps/milkman/pricecheckers/DynamicSlippageChecker.sol";
-import { UniV2ExpectedOutCalculator } from "src/deps/milkman/pricecheckers/UniV2ExpectedOutCalculator.sol";
 import { ITokenizedStrategy } from "tokenized-strategy-3.0.4/src/interfaces/ITokenizedStrategy.sol";
 
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
@@ -38,21 +36,17 @@ abstract contract AutoUSDCompounderIntegrationBase is
     using CustomDeployerFunctions for Deployer;
 
     string internal constant _COMPOUNDER_SUFFIX = "AutopoolCompounder_autoUSD";
-    string internal constant _PRICE_CHECKER_SUFFIX = "DynamicSlippageChecker_TOKE-USDC";
-    string internal constant _EXPECTED_OUT_SUFFIX = "UniV2ExpectedOutCalculator_SushiSwap";
+    // Price checker stack handled at deploy time; integration scripts treat the compounder as a plain asset
 
     string internal constant _AUTOCOMPOUNDER_ARTIFACT = "AutopoolCompounder.sol:AutopoolCompounder";
-    string internal constant _PRICE_CHECKER_ARTIFACT = "DynamicSlippageChecker.sol:DynamicSlippageChecker";
-    string internal constant _EXPECTED_OUT_ARTIFACT = "UniV2ExpectedOutCalculator.sol:UniV2ExpectedOutCalculator";
+    // Artifacts for price checker stack no longer needed here
 
     string internal constant _SHARED_PREFIX = "Production_";
 
-    address internal constant _SUSHISWAP_ROUTER = 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
+    // Router constant not required in integration flow
 
     AutopoolCompounder public compounder;
     AutoPoolCompounderOracle public compounderOracle;
-    DynamicSlippageChecker public priceChecker;
-    UniV2ExpectedOutCalculator public expectedOutCalculator;
     CrossAdapter public compounderUsdAdapterPrimary;
     CrossAdapter public compounderUsdAdapterAnchor;
     AnchoredOracle public anchoredOracle;
@@ -72,9 +66,7 @@ abstract contract AutoUSDCompounderIntegrationBase is
         _loadCoreContracts();
         _loadCompounder();
         _checkAutoUSDDebtFreshness();
-        _ensureExpectedOutCalculator();
-        _ensurePriceChecker();
-        _configureCompounder();
+        // Price checker stack already configured at deploy time
         _ensureCompounderOracle();
         _deployAnchoredOracleStack();
         _addToAssetRegistry();
@@ -126,7 +118,7 @@ abstract contract AutoUSDCompounderIntegrationBase is
         console.log("BasketManager:", address(basketManager));
         console.log("EulerRouter:", address(eulerRouter));
         console.log("BasketToken target:", basketToken);
-        console.log("SushiSwap Router:", _SUSHISWAP_ROUTER);
+        // No price checker router logs here
     }
 
     function _loadCompounder() internal {
@@ -161,59 +153,7 @@ abstract contract AutoUSDCompounderIntegrationBase is
         }
     }
 
-    function _ensureExpectedOutCalculator() internal {
-        string memory sharedKey = _sharedName(_EXPECTED_OUT_SUFFIX);
-        string memory localKey = _localName(_EXPECTED_OUT_SUFFIX);
-
-        address expectedOut = deployer.getAddress(sharedKey);
-        if (expectedOut == address(0)) {
-            expectedOut = address(
-                deployer.deploy_UniV2ExpectedOutCalculator(sharedKey, "SushiSwap UniV2 ExpectedOut", _SUSHISWAP_ROUTER)
-            );
-        }
-
-        if (!_stringsEqual(sharedKey, localKey) && deployer.getAddress(localKey) == address(0)) {
-            deployer.save(localKey, expectedOut, _EXPECTED_OUT_ARTIFACT);
-        }
-
-        expectedOutCalculator = UniV2ExpectedOutCalculator(expectedOut);
-        console.log("\n==== Price Checker Stack ====");
-        console.log("UniV2ExpectedOutCalculator:", expectedOut);
-    }
-
-    function _ensurePriceChecker() internal {
-        string memory sharedKey = _sharedName(_PRICE_CHECKER_SUFFIX);
-        string memory localKey = _localName(_PRICE_CHECKER_SUFFIX);
-
-        address checker = deployer.getAddress(sharedKey);
-        if (checker == address(0)) {
-            checker = address(
-                deployer.deploy_DynamicSlippageChecker(
-                    sharedKey, "SushiSwap TOKE->USDC Dynamic Slippage", address(expectedOutCalculator)
-                )
-            );
-        }
-
-        if (!_stringsEqual(sharedKey, localKey) && deployer.getAddress(localKey) == address(0)) {
-            deployer.save(localKey, checker, _PRICE_CHECKER_ARTIFACT);
-        }
-
-        priceChecker = DynamicSlippageChecker(checker);
-        console.log("DynamicSlippageChecker:", checker);
-    }
-
-    function _configureCompounder() internal {
-        console.log("\n==== Configuring Compounder ====");
-
-        vm.broadcast(msg.sender);
-        compounder.updatePriceChecker(TOKEMAK_TOKE, address(priceChecker));
-        console.log("Price checker set for TOKE via Milkman");
-
-        vm.broadcast(msg.sender);
-        ITokenizedStrategy(address(compounder)).setKeeper(_keeperAccount());
-        console.log("Keeper assigned:", _keeperAccount());
-        console.log("Max price deviation (bps):", compounder.maxPriceDeviationBps());
-    }
+    // Price checker and keeper configuration removed from integration flow
 
     function _ensureCompounderOracle() internal {
         console.log("\n==== Compounder Oracle Deployment ====");
@@ -336,8 +276,7 @@ abstract contract AutoUSDCompounderIntegrationBase is
         require(address(compounder.milkman()) == TOKEMAK_MILKMAN, "Invalid Milkman");
         require(ITokenizedStrategy(address(compounder)).asset() == TOKEMAK_AUTOUSD, "Invalid AutoUSD vault");
 
-        require(bytes(priceChecker.NAME()).length != 0, "Price checker not initialised");
-        require(address(expectedOutCalculator.UNIV2_ROUTER()) == _SUSHISWAP_ROUTER, "Unexpected router");
+        // Price checker stack is assumed configured at deployment time
 
         uint256 reportTimestamp = IAutopool(TOKEMAK_AUTOUSD).oldestDebtReporting();
         if (reportTimestamp > 0 && block.timestamp - reportTimestamp <= 24 hours) {

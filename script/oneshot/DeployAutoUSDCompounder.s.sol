@@ -7,6 +7,8 @@ import { console } from "forge-std/console.sol";
 
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { AutopoolCompounder } from "src/compounder/AutopoolCompounder.sol";
+import { DynamicSlippageChecker } from "src/deps/milkman/pricecheckers/DynamicSlippageChecker.sol";
+import { UniV2ExpectedOutCalculator } from "src/deps/milkman/pricecheckers/UniV2ExpectedOutCalculator.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 import { ITokenizedStrategy } from "tokenized-strategy-3.0.4/src/interfaces/ITokenizedStrategy.sol";
 
@@ -17,7 +19,19 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
     string internal constant _STAGING_KEY = "Staging_AutopoolCompounder_autoUSD";
     string internal constant _ARTIFACT = "AutopoolCompounder.sol:AutopoolCompounder";
 
+    // Price checker stack naming
+    string internal constant _PRICE_CHECKER_SUFFIX = "DynamicSlippageChecker_TOKE-USDC";
+    string internal constant _EXPECTED_OUT_SUFFIX = "UniV2ExpectedOutCalculator_SushiSwap";
+    string internal constant _PRICE_CHECKER_ARTIFACT = "DynamicSlippageChecker.sol:DynamicSlippageChecker";
+    string internal constant _EXPECTED_OUT_ARTIFACT = "UniV2ExpectedOutCalculator.sol:UniV2ExpectedOutCalculator";
+    string internal constant _SHARED_PREFIX = "Production_";
+    string internal constant _LOCAL_PREFIX = "Staging_";
+    // Mainnet Sushiswap router (for expected out calculator)
+    address internal constant _SUSHISWAP_ROUTER = 0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
+
     AutopoolCompounder public compounder;
+    DynamicSlippageChecker public priceChecker;
+    UniV2ExpectedOutCalculator public expectedOutCalculator;
 
     function deploy() public {
         deployer.setAutoBroadcast(true);
@@ -42,6 +56,67 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
             console.log("Staging alias already present for AutopoolCompounder");
         }
 
+        // Ensure ExpectedOut calculator (shared, with staging alias)
+        string memory sharedExpectedOutKey = string.concat(_SHARED_PREFIX, _EXPECTED_OUT_SUFFIX);
+        string memory localExpectedOutKey = string.concat(_LOCAL_PREFIX, _EXPECTED_OUT_SUFFIX);
+        address expectedOutAddr = deployer.getAddress(sharedExpectedOutKey);
+        if (expectedOutAddr == address(0)) {
+            expectedOutCalculator = deployer.deploy_UniV2ExpectedOutCalculator(
+                sharedExpectedOutKey, "SushiSwap UniV2 ExpectedOut", _SUSHISWAP_ROUTER
+            );
+            expectedOutAddr = address(expectedOutCalculator);
+            console.log("UniV2ExpectedOutCalculator deployed:", expectedOutAddr);
+        } else {
+            expectedOutCalculator = UniV2ExpectedOutCalculator(expectedOutAddr);
+            console.log("UniV2ExpectedOutCalculator reused:", expectedOutAddr);
+        }
+        if (deployer.getAddress(localExpectedOutKey) == address(0)) {
+            deployer.save(localExpectedOutKey, expectedOutAddr, _EXPECTED_OUT_ARTIFACT);
+            console.log("Staging alias saved for UniV2ExpectedOutCalculator");
+        }
+
+        // Ensure DynamicSlippageChecker (shared, with staging alias)
+        string memory sharedPriceCheckerKey = string.concat(_SHARED_PREFIX, _PRICE_CHECKER_SUFFIX);
+        string memory localPriceCheckerKey = string.concat(_LOCAL_PREFIX, _PRICE_CHECKER_SUFFIX);
+        address checkerAddr = deployer.getAddress(sharedPriceCheckerKey);
+        if (checkerAddr == address(0)) {
+            priceChecker = deployer.deploy_DynamicSlippageChecker(
+                sharedPriceCheckerKey, "SushiSwap TOKE->USDC Dynamic Slippage", address(expectedOutCalculator)
+            );
+            checkerAddr = address(priceChecker);
+            console.log("DynamicSlippageChecker deployed:", checkerAddr);
+        } else {
+            priceChecker = DynamicSlippageChecker(checkerAddr);
+            console.log("DynamicSlippageChecker reused:", checkerAddr);
+        }
+        if (deployer.getAddress(localPriceCheckerKey) == address(0)) {
+            deployer.save(localPriceCheckerKey, checkerAddr, _PRICE_CHECKER_ARTIFACT);
+            console.log("Staging alias saved for DynamicSlippageChecker");
+        }
+
+        // Configure compounder to use TOKE price checker
+        console.log("\n==== Configure Compounder Price Checkers ====");
+        // Broadcast as the management account
+        vm.broadcast(msg.sender);
+        compounder.updatePriceChecker(TOKEMAK_TOKE, checkerAddr);
+        console.log("Price checker set for TOKE:", checkerAddr);
+
+        // Transfer management to the shared production community multisig
+        address currentMgmt = ITokenizedStrategy(address(compounder)).management();
+        if (currentMgmt != COVE_COMMUNITY_MULTISIG) {
+            console.log("\n==== Transfer Management ====");
+            vm.broadcast(msg.sender);
+            ITokenizedStrategy(address(compounder)).setPendingManagement(COVE_COMMUNITY_MULTISIG);
+            console.log("Pending management set to:", COVE_COMMUNITY_MULTISIG);
+            // Attempt acceptance (will succeed on forks with impersonation; ignored otherwise)
+            vm.broadcast(COVE_COMMUNITY_MULTISIG);
+            try ITokenizedStrategy(address(compounder)).acceptManagement() {
+                console.log("Management accepted by community multisig");
+            } catch {
+                console.log(unicode"⚠️ Pending management set; acceptance must be executed by the multisig");
+            }
+        }
+
         _verifyDeployment();
     }
 
@@ -50,6 +125,7 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
         require(ITokenizedStrategy(address(compounder)).asset() == TOKEMAK_AUTOUSD, "Incorrect autopool asset");
         require(address(compounder.rewarder()) == TOKEMAK_AUTOUSD_REWARDER, "Incorrect rewarder");
         require(address(compounder.milkman()) == TOKEMAK_MILKMAN, "Incorrect Milkman");
+        require(compounder.priceCheckerByToken(TOKEMAK_TOKE) != address(0), "Price checker not set for TOKE");
 
         console.log(unicode"\n✅ Shared AutopoolCompounder configuration verified");
     }
