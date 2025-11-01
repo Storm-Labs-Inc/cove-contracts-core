@@ -1047,7 +1047,6 @@ contract BasketToken is
     function previewRedeem(uint256) public pure override returns (uint256) {
         revert();
     }
-
     // solhint-enable custom-errors,gas-custom-errors,reason-string
 
     /// @notice Returns true if the redemption request's fallback has been triggered.
