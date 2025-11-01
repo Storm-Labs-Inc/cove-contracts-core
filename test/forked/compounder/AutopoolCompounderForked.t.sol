@@ -301,7 +301,9 @@ contract AutopoolCompounderForkedTest is BaseTest {
         bytes memory swapData = _performMilkmanSwap(2e18);
         (,,,,,,,, bytes memory priceCheckerData) =
             abi.decode(swapData, (address, address, uint256, address, address, address, bytes32, address, bytes));
-        assertEq(priceCheckerData, abi.encode(newDeviation), "price checker data should encode max deviation");
+        assertEq(
+            priceCheckerData, abi.encode(newDeviation, bytes("")), "price checker data should encode max deviation"
+        );
     }
 
     function _performMilkmanSwap(uint256 rewardAmount) internal returns (bytes memory) {

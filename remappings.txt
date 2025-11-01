@@ -5,6 +5,7 @@ clones-with-immutable-args/=dependencies/clones-with-immutable-args-1.1.1/src/
 create3-factory/=dependencies/lifinance-create3-factory-0/
 euler-price-oracle/=dependencies/euler-price-oracle-1/
 forge-std/=dependencies/forge-std-1.9.6/src/
+milkman/=dependencies/milkman-1/
 token-plugins-upgradeable/=dependencies/token-plugins-upgradeable-1/
 @1inch/solidity-utils/=dependencies/solidity-utils-5.3.0/
 @1inch/farming/=dependencies/farming-3.2.0/

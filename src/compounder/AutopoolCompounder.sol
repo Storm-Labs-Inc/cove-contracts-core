@@ -209,7 +209,7 @@ contract AutopoolCompounder is BaseStrategy {
             // CoW docs (docs.cow.fi/app-data) mark appData as optional metadata, so bytes32(0) opts us out for now.
             bytes32(0),
             priceChecker,
-            abi.encode(maxPriceDeviationBps)
+            abi.encode(maxPriceDeviationBps, bytes(""))
         );
     }
 

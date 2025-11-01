@@ -42,7 +42,7 @@ runs:
     - name: Install Foundry
       uses: penandlim/foundry-toolchain@master
       with:
-        version: stable
+        version: v1.3.6
 
     - name: Install Soldeer dependencies
       run: forge soldeer install
