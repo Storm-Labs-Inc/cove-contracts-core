@@ -42,8 +42,8 @@ contract SetManagementFee is DeployScript, Constants, BatchScript, BuildDeployme
         bytes[] memory calldatas = new bytes[](1);
         calldatas[0] = abi.encodeCall(basketManager.setManagementFee, (0x9f53dA1E245207e163E71DFC45dAFaB2d01770d0, 200)); // in
             // bps, 2%
-            // addToBatch(timelock, 0, abi.encodeCall(TimelockController.scheduleBatch, (targets, values, calldatas,
-            // bytes32(0), bytes32(0), 0)));
+        // addToBatch(timelock, 0, abi.encodeCall(TimelockController.scheduleBatch, (targets, values, calldatas,
+        // bytes32(0), bytes32(0), 0)));
 
         // if (encodedTxns.length > 0) {
         //     executeBatch(true);
