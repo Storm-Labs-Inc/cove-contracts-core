@@ -37,12 +37,11 @@
 
 4. Validate in logs
 
-   - Price infra deployed once and set: `UniV2ExpectedOutCalculator`, `DynamicSlippageChecker`,
-     `compounder.updatePriceChecker(...)`.
-   - Slippage bound: `compounder.setMaxPriceDeviation(500)` (5%).
-   - Roles: `ITokenizedStrategy.setKeeper(...)`, `setEmergencyAdmin(...)` match constants.
-   - Management: `setPendingManagement(COVE_COMMUNITY_MULTISIG)`; acceptance may be manual on live net.
-   - Price sanity: 10,000 TOKE→USDC `expectedOut > 0` and `priceChecker.checkPrice(...)` passes.
+   - Required infra deployed once and wired (e.g., expected-out calculator, slippage/price checker) if applicable.
+   - Risk controls configured (e.g., max slippage/deviation) to intended values.
+   - Roles/permissions set per constants (keeper, emergency admin, AccessControl roles as applicable).
+   - Ownership handover initiated (e.g., set pending owner / timelock); acceptance may be manual on live net.
+   - Sanity check: representative swap/route produces non-zero expectedOut and price checker validation passes.
 
 5. Common pitfalls
    - Use a real sender for live runs: `--sender <EOA>` or `FOUNDRY_SENDER`.
@@ -50,7 +49,7 @@
 
 Notes
 
-- Integration scripts treat `AutopoolCompounder` as already configured; do not (re)deploy price/slippage infra.
+- Integration scripts should treat the deployed target as already configured; avoid redeploying shared infra.
 - Git hygiene: `git diff` → `pnpm lint:fix` → `git commit -S` → `git push --force-with-lease`.
 
 ## Coding Style & Naming Conventions
@@ -74,4 +73,4 @@ Notes
 ## Security & Configuration Tips
 
 - Mainnet: `DEPLOYMENT_CONTEXT=1`, real `--sender`, `API_KEY_ETHERSCAN` for verification.
-- Post-deploy: multisig `acceptManagement()`; `forge clean` as needed.
+- Post-deploy: finalize ownership/role acceptance per governance (multisig/timelock); `forge clean` as needed.
