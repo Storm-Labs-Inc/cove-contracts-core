@@ -101,6 +101,11 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
         compounder.updatePriceChecker(TOKEMAK_TOKE, checkerAddr);
         console.log("Price checker set for TOKE:", checkerAddr);
 
+        // Broadcast setting the slippage tolerance
+        vm.broadcast(msg.sender);
+        compounder.setMaxPriceDeviation(500); // 5%
+        console.log("Slippage tolerance set to 5%");
+
         // Configure keeper and emergency admin
         console.log("\n==== Configure Keeper and Emergency Admin ====");
         vm.broadcast(msg.sender);
@@ -118,13 +123,9 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
             vm.broadcast(msg.sender);
             ITokenizedStrategy(address(compounder)).setPendingManagement(COVE_COMMUNITY_MULTISIG);
             console.log("Pending management set to:", COVE_COMMUNITY_MULTISIG);
-            // Attempt acceptance (will succeed on forks with impersonation; ignored otherwise)
-            vm.broadcast(COVE_COMMUNITY_MULTISIG);
-            try ITokenizedStrategy(address(compounder)).acceptManagement() {
-                console.log("Management accepted by community multisig");
-            } catch {
-                console.log(unicode"⚠️ Pending management set; acceptance must be executed by the multisig");
-            }
+            // Attempt acceptance
+            vm.prank(COVE_COMMUNITY_MULTISIG);
+            ITokenizedStrategy(address(compounder)).acceptManagement();
         }
 
         _verifyDeployment();
