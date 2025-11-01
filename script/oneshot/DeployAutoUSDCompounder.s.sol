@@ -20,7 +20,7 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
     string internal constant _ARTIFACT = "AutopoolCompounder.sol:AutopoolCompounder";
 
     // Price checker stack naming
-    string internal constant _PRICE_CHECKER_SUFFIX = "DynamicSlippageChecker_TOKE-USDC";
+    string internal constant _PRICE_CHECKER_SUFFIX = "DynamicSlippageChecker_SushiSwap";
     string internal constant _EXPECTED_OUT_SUFFIX = "UniV2ExpectedOutCalculator_SushiSwap";
     string internal constant _PRICE_CHECKER_ARTIFACT = "DynamicSlippageChecker.sol:DynamicSlippageChecker";
     string internal constant _EXPECTED_OUT_ARTIFACT = "UniV2ExpectedOutCalculator.sol:UniV2ExpectedOutCalculator";
