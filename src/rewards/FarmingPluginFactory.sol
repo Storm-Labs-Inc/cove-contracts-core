@@ -62,7 +62,9 @@ contract FarmingPluginFactory is AccessControlEnumerable {
         _setDefaultPluginOwner(_defaultPluginOwner);
     }
 
-    /*═════════════════════════════════════  VIEW FUNCTIONS  ═════════════════════════════════════*/
+    /*═════════════════════════════════════
+    VIEW FUNCTIONS
+    ═════════════════════════════════════*/
 
     /// @notice All plugins ever created.
     /// @return allPlugins Array of all farming plugins.
@@ -88,7 +90,8 @@ contract FarmingPluginFactory is AccessControlEnumerable {
         return _CREATE3_FACTORY.getDeployed(address(this), salt);
     }
 
-    /*════════════════════════════════  ADMIN FUNCTIONS  ════════════════════════════════*/
+    /*════════════════════════════════  ADMIN FUNCTIONS
+    ════════════════════════════════*/
 
     /// @notice Set the default plugin owner.
     /// @param pluginOwner Address that will own the plugin (controls start/stop farming & rescue).
@@ -96,7 +99,9 @@ contract FarmingPluginFactory is AccessControlEnumerable {
         _setDefaultPluginOwner(pluginOwner);
     }
 
-    /*══════════════════════════════════  DEPLOYMENT FUNCTION  ═══════════════════════════════════*/
+    /*══════════════════════════════════  DEPLOYMENT
+    FUNCTION
+    ═══════════════════════════════════*/
 
     /// @notice Deploy a new farming plugin with the default plugin owner.
     /// @param stakingToken  ERC-20 token users deposit (must support plugins).
@@ -130,7 +135,9 @@ contract FarmingPluginFactory is AccessControlEnumerable {
         return _deployFarmingPlugin(stakingToken, rewardsToken, pluginOwner);
     }
 
-    /*════════════════════════════════════  INTERNAL FUNCTIONS  ════════════════════════════════════*/
+    /*════════════════════════════════════
+    INTERNAL FUNCTIONS
+    ════════════════════════════════════*/
 
     /// @notice Set the default plugin owner.
     /// @param pluginOwner Address that will own the plugin (controls start/stop farming & rescue).

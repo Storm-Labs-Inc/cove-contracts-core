@@ -2048,9 +2048,9 @@ contract BasketManagerTest is BaseTest {
         // Positive threshold: +5.53% (+0.0553e18)
         console.log("Negative buy asset threshold: ", negativeBuyAssetThreshold); // -45226130653266333
         console.log("Positive buy asset threshold: ", positiveBuyAssetThreshold); // 55276381909547738
-        // Price deviation thresholds for root asset (sell asset from external market) that trigger a revert
-        // Negative threshold: -5.24% (-0.0524e18)
-        // Positive threshold: +4.74% (+0.0474e18)
+            // Price deviation thresholds for root asset (sell asset from external market) that trigger a revert
+            // Negative threshold: -5.24% (-0.0524e18)
+            // Positive threshold: +4.74% (+0.0474e18)
         console.log("Negative sell asset threshold: ", negativeSellAssetThreshold); //-52380952380952381
         console.log("Positive sell asset threshold: ", positiveSellAssetThreshold); // 47368421052631580
     }

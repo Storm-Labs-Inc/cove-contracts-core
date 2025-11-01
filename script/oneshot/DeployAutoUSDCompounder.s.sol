@@ -117,16 +117,12 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
         console.log("Emergency admin set:", COVE_OPS_MULTISIG);
 
         // Transfer management to the shared production community multisig
-        address currentMgmt = ITokenizedStrategy(address(compounder)).management();
-        if (currentMgmt != COVE_COMMUNITY_MULTISIG) {
-            console.log("\n==== Transfer Management ====");
-            vm.broadcast(msg.sender);
-            ITokenizedStrategy(address(compounder)).setPendingManagement(COVE_COMMUNITY_MULTISIG);
-            console.log("Pending management set to:", COVE_COMMUNITY_MULTISIG);
-            // Attempt acceptance
-            vm.prank(COVE_COMMUNITY_MULTISIG);
-            ITokenizedStrategy(address(compounder)).acceptManagement();
-        }
+        vm.broadcast(msg.sender);
+        ITokenizedStrategy(address(compounder)).setPendingManagement(COVE_COMMUNITY_MULTISIG);
+        console.log("Pending management set to:", COVE_COMMUNITY_MULTISIG);
+        // Attempt acceptance
+        vm.prank(COVE_COMMUNITY_MULTISIG);
+        ITokenizedStrategy(address(compounder)).acceptManagement();
 
         _verifyDeployment();
     }
@@ -143,6 +139,21 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
         require(
             ITokenizedStrategy(address(compounder)).emergencyAdmin() == COVE_OPS_MULTISIG, "Emergency admin not set"
         );
+
+        // Validate TOKE->USDC pricing via the price checker stack
+        uint256 probeAmountIn = 10_000e18; // 10,000 TOKE (18 decimals)
+        uint256 expectedOut = expectedOutCalculator.getExpectedOut(probeAmountIn, TOKEMAK_TOKE, ETH_USDC, bytes(""));
+        console.log("10,000 TOKE -> USDC expectedOut: ", expectedOut / 1e6, " USDC");
+        require(expectedOut > 0, "TOKE/USDC expectedOut is zero");
+        bool priceOk = priceChecker.checkPrice(
+            probeAmountIn,
+            TOKEMAK_TOKE,
+            ETH_USDC,
+            0, // feeAmount
+            expectedOut,
+            abi.encode(uint256(500), bytes("")) // 5% allowed slippage, no extra data
+        );
+        require(priceOk, "Price checker rejected TOKE->USDC quote");
 
         console.log(unicode"\n✅ Shared AutopoolCompounder configuration verified");
     }

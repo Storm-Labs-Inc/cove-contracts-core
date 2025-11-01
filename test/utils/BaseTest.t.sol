@@ -180,8 +180,8 @@ abstract contract BaseTest is Test, Constants {
 
             mstore(0x14, keccak256(0x0b, 0x55)) // Store the proxy's address.
             mstore(0x40, m) // Restore the free memory pointer.
-            // 0xd6 = 0xc0 (short RLP prefix) + 0x16 (length of: 0x94 ++ proxy ++ 0x01).
-            // 0x94 = 0x80 + 0x14 (0x14 = the length of an address, 20 bytes, in hex).
+                // 0xd6 = 0xc0 (short RLP prefix) + 0x16 (length of: 0x94 ++ proxy ++ 0x01).
+                // 0x94 = 0x80 + 0x14 (0x14 = the length of an address, 20 bytes, in hex).
             mstore(0x00, 0xd694)
             mstore8(0x34, 0x01) // Nonce of the proxy contract (1).
             deployed := and(keccak256(0x1e, 0x17), 0xffffffffffffffffffffffffffffffffffffffff)

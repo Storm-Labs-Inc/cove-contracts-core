@@ -332,6 +332,7 @@ library BasketManagerUtils {
         // slither-disable-next-line reentrancy-events
         emit RebalanceProposed(self.rebalanceStatus.epoch, baskets, basketTargetWeights, basketAssets, basketHash);
     }
+
     // solhint-enable code-complexity
 
     // @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
@@ -888,13 +889,13 @@ library BasketManagerUtils {
             // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.basketBalanceOf[trade.fromBasket][trade.sellToken] =
                 slot.basketBalances[info.fromBasketIndex][info.sellTokenAssetIndex] -= trade.sellAmount; // nosemgrep
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.basketBalanceOf[trade.fromBasket][trade.buyToken] =
                 slot.basketBalances[info.fromBasketIndex][info.buyTokenAssetIndex] += info.netBuyAmount; // nosemgrep
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.basketBalanceOf[trade.toBasket][trade.buyToken] =
                 slot.basketBalances[info.toBasketIndex][info.toBasketBuyTokenIndex] -= initialBuyAmount; // nosemgrep
-            // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
             self.basketBalanceOf[trade.toBasket][trade.sellToken] =
                 slot.basketBalances[info.toBasketIndex][info.toBasketSellTokenIndex] += info.netSellAmount; // nosemgrep
             unchecked {
