@@ -101,6 +101,16 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
         compounder.updatePriceChecker(TOKEMAK_TOKE, checkerAddr);
         console.log("Price checker set for TOKE:", checkerAddr);
 
+        // Configure keeper and emergency admin
+        console.log("\n==== Configure Keeper and Emergency Admin ====");
+        vm.broadcast(msg.sender);
+        ITokenizedStrategy(address(compounder)).setKeeper(PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT);
+        console.log("Keeper set:", PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT);
+
+        vm.broadcast(msg.sender);
+        ITokenizedStrategy(address(compounder)).setEmergencyAdmin(COVE_OPS_MULTISIG);
+        console.log("Emergency admin set:", COVE_OPS_MULTISIG);
+
         // Transfer management to the shared production community multisig
         address currentMgmt = ITokenizedStrategy(address(compounder)).management();
         if (currentMgmt != COVE_COMMUNITY_MULTISIG) {
@@ -126,6 +136,12 @@ contract DeployAutoUSDCompounder is DeployScript, Constants, StdAssertions {
         require(address(compounder.rewarder()) == TOKEMAK_AUTOUSD_REWARDER, "Incorrect rewarder");
         require(address(compounder.milkman()) == TOKEMAK_MILKMAN, "Incorrect Milkman");
         require(compounder.priceCheckerByToken(TOKEMAK_TOKE) != address(0), "Price checker not set for TOKE");
+        require(
+            ITokenizedStrategy(address(compounder)).keeper() == PRODUCTION_COVE_SILVERBACK_AWS_ACCOUNT, "Keeper not set"
+        );
+        require(
+            ITokenizedStrategy(address(compounder)).emergencyAdmin() == COVE_OPS_MULTISIG, "Emergency admin not set"
+        );
 
         console.log(unicode"\n✅ Shared AutopoolCompounder configuration verified");
     }
