@@ -13,6 +13,7 @@ import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/Chainl
 
 import { CurveEMAOracle } from "euler-price-oracle/src/adapter/curve/CurveEMAOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketManagerUtils } from "src/libraries/BasketManagerUtils.sol";
 import { ERC20Mock } from "test/utils/mocks/ERC20Mock.sol";
@@ -28,6 +29,8 @@ string constant Artifact_ERC20Mock = "ERC20Mock.sol:ERC20Mock";
 string constant Artifact_EulerRouter = "EulerRouter.sol:EulerRouter";
 string constant Artifact_BasketManager = "BasketManager.sol:BasketManager";
 string constant Artifact_BasketManagerUtils = "BasketManagerUtils.sol:BasketManagerUtils";
+string constant Artifact_DynamicSlippageChecker = "DynamicSlippageChecker.sol:DynamicSlippageChecker";
+string constant Artifact_UniV2ExpectedOutCalculator = "UniV2ExpectedOutCalculator.sol:UniV2ExpectedOutCalculator";
 
 Vm constant vm = Vm(address(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D));
 
