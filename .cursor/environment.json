@@ -1,0 +1,8 @@
+{
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "install": "forge soldeer install --clean && pnpm install",
+  "terminals": []
+}
