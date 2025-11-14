@@ -30,13 +30,12 @@ contract StagingRedeployCoWSwapAdapterAppData is DeployScript, Constants, BuildD
         address basketManager = deployer.getAddress(buildBasketManagerName());
         bytes32 appDataHash = STAGING_COWSWAP_APPDATA_HASH;
         address timelock = deployer.getAddress(buildTimelockControllerName());
-        address newCloneImplementation =
-            address(deployer.deploy_CoWSwapCloneWithAppData(string.concat(_buildPrefix(), _IMPLEMENTATION_SUFFIX)));
+        address newCloneImplementation = address(
+            deployer.deploy_CoWSwapCloneWithAppData(string.concat(_buildPrefix(), _IMPLEMENTATION_SUFFIX), appDataHash)
+        );
 
         address newAdapter = address(
-            deployer.deploy_CoWSwapAdapterWithAppData(
-                string.concat(_buildPrefix(), _ADAPTER_SUFFIX), newCloneImplementation, appDataHash
-            )
+            deployer.deploy_CoWSwapAdapter(string.concat(_buildPrefix(), _ADAPTER_SUFFIX), newCloneImplementation)
         );
 
         console2.log("Previous adapter:", oldAdapter);

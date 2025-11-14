@@ -15,6 +15,8 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
     using SafeERC20 for IERC20;
 
     /// CONSTANTS ///
+    /// @notice The appData hash that is submitted for the orders.
+    bytes32 public immutable appDataHash;
     bytes4 internal constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
     bytes4 internal constant _ERC1271_NON_MAGIC_VALUE = 0xffffffff;
 
@@ -39,6 +41,10 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
 
     /// ERRORS ///
     error CallerIsNotOperatorOrReceiver();
+
+    constructor(bytes32 appDataHash_) {
+        appDataHash = appDataHash_;
+    }
 
     /// @notice Initializes the CoWSwapClone contract by approving the vault relayer to spend the maximum amount of the
     /// sell token.
@@ -90,7 +96,7 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
-        if (order.appData != appDataHash()) {
+        if (order.appData != appDataHash) {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
@@ -151,7 +157,6 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
     // 104: validTo (uint32)
     // 112: receiver (address)
     // 132: operator (address)
-    // 152: appDataHash (bytes32)
     function sellToken() public pure returns (address) {
         return _getArgAddress(0);
     }
@@ -178,10 +183,6 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
 
     function operator() public pure returns (address) {
         return _getArgAddress(132);
-    }
-
-    function appDataHash() public pure returns (bytes32) {
-        return bytes32(_getArgUint256(152));
     }
 }
 // slither-disable-end locked-ether

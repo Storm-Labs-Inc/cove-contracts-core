@@ -26,7 +26,7 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
 
     function setUp() public {
         // Deploy the CoWSwapCloneWithAppData implementation
-        impl = new CoWSwapCloneWithAppData();
+        impl = new CoWSwapCloneWithAppData(_DEFAULT_APP_DATA);
     }
 
     function testFuzz_clone(
@@ -44,9 +44,7 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
     {
         clone = ClonesWithImmutableArgs.clone3(
             address(impl),
-            abi.encodePacked(
-                sellToken, buyToken, sellAmount, minBuyAmount, uint64(validTo), receiver, operator, _DEFAULT_APP_DATA
-            ),
+            abi.encodePacked(sellToken, buyToken, sellAmount, minBuyAmount, uint64(validTo), receiver, operator),
             salt
         );
         CoWSwapCloneWithAppData cloneInstance = CoWSwapCloneWithAppData(clone);
