@@ -42,7 +42,8 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
     /// ERRORS ///
     error CallerIsNotOperatorOrReceiver();
 
-    constructor(bytes32 appDataHash_) {
+    // slither-disable-next-line missing-zero-check
+    constructor(bytes32 appDataHash_) payable {
         appDataHash = appDataHash_;
     }
 
