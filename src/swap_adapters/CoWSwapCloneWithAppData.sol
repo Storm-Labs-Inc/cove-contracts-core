@@ -173,22 +173,32 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
     // 104: validTo (uint32)
     // 112: receiver (address)
     // 132: operator (address)
+    /// @notice Returns the address of the sell token.
+    /// @return The address of the sell token.
     function sellToken() public pure returns (address) {
         return _getArgAddress(0);
     }
 
+    /// @notice Returns the address of the buy token.
+    /// @return The address of the buy token.
     function buyToken() public pure returns (address) {
         return _getArgAddress(20);
     }
 
+    /// @notice Returns the number of sell tokens included in the order.
+    /// @return The amount of sell tokens.
     function sellAmount() public pure returns (uint256) {
         return _getArgUint256(40);
     }
 
+    /// @notice Returns the minimum number of buy tokens that must be received for the order to be valid.
+    /// @return The minimum acceptable buy amount.
     function minBuyAmount() public pure returns (uint256) {
         return _getArgUint256(72);
     }
 
+    /// @notice Returns the timestamp until which the order is valid.
+    /// @return The Unix timestamp (seconds) for the order expiry.
     function validTo() public pure returns (uint32) {
         return uint32(_getArgUint64(104));
     }
