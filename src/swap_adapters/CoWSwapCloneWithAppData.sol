@@ -9,7 +9,22 @@ import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
 // slither-disable-start locked-ether
 /// @title CoWSwapCloneWithAppData
-/// @notice Variant of `CoWSwapClone` that requires a non-zero CoW Protocol appData hash for order validation.
+/// @notice Variant of `CoWSwapClone` that enforces a fixed CoW Protocol appData hash for order validation. The hash
+/// is supplied when the implementation is deployed so every clone derived from it inherits the same metadata and
+/// remains backward-compatible with the existing adapter cloning flow.
+///
+/// The clone should be initialized with the following packed bytes, in this exact order:
+/// - `sellToken` (address): The address of the token to be sold.
+/// - `buyToken` (address): The address of the token to be bought.
+/// - `sellAmount` (uint256): The amount of the sell token.
+/// - `buyAmount` (uint256): The minimum amount of the buy token.
+/// - `validTo` (uint64): The timestamp until which the order is valid.
+/// - `operator` (address): The address of the operator allowed to manage the trade.
+/// - `receiver` (address): The address that will receive the bought tokens.
+///
+/// To use this contract, deploy the implementation with the desired `appData` hash, then create clones using the
+/// `ClonesWithImmutableArgs` library with the above immutable arguments packed into a single bytes array. After
+/// deployment, call `initialize()` to set up the necessary token approvals.
 contract CoWSwapCloneWithAppData is IERC1271, Clone {
     using GPv2Order for GPv2Order.Data;
     using SafeERC20 for IERC20;
@@ -47,8 +62,8 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
         appDataHash = appDataHash_;
     }
 
-    /// @notice Initializes the CoWSwapClone contract by approving the vault relayer to spend the maximum amount of the
-    /// sell token.
+    /// @notice Initializes the CoWSwap clone by approving the vault relayer to spend the maximum amount of the sell
+    /// token.
     /// @dev This function should be called after the clone is deployed to set up the necessary token approvals.
     function initialize() external payable {
         IERC20(sellToken()).forceApprove(_VAULT_RELAYER, type(uint256).max);
@@ -178,10 +193,15 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
         return uint32(_getArgUint64(104));
     }
 
+    /// @notice Returns the address of the receiver.
+    /// @return The address of the receiver.
     function receiver() public pure returns (address) {
         return _getArgAddress(112);
     }
 
+    /// @notice Returns the address of the operator who can claim the tokens after the trade has settled. The operator
+    /// can also cancel the trade before it has settled by calling the claim function before the trade has settled.
+    /// @return The address of the operator.
     function operator() public pure returns (address) {
         return _getArgAddress(132);
     }
