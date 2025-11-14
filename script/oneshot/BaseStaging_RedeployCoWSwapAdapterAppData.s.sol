@@ -29,7 +29,7 @@ contract BaseStagingRedeployCoWSwapAdapterAppData is DeployScript, Constants, Bu
         address oldAdapter = deployer.getAddress(buildCowSwapAdapterName());
         address basketManager = deployer.getAddress(buildBasketManagerName());
         address timelock = deployer.getAddress(buildTimelockControllerName());
-        bytes32 appDataHash = STAGING_COWSWAP_APPDATA_HASH;
+        bytes32 appDataHash = BASE_STAGING_COWSWAP_APPDATA_HASH;
 
         address newCloneImplementation = address(
             deployer.deploy_CoWSwapCloneWithAppData(string.concat(_buildPrefix(), _IMPLEMENTATION_SUFFIX), appDataHash)
