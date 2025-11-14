@@ -20,6 +20,16 @@ contract Constants is CommonBase {
     bytes4 public constant ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
     bytes4 public constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
+    // CoWSwap appData
+    bytes32 public constant STAGING_COWSWAP_APPDATA_HASH =
+        0xeb584a62763e79eeb1ead9afa1a107d0cd1afd5f8a872939b3d9fdce92733dc9;
+    bytes32 public constant PRODUCTION_COWSWAP_APPDATA_HASH =
+        0xc723e76767ed11bb2ebf1314f3edd33703a1ed3d9305f33a33678f9b5876cce8;
+    string public constant STAGING_COWSWAP_APPDATA_JSON =
+        "{\"appCode\":\"StormLabs BasketManager\",\"environment\":\"ETH-staging\",\"metadata\":{\"hooks\":{\"version\":\"0.2.0\"}},\"version\":\"1.8.0\"}";
+    string public constant PRODUCTION_COWSWAP_APPDATA_JSON =
+        "{\"appCode\":\"StormLabs BasketManager\",\"environment\":\"ETH-production\",\"metadata\":{\"hooks\":{\"version\":\"0.2.0\"}},\"version\":\"1.8.0\"}";
+
     // PERMIT (ERC-2612)
     // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
