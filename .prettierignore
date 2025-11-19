@@ -1,1 +1,19 @@
+# directories
+**/broadcast
+**/cache
+**/lib
+**/out
+**/node_modules
+**/generated
+
+# files
+*.env
+*.log
+.pnp.*
+coverage.json
+
+# pnpm
+pnpm-lock.yaml
+
+# appdata
 assets/appdata/*.json

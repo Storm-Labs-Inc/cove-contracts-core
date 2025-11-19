@@ -72,9 +72,9 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
         );
     }
 
-    /// @notice Validates the signature of an order. The order is considered valid if the order digest matches the
-    /// stored order digest. Second parameter is not used.
+    /// @notice Validates the signature of an order by comparing the order digest and verifying all order parameters.
     /// @param orderDigest The digest of the order to validate.
+    /// @param encodedOrder The ABI-encoded GPv2Order.Data to validate.
     /// @return A magic value if the signature is valid, otherwise a non-magic value.
     // solhint-disable-next-line code-complexity
     function isValidSignature(
@@ -170,7 +170,7 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
     // 20: buyToken (address)
     // 40: sellAmount (uint256)
     // 72: minBuyAmount (uint256)
-    // 104: validTo (uint32)
+    // 104: validTo (uint64)
     // 112: receiver (address)
     // 132: operator (address)
     /// @notice Returns the address of the sell token.
