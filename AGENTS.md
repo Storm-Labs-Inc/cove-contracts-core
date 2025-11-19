@@ -13,8 +13,8 @@
 
 ## Build, Test, and Development Commands
 
-- `pnpm build`: regenerate deployer wrappers, must be run to generate the deployer functions before using being able to
-  use them.
+- `pnpm build`: regenerate deployer wrappers, must be run to generate the deployer functions before being able to use
+  them.
 - `pnpm test`: full suite; narrow via `--match-path`.
 - `pnpm coverage`: emit `lcov.info`.
 - `pnpm lint` / `pnpm lint:fix`: `forge fmt`, `solhint`, `prettier`.
