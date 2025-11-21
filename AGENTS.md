@@ -13,7 +13,8 @@
 
 ## Build, Test, and Development Commands
 
-- `pnpm build`: regenerate deployer wrappers, `forge build --sizes`.
+- `pnpm build`: regenerate deployer wrappers, must be run to generate the deployer functions before being able to use
+  them.
 - `pnpm test`: full suite; narrow via `--match-path`.
 - `pnpm coverage`: emit `lcov.info`.
 - `pnpm lint` / `pnpm lint:fix`: `forge fmt`, `solhint`, `prettier`.
@@ -46,6 +47,9 @@
 5. Common pitfalls
    - Use a real sender for live runs: `--sender <EOA>` or `FOUNDRY_SENDER`.
    - Stale artifacts: `forge clean`.
+   - Before calling privileged functions on forks, inspect which `AccessControl` role guards the selector (e.g.,
+     BasketManager’s `setTokenSwapAdapter` uses `TIMELOCK_ROLE`) and `vm.prank` as the current role holder (timelock,
+     ops multisig, etc.) rather than assuming the community multisig has permission.
 
 Notes
 
