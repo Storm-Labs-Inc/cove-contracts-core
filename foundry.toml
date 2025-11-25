@@ -92,11 +92,11 @@ solidity-utils = { version = "5.3.0", git = "https://github.com/1inch/solidity-u
 farming = { version = "3.2.0", git = "https://github.com/1inch/farming.git", rev = "b4e59e415352d3233ccd3c339d845a1eb2e1139b" }
 euler-price-oracle = { version = "1", git = "https://github.com/Storm-Labs-Inc/euler-price-oracle.git", rev = "511ee550b082870d248a4e50491a6a9042cb011d" }
 "lifinance/create3-factory" = { version = "0", git = "https://github.com/lifinance/create3-factory.git", rev = "93b667acda0dafcafb6e193610b421ea003f46a9" }
-forge-safe = { version = "1", git = "https://github.com/Storm-Labs-Inc/forge-safe.git", rev = "8175a6a60844b86d36b3089fe08c584121c7658d" }
+forge-safe = { version = "1", git = "https://github.com/Storm-Labs-Inc/forge-safe.git", rev = "33430955534b2a13a8b4d4f4e06f04a6afb9c9c1" }
 forge-deploy = { version = "1", git = "https://github.com/Storm-Labs-Inc/forge-deploy.git", rev = "2a0c1987ca8a619fd41a0cc546706ebf38a2d4af" }
 solady = "0.1.17"
 tokenized-strategy = { version = "3.0.4", git = "https://github.com/yearn/tokenized-strategy.git", tag = "v3.0.4" }
-milkman = { version = "1", git = "https://github.com/charlesndalton/milkman", rev = "f7719b59c349eb60eadaed734270a440c77345f8" }
+milkman = { version = "1", git = "https://github.com/cowdao-grants/milkman", rev = "7ace2e3ef33a8eeb218793900af1c7504c5b0f35" }
 
 [soldeer]
 recursive_deps = true
