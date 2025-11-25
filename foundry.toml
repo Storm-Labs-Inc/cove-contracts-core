@@ -5,6 +5,7 @@ libs = ["lib", "node_modules", "dependencies"]
 fs_permissions = [
     { access = "read", path = "./deployments" },
     { access = "read", path = "./out" },
+    { access = "read", path = "./assets/appdata" },
     { access = "write", path = "./dumpStates" },
 ]
 solc = '0.8.28'
