@@ -8,6 +8,7 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 import { console2 } from "forge-std/console2.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 
+import { VmSafe } from "forge-std/Vm.sol";
 import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { Constants } from "test/utils/Constants.t.sol";
@@ -90,8 +91,10 @@ abstract contract UpdateCoWSwapAdapterBase is DeployScript, Constants, BatchScri
         console2.log("New adapter:", newAdapter);
         console2.log("Delay (s):", delay);
 
-        if (encodedTxns.length > 0) {
+        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
             executeBatch(true);
+        } else {
+            executeBatch(false);
         }
     }
 
