@@ -9,10 +9,10 @@ Deterministic JSON payloads for CoWSwap appData (ETH/Base, staging/production) l
 
 Hashes (keccak-256 over the minified JSON bytes):
 
-- ETH staging: `0xeb584a62763e79eeb1ead9afa1a107d0cd1afd5f8a872939b3d9fdce92733dc9`
-- ETH production: `0xc723e76767ed11bb2ebf1314f3edd33703a1ed3d9305f33a33678f9b5876cce8`
-- Base staging: `0x42fa1d1e8db1ce9ffd141f1b4673e94ef1c0ee5c4b3b3af94420276849165628`
-- Base production: `0x36a0cdee81024d6ad00ae83cf3a1b776b2220eb7f818f7abb28aa9dd06eb6e1d`
+- ETH staging: `0x561b978a4985d1e9fd61363eca21c8d05b03dbc0524bdd1bade3bec2debd256b`
+- ETH production: `0xa9407a3cd5deda012a6466f5b7b68c3ced758743cbb058aa104f81b153a44531`
+- Base staging: `0x85f967c312f5b4963ab3266e6307f4b37b4c5d9e37459a1515a913208e949a2d`
+- Base production: `0x2d6e5a9324d4bda7e4e2eb3b46e4dd260fd352f66c0457673c1fcbcd81915976`
 
 Local IPFS upload (keccak-256, CIDv1):
 
@@ -25,12 +25,21 @@ done
 
 Resulting CIDs (CIDv1, base32):
 
-- ETH staging: `bafkrwihllbfge5r6phxld2wzv6q2cb6qzunp2x4kq4uttm6z7xhje4z5ze`
-- ETH production: `bafkrwigheptwoz7ncg5s5pytctz63uzxaoq62pmtaxztum3hr6nvq5wm5a`
-- Base staging: `bafkrwicc7ior5dnrz2p72fa7dndhh2ko6hao4xclhm5psrbae5uesfswfa`
-- Base production: `bafkrwibwudg65aicjvvnacxihtz2dn3wwira5n7ydd32xmukvhoqn23odu`
+- ETH staging: `bafkrwicwdolyusmf2hu72yjwh3fcdsgqlmb5xqcsjporxlpdx3bn5pjfnm`
+- ETH production: `bafkrwifjib5dzvo63iasuzdg6w33ndb45v2yoq6lwbmkuecpqgyvhjcfge`
+- Base staging: `bafkrwief7ft4gexvwsldvmzgnzrqp5ftpngf3hrxiwnbkfnjcmqi5fe2fu`
+- Base production: `bafkrwibnnznjgjguxwt6jyxlhndojxjgb7jvf5tmarlwopa7zpgydekzoy`
 
-Notes:
+## Verification
+
+To verify the appData hash and CID manually, use the CoW Protocol AppData Explorer:
+https://explorer.cow.fi/appdata?tab=encode
+
+1. Paste the JSON content from the relevant file
+2. Verify the computed `appDataHash` matches the hash listed above
+3. Verify the IPFS CID matches the CID listed above
+
+## Notes
 
 - Pinning services may default to SHA2-256/CIDv0; for keccak/CIDv1, add locally (or with a service that supports arbitrary multihash) and use `pinByHash` if available.
 - To keep pins online, run `ipfs daemon` with the same `IPFS_PATH` that holds the pins.

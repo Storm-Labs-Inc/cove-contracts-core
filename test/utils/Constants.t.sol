@@ -20,23 +20,15 @@ contract Constants is CommonBase {
     bytes4 public constant ASYNCHRONOUS_DEPOSIT_INTERFACE = 0xce3bbe50;
     bytes4 public constant ASYNCHRONOUS_REDEMPTION_INTERFACE = 0x620ee8e4;
 
-    // CoWSwap appData
+    // CoWSwap appData (hashes of JSON files in assets/appdata/)
     bytes32 public constant STAGING_COWSWAP_APPDATA_HASH =
-        0xeb584a62763e79eeb1ead9afa1a107d0cd1afd5f8a872939b3d9fdce92733dc9;
+        0x561b978a4985d1e9fd61363eca21c8d05b03dbc0524bdd1bade3bec2debd256b;
     bytes32 public constant PRODUCTION_COWSWAP_APPDATA_HASH =
-        0xc723e76767ed11bb2ebf1314f3edd33703a1ed3d9305f33a33678f9b5876cce8;
+        0xa9407a3cd5deda012a6466f5b7b68c3ced758743cbb058aa104f81b153a44531;
     bytes32 public constant BASE_STAGING_COWSWAP_APPDATA_HASH =
-        0x42fa1d1e8db1ce9ffd141f1b4673e94ef1c0ee5c4b3b3af94420276849165628;
+        0x85f967c312f5b4963ab3266e6307f4b37b4c5d9e37459a1515a913208e949a2d;
     bytes32 public constant BASE_PRODUCTION_COWSWAP_APPDATA_HASH =
-        0x36a0cdee81024d6ad00ae83cf3a1b776b2220eb7f818f7abb28aa9dd06eb6e1d;
-    string public constant STAGING_COWSWAP_APPDATA_JSON =
-        "{\"appCode\":\"StormLabs BasketManager\",\"environment\":\"ETH-staging\",\"metadata\":{\"hooks\":{\"version\":\"0.2.0\"}},\"version\":\"1.8.0\"}";
-    string public constant PRODUCTION_COWSWAP_APPDATA_JSON =
-        "{\"appCode\":\"StormLabs BasketManager\",\"environment\":\"ETH-production\",\"metadata\":{\"hooks\":{\"version\":\"0.2.0\"}},\"version\":\"1.8.0\"}";
-    string public constant BASE_STAGING_COWSWAP_APPDATA_JSON =
-        "{\"appCode\":\"StormLabs BasketManager\",\"environment\":\"BASE-staging\",\"metadata\":{\"hooks\":{\"version\":\"0.2.0\"}},\"version\":\"1.8.0\"}";
-    string public constant BASE_PRODUCTION_COWSWAP_APPDATA_JSON =
-        "{\"appCode\":\"StormLabs BasketManager\",\"environment\":\"BASE-production\",\"metadata\":{\"hooks\":{\"version\":\"0.2.0\"}},\"version\":\"1.8.0\"}";
+        0x2d6e5a9324d4bda7e4e2eb3b46e4dd260fd352f66c0457673c1fcbcd81915976;
 
     // PERMIT (ERC-2612)
     // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
