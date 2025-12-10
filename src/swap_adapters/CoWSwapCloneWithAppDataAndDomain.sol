@@ -8,10 +8,11 @@ import { Clone } from "clones-with-immutable-args/Clone.sol";
 import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 
 // slither-disable-start locked-ether
-/// @title CoWSwapClone
-/// @notice A contract that implements the ERC1271 interface for signature validation and manages token trades. This
-/// contract is designed to be used as a clone with immutable arguments, leveraging the `ClonesWithImmutableArgs`
-/// library.
+/// @title CoWSwapCloneWithAppDataAndDomain
+/// @notice Variant of `CoWSwapClone` that enforces a fixed CoW Protocol appData hash and GPv2Settlement domain
+/// separator for order validation. The parameters are supplied when the implementation is deployed so every clone
+/// derived from it inherits the same metadata and remains backward-compatible with the existing adapter cloning flow.
+///
 /// The clone should be initialized with the following packed bytes, in this exact order:
 /// - `sellToken` (address): The address of the token to be sold.
 /// - `buyToken` (address): The address of the token to be bought.
@@ -21,36 +22,27 @@ import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 /// - `receiver` (address): The address that will receive the bought tokens.
 /// - `operator` (address): The address of the operator allowed to manage the trade.
 ///
-/// To use this contract, deploy it as a clone using the `ClonesWithImmutableArgs` library with the above immutable
-/// arguments packed into a single bytes array. After deployment, call `initialize()` to set up the necessary token
-/// approvals for the trade.
-/// @dev The `isValidSignature` function can be used to validate the signature of an order against the stored order
-/// digest.
-contract CoWSwapClone is IERC1271, Clone {
+/// To use this contract, deploy the implementation with the desired `appData` hash and GPv2Settlement domain
+/// separator, then create clones using the `ClonesWithImmutableArgs` library with the above immutable arguments packed
+/// into a single bytes array. After deployment, call `initialize()` to set up the necessary token approvals.
+contract CoWSwapCloneWithAppDataAndDomain is IERC1271, Clone {
     using GPv2Order for GPv2Order.Data;
     using SafeERC20 for IERC20;
 
     /// CONSTANTS ///
-    // Constants for ERC1271 signature validation
+    /// @notice The appData hash that is submitted for the orders.
+    bytes32 public immutable appDataHash;
+    /// @notice The domain separator of GPv2Settlement contract used for orderDigest calculation.
+    bytes32 public immutable cowSettlementDomainSeparator;
+
     bytes4 internal constant _ERC1271_MAGIC_VALUE = 0x1626ba7e;
     bytes4 internal constant _ERC1271_NON_MAGIC_VALUE = 0xffffffff;
 
-    /// @dev The domain separator of GPv2Settlement contract used for orderDigest calculation.
-    bytes32 internal constant _COW_SETTLEMENT_DOMAIN_SEPARATOR =
-        0xc078f884a2676e1345748b1feace7b0abee5d00ecadb6e574dcdd109a63e8943;
     /// @dev Address of the GPv2VaultRelayer.
     /// https://docs.cow.fi/cow-protocol/reference/contracts/core
     address internal constant _VAULT_RELAYER = 0xC92E8bdf79f0507f65a392b0ab4667716BFE0110;
 
     /// EVENTS ///
-    /// @notice Emitted when a new order is created.
-    /// @param sellToken The address of the token to be sold.
-    /// @param buyToken The address of the token to be bought.
-    /// @param sellAmount The amount of the sell token.
-    /// @param minBuyAmount The minimum amount of the buy token.
-    /// @param validTo The timestamp until which the order is valid.
-    /// @param receiver The address that will receive the bought tokens.
-    /// @param operator The address of the operator allowed to manage the trade.
     event CoWSwapCloneCreated(
         address indexed sellToken,
         address indexed buyToken,
@@ -60,18 +52,19 @@ contract CoWSwapClone is IERC1271, Clone {
         address indexed receiver,
         address operator
     );
-    /// @notice Emitted when an order is claimed.
-    /// @param operator The address of the operator who claimed the order.
-    /// @param claimedSellAmount The amount of sell tokens claimed.
-    /// @param claimedBuyAmount The amount of buy tokens claimed.
     event OrderClaimed(address indexed operator, uint256 claimedSellAmount, uint256 claimedBuyAmount);
 
     /// ERRORS ///
-    /// @notice Thrown when the caller is not the operator or receiver of the order.
     error CallerIsNotOperatorOrReceiver();
 
-    /// @notice Initializes the CoWSwapClone contract by approving the vault relayer to spend the maximum amount of the
-    /// sell token.
+    // slither-disable-next-line missing-zero-check
+    constructor(bytes32 appDataHash_, bytes32 cowSettlementDomainSeparator_) payable {
+        appDataHash = appDataHash_;
+        cowSettlementDomainSeparator = cowSettlementDomainSeparator_;
+    }
+
+    /// @notice Initializes the CoWSwap clone by approving the vault relayer to spend the maximum amount of the sell
+    /// token.
     /// @dev This function should be called after the clone is deployed to set up the necessary token approvals.
     function initialize() external payable {
         IERC20(sellToken()).forceApprove(_VAULT_RELAYER, type(uint256).max);
@@ -80,9 +73,9 @@ contract CoWSwapClone is IERC1271, Clone {
         );
     }
 
-    /// @notice Validates the signature of an order. The order is considered valid if the order digest matches the
-    /// stored order digest. Second parameter is not used.
+    /// @notice Validates the signature of an order by comparing the order digest and verifying all order parameters.
     /// @param orderDigest The digest of the order to validate.
+    /// @param encodedOrder The ABI-encoded GPv2Order.Data to validate.
     /// @return A magic value if the signature is valid, otherwise a non-magic value.
     // solhint-disable-next-line code-complexity
     function isValidSignature(
@@ -96,7 +89,7 @@ contract CoWSwapClone is IERC1271, Clone {
     {
         GPv2Order.Data memory order = abi.decode(encodedOrder, (GPv2Order.Data));
 
-        if (orderDigest != order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR)) {
+        if (orderDigest != order.hash(cowSettlementDomainSeparator)) {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
@@ -120,7 +113,7 @@ contract CoWSwapClone is IERC1271, Clone {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
-        if (order.appData != bytes32(0)) {
+        if (order.appData != appDataHash) {
             return _ERC1271_NON_MAGIC_VALUE;
         }
 
@@ -178,10 +171,9 @@ contract CoWSwapClone is IERC1271, Clone {
     // 20: buyToken (address)
     // 40: sellAmount (uint256)
     // 72: minBuyAmount (uint256)
-    // 104: validTo (uint32)
+    // 104: validTo (uint64)
     // 112: receiver (address)
     // 132: operator (address)
-
     /// @notice Returns the address of the sell token.
     /// @return The address of the sell token.
     function sellToken() public pure returns (address) {
@@ -194,20 +186,20 @@ contract CoWSwapClone is IERC1271, Clone {
         return _getArgAddress(20);
     }
 
-    /// @notice Returns the amount of sell tokens.
+    /// @notice Returns the number of sell tokens included in the order.
     /// @return The amount of sell tokens.
     function sellAmount() public pure returns (uint256) {
         return _getArgUint256(40);
     }
 
-    /// @notice Returns the amount of buy tokens.
-    /// @return The amount of buy tokens.
+    /// @notice Returns the minimum number of buy tokens that must be received for the order to be valid.
+    /// @return The minimum acceptable buy amount.
     function minBuyAmount() public pure returns (uint256) {
         return _getArgUint256(72);
     }
 
     /// @notice Returns the timestamp until which the order is valid.
-    /// @return The timestamp until which the order is valid.
+    /// @return The Unix timestamp (seconds) for the order expiry.
     function validTo() public pure returns (uint32) {
         return uint32(_getArgUint64(104));
     }
