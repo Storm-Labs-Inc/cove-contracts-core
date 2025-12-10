@@ -19,8 +19,8 @@ import { GPv2Order } from "src/deps/cowprotocol/GPv2Order.sol";
 /// - `sellAmount` (uint256): The amount of the sell token.
 /// - `buyAmount` (uint256): The minimum amount of the buy token.
 /// - `validTo` (uint64): The timestamp until which the order is valid.
-/// - `operator` (address): The address of the operator allowed to manage the trade.
 /// - `receiver` (address): The address that will receive the bought tokens.
+/// - `operator` (address): The address of the operator allowed to manage the trade.
 ///
 /// To use this contract, deploy the implementation with the desired `appData` hash and GPv2Settlement domain
 /// separator, then create clones using the `ClonesWithImmutableArgs` library with the above immutable arguments packed
@@ -78,7 +78,10 @@ contract CoWSwapCloneWithAppDataAndDomain is IERC1271, Clone {
     /// @param encodedOrder The ABI-encoded GPv2Order.Data to validate.
     /// @return A magic value if the signature is valid, otherwise a non-magic value.
     // solhint-disable-next-line code-complexity
-    function isValidSignature(bytes32 orderDigest, bytes calldata encodedOrder)
+    function isValidSignature(
+        bytes32 orderDigest,
+        bytes calldata encodedOrder
+    )
         external
         view
         override
