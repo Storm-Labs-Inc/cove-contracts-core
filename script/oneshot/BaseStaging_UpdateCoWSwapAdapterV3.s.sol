@@ -8,14 +8,14 @@ import { UpdateCoWSwapAdapterV3Base } from "./UpdateCoWSwapAdapterV3Base.s.sol";
 /// staging.
 // Commands (Base staging):
 // # 1. Deploy a new instance of CoWSwapAdapter that points to the new CowSwapClone on Base
-// forge script script/oneshot/BaseStaging_UpdateCoWSwapAdapterV3.s.sol:BaseStaging_UpdateCoWSwapAdapterV3 --rpc-url
+// forge script script/oneshot/BaseStaging_UpdateCoWSwapAdapterV3.s.sol:BaseStagingUpdateCoWSwapAdapterV3 --rpc-url
 // $BASE_RPC_URL --broadcast -vvvv --account deployer && ./forge-deploy sync
 // # 2. Test the Safe batch for a timelock transaction for updating the cowswap adapter (add --broadcast for actually
 // queueing up)
-// forge script script/oneshot/BaseStaging_UpdateCoWSwapAdapterV3.s.sol:BaseStaging_UpdateCoWSwapAdapterV3 --sig
+// forge script script/oneshot/BaseStaging_UpdateCoWSwapAdapterV3.s.sol:BaseStagingUpdateCoWSwapAdapterV3 --sig
 // "scheduleTimelock()" --rpc-url $BASE_RPC_URL -vvvv --account deployer
 // # 3. Execute the queued timelock (add --broadcast for actually executing)
-// forge script script/oneshot/BaseStaging_UpdateCoWSwapAdapterV3.s.sol:BaseStaging_UpdateCoWSwapAdapterV3 --sig
+// forge script script/oneshot/BaseStaging_UpdateCoWSwapAdapterV3.s.sol:BaseStagingUpdateCoWSwapAdapterV3 --sig
 // "executeTimelock()" --rpc-url $BASE_RPC_URL -vvvv --account deployer
 contract BaseStagingUpdateCoWSwapAdapterV3 is UpdateCoWSwapAdapterV3Base {
     bytes32 internal constant _BASE_STAGING_COW_DOMAIN_SEPARATOR =
