@@ -105,7 +105,7 @@ contract DeploymentsBaseProduction is Deployments {
                 deployer,
                 buildCoWSwapCloneImplementationName(),
                 _COWSWAP_CLONE_ARTIFACT,
-                abi.encode(BASE_PRODUCTION_COWSWAP_APPDATA_HASH, BASE_COWSWAP_DOMAIN_SEPARATOR)
+                abi.encode(BASE_PRODUCTION_COWSWAP_APPDATA_HASH, _BASE_COWSWAP_DOMAIN_SEPARATOR)
             )
         );
         cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter(buildCowSwapAdapterName(), cowSwapCloneImplementation));
