@@ -273,6 +273,7 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     // Deploys cow swap adapter, sets it as the token swap adapter in BasketManager
     function _deployAndSetCowSwapAdapter()
         internal
+        virtual
         onlyIfMissing(buildCowSwapAdapterName())
         returns (address cowSwapAdapter)
     {

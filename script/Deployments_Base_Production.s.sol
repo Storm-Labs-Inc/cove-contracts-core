@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import { BasketTokenDeployment, Deployments, OracleOptions } from "./Deployments.s.sol";
 import { CustomDeployerFunctions } from "./utils/CustomDeployerFunctions.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { DefaultDeployerFunction } from "forge-deploy/DefaultDeployerFunction.sol";
 
 import { VerifyStatesBaseProduction } from "./verify/VerifyStates_Base_Production.s.sol";
 
@@ -11,6 +12,7 @@ import { console } from "forge-std/console.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 
 import { IAutopool } from "src/interfaces/deps/tokemak/IAutopool.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
@@ -32,6 +34,11 @@ contract DeploymentsBaseProduction is Deployments {
     /// BCOVEUSD CONFIGS
     uint16 public constant BASE_COVE_USD_MANAGEMENT_FEE = 100; // 100 basis points
     uint16 public constant BASE_COVE_USD_SPONSOR_SPLIT = 4000; // 40% to sponsor
+    bytes32 internal constant _BASE_COWSWAP_DOMAIN_SEPARATOR =
+        0xd72ffa789b6fae41254d0b5a13e6e1e92ed947ec6a251edf1cf0b6c02c257b4b;
+
+    string internal constant _COWSWAP_CLONE_ARTIFACT =
+        "CoWSwapCloneWithAppDataAndDomain.sol:CoWSwapCloneWithAppDataAndDomain";
 
     function _buildPrefix() internal pure override returns (string memory) {
         return "Production_";
@@ -44,6 +51,7 @@ contract DeploymentsBaseProduction is Deployments {
         treasury = BASE_COMMUNITY_MULTISIG;
         pauser = BASE_AWS_KEEPER;
         manager = BASE_OPS_MULTISIG;
+        masterRegistry = IMasterRegistry(getAddressOrRevert(buildMasterRegistryName()));
 
         // Try to get existing timelock or deploy new one for Base
         address existingTimelock = getAddress(buildTimelockControllerName());
@@ -86,6 +94,28 @@ contract DeploymentsBaseProduction is Deployments {
         (new VerifyStatesBaseProduction()).verifyDeployment();
     }
 
+    function _deployAndSetCowSwapAdapter()
+        internal
+        override
+        onlyIfMissing(buildCowSwapAdapterName())
+        returns (address cowSwapAdapter)
+    {
+        address cowSwapCloneImplementation = address(
+            DefaultDeployerFunction.deploy(
+                deployer,
+                buildCoWSwapCloneImplementationName(),
+                _COWSWAP_CLONE_ARTIFACT,
+                abi.encode(BASE_PRODUCTION_COWSWAP_APPDATA_HASH, BASE_COWSWAP_DOMAIN_SEPARATOR)
+            )
+        );
+        cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter(buildCowSwapAdapterName(), cowSwapCloneImplementation));
+        address basketManager = getAddressOrRevert(buildBasketManagerName());
+        if (shouldBroadcast) {
+            vm.broadcast();
+        }
+        BasketManager(basketManager).setTokenSwapAdapter(cowSwapAdapter);
+    }
+
     function _cleanPermissionsExtra() internal override {
         // ManagedWeightStrategy
         ManagedWeightStrategy mwStrategy =
@@ -111,18 +141,16 @@ contract DeploymentsBaseProduction is Deployments {
         address basePyth = BASE_PYTH;
 
         // Basket assets for Base
-        address[] memory basketAssets = new address[](4);
+        address[] memory basketAssets = new address[](3);
         basketAssets[0] = BASE_USDC;
-        basketAssets[1] = BASE_BASEUSD;
-        basketAssets[2] = BASE_SUPERUSDC;
-        basketAssets[3] = BASE_SPARKUSDC;
+        basketAssets[1] = BASE_SUPERUSDC; // ysUSDC (superUSDC vault)
+        basketAssets[2] = BASE_SPARKUSDC;
 
         // Initial weights for respective basket assets (equal weighting)
-        uint64[] memory initialWeights = new uint64[](4);
-        initialWeights[0] = 0.25e18; // USDC: 25%
-        initialWeights[1] = 0.25e18; // baseUSD: 25%
-        initialWeights[2] = 0.25e18; // superUSDC: 25%
-        initialWeights[3] = 0.25e18; // sparkUSDC: 25%
+        uint64[] memory initialWeights = new uint64[](3);
+        initialWeights[0] = 0.333333333333333333e18; // USDC: ~33.33%
+        initialWeights[1] = 0.333333333333333333e18; // ysUSDC: ~33.33%
+        initialWeights[2] = 0.333333333333333334e18; // sparkUSDC: ~33.33%
 
         // 0. USDC
         // Primary: USDC --(Pyth)--> USD
@@ -141,26 +169,7 @@ contract DeploymentsBaseProduction is Deployments {
         );
         _addAssetToAssetRegistry(BASE_USDC);
 
-        // 1. baseUSD (Auto Finance Tokemak baseUSD - Autopool)
-        // Primary: baseUSD-->(Autopool)--> USDC-->(Pyth)--> USD
-        // Anchor: baseUSD-->(Autopool)--> USDC-->(Chainlink)--> USD
-        _deployAnchoredOracleWithAutopoolForAssetBase(
-            BASE_BASEUSD,
-            basePyth,
-            true,
-            true,
-            OracleOptions({
-                pythPriceFeed: PYTH_USDC_USD_FEED,
-                pythMaxStaleness: PYTH_MAX_STALENESS,
-                pythMaxConfWidth: PYTH_MAX_CONF_WIDTH_BPS,
-                chainlinkPriceFeed: BASE_CHAINLINK_USDC_USD_FEED,
-                chainlinkMaxStaleness: CHAINLINK_MAX_STALENESS,
-                maxDivergence: ANCHORED_ORACLE_MAX_DIVERGENCE_BPS
-            })
-        );
-        _addAssetToAssetRegistry(BASE_BASEUSD);
-
-        // 2. superUSDC
+        // 1. ysUSDC (superUSDC)
         // Primary: superUSDC-->(4626)--> USDC-->(Pyth)--> USD
         // Anchor: superUSDC-->(4626)--> USDC-->(Chainlink)--> USD
         _deployAnchoredOracleWith4626ForAssetBase(
@@ -179,7 +188,7 @@ contract DeploymentsBaseProduction is Deployments {
         );
         _addAssetToAssetRegistry(BASE_SUPERUSDC);
 
-        // 3. sparkUSDC (Morpho Spark USDC Vault)
+        // 2. sparkUSDC (Morpho Spark USDC Vault)
         // Primary: sparkUSDC-->(4626)--> USDC-->(Pyth)--> USD
         // Anchor: sparkUSDC-->(4626)--> USDC-->(Chainlink)--> USD
         _deployAnchoredOracleWith4626ForAssetBase(

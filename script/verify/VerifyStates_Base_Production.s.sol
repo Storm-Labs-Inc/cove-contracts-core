@@ -164,7 +164,6 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
         console.log("\nVerifying AssetRegistry contents...");
 
         _assertAssetEnabled("BASE_USDC", BASE_USDC);
-        _assertAssetEnabled("BASE_BASEUSD", BASE_BASEUSD);
         _assertAssetEnabled("BASE_SUPERUSDC", BASE_SUPERUSDC);
         _assertAssetEnabled("BASE_SPARKUSDC", BASE_SPARKUSDC);
 
@@ -263,9 +262,8 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
             );
         }
 
-        require(assets.length == 4, "BasketToken: expected four assets");
+        require(assets.length == 3, "BasketToken: expected three assets");
         require(_containsAsset(assets, BASE_USDC), "BasketToken: USDC missing");
-        require(_containsAsset(assets, BASE_BASEUSD), "BasketToken: baseUSD missing");
         require(_containsAsset(assets, BASE_SUPERUSDC), "BasketToken: superUSDC missing");
         require(_containsAsset(assets, BASE_SPARKUSDC), "BasketToken: sparkUSDC missing");
 
