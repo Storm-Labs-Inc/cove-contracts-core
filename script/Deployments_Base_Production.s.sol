@@ -213,8 +213,8 @@ contract DeploymentsBaseProduction is Deployments {
         // Set the initial weights for the strategy and deploy basket token
         _setInitialWeightsAndDeployBasketToken(
             BasketTokenDeployment({
-                name: "bcoveUSD",
-                symbol: "bcoveUSD",
+                name: "USD",
+                symbol: "USD",
                 rootAsset: BASE_USDC,
                 bitFlag: assetsToBitFlag(basketAssets),
                 strategy: getAddressOrRevert(buildManagedWeightStrategyName("Gauntlet V1 Base")),
@@ -223,7 +223,7 @@ contract DeploymentsBaseProduction is Deployments {
         );
 
         address basketManager = deployer.getAddress(buildBasketManagerName());
-        address basketToken = deployer.getAddress(buildBasketTokenName("bcoveUSD"));
+        address basketToken = deployer.getAddress(buildBasketTokenName("USD"));
         address feeCollector = deployer.getAddress(buildFeeCollectorName());
 
         // Set sponsor to Gauntlet placeholder

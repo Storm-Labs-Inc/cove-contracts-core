@@ -234,7 +234,7 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
     function _verifyBasketToken() internal view {
         console.log("\nVerifying BasketToken configuration...");
 
-        address basketTokenAddr = deployer.getAddress(buildBasketTokenName("bcoveUSD"));
+        address basketTokenAddr = deployer.getAddress(buildBasketTokenName("USD"));
         require(basketTokenAddr != address(0), "BasketToken not deployed");
 
         BasketToken basketToken = BasketToken(basketTokenAddr);
