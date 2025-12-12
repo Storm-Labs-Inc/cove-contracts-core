@@ -83,7 +83,6 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
     function deploy(bool shouldBroadcast_) public {
         labelKnownAddresses();
         shouldBroadcast = shouldBroadcast_;
-        _setPermissionedAddresses();
 
         // Start the prank if not in production
         if (!shouldBroadcast) {
@@ -93,6 +92,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
             require(msg.sender == COVE_DEPLOYER_ADDRESS, "Caller must be COVE DEPLOYER");
         }
         deployer.setAutoBroadcast(shouldBroadcast);
+
+        // Set permissioned addresses
+        _setPermissionedAddresses();
 
         // Deploy unique core contracts
         _deployCoreContracts();

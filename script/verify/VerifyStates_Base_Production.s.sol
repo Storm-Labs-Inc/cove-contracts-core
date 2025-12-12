@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import { Script } from "forge-std/Script.sol";
+import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { console } from "forge-std/console.sol";
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
@@ -26,11 +26,10 @@ import { VerifyStatesCommon } from "script/verify/utils/VerifyStates_Common.s.so
 
 import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
 
-contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
+contract VerifyStatesBaseProduction is DeployScript, VerifyStatesCommon {
     using DeployerFunctions for Deployer;
     using BasketManagerValidationLib for BasketManager;
 
-    Deployer public deployer;
     IMasterRegistry public masterRegistry;
     BasketManager public basketManager;
     AssetRegistry public assetRegistry;
@@ -48,8 +47,12 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
         return "Production_";
     }
 
+    // Due to using DeployScript, we use the deploy() function instead of run()
+    function deploy() public virtual {
+        verifyDeployment();
+    }
+
     function verifyDeployment() public {
-        deployer = Deployer(msg.sender);
         console.log("===== Verifying Base Production Deployment =====");
 
         _resolveCoreContracts();
