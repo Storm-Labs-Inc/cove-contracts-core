@@ -148,9 +148,9 @@ contract DeploymentsBaseProduction is Deployments {
 
         // Initial weights for respective basket assets (equal weighting)
         uint64[] memory initialWeights = new uint64[](3);
-        initialWeights[0] = 0.333333333333333333e18; // USDC: ~33.33%
-        initialWeights[1] = 0.333333333333333333e18; // ysUSDC: ~33.33%
-        initialWeights[2] = 0.333333333333333334e18; // sparkUSDC: ~33.33%
+        initialWeights[0] = 0; // USDC: 0%
+        initialWeights[1] = 0.5e18; // ysUSDC: 50%
+        initialWeights[2] = 0.5e18; // sparkUSDC: 50%
 
         // 0. USDC
         // Primary: USDC --(Pyth)--> USD
