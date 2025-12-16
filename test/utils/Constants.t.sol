@@ -230,7 +230,7 @@ contract Constants is CommonBase {
     address public constant BASE_COMMUNITY_MULTISIG = COVE_COMMUNITY_MULTISIG;
     address public constant BASE_OPS_MULTISIG = COVE_OPS_MULTISIG;
     // TODO: confirm sponsor
-    address public constant BASE_GAUNTLET_SPONSOR = 0x3333333333333333333333333333333333333333;
+    address public constant BASE_GAUNTLET_SPONSOR = SPONSOR_GAUNTLET;
     // Base production AWS keeper (Production_Base_CoveBotKey)
     address public constant BASE_AWS_KEEPER = 0x652da08ce63860773005F642384a37e40DCea73B;
 
