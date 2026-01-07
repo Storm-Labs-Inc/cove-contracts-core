@@ -339,7 +339,9 @@ contract VerifyStatesBaseStaging is Script, VerifyStatesCommon {
     }
 
     function _logRoleCheck(string memory roleName, bool condition, address expected) internal view {
-        console.log(string.concat("  ", roleName, ": ", vm.toString(expected), condition ? unicode" ✅" : unicode" ❌"));
+        console.log(
+            string.concat("  ", roleName, ": ", vm.toString(expected), condition ? unicode" ✅" : unicode" ❌")
+        );
         require(condition, string.concat("Role check failed for ", roleName));
     }
 

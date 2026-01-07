@@ -39,9 +39,10 @@ contract FeeCollectorTest is BaseTest {
         vm.label(basketTokenImplementation, "basketTokenImplementation");
         basketManager = address(new MockBasketManager(basketTokenImplementation));
         basketToken = address(
-            MockBasketManager(basketManager).createNewBasket(
-                ERC20(dummyAsset), "Test", "TEST", 1, createUser("strategyRegistry"), createUser("assetRegistry")
-            )
+            MockBasketManager(basketManager)
+                .createNewBasket(
+                    ERC20(dummyAsset), "Test", "TEST", 1, createUser("strategyRegistry"), createUser("assetRegistry")
+                )
         );
         vm.label(basketToken, "basketToken");
         feeCollector = new FeeCollector(admin, basketManager, treasury);

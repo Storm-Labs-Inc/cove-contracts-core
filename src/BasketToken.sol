@@ -2,8 +2,9 @@
 pragma solidity 0.8.28;
 
 import { ERC20Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
-import { ERC20PermitUpgradeable } from
-    "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {
+    ERC20PermitUpgradeable
+} from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import { ERC4626Upgradeable } from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import { MulticallUpgradeable } from "@openzeppelin-upgradeable/contracts/utils/MulticallUpgradeable.sol";
 import { ERC165Upgradeable } from "@openzeppelin-upgradeable/contracts/utils/introspection/ERC165Upgradeable.sol";
@@ -1022,9 +1023,10 @@ contract BasketToken is
         pure
         returns (uint256)
     {
-        return totalDepositAssets == 0
-            ? 0
-            : FixedPointMathLib.fullMulDiv(fulfilledShares, depositAssets, totalDepositAssets);
+        return
+            totalDepositAssets == 0
+                ? 0
+                : FixedPointMathLib.fullMulDiv(fulfilledShares, depositAssets, totalDepositAssets);
     }
 
     // solhint-disable custom-errors,gas-custom-errors,reason-string
@@ -1047,6 +1049,7 @@ contract BasketToken is
     function previewRedeem(uint256) public pure override returns (uint256) {
         revert();
     }
+
     // solhint-enable custom-errors,gas-custom-errors,reason-string
 
     /// @notice Returns true if the redemption request's fallback has been triggered.

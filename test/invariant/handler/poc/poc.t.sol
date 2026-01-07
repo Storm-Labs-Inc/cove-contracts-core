@@ -12,10 +12,11 @@ contract PoC is ScenarioSimpleMedusa {
         vm.roll(initialBlockNumber);
         initialTimestamp += 549_645;
         vm.warp(initialTimestamp);
-        UserHandler(address(users[0])).requestDeposit(
-            5_789_604_463_550_806_437_875_464_237_601_083_835_602_226_150_384_349_728_381_664_980_464_632_123_584,
-            7_026_321_498_347_728_795_864_961_600_429_507_962_362_555_567_597_844_054_450_512_944_083_650_990_567
-        );
+        UserHandler(address(users[0]))
+            .requestDeposit(
+                5_789_604_463_550_806_437_875_464_237_601_083_835_602_226_150_384_349_728_381_664_980_464_632_123_584,
+                7_026_321_498_347_728_795_864_961_600_429_507_962_362_555_567_597_844_054_450_512_944_083_650_990_567
+            );
 
         initialBlockNumber += 32_514;
         vm.roll(initialBlockNumber);

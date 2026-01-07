@@ -52,9 +52,8 @@ contract GenerateStatesForFrontend is BaseTest {
         // Deploy basic retry operator and register in master registry
         address basicRetryOperator = address(new BasicRetryOperator(COVE_DEPLOYER_ADDRESS, COVE_DEPLOYER_ADDRESS));
         vm.prank(COVE_DEPLOYER_ADDRESS);
-        IMasterRegistry(COVE_STAGING_MASTER_REGISTRY).addRegistry(
-            bytes32(bytes("BasicRetryOperator")), basicRetryOperator
-        );
+        IMasterRegistry(COVE_STAGING_MASTER_REGISTRY)
+            .addRegistry(bytes32(bytes("BasicRetryOperator")), basicRetryOperator);
 
         // Give some eth to user
         vm.deal(user, 100 ether);
@@ -215,12 +214,13 @@ contract GenerateStatesForFrontend is BaseTest {
             BasketManager(basketManager).retryCount();
             vm.warp(vm.getBlockTimestamp() + 15 minutes);
             _refreshPriceFeeds();
-            BasketManager(basketManager).completeRebalance(
-                new ExternalTrade[](0),
-                basketTokens,
-                _getBasketTagetWeights(basketTokens),
-                _getBasketAssets(basketTokens)
-            );
+            BasketManager(basketManager)
+                .completeRebalance(
+                    new ExternalTrade[](0),
+                    basketTokens,
+                    _getBasketTagetWeights(basketTokens),
+                    _getBasketAssets(basketTokens)
+                );
         }
         vm.stopPrank();
 
@@ -295,13 +295,14 @@ contract GenerateStatesForFrontend is BaseTest {
         internal
     {
         vm.startPrank(tokenSwapProposer);
-        BasketManager(basketManager).proposeTokenSwap(
-            new InternalTrade[](0),
-            externalTrades,
-            basketTokens,
-            _getBasketTagetWeights(basketTokens),
-            _getBasketAssets(basketTokens)
-        );
+        BasketManager(basketManager)
+            .proposeTokenSwap(
+                new InternalTrade[](0),
+                externalTrades,
+                basketTokens,
+                _getBasketTagetWeights(basketTokens),
+                _getBasketAssets(basketTokens)
+            );
         vm.stopPrank();
 
         vm.recordLogs();
@@ -329,9 +330,10 @@ contract GenerateStatesForFrontend is BaseTest {
         vm.warp(vm.getBlockTimestamp() + 15 minutes);
         _refreshPriceFeeds();
         vm.startPrank(rebalanceProposer);
-        BasketManager(basketManager).completeRebalance(
-            externalTrades, basketTokens, _getBasketTagetWeights(basketTokens), _getBasketAssets(basketTokens)
-        );
+        BasketManager(basketManager)
+            .completeRebalance(
+                externalTrades, basketTokens, _getBasketTagetWeights(basketTokens), _getBasketAssets(basketTokens)
+            );
         vm.stopPrank();
     }
 }

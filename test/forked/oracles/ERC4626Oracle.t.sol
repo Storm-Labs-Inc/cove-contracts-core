@@ -73,13 +73,7 @@ contract ERC4626OracleTest is BaseTest {
         assertEq(actualShares, expectedShares);
     }
 
-    function testFuzz_getQuote_passWhen_zeroAmount(
-        bool isBaseToQuote,
-        address randomBase,
-        address randomQuote
-    )
-        public
-    {
+    function testFuzz_getQuote_passWhen_zeroAmount(bool isBaseToQuote, address randomBase, address randomQuote) public {
         vm.assume(randomBase != address(0));
         vm.assume(randomQuote != address(0));
 

@@ -287,12 +287,7 @@ contract BasketTokenTest is BaseTest {
         assertEq(basket.totalPendingDeposits(), amount + amount2);
     }
 
-    function testFuzz_requestDeposit_revertWhen_MustClaimOutstandingDeposit(
-        uint256 amount,
-        address controller
-    )
-        public
-    {
+    function testFuzz_requestDeposit_revertWhen_MustClaimOutstandingDeposit(uint256 amount, address controller) public {
         // Assume a valid deposit amount greater than 0
         vm.assume(amount > 0 && amount <= type(uint256).max);
 
@@ -555,13 +550,7 @@ contract BasketTokenTest is BaseTest {
         );
     }
 
-    function testFuzz_deposit_revertWhen_operatorNotSet(
-        uint256 amount,
-        uint256 issuedShares,
-        address operator
-    )
-        public
-    {
+    function testFuzz_deposit_revertWhen_operatorNotSet(uint256 amount, uint256 issuedShares, address operator) public {
         vm.assume(operator != address(0));
         // First, call testFuzz_fulfillDeposit which will requestDeposit and fulfillDeposit for users
         uint256 requestId = testFuzz_fulfillDeposit(amount, issuedShares);
@@ -1139,10 +1128,7 @@ contract BasketTokenTest is BaseTest {
         basket.fulfillRedeem(uint256(0));
     }
 
-    function testFuzz_prepareForRebalance(
-        uint256 totalAmount,
-        uint256 issuedShares
-    )
+    function testFuzz_prepareForRebalance(uint256 totalAmount, uint256 issuedShares)
         public
         returns (uint256 requestId)
     {

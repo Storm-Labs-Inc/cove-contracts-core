@@ -86,7 +86,7 @@ contract CoWSwapAdapterTest is BaseTest {
                 sellAmount: externalTrades[i].sellAmount,
                 minAmount: externalTrades[i].minAmount,
                 basketTradeOwnership: new BasketTradeOwnership[](0) // Use empty array for basket trade ownership
-             });
+            });
         }
         adapter.executeTokenSwap(trades, "");
     }
@@ -101,7 +101,7 @@ contract CoWSwapAdapterTest is BaseTest {
                 sellAmount: externalTrades[i].sellAmount,
                 minAmount: externalTrades[i].minAmount,
                 basketTradeOwnership: new BasketTradeOwnership[](0) // Use empty array for basket trade ownership
-             });
+            });
             bytes32 salt = keccak256(
                 abi.encodePacked(
                     externalTrades[i].sellToken,

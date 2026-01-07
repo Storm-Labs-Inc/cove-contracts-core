@@ -182,9 +182,8 @@ contract Permit2Test is BaseTest {
                     console.log(string.concat(unicode"✅ ", vm.toString(asset), " ", symbol, " implements ERC-2612"));
                 } catch {
                     // If standard permit fails, try Vyper-style permit which takes signature as packed bytes r, s, v
-                    try IVyperPermit(asset).permit(
-                        from, address(this), UINT256_MAX, UINT256_MAX, abi.encodePacked(r, s, v)
-                    ) {
+                    try IVyperPermit(asset)
+                        .permit(from, address(this), UINT256_MAX, UINT256_MAX, abi.encodePacked(r, s, v)) {
                         uint256 approvalAfter = IERC20(asset).allowance(from, address(this));
                         assertGt(approvalAfter, approvalBefore);
                         console.log(
@@ -203,7 +202,9 @@ contract Permit2Test is BaseTest {
                 }
             } catch {
                 // Token does not implement DOMAIN_SEPARATOR, so not ERC-2612 compatible
-                console.log(string.concat(unicode"❌ ", vm.toString(asset), " ", symbol, " does not implement ERC-2612"));
+                console.log(
+                    string.concat(unicode"❌ ", vm.toString(asset), " ", symbol, " does not implement ERC-2612")
+                );
             }
         }
     }

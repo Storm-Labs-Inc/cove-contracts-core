@@ -18,3 +18,4 @@ contract BaseStagingUpdateCoWSwapAdapter is UpdateCoWSwapAdapterBase {
         return BASE_STAGING_COWSWAP_APPDATA_HASH;
     }
 }
+

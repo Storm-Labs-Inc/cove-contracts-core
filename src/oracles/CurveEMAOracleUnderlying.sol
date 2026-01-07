@@ -62,8 +62,7 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
         bool isBaseUnderlying,
         bool isQuoteUnderlying
     )
-        payable
-    {
+        payable {
         if (_pool == address(0)) {
             revert Errors.PriceOracle_InvalidConfiguration();
         }
@@ -103,6 +102,7 @@ contract CurveEMAOracleUnderlying is BaseAdapter {
         priceOracleIndex = _priceOracleIndex;
         _scale = ScaleUtils.calcScale(baseDecimals, quoteDecimals, 18);
     }
+
     // solhint-enable code-complexity
 
     /// @notice Get a quote by calling the Curve oracle.

@@ -191,7 +191,8 @@ contract FeeCollector is AccessControlEnumerable, Rescuable {
         address rescueToken = address(token);
         if (
             amount
-                > token.balanceOf(address(this)) - claimableTreasuryFees[rescueToken] - claimableSponsorFees[rescueToken]
+                > token.balanceOf(address(this)) - claimableTreasuryFees[rescueToken]
+                    - claimableSponsorFees[rescueToken]
         ) {
             revert InsufficientFundsToRescue();
         }
