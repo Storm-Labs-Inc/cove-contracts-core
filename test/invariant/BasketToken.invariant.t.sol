@@ -246,13 +246,7 @@ contract BasketTokenHandler is InvariantHandler {
 
     // Function to test deposit reversion when using less than the max deposit amount.
     // This ensures that the deposit function behaves correctly under boundary conditions.
-    function deposit_revertWhen_UsingDifferentThanMaxDeposit(
-        uint256 userIdx,
-        uint256 amount
-    )
-        public
-        useActor(userIdx)
-    {
+    function deposit_revertWhen_UsingDifferentThanMaxDeposit(uint256 userIdx, uint256 amount) public useActor(userIdx) {
         console.log("   deposit_revertWhen_UsingLessThanMaxDeposit: userAddr=%s", currentActor);
         uint256 maxDeposit = basketToken.maxDeposit(currentActor);
         vm.assume(amount != maxDeposit);

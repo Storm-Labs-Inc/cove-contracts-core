@@ -110,7 +110,7 @@ contract StagingCreateNewBasket is DeployScript, Constants, BatchScript, BuildDe
                 chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
-             })
+            })
         );
 
         // 3. Add anchored oracle to multisig tx

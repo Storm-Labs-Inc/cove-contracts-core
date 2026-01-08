@@ -672,12 +672,7 @@ contract VerifyStates_Production is DeployScript, VerifyStatesCommon {
         );
     }
 
-    function _verifyManagedWeightStrategyPermissions(
-        ManagedWeightStrategy target,
-        string memory strategyName
-    )
-        private
-    {
+    function _verifyManagedWeightStrategyPermissions(ManagedWeightStrategy target, string memory strategyName) private {
         _printContractHeader(string.concat("ManagedWeightStrategy: ", strategyName), address(target));
         address[] memory expectedDefaultAdmins = new address[](1);
         expectedDefaultAdmins[0] = COVE_COMMUNITY_MULTISIG; // After _cleanPermissions

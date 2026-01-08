@@ -1472,8 +1472,7 @@ contract BasketManagerTest is BaseTest {
         BasketTradeOwnership[] memory tradeOwnerships = new BasketTradeOwnership[](2);
         for (uint256 i = 0; i < tradeOwnerships.length; i++) {
             tradeOwnerships[i] = BasketTradeOwnership({
-                basket: baskets[i],
-                tradeOwnership: uint64(initialDepositAmounts[i] * 1e18 / totalDepositAmount)
+                basket: baskets[i], tradeOwnership: uint64(initialDepositAmounts[i] * 1e18 / totalDepositAmount)
             });
         }
         for (uint256 i = 0; i < 3; i++) {
@@ -1519,7 +1518,7 @@ contract BasketManagerTest is BaseTest {
             uint256 sellAmount = externalTrades[i].sellAmount;
             uint256 buyAmount = sellAmount; // Assumes 1:1 price ratio
             claimedAmounts[i] = [0, buyAmount]; // First element 0 means no sellToken is claimed back, indicating
-                // successful trade
+            // successful trade
         }
         vm.mockCall(
             address(tokenSwapAdapter),

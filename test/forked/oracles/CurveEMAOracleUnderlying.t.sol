@@ -258,7 +258,7 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         // price_oracle gives price of WETH (coins[2]) in USDT (coins[0])
         uint256 unitPrice = tricryptoPool.price_oracle(WETH_USDT_PRICE_INDEX);
         uint256 expectedOut = ScaleUtils.calcOutAmount(inAmount, unitPrice, wethUsdtScale, false); // false = not
-            // inverse
+        // inverse
         uint256 actualOut = wethUsdtOracle.getQuote(inAmount, TRICRYPTO_WETH, TRICRYPTO_USDT);
 
         assertEq(actualOut, expectedOut);
@@ -285,7 +285,7 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         // price_oracle gives price of USDE (coins[1]) in frxUSD (coins[0])
         uint256 usdePerFrxusd_unitPrice = frxusdUsdePool.price_oracle(FRXUSD_USDE_PRICE_INDEX);
         uint256 expectedOut = ScaleUtils.calcOutAmount(inAmount, usdePerFrxusd_unitPrice, frxUsdeScale, false); // false
-            // = not inverse
+        // = not inverse
         uint256 actualOut = frxusdUsdeOracle.getQuote(inAmount, ETH_USDE, ETH_FRXUSD);
 
         assertEq(actualOut, expectedOut);
@@ -298,7 +298,7 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         // price_oracle gives price of USDE (coins[1]) in frxUSD (coins[0])
         uint256 usdePerFrxusd_unitPrice = frxusdUsdePool.price_oracle(FRXUSD_USDE_PRICE_INDEX);
         uint256 expectedOut = ScaleUtils.calcOutAmount(inAmount, usdePerFrxusd_unitPrice, frxUsdeScale, true); // true =
-            // inverse
+        // inverse
         uint256 actualOut = frxusdUsdeOracle.getQuote(inAmount, ETH_FRXUSD, ETH_USDE);
 
         // Allow some tolerance due to division in unit price calculation
@@ -314,7 +314,7 @@ contract CurveEMAOracleUnderlyingTest is BaseTest {
         // price_oracle() gives price of CRVUSD (coins[1]) in USDC (coins[0])
         uint256 unitPrice = crvusdUsdcPool.price_oracle();
         uint256 expectedOut = ScaleUtils.calcOutAmount(inAmount, unitPrice, crvusdUsdcScale, false); // false = not
-            // inverse
+        // inverse
         uint256 actualOut = crvusdUsdcOracle.getQuote(inAmount, CRVUSD, USDC);
 
         // Allow some tolerance due to EMA and potential slight depeg

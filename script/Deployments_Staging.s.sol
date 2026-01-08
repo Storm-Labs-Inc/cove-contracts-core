@@ -62,7 +62,7 @@ contract DeploymentsStaging is Deployments {
                 chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
-             })
+            })
         );
         _addAssetToAssetRegistry(ETH_USDC);
 
@@ -80,7 +80,7 @@ contract DeploymentsStaging is Deployments {
                 chainlinkPriceFeed: ETH_CHAINLINK_USDC_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
-             })
+            })
         );
         _addAssetToAssetRegistry(ETH_SUPERUSDC);
 
@@ -98,7 +98,7 @@ contract DeploymentsStaging is Deployments {
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
-             })
+            })
         );
         _addAssetToAssetRegistry(ETH_SUSDE);
 
@@ -118,7 +118,7 @@ contract DeploymentsStaging is Deployments {
                 chainlinkPriceFeed: ETH_CHAINLINK_USDE_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
-             })
+            })
         );
         _addAssetToAssetRegistry(ETH_SFRXUSD);
 
@@ -135,7 +135,7 @@ contract DeploymentsStaging is Deployments {
                 chainlinkPriceFeed: ETH_CHAINLINK_USDS_USD_FEED,
                 chainlinkMaxStaleness: 1 days,
                 maxDivergence: 0.005e18 // 0.5%
-             })
+            })
         );
         _addAssetToAssetRegistry(ETH_YSYG_YVUSDS_1);
 

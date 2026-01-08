@@ -195,9 +195,10 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         if (shouldBroadcast) {
             vm.broadcast();
         }
-        address basketToken = BasketManager(basketManager).createNewBasket(
-            deployment.name, deployment.symbol, deployment.rootAsset, deployment.bitFlag, deployment.strategy
-        );
+        address basketToken = BasketManager(basketManager)
+            .createNewBasket(
+                deployment.name, deployment.symbol, deployment.rootAsset, deployment.bitFlag, deployment.strategy
+            );
         deployer.save(buildBasketTokenName(deployment.name), basketToken, "BasketToken.sol:BasketToken");
         require(
             getAddressOrRevert(buildBasketTokenName(deployment.name)) == basketToken,
@@ -276,8 +277,9 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         onlyIfMissing(buildCowSwapAdapterName())
         returns (address cowSwapAdapter)
     {
-        address cowSwapCloneImplementation =
-            address(deployer.deploy_CoWSwapClone(buildCoWSwapCloneImplementationName()));
+        address cowSwapCloneImplementation = address(
+            deployer.deploy_CoWSwapClone(buildCoWSwapCloneImplementationName())
+        );
         cowSwapAdapter = address(deployer.deploy_CoWSwapAdapter(buildCowSwapAdapterName(), cowSwapCloneImplementation));
         address basketManager = getAddressOrRevert(buildBasketManagerName());
         if (shouldBroadcast) {
@@ -989,9 +991,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
         for (uint256 i = 0; i < basketTokens.length; i++) {
             address basketToken = basketTokens[i];
             // check if plugin already exists
-            address plugin = FarmingPluginFactory(farmingPluginFactory).computePluginAddress(
-                IERC20Plugins(basketToken), IERC20(rewardToken)
-            );
+            address plugin = FarmingPluginFactory(farmingPluginFactory)
+                .computePluginAddress(IERC20Plugins(basketToken), IERC20(rewardToken));
             // check for contract size
             uint256 codeSize;
             assembly {
@@ -1001,9 +1002,8 @@ abstract contract Deployments is DeployScript, Constants, StdAssertions, BuildDe
                 if (shouldBroadcast) {
                     vm.broadcast();
                 }
-                plugin = FarmingPluginFactory(farmingPluginFactory).deployFarmingPluginWithDefaultOwner(
-                    IERC20Plugins(basketToken), IERC20(rewardToken)
-                );
+                plugin = FarmingPluginFactory(farmingPluginFactory)
+                    .deployFarmingPluginWithDefaultOwner(IERC20Plugins(basketToken), IERC20(rewardToken));
             }
             deployer.save(buildFarmingPluginName(basketToken, rewardToken), plugin, "FarmingPlugin.sol:FarmingPlugin");
         }

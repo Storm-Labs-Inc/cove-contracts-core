@@ -175,9 +175,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
             _getOrderData(badSellToken, buyToken, sellAmount, buyAmount, validTo, clone, _DEFAULT_APP_DATA);
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -202,9 +201,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
             _getOrderData(sellToken, badBuyToken, sellAmount, buyAmount, validTo, clone, _DEFAULT_APP_DATA);
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -229,9 +227,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
             _getOrderData(sellToken, buyToken, badSellAmount, buyAmount, validTo, clone, _DEFAULT_APP_DATA);
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -256,9 +253,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
             _getOrderData(sellToken, buyToken, sellAmount, badBuyAmount, validTo, clone, _DEFAULT_APP_DATA);
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -283,9 +279,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
             _getOrderData(sellToken, buyToken, sellAmount, buyAmount, badValidTo, clone, _DEFAULT_APP_DATA);
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -311,9 +306,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
         order.appData = appData;
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -339,9 +333,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
         order.feeAmount = feeAmount;
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -403,9 +396,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
         order.partiallyFillable = true;
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -431,9 +423,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
         order.sellTokenBalance = badSellTokenBalance;
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -460,9 +451,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
         order.buyTokenBalance = badBuyTokenBalance;
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );
@@ -487,9 +477,8 @@ contract CoWSwapCloneWithAppDataTest is Test, Constants {
             _getOrderData(sellToken, buyToken, sellAmount, buyAmount, validTo, badReceiver, _DEFAULT_APP_DATA);
 
         assertEq(
-            CoWSwapCloneWithAppData(clone).isValidSignature(
-                order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)
-            ),
+            CoWSwapCloneWithAppData(clone)
+                .isValidSignature(order.hash(_COW_SETTLEMENT_DOMAIN_SEPARATOR), abi.encode(order)),
             _ERC1271_NON_MAGIC_VALUE,
             "Invalid signature non-magic value"
         );

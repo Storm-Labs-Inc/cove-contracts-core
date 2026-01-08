@@ -94,9 +94,8 @@ contract IntegrationTest is BaseTest {
         // TODO: add rest of asset universe
 
         baseBasketAssets = bm.basketAssets(bm.basketTokens()[0]);
-        baseBasketBitFlag = AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName())).getAssetsBitFlag(
-            baseBasketAssets
-        );
+        baseBasketBitFlag = AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName()))
+            .getAssetsBitFlag(baseBasketAssets);
         _updatePythOracleTimeStamps();
         _updateChainLinkOraclesTimeStamp();
     }
@@ -539,8 +538,8 @@ contract IntegrationTest is BaseTest {
                 newTargetWeightsTotal[i] = newTargetWeights;
                 // Update the target weights for the basket
                 vm.startPrank(GAUNTLET_STRATEGIST);
-                uint256 basketBitFlag =
-                    AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName())).getAssetsBitFlag(assets);
+                uint256 basketBitFlag = AssetRegistry(deployments.getAddress(deployments.buildAssetRegistryName()))
+                    .getAssetsBitFlag(assets);
                 strategy.setTargetWeights(basketBitFlag, newTargetWeights);
                 vm.stopPrank();
             }
@@ -1575,11 +1574,7 @@ contract IntegrationTest is BaseTest {
     /// GENERIC HELPER FUNCTIONS
 
     // Requests a deposit to a basket and returns the requestID
-    function _requestDepositToBasket(
-        address user,
-        address basket,
-        uint256 amount
-    )
+    function _requestDepositToBasket(address user, address basket, uint256 amount)
         internal
         returns (uint256 requestId)
     {
@@ -1600,8 +1595,9 @@ contract IntegrationTest is BaseTest {
         uint32 validTo = uint32(vm.getBlockTimestamp() + 60 minutes);
         for (uint256 i = 0; i < trades.length; ++i) {
             ExternalTrade memory trade = trades[i];
-            bytes32 salt =
-                keccak256(abi.encodePacked(trade.sellToken, trade.buyToken, trade.sellAmount, trade.minAmount, validTo));
+            bytes32 salt = keccak256(
+                abi.encodePacked(trade.sellToken, trade.buyToken, trade.sellAmount, trade.minAmount, validTo)
+            );
             address swapContract = _predictDeterministicAddress(salt, address(bm));
             takeAway(IERC20(trade.sellToken), swapContract, trade.sellAmount);
             uint256 usdBuyAmount = eulerRouter.getQuote(trade.sellAmount, trade.sellToken, USD);

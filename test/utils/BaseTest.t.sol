@@ -272,10 +272,7 @@ abstract contract BaseTest is Test, Constants {
             abi.encode(
                 _PERMIT_DETAILS_TYPEHASH,
                 IAllowanceTransfer.PermitDetails({
-                    token: token,
-                    amount: uint160(amount),
-                    expiration: type(uint48).max,
-                    nonce: uint48(nonce)
+                    token: token, amount: uint160(amount), expiration: type(uint48).max, nonce: uint48(nonce)
                 })
             )
         );
@@ -296,7 +293,9 @@ abstract contract BaseTest is Test, Constants {
 
     // Helper function to dump state and log timestamp
     function _dumpStateWithTimestamp(string memory label) internal {
-        string memory path = string.concat("dumpStates/", label, "_", vm.toString(vm.getBlockTimestamp()), ".json");
+        string memory path = string.concat(
+            "dumpStates/", label, "_", vm.toString(block.number), "_", vm.toString(vm.getBlockTimestamp()), ".json"
+        );
         console.log("Dumping state: ", path);
         vm.dumpState(path);
     }
