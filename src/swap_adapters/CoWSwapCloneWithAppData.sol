@@ -77,7 +77,10 @@ contract CoWSwapCloneWithAppData is IERC1271, Clone {
     /// @param encodedOrder The ABI-encoded GPv2Order.Data to validate.
     /// @return A magic value if the signature is valid, otherwise a non-magic value.
     // solhint-disable-next-line code-complexity
-    function isValidSignature(bytes32 orderDigest, bytes calldata encodedOrder)
+    function isValidSignature(
+        bytes32 orderDigest,
+        bytes calldata encodedOrder
+    )
         external
         view
         override

@@ -332,7 +332,6 @@ library BasketManagerUtils {
         // slither-disable-next-line reentrancy-events
         emit RebalanceProposed(self.rebalanceStatus.epoch, baskets, basketTargetWeights, basketAssets, basketHash);
     }
-
     // solhint-enable code-complexity
 
     // @notice Proposes a set of internal trades and external trades to rebalance the given baskets.
@@ -374,7 +373,8 @@ library BasketManagerUtils {
 
         EulerRouter eulerRouter = self.eulerRouter;
         BasketContext memory slot = BasketContext({
-            basketBalances: new uint256[][](baskets.length), totalValues: new uint256[](baskets.length)
+            basketBalances: new uint256[][](baskets.length),
+            totalValues: new uint256[](baskets.length)
         });
         _initializeBasketData(self, eulerRouter, baskets, basketAssets, slot);
         // NOTE: for rebalance retries the internal trades must be updated as well
@@ -422,7 +422,8 @@ library BasketManagerUtils {
 
         EulerRouter eulerRouter = self.eulerRouter;
         BasketContext memory slot = BasketContext({
-            basketBalances: new uint256[][](baskets.length), totalValues: new uint256[](baskets.length)
+            basketBalances: new uint256[][](baskets.length),
+            totalValues: new uint256[](baskets.length)
         });
         _initializeBasketData(self, eulerRouter, baskets, basketAssets, slot);
         // Confirm that target weights have been met, if max retries is reached continue regardless
@@ -952,10 +953,10 @@ library BasketManagerUtils {
                 // Update total basket value
                 // slither-disable-next-line calls-loop
                 slot.totalValues[basketIndex] = slot.totalValues[basketIndex]
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, _USD_ISO_4217_CODE)
-                    // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
-                    + eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, _USD_ISO_4217_CODE);
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                - eulerRouter.getQuote(ownershipSellAmount, trade.sellToken, _USD_ISO_4217_CODE)
+                // nosemgrep: solidity.performance.state-variable-read-in-a-loop.state-variable-read-in-a-loop
+                + eulerRouter.getQuote(ownershipBuyAmount, trade.buyToken, _USD_ISO_4217_CODE);
                 unchecked {
                     // Overflow not possible: j is bounded by trade.basketTradeOwnership.length
                     ++j;
@@ -976,8 +977,8 @@ library BasketManagerUtils {
             // slither-disable-start timestamp
             if (
                 FixedPointMathLib.fullMulDiv(
-                        MathUtils.diff(internalMinAmount, trade.minAmount), _WEIGHT_PRECISION, internalMinAmount
-                    ) > slippageLimit
+                    MathUtils.diff(internalMinAmount, trade.minAmount), _WEIGHT_PRECISION, internalMinAmount
+                ) > slippageLimit
             ) {
                 revert ExternalTradeSlippage();
             }

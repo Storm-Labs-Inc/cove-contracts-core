@@ -157,7 +157,8 @@ contract BasketManager is ReentrancyGuardTransient, AccessControlEnumerable, Pau
         address admin,
         address feeCollector_
     )
-        payable {
+        payable
+    {
         // Checks
         if (basketTokenImplementation == address(0)) revert ZeroAddress();
         if (eulerRouter_ == address(0)) revert ZeroAddress();
