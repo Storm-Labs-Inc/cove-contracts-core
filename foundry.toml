@@ -66,11 +66,51 @@ int_types = "long"
 line_length = 120
 multiline_func_header = "all"
 number_underscore = "thousands"
+prefer_compact = "all"
 quote_style = "double"
+sort_imports = true
+single_line_imports = true
 tab_width = 4
 wrap_comments = true
-sort_imports = true
-ignore = ["src/deps/**/*", "src/interfaces/deps/**/*"]
+ignore = [
+    # ignore dependencies that are manually imported
+    "src/deps/**/*",
+    "src/interfaces/deps/**/*",
+    # ignore contracts that were written with prior version of foundry
+    "src/AssetRegistry.sol",
+    "src/BasketManager.sol",
+    "src/BasketToken.sol",
+    "src/FeeCollector.sol",
+    "src/Rescuable.sol",
+    "src/compounder/AutopoolCompounder.sol",
+    "src/compounder/pricecheckers/OraclePriceChecker.sol",
+    "src/interfaces/IAllocationResolver.sol",
+    "src/interfaces/IERC7540.sol",
+    "src/interfaces/IERC7575.sol",
+    "src/interfaces/IMasterRegistry.sol",
+    "src/libraries/BasketManagerUtils.sol",
+    "src/libraries/BitFlag.sol",
+    "src/libraries/MathUtils.sol",
+    "src/operators/BasicRetryOperator.sol",
+    "src/oracles/AnchoredOracle.sol",
+    "src/oracles/AutoPoolCompounderOracle.sol",
+    "src/oracles/AutopoolOracle.sol",
+    "src/oracles/ChainedERC4626Oracle.sol",
+    "src/oracles/CurveEMAOracleUnderlying.sol",
+    "src/oracles/ERC4626Oracle.sol",
+    "src/rewards/FarmingPluginFactory.sol",
+    "src/strategies/AutomaticWeightStrategy.sol",
+    "src/strategies/ManagedWeightStrategy.sol",
+    "src/strategies/StrategyRegistry.sol",
+    "src/strategies/WeightStrategy.sol",
+    "src/swap_adapters/CoWSwapAdapter.sol",
+    "src/swap_adapters/CoWSwapClone.sol",
+    "src/swap_adapters/CoWSwapCloneWithAppData.sol",
+    "src/swap_adapters/CoWSwapCloneWithAppDataAndDomain.sol",
+    "src/swap_adapters/TokenSwapAdapter.sol",
+    "src/types/BasketManagerStorage.sol",
+    "src/types/Trades.sol",
+]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
 
