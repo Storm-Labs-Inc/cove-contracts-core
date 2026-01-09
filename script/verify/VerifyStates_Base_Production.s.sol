@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import { Script } from "forge-std/Script.sol";
+import { DeployScript } from "forge-deploy/DeployScript.sol";
 import { console } from "forge-std/console.sol";
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
@@ -26,11 +26,10 @@ import { VerifyStatesCommon } from "script/verify/utils/VerifyStates_Common.s.so
 
 import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
 
-contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
+contract VerifyStatesBaseProduction is DeployScript, VerifyStatesCommon {
     using DeployerFunctions for Deployer;
     using BasketManagerValidationLib for BasketManager;
 
-    Deployer public deployer;
     IMasterRegistry public masterRegistry;
     BasketManager public basketManager;
     AssetRegistry public assetRegistry;
@@ -48,8 +47,12 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
         return "Production_";
     }
 
+    // Due to using DeployScript, we use the deploy() function instead of run()
+    function deploy() public virtual {
+        verifyDeployment();
+    }
+
     function verifyDeployment() public {
-        deployer = Deployer(msg.sender);
         console.log("===== Verifying Base Production Deployment =====");
 
         _resolveCoreContracts();
@@ -164,7 +167,6 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
         console.log("\nVerifying AssetRegistry contents...");
 
         _assertAssetEnabled("BASE_USDC", BASE_USDC);
-        _assertAssetEnabled("BASE_BASEUSD", BASE_BASEUSD);
         _assertAssetEnabled("BASE_SUPERUSDC", BASE_SUPERUSDC);
         _assertAssetEnabled("BASE_SPARKUSDC", BASE_SPARKUSDC);
 
@@ -235,7 +237,7 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
     function _verifyBasketToken() internal view {
         console.log("\nVerifying BasketToken configuration...");
 
-        address basketTokenAddr = deployer.getAddress(buildBasketTokenName("bcoveUSD"));
+        address basketTokenAddr = deployer.getAddress(buildBasketTokenName("USD"));
         require(basketTokenAddr != address(0), "BasketToken not deployed");
 
         BasketToken basketToken = BasketToken(basketTokenAddr);
@@ -263,9 +265,8 @@ contract VerifyStatesBaseProduction is Script, VerifyStatesCommon {
             );
         }
 
-        require(assets.length == 4, "BasketToken: expected four assets");
+        require(assets.length == 3, "BasketToken: expected three assets");
         require(_containsAsset(assets, BASE_USDC), "BasketToken: USDC missing");
-        require(_containsAsset(assets, BASE_BASEUSD), "BasketToken: baseUSD missing");
         require(_containsAsset(assets, BASE_SUPERUSDC), "BasketToken: superUSDC missing");
         require(_containsAsset(assets, BASE_SPARKUSDC), "BasketToken: sparkUSDC missing");
 

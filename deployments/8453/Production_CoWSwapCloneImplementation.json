@@ -1,0 +1,284 @@
+{
+  "address": "0x7C47A37E489020Fb5E752abd29fEAC386C398452",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "appDataHash_",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "cowSettlementDomainSeparator_",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "appDataHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "buyToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "claim",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "claimedSellAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "claimedBuyAmount",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "cowSettlementDomainSeparator",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "orderDigest",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "encodedOrder",
+          "type": "bytes"
+        }
+      ],
+      "name": "isValidSignature",
+      "outputs": [
+        {
+          "internalType": "bytes4",
+          "name": "",
+          "type": "bytes4"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "minBuyAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "operator",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "receiver",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sellAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sellToken",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "validTo",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "",
+          "type": "uint32"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sellToken",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "buyToken",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "sellAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "minBuyAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint32",
+          "name": "validTo",
+          "type": "uint32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "receiver",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        }
+      ],
+      "name": "CoWSwapCloneCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "operator",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "claimedSellAmount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "claimedBuyAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "OrderClaimed",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "CallerIsNotOperatorOrReceiver",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "SafeERC20FailedOperation",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60c0601f610ba938819003918201601f19168301916001600160401b0383118484101761007957808492604094855283398101031261007557602081519101519060805260a052604051610b1b908161008e823960805181818161053e0152610904015260a05181818161064c01526107b10152f35b5f80fd5b634e487b7160e01b5f52604160045260245ffdfe60806040526004361015610011575f80fd5b5f3560e01c80631626ba7e146100d45780633f407b84146100cf5780634e71d92d146100ca578063570ca735146100c55780638129fc1c146100c057806394fa50d9146100bb5780639769f0b0146100b6578063a4821719146100b1578063a88780ef146100ac578063f66bf229146100a7578063f7260d3e146100a25763fe8e36701461009d575f80fd5b610635565b61060e565b6105e7565b6105b4565b61058d565b610561565b610527565b61036a565b61033a565b610186565b610159565b346101555760403660031901126101555760043560243567ffffffffffffffff8111610155573660238201121561015557806004013567ffffffffffffffff81116101555736602482840101116101555761015192602461013693019061079d565b6040516001600160e01b031990911681529081906020820190565b0390f35b5f80fd5b34610155575f3660031901126101555760206028600119368181013560f01c9003015b0135604051908152f35b5f366003190112610155576101a861019c610a4e565b6001600160a01b031690565b330361031a575b6101ca61019c600119368181013560f01c9003013560601c90565b6040516370a0823160e01b8152306004820152906020826024816001600160a01b0385165afa9182156102e1575f926102f9575b5081806102e6575b505061021361019c610a7c565b6040516370a0823160e01b815230600482015291906020836024816001600160a01b0385165afa9283156102e1575f936102b0575b508280610297575b6040805184815260208101839052849133917f927c1f4481f4feaa716430d93550a0d37e28218478c7a070df4445114ceda78d9190a2604080519182526020820192909252f35b6102a9916102a3610a67565b90610a12565b5f82610250565b6102d391935060203d6020116102da575b6102cb818361066f565b8101906109f8565b915f610248565b503d6102c1565b610a07565b6102f2916102a3610a67565b5f81610206565b61031391925060203d6020116102da576102cb818361066f565b905f6101fe565b61032561019c610a67565b33146101af57636a644b6f60e01b5f5260045ffd5b34610155575f3660031901126101555760206084600119368181013560f01c9003015b013560601c604051908152f35b5f36600319011261015557600119368181013560f01c90030160405163095ea7b360e01b602080830191825273c92e8bdf79f0507f65a392b0ab4667716bfe011060248401525f196044840152833560601c9392915f906103d7846064810103601f19810186528561066f565b83519082875af15f51903d81610504575b501590505b6104a8575b506103fb610a7c565b913660011981013560f01c90036046810135927fbf15d244d7a3b7a662a4f8f0915036b637b125d40f8cde18ae5ecefe361c1cd8916001600160a01b0391906104a390610453906066013560c01c5b63ffffffff1690565b9161045c610a67565b9284604051958695169916976028608484013560601c93013585929363ffffffff6001600160a01b0392969560609460808701988752602087015216604085015216910152565b0390a4005b60405163095ea7b360e01b602082015273c92e8bdf79f0507f65a392b0ab4667716bfe011060248201525f60448083019190915281526104fe91906104f8906104f260648261066f565b85610a91565b83610a91565b5f6103f2565b1515905061051b57506103ed833b15155b5f6103e8565b60016103ed9114610515565b34610155575f3660031901126101555760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b34610155575f366003190112610155576020600119368181013560f01c9003013560601c604051908152f35b34610155575f3660031901126101555760206014600119368181013560f01c90030161035d565b34610155575f3660031901126101555760405160663660011981013560f01c9003013560c01c63ffffffff168152602090f35b34610155575f3660031901126101555760206048600119368181013560f01c90030161017c565b34610155575f3660031901126101555760206070600119368181013560f01c90030161035d565b34610155575f3660031901126101555760206040517f00000000000000000000000000000000000000000000000000000000000000008152f35b90601f8019910116810190811067ffffffffffffffff82111761069157604052565b634e487b7160e01b5f52604160045260245ffd5b604051906106b56101808361066f565b565b35906001600160a01b038216820361015557565b359063ffffffff8216820361015557565b3590811515820361015557565b9081610180910312610155576101606107006106a5565b9161070a816106b7565b8352610718602082016106b7565b6020840152610729604082016106b7565b6040840152606081013560608401526080810135608084015261074e60a082016106cb565b60a084015260c081013560c084015260e081013560e084015261010081013561010084015261078061012082016106dc565b610120840152610140810135610140840152013561016082015290565b91906107ab918101906106e9565b9061081f7f00000000000000000000000000000000000000000000000000000000000000008390604291601f190180517fd5a25ba2e97094ad7d83dc28a6572da797d6b3e7fc6663bd93efb789fc17e48982526101a0822091526040519161190160f01b8352600283015260228201522090565b036109eb5761083861019c82516001600160a01b031690565b6001600160a01b0361085b61019c600119368181013560f01c9003013560601c90565b9116036109eb5761087961019c60208301516001600160a01b031690565b6001600160a01b0361088c61019c610a7c565b9116036109eb5760608101513660011981013560f01c900360260135036109eb5760808101513660011981013560f01c900360460135116109eb5760a081015163ffffffff1663ffffffff6108f661044a61044a60663660011981013560f01c9003013560c01c90565b9116036109eb5760c08101517f0000000000000000000000000000000000000000000000000000000000000000036109eb5760e08101516109eb577ff3b277728b3fee749481eb3e0b3b48980dbbab78658fc419025cb16eee346775610100820151036109eb576101208101516109eb577f5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9610140820151036109eb577f5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9610160820151036109eb5760400151306001600160a01b03909116036109df57630b135d3f60e11b90565b6001600160e01b031990565b506001600160e01b031990565b90816020910312610155575190565b6040513d5f823e3d90fd5b6106b5926001600160a01b036040519363a9059cbb60e01b6020860152166024840152604483015260448252610a4960648361066f565b610a91565b6084600119368181013560f01c9003015b013560601c90565b6070600119368181013560f01c900301610a5f565b6014600119368181013560f01c900301610a5f565b905f602091828151910182855af115610a07575f513d610adc57506001600160a01b0381163b155b610ac05750565b6001600160a01b0390635274afe760e01b5f521660045260245ffd5b60011415610ab956fea2646970667358221220b5d9a375a1728332ea5e4698443cd569086de07e23afa82d6d1c913b1da9414d64736f6c634300081c0033",
+  "args_data": "0x2d6e5a9324d4bda7e4e2eb3b46e4dd260fd352f66c0457673c1fcbcd81915976d72ffa789b6fae41254d0b5a13e6e1e92ed947ec6a251edf1cf0b6c02c257b4b",
+  "tx_hash": "",
+  "args": [],
+  "data": "",
+  "artifact_path": "CoWSwapCloneWithAppDataAndDomain.sol",
+  "artifact_full_path": "CoWSwapCloneWithAppDataAndDomain.sol:CoWSwapCloneWithAppDataAndDomain"
+}
