@@ -179,7 +179,7 @@ abstract contract BasketManagerInvariantTest is StdInvariant, BaseTest {
                 // This will revert with BasketTokenNotFound if the basket is not properly registered
                 uint256 index = basketManager.basketTokenToIndex(registeredBasket);
                 assertTrue(index < type(uint256).max, "Known basket has invalid index"); // Always true if above doesn't
-                    // revert
+                // revert
             }
         }
     }

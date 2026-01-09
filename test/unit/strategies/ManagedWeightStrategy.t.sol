@@ -42,10 +42,7 @@ contract ManagedWeightStrategyTest is BaseTest {
         new ManagedWeightStrategy(admin, address(0));
     }
 
-    function testFuzz_setTargetWeights(
-        uint40 epoch,
-        uint256 bitFlag
-    )
+    function testFuzz_setTargetWeights(uint40 epoch, uint256 bitFlag)
         public
         returns (uint64[] memory newTargetWeights)
     {

@@ -323,9 +323,9 @@ contract FarmingPluginFactoryTest is BaseTest {
         address plugin1 = factory.deployFarmingPlugin(IERC20Plugins(stakingToken), IERC20(rewardsToken), newOwner);
         address plugin2 =
             factory.deployFarmingPluginWithDefaultOwner(IERC20Plugins(stakingToken), IERC20(rewardsToken2)); // Same
-            // staking, diff reward
+        // staking, diff reward
         address plugin3 = factory.deployFarmingPlugin(IERC20Plugins(stakingToken2), IERC20(rewardsToken), owner2); // Diff
-            // staking
+        // staking
         vm.stopPrank();
 
         // Check allPlugins

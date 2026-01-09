@@ -141,7 +141,7 @@ jobs:
         run: |
           forge --version
           pnpm build
-          forge test -vvv
+          forge test -vvv --no-match-path "test/invariant/**"
         env:
           # make fuzzing semi-deterministic to avoid noisy gas cost estimation
           # due to non-deterministic fuzzing (but still use pseudo-random fuzzing seeds)

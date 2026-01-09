@@ -33,7 +33,9 @@ abstract contract VerifyStatesCommon is Constants, BuildDeploymentJsonNames {
         try IPriceOracle(oracle).name() returns (string memory name) {
             oracleName = name;
         } catch {
-            console.log(string.concat(currentIndent, unicode"❌ Oracle without name() function: ", vm.toString(oracle)));
+            console.log(
+                string.concat(currentIndent, unicode"❌ Oracle without name() function: ", vm.toString(oracle))
+            );
             return;
         }
 

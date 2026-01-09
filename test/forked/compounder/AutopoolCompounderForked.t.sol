@@ -309,7 +309,9 @@ contract AutopoolCompounderForkedTest is BaseTest {
     function _performMilkmanSwap(uint256 rewardAmount) internal returns (bytes memory) {
         vm.mockCall(
             address(rewarder),
-            abi.encodeWithSelector(IAutopoolMainRewarder.getReward.selector, address(strategy), address(strategy), true),
+            abi.encodeWithSelector(
+                IAutopoolMainRewarder.getReward.selector, address(strategy), address(strategy), true
+            ),
             abi.encode()
         );
 

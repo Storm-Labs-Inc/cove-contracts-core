@@ -203,10 +203,7 @@ library BasketManagerValidationLib {
         }
     }
 
-    function testLib_needsRebalance(
-        BasketManager basketManager,
-        address[] memory baskets
-    )
+    function testLib_needsRebalance(BasketManager basketManager, address[] memory baskets)
         internal
         view
         returns (bool)
@@ -881,8 +878,9 @@ library BasketManagerValidationLib {
                         if (slot.sellAmount > slot.surplusDeficits[i].surplus) {
                             slot.sellAmount = slot.surplusDeficits[i].surplus;
                             // Recalculate tradeUSD based on actual sellAmount
-                            tradeUSD =
-                                _getPrimaryOracleQuote(eulerRouter, slot.sellAmount, slot.surplusDeficits[i].asset, USD);
+                            tradeUSD = _getPrimaryOracleQuote(
+                                eulerRouter, slot.sellAmount, slot.surplusDeficits[i].asset, USD
+                            );
                         }
 
                         slot.expectedBuyAmount =
@@ -894,8 +892,7 @@ library BasketManagerValidationLib {
                         // Create trade ownership
                         slot.tradeOwnerships = new BasketTradeOwnership[](1);
                         slot.singleOwnership = BasketTradeOwnership({
-                            basket: slot.surplusDeficits[i].basket,
-                            tradeOwnership: uint96(1e18)
+                            basket: slot.surplusDeficits[i].basket, tradeOwnership: uint96(1e18)
                         });
                         slot.tradeOwnerships[0] = slot.singleOwnership;
 

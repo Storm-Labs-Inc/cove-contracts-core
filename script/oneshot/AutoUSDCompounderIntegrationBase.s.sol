@@ -26,12 +26,7 @@ import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.
 import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
-abstract contract AutoUSDCompounderIntegrationBase is
-    DeployScript,
-    Constants,
-    StdAssertions,
-    BuildDeploymentJsonNames
-{
+abstract contract AutoUSDCompounderIntegrationBase is DeployScript, Constants, StdAssertions, BuildDeploymentJsonNames {
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
