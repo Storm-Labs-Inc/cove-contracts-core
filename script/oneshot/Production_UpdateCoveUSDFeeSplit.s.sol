@@ -38,7 +38,7 @@ contract ProductionUpdateCoveUSDFeeSplit is UpdateCoveUSDFeeSplitBase {
                         ethBalance,
                         IERC20(ETH_WETH),
                         IERC20(ETH_USDC),
-                        COVE_OPS_MULTISIG,
+                        _safe(),
                         bytes32(0),
                         _CHAINLINK_DYNAMIC_SLIPPAGE_CHECKER,
                         priceCheckerData
