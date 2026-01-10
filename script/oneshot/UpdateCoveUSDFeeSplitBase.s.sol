@@ -68,28 +68,6 @@ abstract contract UpdateCoveUSDFeeSplitBase is
             abi.encodeCall(TimelockController.scheduleBatch, (targets, values, payloads, bytes32(0), bytes32(0), delay))
         );
 
-        // ============================= TESTING (fork only) =============================
-        vm.prank(_safe());
-        IFeeCollector(feeCollector).setSponsorSplit(basketToken, NEW_SPONSOR_SPLIT_BPS);
-
-        vm.prank(_safe());
-        timelockController.scheduleBatch(targets, values, payloads, bytes32(0), bytes32(0), delay);
-
-        vm.warp(block.timestamp + delay);
-        vm.prank(COVE_DEPLOYER_ADDRESS);
-        timelockController.executeBatch(targets, values, payloads, bytes32(0), bytes32(0));
-
-        assertEq(
-            IBasketManager(basketManager).managementFee(basketToken),
-            NEW_MANAGEMENT_FEE_BPS,
-            "management fee not updated"
-        );
-        assertEq(
-            IFeeCollector(feeCollector).basketTokenSponsorSplits(basketToken),
-            NEW_SPONSOR_SPLIT_BPS,
-            "sponsor split not updated"
-        );
-
         // if context is ScriptBroadcast (forge script ... --broadcast),
         // actually execute the batch
         // otherwise, just simulate the batch
@@ -97,6 +75,24 @@ abstract contract UpdateCoveUSDFeeSplitBase is
             executeBatch(true);
         } else {
             executeBatch(false);
+        }
+
+        // ============================= TESTING (fork only) =============================
+        if (!vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
+            vm.warp(block.timestamp + delay);
+            vm.prank(COVE_DEPLOYER_ADDRESS);
+            timelockController.executeBatch(targets, values, payloads, bytes32(0), bytes32(0));
+
+            assertEq(
+                IBasketManager(basketManager).managementFee(basketToken),
+                NEW_MANAGEMENT_FEE_BPS,
+                "management fee not updated"
+            );
+            assertEq(
+                IFeeCollector(feeCollector).basketTokenSponsorSplits(basketToken),
+                NEW_SPONSOR_SPLIT_BPS,
+                "sponsor split not updated"
+            );
         }
     }
 }
