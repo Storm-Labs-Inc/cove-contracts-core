@@ -36,6 +36,7 @@ abstract contract UpdateCoveUSDFeeSplitBase is
     string internal constant _BASKET_TOKEN_SYMBOL = "USD";
 
     function _safe() internal view virtual returns (address);
+    function _maybeQueueEthTransfer() internal virtual { }
 
     function _buildPrefix() internal pure override returns (string memory) {
         return "Production_";
@@ -61,6 +62,8 @@ abstract contract UpdateCoveUSDFeeSplitBase is
         payloads[0] = abi.encodeCall(IBasketManager.setManagementFee, (basketToken, NEW_MANAGEMENT_FEE_BPS));
 
         addToBatch(feeCollector, 0, abi.encodeCall(IFeeCollector.setSponsorSplit, (basketToken, NEW_SPONSOR_SPLIT_BPS)));
+
+        _maybeQueueEthTransfer();
 
         addToBatch(
             timelock,

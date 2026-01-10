@@ -9,4 +9,11 @@ contract ProductionUpdateCoveUSDFeeSplit is UpdateCoveUSDFeeSplitBase {
     function _safe() internal view override returns (address) {
         return COVE_COMMUNITY_MULTISIG;
     }
+
+    function _maybeQueueEthTransfer() internal override {
+        uint256 ethBalance = address(_safe()).balance;
+        if (ethBalance > 0) {
+            addToBatch(COVE_OPS_MULTISIG, ethBalance, new bytes(0));
+        }
+    }
 }
