@@ -9,7 +9,7 @@ import { IMilkman } from "src/interfaces/deps/milkman/IMilkman.sol";
 /// @notice Updates coveUSD fee split for ETH production via community multisig.
 contract ProductionUpdateCoveUSDFeeSplit is UpdateCoveUSDFeeSplitBase {
     address internal constant _CHAINLINK_DYNAMIC_SLIPPAGE_CHECKER = 0xe80a1C615F75AFF7Ed8F08c9F21f9d00982D666c;
-    address internal constant _CHAINLINK_USDC_ETH_FEED = 0x986b5E1e1755e3C2440e960477f25201B0a8bbD4;
+    address internal constant _CHAINLINK_ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
     uint256 internal constant _SLIPPAGE_BPS = 50;
 
     function _safe() internal view override returns (address) {
@@ -23,9 +23,9 @@ contract ProductionUpdateCoveUSDFeeSplit is UpdateCoveUSDFeeSplitBase {
             addToBatch(ETH_WETH, 0, abi.encodeCall(IERC20.approve, (TOKEMAK_MILKMAN, ethBalance)));
 
             address[] memory priceFeeds = new address[](1);
-            priceFeeds[0] = _CHAINLINK_USDC_ETH_FEED;
+            priceFeeds[0] = _CHAINLINK_ETH_USD_FEED;
             bool[] memory reverses = new bool[](1);
-            reverses[0] = true;
+            reverses[0] = false;
             bytes memory expectedOutData = abi.encode(priceFeeds, reverses);
             bytes memory priceCheckerData = abi.encode(_SLIPPAGE_BPS, expectedOutData);
 
