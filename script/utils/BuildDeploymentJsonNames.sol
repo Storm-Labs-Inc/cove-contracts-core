@@ -75,6 +75,12 @@ abstract contract BuildDeploymentJsonNames is Constants {
         return string.concat(_buildPrefix(), "PythOracle_", baseSymbol, "-", quoteSymbol);
     }
 
+    function buildPythOracleMarketHoursName(address base, address quote) public view returns (string memory) {
+        string memory baseSymbol = _getOracleAssetSymbol(base);
+        string memory quoteSymbol = _getOracleAssetSymbol(quote);
+        return string.concat(_buildPrefix(), "PythOracleMarketHours_", baseSymbol, "-", quoteSymbol);
+    }
+
     function buildChainlinkOracleName(address base, address quote) public view returns (string memory) {
         string memory baseSymbol = _getOracleAssetSymbol(base);
         string memory quoteSymbol = _getOracleAssetSymbol(quote);
@@ -103,6 +109,12 @@ abstract contract BuildDeploymentJsonNames is Constants {
         string memory baseSymbol = _getOracleAssetSymbol(base);
         string memory quoteSymbol = _getOracleAssetSymbol(quote);
         return string.concat(_buildPrefix(), "CurveEMAOracle_", baseSymbol, "-", quoteSymbol);
+    }
+
+    function buildRedstoneCoreOracleName(address base, address quote) public view returns (string memory) {
+        string memory baseSymbol = _getOracleAssetSymbol(base);
+        string memory quoteSymbol = _getOracleAssetSymbol(quote);
+        return string.concat(_buildPrefix(), "RedstoneCoreOracle_", baseSymbol, "-", quoteSymbol);
     }
 
     function buildCurveEMAOracleUnderlyingName(address base, address quote) public view returns (string memory) {
