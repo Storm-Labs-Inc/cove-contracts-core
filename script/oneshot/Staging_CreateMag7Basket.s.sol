@@ -6,6 +6,7 @@ import { BatchScript } from "forge-safe/BatchScript.sol";
 import { Deployer, DeployerFunctions } from "generated/deployer/DeployerFunctions.g.sol";
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 import { EulerRouter } from "euler-price-oracle/src/EulerRouter.sol";
 import { AssetRegistry } from "src/AssetRegistry.sol";
@@ -17,10 +18,17 @@ import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
 import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
 import { CustomDeployerFunctions } from "script/utils/CustomDeployerFunctions.sol";
+import { Mag7DeploymentUtils } from "script/utils/Mag7DeploymentUtils.sol";
 import { Constants } from "test/utils/Constants.t.sol";
 
 // solhint-disable var-name-mixedcase
-contract StagingCreateMag7Basket is DeployScript, Constants, BatchScript, BuildDeploymentJsonNames {
+contract StagingCreateMag7Basket is
+    DeployScript,
+    Constants,
+    BatchScript,
+    BuildDeploymentJsonNames,
+    Mag7DeploymentUtils
+{
     using DeployerFunctions for Deployer;
     using CustomDeployerFunctions for Deployer;
 
@@ -43,29 +51,57 @@ contract StagingCreateMag7Basket is DeployScript, Constants, BatchScript, BuildD
     }
 
     function deploy() public {
-        require(msg.sender == COVE_DEPLOYER_ADDRESS, "Caller must be COVE DEPLOYER");
-        deployer.setAutoBroadcast(true);
+        _configure();
+        communityPreBatch(false);
+        encodedTxns = new bytes[](0);
+        opsBatch(false);
+        encodedTxns = new bytes[](0);
+        communityPostBatch(false);
+    }
 
+    function communityPreBatch() public {
+        communityPreBatch(true);
+    }
+
+    function communityPreBatch(bool execute_) public {
+        _configure();
         address[] memory mag7Assets = _mag7EquityAssets();
-        address[] memory mag7Anchors = _deployMag7Oracles(mag7Assets);
-
+        address[] memory mag7Oracles = _deployMag7Oracles(mag7Assets);
         mag7Strategy = _deployMag7Strategy();
+        _buildCommunityPreBatch(mag7Assets, mag7Oracles);
+        if (execute_) {
+            _maybeExecuteBatch();
+        }
+    }
 
-        _buildCommunityPreBatch(mag7Assets, mag7Anchors);
-        // executeBatch(true);
-        encodedTxns = new bytes[](0);
+    function opsBatch() public {
+        opsBatch(true);
+    }
 
+    function opsBatch(bool execute_) public {
+        _configure();
+        mag7Strategy = _deployMag7Strategy();
         _buildOpsBatch();
-        // executeBatch(true);
-        encodedTxns = new bytes[](0);
+        if (execute_) {
+            _maybeExecuteBatch();
+        }
+    }
 
+    function communityPostBatch() public {
+        communityPostBatch(true);
+    }
+
+    function communityPostBatch(bool execute_) public {
+        _configure();
         _buildCommunityPostBatch();
-        // executeBatch(true);
+        if (execute_) {
+            _maybeExecuteBatch();
+        }
     }
 
     function _buildCommunityPreBatch(
         address[] memory mag7Assets,
-        address[] memory mag7Anchors
+        address[] memory mag7Oracles
     )
         internal
         isBatch(community_safe)
@@ -80,7 +116,7 @@ contract StagingCreateMag7Basket is DeployScript, Constants, BatchScript, BuildD
         EulerRouter router = EulerRouter(deployer.getAddress(buildEulerRouterName()));
         for (uint256 i = 0; i < mag7Assets.length; i++) {
             addToBatch(
-                address(router), 0, abi.encodeCall(EulerRouter.govSetConfig, (mag7Assets[i], USD, mag7Anchors[i]))
+                address(router), 0, abi.encodeCall(EulerRouter.govSetConfig, (mag7Assets[i], USD, mag7Oracles[i]))
             );
         }
 
@@ -146,6 +182,19 @@ contract StagingCreateMag7Basket is DeployScript, Constants, BatchScript, BuildD
         );
     }
 
+    function _configure() internal {
+        require(msg.sender == COVE_DEPLOYER_ADDRESS, "Caller must be COVE DEPLOYER");
+        deployer.setAutoBroadcast(true);
+    }
+
+    function _maybeExecuteBatch() internal {
+        if (vm.isContext(VmSafe.ForgeContext.ScriptBroadcast)) {
+            executeBatch(true);
+        } else {
+            executeBatch(false);
+        }
+    }
+
     function _deployMag7Strategy() internal returns (address strategyAddr) {
         string memory strategyName = "MAG7 V1";
         strategyAddr = deployer.getAddress(buildManagedWeightStrategyName(strategyName));
@@ -166,23 +215,45 @@ contract StagingCreateMag7Basket is DeployScript, Constants, BatchScript, BuildD
         }
     }
 
-    function _deployMag7Oracles(address[] memory mag7Assets) internal returns (address[] memory anchoredOracles) {
-        anchoredOracles = new address[](mag7Assets.length);
+    function _deployMag7Oracles(address[] memory mag7Assets) internal returns (address[] memory mag7Oracles) {
+        mag7Oracles = new address[](mag7Assets.length);
         bytes32[] memory pythFeeds = _mag7PythFeeds();
         bytes32[] memory redstoneFeeds = _mag7RedstoneFeeds();
 
         for (uint256 i = 0; i < mag7Assets.length; i++) {
-            address existing = deployer.getAddress(buildAnchoredOracleName(mag7Assets[i], USD));
-            if (existing != address(0)) {
-                anchoredOracles[i] = existing;
+            address asset = mag7Assets[i];
+            if (isPythOnlyAsset(asset)) {
+                address existingPyth = deployer.getAddress(buildPythOracleMarketHoursName(asset, USD));
+                if (existingPyth != address(0)) {
+                    mag7Oracles[i] = existingPyth;
+                    continue;
+                }
+
+                mag7Oracles[i] = address(
+                    deployer.deploy_PythOracleMarketHours(
+                        buildPythOracleMarketHoursName(asset, USD),
+                        PYTH,
+                        asset,
+                        USD,
+                        pythFeeds[i],
+                        PYTH_MAX_STALENESS,
+                        PYTH_MAX_CONF_WIDTH
+                    )
+                );
+                continue;
+            }
+
+            address existingAnchored = deployer.getAddress(buildAnchoredOracleName(asset, USD));
+            if (existingAnchored != address(0)) {
+                mag7Oracles[i] = existingAnchored;
                 continue;
             }
 
             address pythOracle = address(
                 deployer.deploy_PythOracleMarketHours(
-                    buildPythOracleMarketHoursName(mag7Assets[i], USD),
+                    buildPythOracleMarketHoursName(asset, USD),
                     PYTH,
-                    mag7Assets[i],
+                    asset,
                     USD,
                     pythFeeds[i],
                     PYTH_MAX_STALENESS,
@@ -191,17 +262,17 @@ contract StagingCreateMag7Basket is DeployScript, Constants, BatchScript, BuildD
             );
             address redstoneOracle = address(
                 deployer.deploy_RedstoneCoreOracle(
-                    buildRedstoneCoreOracleName(mag7Assets[i], USD),
-                    mag7Assets[i],
+                    buildRedstoneCoreOracleName(asset, USD),
+                    asset,
                     USD,
                     redstoneFeeds[i],
                     REDSTONE_DEFAULT_FEED_DECIMALS,
                     REDSTONE_MAX_STALENESS
                 )
             );
-            anchoredOracles[i] = address(
+            mag7Oracles[i] = address(
                 deployer.deploy_AnchoredOracle(
-                    buildAnchoredOracleName(mag7Assets[i], USD), pythOracle, redstoneOracle, MAG7_MAX_DIVERGENCE
+                    buildAnchoredOracleName(asset, USD), pythOracle, redstoneOracle, MAG7_MAX_DIVERGENCE
                 )
             );
         }
