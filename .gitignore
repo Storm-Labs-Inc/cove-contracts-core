@@ -35,6 +35,7 @@ lcov.info
 **/cache
 **/node_modules
 **/out
+.worktrees/
 
 # files
 *.env
