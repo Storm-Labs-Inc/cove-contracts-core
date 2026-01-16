@@ -77,14 +77,13 @@ contract StagingCreateMag7Basket is
         _configure();
         TimelockController timelock = TimelockController(payable(deployer.getAddress(buildTimelockControllerName())));
         BasketManager basketManager = BasketManager(deployer.getAddress(buildBasketManagerName()));
+        mag7Basket = deployer.getAddress(buildBasketTokenName("MAG7"));
         address[] memory targets = new address[](1);
         targets[0] = address(basketManager);
         uint256[] memory values = new uint256[](1);
         values[0] = 0;
         bytes[] memory calldatas = new bytes[](1);
         calldatas[0] = abi.encodeCall(basketManager.setManagementFee, (mag7Basket, MAG7_MANAGEMENT_FEE_BPS));
-        uint256 delay = timelock.getMinDelay();
-        vm.warp(vm.getBlockTimestamp() + delay);
         vm.broadcast();
         timelock.executeBatch(targets, values, calldatas, bytes32(0), bytes32(0));
     }

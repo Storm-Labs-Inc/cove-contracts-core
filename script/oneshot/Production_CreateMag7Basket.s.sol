@@ -73,6 +73,10 @@ contract ProductionCreateMag7Basket is
         _configure();
         TimelockController timelock = TimelockController(payable(deployer.getAddress(buildTimelockControllerName())));
         BasketManager basketManager = BasketManager(deployer.getAddress(buildBasketManagerName()));
+        mag7Basket = deployer.getAddress(buildBasketTokenName("MAG7"));
+        if (mag7Basket == address(0)) {
+            revert("MAG7 basket not found");
+        }
         address[] memory targets = new address[](1);
         targets[0] = address(basketManager);
         uint256[] memory values = new uint256[](1);
