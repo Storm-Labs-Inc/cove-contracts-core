@@ -22,13 +22,14 @@ import { FeeCollector } from "src/FeeCollector.sol";
 import { IMasterRegistry } from "src/interfaces/IMasterRegistry.sol";
 import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 
+import { Mag7DeploymentUtils } from "script/utils/Mag7DeploymentUtils.sol";
 import { FarmingPluginFactory } from "src/rewards/FarmingPluginFactory.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 import { BasketManagerValidationLib } from "test/utils/BasketManagerValidationLib.sol";
 
 // solhint-disable contract-name-capwords
-contract VerifyStates_Staging is DeployScript, VerifyStatesCommon {
+contract VerifyStates_Staging is DeployScript, VerifyStatesCommon, Mag7DeploymentUtils {
     using BasketManagerValidationLib for BasketManager;
 
     function _getDeployer() internal view override returns (Deployer) {
@@ -232,28 +233,63 @@ contract VerifyStates_Staging is DeployScript, VerifyStatesCommon {
             // Use single unit of asset to measure the price
             uint256 amount = 10 ** IERC20Metadata(asset).decimals();
 
-            // Get primary and anchor oracles
-            AnchoredOracle anchoredOracle = AnchoredOracle(oracleAddr);
-            address primaryOracle = anchoredOracle.primaryOracle();
-            address anchorOracle = anchoredOracle.anchorOracle();
+            // Get registered oracle prices
+            // In case of pyth only oracle, get the price straight from the pyth oralce
+            if (_isPythOnlyAsset(asset)) {
+                uint256 price = IPriceOracle(oracleAddr).getQuote(amount, asset, USD);
+                console.log(string.concat("Pyth Oracle Price   : $", _formatEther(price)));
+            } else {
+                AnchoredOracle anchoredOracle = AnchoredOracle(oracleAddr);
+                // Get primary oracle price
+                address primaryOracle = anchoredOracle.primaryOracle();
+                uint256 primaryPrice;
+                try IPriceOracle(primaryOracle).getQuote(amount, asset, USD) returns (uint256 price) {
+                    primaryPrice = price;
+                } catch {
+                    console.log("Error: getQuote failed for primary oracle");
+                    primaryPrice = 0;
+                }
+                console.log(string.concat("Primary Oracle Price: $", _formatEther(primaryPrice)));
 
-            // Get prices from primary and anchor oracle prices
-            uint256 primaryPrice = IPriceOracle(primaryOracle).getQuote(amount, asset, USD);
-            uint256 anchorPrice = IPriceOracle(anchorOracle).getQuote(amount, asset, USD);
+                // Get anchor oracle price
+                address anchorOracle = anchoredOracle.anchorOracle();
+                uint256 anchorPrice;
+                try IPriceOracle(anchorOracle).getQuote(amount, asset, USD) returns (uint256 price) {
+                    anchorPrice = price;
+                } catch {
+                    console.log("Error: getQuote failed for anchor oracle");
+                    anchorPrice = 0;
+                }
+                console.log(string.concat("Anchor Oracle Price : $", _formatEther(anchorPrice)));
+            }
 
-            console.log(string.concat("Primary Oracle Price: $", _formatEther(primaryPrice)));
-            console.log(string.concat("Anchor Oracle Price : $", _formatEther(anchorPrice)));
-
-            uint256 eulerRouterPrice = eulerRouter.getQuote(amount, asset, USD);
+            // Get price according to EulerRouter
+            uint256 eulerRouterPrice;
+            try eulerRouter.getQuote(amount, asset, USD) returns (uint256 price) {
+                eulerRouterPrice = price;
+            } catch {
+                console.log("Error: getQuote failed for euler router");
+                eulerRouterPrice = 0;
+            }
             console.log(string.concat("EulerRouter Price   : $", _formatEther(eulerRouterPrice)));
 
-            // Print primary oracle details
-            console.log("\nPrimary Oracle (Pyth sourced):", primaryOracle);
-            _traverseOracles(primaryOracle, "");
+            // If the asset is Pyth only, traverse and print the Pyth oracle details
+            if (_isPythOnlyAsset(asset)) {
+                console.log("\nPyth Oracle (Pyth sourced):", oracleAddr);
+                _traverseOracles(oracleAddr, "");
+            } else {
+                // If the asset is not Pyth only, traverse and print the primary and anchor oracle details
+                AnchoredOracle anchoredOracle = AnchoredOracle(oracleAddr);
+                address primaryOracle = anchoredOracle.primaryOracle();
+                address anchorOracle = anchoredOracle.anchorOracle();
+                // Print primary oracle details
+                console.log("\nPrimary Oracle (Pyth sourced):", primaryOracle);
+                _traverseOracles(primaryOracle, "");
 
-            // Print anchor oracle details
-            console.log("\nAnchor Oracle (Chainlink sourced):", anchorOracle);
-            _traverseOracles(anchorOracle, "");
+                // Print anchor oracle details
+                console.log("\nAnchor Oracle (Chainlink sourced):", anchorOracle);
+                _traverseOracles(anchorOracle, "");
+            }
         }
 
         // Verify permissions

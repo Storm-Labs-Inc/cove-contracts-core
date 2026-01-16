@@ -1033,6 +1033,9 @@ library BasketManagerValidationLib {
             // Do nothing
         } else if (_isAutopoolOracle(oracle)) {
             // Do nothing
+        } else if (_isRedstoneOracle(oracle)) {
+            // Do nothing
+            // TODO: Update RedstoneOracle cache
         } else {
             revert InvalidOracle(oracle);
         }
