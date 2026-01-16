@@ -9,6 +9,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+import { RedstoneCoreOracle } from "euler-price-oracle/src/adapter/redstone/RedstoneCoreOracle.sol";
 
 import { IPriceOracle } from "euler-price-oracle/src/interfaces/IPriceOracle.sol";
 import { IPriceOracleWithBaseAndQuote } from "src/interfaces/deps/IPriceOracleWithBaseAndQuote.sol";
@@ -16,6 +17,7 @@ import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { AutoPoolCompounderOracle } from "src/oracles/AutoPoolCompounderOracle.sol";
 import { AutopoolOracle } from "src/oracles/AutopoolOracle.sol";
 import { CurveEMAOracleUnderlying } from "src/oracles/CurveEMAOracleUnderlying.sol";
+import { PythOracleMarketHours } from "src/oracles/PythOracleMarketHours.sol";
 
 import { Deployer } from "generated/deployer/DeployerFunctions.g.sol";
 import { BuildDeploymentJsonNames } from "script/utils/BuildDeploymentJsonNames.sol";
@@ -43,8 +45,12 @@ abstract contract VerifyStatesCommon is Constants, BuildDeploymentJsonNames {
 
         if (oracleName.equal("PythOracle")) {
             _printPythOracleDetails(oracle, currentIndent);
+        } else if (oracleName.equal("PythOracleMarketHours")) {
+            _printPythOracleMarketHoursDetails(oracle, currentIndent);
         } else if (oracleName.equal("ChainlinkOracle")) {
             _printChainlinkOracleDetails(oracle, currentIndent);
+        } else if (oracleName.equal("RedstoneCoreOracle")) {
+            _printRedstoneOracleDetails(oracle, currentIndent);
         } else if (oracleName.equal("CrossAdapter")) {
             _printCrossAdapterDetails(oracle, currentIndent);
         } else if (oracleName.equal("ERC4626Oracle")) {
@@ -77,6 +83,19 @@ abstract contract VerifyStatesCommon is Constants, BuildDeploymentJsonNames {
         _printBaseAndQuote(oracle, indent);
     }
 
+    function _printPythOracleMarketHoursDetails(address oracle, string memory indent) internal view {
+        PythOracleMarketHours pythOracle = PythOracleMarketHours(oracle);
+        bytes32 feedId = pythOracle.feedId();
+        uint256 staleness = pythOracle.maxStaleness();
+
+        console.log(string.concat(indent, "Type: Pyth (Market Hours)"));
+        console.log(string.concat(indent, "Feed ID: ", vm.toString(feedId)));
+        console.log(string.concat(indent, "Max Staleness: ", vm.toString(staleness), "s"));
+        string memory deploymentJsonName = buildPythOracleMarketHoursName(pythOracle.base(), pythOracle.quote());
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
+        _printBaseAndQuote(oracle, indent);
+    }
+
     function _printChainlinkOracleDetails(address oracle, string memory indent) internal view {
         ChainlinkOracle clOracle = ChainlinkOracle(oracle);
         address feed = clOracle.feed();
@@ -86,6 +105,21 @@ abstract contract VerifyStatesCommon is Constants, BuildDeploymentJsonNames {
         console.log(string.concat(indent, "Feed: ", vm.toString(feed)));
         console.log(string.concat(indent, "Max Staleness: ", vm.toString(staleness), "s"));
         string memory deploymentJsonName = buildChainlinkOracleName(clOracle.base(), clOracle.quote());
+        _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
+        _printBaseAndQuote(oracle, indent);
+    }
+
+    function _printRedstoneOracleDetails(address oracle, string memory indent) internal view {
+        RedstoneCoreOracle redstoneOracle = RedstoneCoreOracle(oracle);
+        bytes32 feedId = redstoneOracle.feedId();
+        uint256 staleness = redstoneOracle.maxStaleness();
+        uint8 feedDecimals = redstoneOracle.feedDecimals();
+
+        console.log(string.concat(indent, "Type: Redstone Pull"));
+        console.log(string.concat(indent, "Feed ID: ", vm.toString(feedId)));
+        console.log(string.concat(indent, "Feed Decimals: ", vm.toString(uint256(feedDecimals))));
+        console.log(string.concat(indent, "Max Staleness: ", vm.toString(staleness), "s"));
+        string memory deploymentJsonName = buildRedstoneCoreOracleName(redstoneOracle.base(), redstoneOracle.quote());
         _printDeploymentJsonMatch(oracle, indent, deploymentJsonName);
         _printBaseAndQuote(oracle, indent);
     }
@@ -221,8 +255,12 @@ abstract contract VerifyStatesCommon is Constants, BuildDeploymentJsonNames {
     function _getCrossAdapterOracleType(string memory oracleName) internal pure returns (string memory) {
         if (oracleName.equal("PythOracle")) {
             return "Pyth";
+        } else if (oracleName.equal("PythOracleMarketHours")) {
+            return "PythMarketHours";
         } else if (oracleName.equal("ChainlinkOracle")) {
             return "Chainlink";
+        } else if (oracleName.equal("RedstoneCoreOracle")) {
+            return "Redstone";
         } else if (oracleName.equal("CrossAdapter")) {
             return "CrossAdapter";
         } else if (oracleName.equal("ERC4626Oracle")) {

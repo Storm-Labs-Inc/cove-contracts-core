@@ -9,6 +9,7 @@ import { CrossAdapter } from "euler-price-oracle/src/adapter/CrossAdapter.sol";
 import { ChainlinkOracle } from "euler-price-oracle/src/adapter/chainlink/ChainlinkOracle.sol";
 
 import { PythOracle } from "euler-price-oracle/src/adapter/pyth/PythOracle.sol";
+import { RedstoneCoreOracle } from "euler-price-oracle/src/adapter/redstone/RedstoneCoreOracle.sol";
 import { IPriceOracle } from "euler-price-oracle/src/interfaces/IPriceOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
@@ -119,6 +120,14 @@ library BasketManagerValidationLib {
     address internal constant PYTH = address(0x4305FB66699C3B2702D4d05CF36551390A4c69C6);
     address internal constant BASE_PYTH = address(0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a);
     address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
+    // MAG7 (Ondo Global Markets)
+    address internal constant ETH_AAPLON = 0x14c3abF95Cb9C93a8b82C1CdCB76D72Cb87b2d4c;
+    address internal constant ETH_MSFTON = 0xB812837b81a3a6b81d7CD74CfB19A7f2784555E5;
+    address internal constant ETH_GOOGLON = 0xbA47214eDd2bb43099611b208f75E4b42FDcfEDc;
+    address internal constant ETH_AMZNON = 0xbb8774FB97436d23d74C1b882E8E9A69322cFD31;
+    address internal constant ETH_NVDAON = 0x2D1F7226Bd1F780AF6B9A49DCC0aE00E8Df4bDEE;
+    address internal constant ETH_METAON = 0x59644165402b611b350645555B50Afb581C71EB2;
+    address internal constant ETH_TSLAON = 0xf6b1117ec07684D3958caD8BEb1b302bfD21103f;
     // solhint-disable-next-line const-name-snakecase
     Vm internal constant vm = Vm(VM_ADDRESS);
 
@@ -142,6 +151,10 @@ library BasketManagerValidationLib {
                 _validateOraclePath(eulerRouter, asset);
             }
         }
+    }
+
+    function testLib_validateOraclePath(EulerRouter eulerRouter, address asset) internal view {
+        _validateOraclePath(eulerRouter, asset);
     }
 
     function testLib_updateOracleTimestamps(BasketManager basketManager) internal {
@@ -987,11 +1000,14 @@ library BasketManagerValidationLib {
         if (amount == 0) {
             return 0;
         }
-        address anchoredOracle = eulerRouter.getConfiguredOracle(base, quote);
-        if (anchoredOracle == address(0)) {
+        address configuredOracle = eulerRouter.getConfiguredOracle(base, quote);
+        if (configuredOracle == address(0)) {
             revert OracleNotConfigured(base);
         }
-        return IPriceOracle(AnchoredOracle(anchoredOracle).primaryOracle()).getQuote(amount, base, quote);
+        if (_isAnchoredOracle(configuredOracle)) {
+            return IPriceOracle(AnchoredOracle(configuredOracle).primaryOracle()).getQuote(amount, base, quote);
+        }
+        return IPriceOracle(configuredOracle).getQuote(amount, base, quote);
     }
 
     function _updateOracleTimestamp(EulerRouter eulerRouter, address oracle) private {
@@ -1017,6 +1033,9 @@ library BasketManagerValidationLib {
             // Do nothing
         } else if (_isAutopoolOracle(oracle)) {
             // Do nothing
+        } else if (_isRedstoneOracle(oracle)) {
+            // Do nothing
+            // TODO: Update RedstoneOracle cache
         } else {
             revert InvalidOracle(oracle);
         }
@@ -1092,6 +1111,13 @@ library BasketManagerValidationLib {
             revert OracleNotConfigured(asset);
         }
 
+        if (_isMag7PythOnlyAsset(asset)) {
+            if (_isPythOracle(oracle)) {
+                return;
+            }
+            revert InvalidOraclePath(asset);
+        }
+
         bool isAnchoredOracle = _isAnchoredOracle(oracle);
         if (!isAnchoredOracle) {
             revert NotAnchoredOracle(asset);
@@ -1104,14 +1130,23 @@ library BasketManagerValidationLib {
         // Validate the primary and anchor oracle paths
         bool primaryHasPyth = _isOraclePathPyth(primaryOracleAddr);
         bool primaryHasChainlink = _isOraclePathChainlink(primaryOracleAddr);
+        bool primaryHasRedstone = _isOraclePathRedstone(primaryOracleAddr);
         bool anchorHasPyth = _isOraclePathPyth(anchorOracleAddr);
         bool anchorHasChainlink = _isOraclePathChainlink(anchorOracleAddr);
+        bool anchorHasRedstone = _isOraclePathRedstone(anchorOracleAddr);
 
-        // We require that one path uses Pyth and the other uses Chainlink
-        // Typical configurations:
-        // Primary = Pyth, Anchor = Chainlink
-        if (!(primaryHasPyth && anchorHasChainlink && !primaryHasChainlink && !anchorHasPyth)) {
-            revert InvalidOraclePath(asset);
+        if (_isMag7Asset(asset)) {
+            // MAG7 uses Pyth (market hours) + Redstone Pull anchor.
+            if (!(primaryHasPyth && anchorHasRedstone && !primaryHasChainlink && !primaryHasRedstone && !anchorHasPyth
+                        && !anchorHasChainlink)) {
+                revert InvalidOraclePath(asset);
+            }
+        } else {
+            // Default requirement: Pyth + Chainlink.
+            if (!(primaryHasPyth && anchorHasChainlink && !primaryHasChainlink && !primaryHasRedstone && !anchorHasPyth
+                        && !anchorHasRedstone)) {
+                revert InvalidOraclePath(asset);
+            }
         }
     }
 
@@ -1170,7 +1205,8 @@ library BasketManagerValidationLib {
             address oracleCrossQuote = CrossAdapter(oracle).oracleCrossQuote();
             _validateCrossAdapterPath(oracle);
             return (_isOraclePathPyth(oracleBaseCross) || _isOraclePathPyth(oracleCrossQuote))
-                && (!_isOraclePathChainlink(oracleBaseCross) && !_isOraclePathChainlink(oracleCrossQuote));
+                && (!_isOraclePathChainlink(oracleBaseCross) && !_isOraclePathChainlink(oracleCrossQuote))
+                && (!_isOraclePathRedstone(oracleBaseCross) && !_isOraclePathRedstone(oracleCrossQuote));
         }
 
         return false;
@@ -1196,7 +1232,32 @@ library BasketManagerValidationLib {
             address oracleCrossQuote = CrossAdapter(oracle).oracleCrossQuote();
             _validateCrossAdapterPath(oracle);
             return (_isOraclePathChainlink(oracleBaseCross) || _isOraclePathChainlink(oracleCrossQuote))
-                && (!_isOraclePathPyth(oracleBaseCross) && !_isOraclePathPyth(oracleCrossQuote));
+                && (!_isOraclePathPyth(oracleBaseCross) && !_isOraclePathPyth(oracleCrossQuote))
+                && (!_isOraclePathRedstone(oracleBaseCross) && !_isOraclePathRedstone(oracleCrossQuote));
+        }
+
+        return false;
+    }
+
+    /// @notice Checks if an oracle path includes Redstone at any point
+    /// @param oracle The oracle to check
+    /// @return True if the oracle path includes Redstone
+    function _isOraclePathRedstone(address oracle) private view returns (bool) {
+        if (_isRedstoneOracle(oracle)) {
+            return true;
+        }
+
+        if (_isAnchoredOracle(oracle)) {
+            revert OracleIsNotLinear(oracle);
+        }
+
+        if (_isCrossAdapter(oracle)) {
+            address oracleBaseCross = CrossAdapter(oracle).oracleBaseCross();
+            address oracleCrossQuote = CrossAdapter(oracle).oracleCrossQuote();
+            _validateCrossAdapterPath(oracle);
+            return (_isOraclePathRedstone(oracleBaseCross) || _isOraclePathRedstone(oracleCrossQuote))
+                && (!_isOraclePathPyth(oracleBaseCross) && !_isOraclePathPyth(oracleCrossQuote))
+                && (!_isOraclePathChainlink(oracleBaseCross) && !_isOraclePathChainlink(oracleCrossQuote));
         }
 
         return false;
@@ -1240,7 +1301,8 @@ library BasketManagerValidationLib {
     /// @return True if the oracle is a PythOracle
     function _isPythOracle(address oracle) private view returns (bool) {
         try PythOracle(oracle).name() returns (string memory name) {
-            return keccak256(bytes(name)) == keccak256(bytes("PythOracle"));
+            bytes32 nameHash = keccak256(bytes(name));
+            return nameHash == keccak256(bytes("PythOracle")) || nameHash == keccak256(bytes("PythOracleMarketHours"));
         } catch {
             return false;
         }
@@ -1255,6 +1317,23 @@ library BasketManagerValidationLib {
         } catch {
             return false;
         }
+    }
+
+    function _isRedstoneOracle(address oracle) private view returns (bool) {
+        try RedstoneCoreOracle(oracle).name() returns (string memory name) {
+            return keccak256(bytes(name)) == keccak256(bytes("RedstoneCoreOracle"));
+        } catch {
+            return false;
+        }
+    }
+
+    function _isMag7Asset(address asset) private pure returns (bool) {
+        return asset == ETH_AAPLON || asset == ETH_MSFTON || asset == ETH_GOOGLON || asset == ETH_AMZNON
+            || asset == ETH_NVDAON || asset == ETH_METAON || asset == ETH_TSLAON;
+    }
+
+    function _isMag7PythOnlyAsset(address asset) private pure returns (bool) {
+        return asset == ETH_AAPLON || asset == ETH_MSFTON;
     }
 
     /// @notice Helper function to check if an oracle is a CurveEMAOracleUnderlying
