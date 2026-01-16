@@ -13,6 +13,7 @@ import { AssetRegistry } from "src/AssetRegistry.sol";
 import { BasketManager } from "src/BasketManager.sol";
 import { BasketToken } from "src/BasketToken.sol";
 import { FeeCollector } from "src/FeeCollector.sol";
+import { AnchoredOracle } from "src/oracles/AnchoredOracle.sol";
 import { ManagedWeightStrategy } from "src/strategies/ManagedWeightStrategy.sol";
 import { StrategyRegistry } from "src/strategies/StrategyRegistry.sol";
 
@@ -220,9 +221,12 @@ contract ProductionCreateMag7Basket is
 
         for (uint256 i = 0; i < mag7Assets.length; i++) {
             address asset = mag7Assets[i];
-            if (isPythOnlyAsset(asset)) {
+            if (_isPythOnlyAsset(asset)) {
                 address existingPyth = deployer.getAddress(buildPythOracleMarketHoursName(asset, USD));
                 if (existingPyth != address(0)) {
+                    _assertPythOracleMarketHoursConfig(
+                        existingPyth, asset, USD, pythFeeds[i], PYTH_MAX_STALENESS, PYTH_MAX_CONF_WIDTH
+                    );
                     mag7Oracles[i] = existingPyth;
                     continue;
                 }
@@ -238,11 +242,24 @@ contract ProductionCreateMag7Basket is
                         PYTH_MAX_CONF_WIDTH
                     )
                 );
+                _assertPythOracleMarketHoursConfig(
+                    mag7Oracles[i], asset, USD, pythFeeds[i], PYTH_MAX_STALENESS, PYTH_MAX_CONF_WIDTH
+                );
                 continue;
             }
 
             address existingAnchored = deployer.getAddress(buildAnchoredOracleName(asset, USD));
             if (existingAnchored != address(0)) {
+                AnchoredOracle anchored = AnchoredOracle(existingAnchored);
+                address primary = anchored.primaryOracle();
+                address anchor = anchored.anchorOracle();
+                _assertPythOracleMarketHoursConfig(
+                    primary, asset, USD, pythFeeds[i], PYTH_MAX_STALENESS, PYTH_MAX_CONF_WIDTH
+                );
+                _assertRedstoneCoreOracleConfig(
+                    anchor, asset, USD, redstoneFeeds[i], REDSTONE_DEFAULT_FEED_DECIMALS, REDSTONE_MAX_STALENESS
+                );
+                _assertAnchoredOracleConfig(existingAnchored, primary, anchor, MAG7_MAX_DIVERGENCE);
                 mag7Oracles[i] = existingAnchored;
                 continue;
             }
@@ -258,6 +275,9 @@ contract ProductionCreateMag7Basket is
                     PYTH_MAX_CONF_WIDTH
                 )
             );
+            _assertPythOracleMarketHoursConfig(
+                pythOracle, asset, USD, pythFeeds[i], PYTH_MAX_STALENESS, PYTH_MAX_CONF_WIDTH
+            );
             address redstoneOracle = address(
                 deployer.deploy_RedstoneCoreOracle(
                     buildRedstoneCoreOracleName(asset, USD),
@@ -268,11 +288,15 @@ contract ProductionCreateMag7Basket is
                     REDSTONE_MAX_STALENESS
                 )
             );
+            _assertRedstoneCoreOracleConfig(
+                redstoneOracle, asset, USD, redstoneFeeds[i], REDSTONE_DEFAULT_FEED_DECIMALS, REDSTONE_MAX_STALENESS
+            );
             mag7Oracles[i] = address(
                 deployer.deploy_AnchoredOracle(
                     buildAnchoredOracleName(asset, USD), pythOracle, redstoneOracle, MAG7_MAX_DIVERGENCE
                 )
             );
+            _assertAnchoredOracleConfig(mag7Oracles[i], pythOracle, redstoneOracle, MAG7_MAX_DIVERGENCE);
         }
     }
 

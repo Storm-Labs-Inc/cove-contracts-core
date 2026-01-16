@@ -27,27 +27,42 @@ contract BasketManagerValidationLibHarness {
 
 contract BasketManagerValidationLibMag7Test is Test, Constants {
     StubPythMag7 internal pyth;
-    PythOracleMarketHours internal pythOracle;
-    RedstoneCoreOracle internal redstoneOracle;
-    AnchoredOracle internal anchoredOracle;
-    EulerRouter internal router;
     BasketManagerValidationLibHarness internal harness;
 
     function setUp() public {
         pyth = new StubPythMag7();
-        pythOracle = new PythOracleMarketHours(address(pyth), ETH_AAPLON, USD, PYTH_AAPL_USD_FEED, 60 seconds, 50);
-        redstoneOracle = new RedstoneCoreOracle(
-            ETH_AAPLON, USD, REDSTONE_AAPL_USD_FEED, REDSTONE_DEFAULT_FEED_DECIMALS, 5 minutes
-        );
-        anchoredOracle = new AnchoredOracle(address(pythOracle), address(redstoneOracle), 0.005e18);
-
-        router = new EulerRouter(address(1), address(this));
-        router.govSetConfig(ETH_AAPLON, USD, address(anchoredOracle));
-
         harness = new BasketManagerValidationLibHarness();
     }
 
-    function test_validateOraclePath_allowsMag7PythRedstone() public view {
+    function _setupAnchoredOracle(address asset, bytes32 pythFeed, bytes32 redstoneFeed)
+        internal
+        returns (EulerRouter)
+    {
+        PythOracleMarketHours pythOracle =
+            new PythOracleMarketHours(address(pyth), asset, USD, pythFeed, 60 seconds, 50);
+        RedstoneCoreOracle redstoneOracle =
+            new RedstoneCoreOracle(asset, USD, redstoneFeed, REDSTONE_DEFAULT_FEED_DECIMALS, 5 minutes);
+        AnchoredOracle anchoredOracle = new AnchoredOracle(address(pythOracle), address(redstoneOracle), 0.005e18);
+        EulerRouter router = new EulerRouter(address(1), address(this));
+        router.govSetConfig(asset, USD, address(anchoredOracle));
+        return router;
+    }
+
+    function _setupPythOnlyOracle(address asset, bytes32 pythFeed) internal returns (EulerRouter) {
+        PythOracleMarketHours pythOracle =
+            new PythOracleMarketHours(address(pyth), asset, USD, pythFeed, 60 seconds, 50);
+        EulerRouter router = new EulerRouter(address(1), address(this));
+        router.govSetConfig(asset, USD, address(pythOracle));
+        return router;
+    }
+
+    function test_validateOraclePath_allowsMag7PythRedstone() public {
+        EulerRouter router = _setupAnchoredOracle(ETH_GOOGLON, PYTH_GOOGL_USD_FEED, REDSTONE_GOOGL_USD_FEED);
+        harness.validateOraclePath(router, ETH_GOOGLON);
+    }
+
+    function test_validateOraclePath_allowsMag7PythOnly() public {
+        EulerRouter router = _setupPythOnlyOracle(ETH_AAPLON, PYTH_AAPL_USD_FEED);
         harness.validateOraclePath(router, ETH_AAPLON);
     }
 }

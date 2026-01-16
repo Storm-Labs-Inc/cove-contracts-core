@@ -1000,11 +1000,14 @@ library BasketManagerValidationLib {
         if (amount == 0) {
             return 0;
         }
-        address anchoredOracle = eulerRouter.getConfiguredOracle(base, quote);
-        if (anchoredOracle == address(0)) {
+        address configuredOracle = eulerRouter.getConfiguredOracle(base, quote);
+        if (configuredOracle == address(0)) {
             revert OracleNotConfigured(base);
         }
-        return IPriceOracle(AnchoredOracle(anchoredOracle).primaryOracle()).getQuote(amount, base, quote);
+        if (_isAnchoredOracle(configuredOracle)) {
+            return IPriceOracle(AnchoredOracle(configuredOracle).primaryOracle()).getQuote(amount, base, quote);
+        }
+        return IPriceOracle(configuredOracle).getQuote(amount, base, quote);
     }
 
     function _updateOracleTimestamp(EulerRouter eulerRouter, address oracle) private {
@@ -1103,6 +1106,13 @@ library BasketManagerValidationLib {
         address oracle = eulerRouter.getConfiguredOracle(asset, USD);
         if (oracle == address(0)) {
             revert OracleNotConfigured(asset);
+        }
+
+        if (_isMag7PythOnlyAsset(asset)) {
+            if (_isPythOracle(oracle)) {
+                return;
+            }
+            revert InvalidOraclePath(asset);
         }
 
         bool isAnchoredOracle = _isAnchoredOracle(oracle);
@@ -1317,6 +1327,10 @@ library BasketManagerValidationLib {
     function _isMag7Asset(address asset) private pure returns (bool) {
         return asset == ETH_AAPLON || asset == ETH_MSFTON || asset == ETH_GOOGLON || asset == ETH_AMZNON
             || asset == ETH_NVDAON || asset == ETH_METAON || asset == ETH_TSLAON;
+    }
+
+    function _isMag7PythOnlyAsset(address asset) private pure returns (bool) {
+        return asset == ETH_AAPLON || asset == ETH_MSFTON;
     }
 
     /// @notice Helper function to check if an oracle is a CurveEMAOracleUnderlying
