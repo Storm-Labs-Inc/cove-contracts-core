@@ -2,14 +2,13 @@
 # Summary of work (end-to-end pipeline):
 # 1) Fetch tokenholder balances from Etherscan v2 using API_KEY_ETHERSCAN and write tokenholders.csv.
 # 2) Keep all fetched holders in tokenholders.csv (no hidden/blacklist section split).
-# 3) (Optional) Verify tokenholder balances against mainnet RPC with cast and write tokenholders.cast-check.csv.
-# 4) Discover reward gauges from CoveYearnGaugeFactory, discover gauge users from mint Transfer events,
+# 3) Discover reward gauges from CoveYearnGaugeFactory, discover gauge users from mint Transfer events,
 #    then sum claimableReward for those users.
-# 5) Scan Sablier V2 Lockup Linear logs from block 19594522 and sum streamedAmountOf per recipient.
-# 6) Calculate claimable auction sales from `AUCTION_CONTRACT`.
-# 7) Classify addresses as EOAs vs contracts via eth_getCode.
-# 8) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
-# 9) Write final-balances.csv with per-address columns:
+# 4) Scan Sablier V2 Lockup Linear logs from block 19594522 and sum streamedAmountOf per recipient.
+# 5) Calculate claimable auction sales from `AUCTION_CONTRACT`.
+# 6) Classify addresses as EOAs vs contracts via eth_getCode.
+# 7) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
+# 8) Write final-balances.csv with per-address columns:
 #    is_contract, is_eligible, wallet_balance, sablier_claimable, gauge_claimable,
 #    auction_claimable, total_calculated_cove_balance.
 
@@ -35,7 +34,6 @@ SABLIER_LOCKUP_ADDRESS = "0xafb979d9afad1ad27c5eff4e27226e3ab9e5dcc9"
 DEFAULT_SABLIER_FROM_BLOCK = 19594526
 DEFAULT_TOKEN_SNAPSHOT_BLOCK = 24448971
 DEFAULT_HOLDERS_FILE = "tokenholders.csv"
-DEFAULT_VERIFY_FILE = "tokenholders.cast-check.csv"
 DEFAULT_FINAL_FILE = "final-balances.csv"
 COVE_YEARN_GAUGE_FACTORY = "0x842b22Eb2A1C1c54344eDdbE6959F787c2d15844"
 AUCTION_CONTRACT = "0x2f3715F710076Cfdb5AA872Bc8a4b965a07c3A08"
@@ -52,7 +50,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--offset", default="1000", help="Etherscan pagination offset")
     parser.add_argument("--blacklist", default="blacklist.csv")
     parser.add_argument("--skip-fetch", action="store_true", help="Skip Etherscan tokenholders fetch")
-    parser.add_argument("--skip-verify", action="store_true", help="Skip cast verification step")
     parser.add_argument(
         "--raw-final-balances",
         action="store_true",
@@ -540,47 +537,6 @@ def get_gauge_users_from_mint_events(
 
     return sorted(users)
 
-
-# Verify balances via cast for an input CSV and write a report.
-def verify_with_cast(rpc_url: str, token: str, in_csv: Path, out_csv: Path, block: str | None) -> None:
-    ok, _ = run_cast(["cast", "--help"])
-    if not ok:
-        raise RuntimeError("cast not found in PATH")
-
-    def cast_balance(addr: str) -> str:
-        cmd = ["cast", "erc20-token", "balance", "--rpc-url", rpc_url]
-        if block:
-            cmd += ["--block", str(block)]
-        cmd += [token, addr]
-        out = subprocess.check_output(cmd, text=True).strip()
-        return out.split()[0]
-
-    rows = []
-    with in_csv.open(newline="") as f:
-        reader = csv.reader(f)
-        next(reader, None)
-        for row in reader:
-            if not row:
-                continue
-            addr = (row[0] or "").strip()
-            if not ADDRESS_RE.match(addr):
-                continue
-            exp = row[1] if len(row) > 1 else ""
-            try:
-                onchain = cast_balance(addr)
-                status = "OK" if exp == onchain else "MISMATCH"
-            except Exception as e:
-                onchain = ""
-                status = f"ERROR: {e}"
-            rows.append((addr, exp, onchain, status))
-
-    with out_csv.open("w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["address", "expected_balance", "onchain_balance", "status"])
-        for row in sorted(rows, key=lambda r: r[0].lower()):
-            writer.writerow(row)
-
-
 # Fetch ERC20 balances via eth_call for addresses at a specific block and write to CSV.
 def fetch_wallet_balances_at_block(
     rpc_url: str,
@@ -805,13 +761,6 @@ def main() -> int:
         out_path=final_path,
     )
     print("  Wrote final balances")
-
-    if not args.skip_verify:
-        print("Step 9: Verify balances with cast")
-        verify_with_cast(rpc_url, args.contract, holders_path, verify_path, args.block)
-        print("  Wrote verification report")
-    else:
-        print("Step 9: Skipped cast verification")
 
     return 0
 
