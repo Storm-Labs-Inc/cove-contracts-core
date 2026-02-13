@@ -31,7 +31,8 @@ from urllib.parse import urlencode
 ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 ZERO_ADDR = "0x0000000000000000000000000000000000000000"
 COVE_TOKEN_ADDRESS = "0x32fb7D6E0cBEb9433772689aA4647828Cc7cbBA8"
-DEFAULT_SABLIER_FROM_BLOCK = 19594522
+SABLIER_LOCKUP_ADDRESS = "0xafb979d9afad1ad27c5eff4e27226e3ab9e5dcc9"
+DEFAULT_SABLIER_FROM_BLOCK = 19594526
 DEFAULT_TOKEN_SNAPSHOT_BLOCK = 24448971
 DEFAULT_HOLDERS_FILE = "tokenholders.csv"
 DEFAULT_VERIFY_FILE = "tokenholders.cast-check.csv"
@@ -48,11 +49,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--contract", default=COVE_TOKEN_ADDRESS)
     parser.add_argument("--rpc-url", default=None, help="RPC URL (defaults to MAINNET_RPC_URL)")
     parser.add_argument("--block", default=DEFAULT_TOKEN_SNAPSHOT_BLOCK, help="Block number for pinned calculations")
-    parser.add_argument(
-        "--from-block",
-        default=str(DEFAULT_SABLIER_FROM_BLOCK),
-        help=f"Start block for Sablier log scan (default: {DEFAULT_SABLIER_FROM_BLOCK})",
-    )
     parser.add_argument("--offset", default="1000", help="Etherscan pagination offset")
     parser.add_argument("--blacklist", default="blacklist.csv")
     parser.add_argument("--skip-fetch", action="store_true", help="Skip Etherscan tokenholders fetch")
@@ -380,8 +376,8 @@ def get_vesting_balances(
     streamed_selector: str,
 ) -> dict[str, int]:
     balances: dict[str, int] = {}
-    to_block = int(block) if block is not None else get_latest_block(rpc_url)
-    streams = get_sablier_streams_for_asset(rpc_url, lockup_addr, token_addr, from_block, to_block)
+    # Limit the scan to the single block for faster processing
+    streams = get_sablier_streams_for_asset(rpc_url, lockup_addr, token_addr, from_block, from_block + 1)
 
     for stream_id, recipient in streams:
         try:
@@ -717,7 +713,7 @@ def main() -> int:
     print(f"Contract: {args.contract}")
     if args.block:
         print(f"Pinned block: {args.block}")
-    print(f"Sablier log scan from block: {args.from_block}")
+    print(f"Sablier log scan from block: {DEFAULT_SABLIER_FROM_BLOCK}")
 
     if not args.skip_fetch:
         print("Step 1: Fetch tokenholders from Etherscan")
@@ -730,10 +726,10 @@ def main() -> int:
     addresses = load_tokenholder_addresses(holders_path)
     print(f"  Loaded {len(addresses)} addresses")
 
-    lockup_addr = "0xafb979d9afad1ad27c5eff4e27226e3ab9e5dcc9"
+    lockup_addr = SABLIER_LOCKUP_ADDRESS
     streamed_selector = function_selector("streamedAmountOf(uint256)")
     claimable_selector = function_selector("claimableReward(address,address)")
-    from_block = int(args.from_block)
+    from_block = DEFAULT_SABLIER_FROM_BLOCK
 
     print("Step 3: Compute claimable vested balances from Sablier")
     sablier_claimable = get_vesting_balances(
