@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+from decimal import Decimal, getcontext
 import time
 import urllib.error
 import urllib.request
@@ -34,6 +35,7 @@ DEFAULT_HOLDERS_FILE = "tokenholders.csv"
 DEFAULT_VERIFY_FILE = "tokenholders.cast-check.csv"
 DEFAULT_FINAL_FILE = "final-balances.csv"
 COVE_YEARN_GAUGE_FACTORY = "0x842b22Eb2A1C1c54344eDdbE6959F787c2d15844"
+TOKEN_DECIMALS = Decimal("1000000000000000000")
 
 
 # Parse CLI args for the unified pipeline.
@@ -51,6 +53,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--blacklist", default="blacklist.csv")
     parser.add_argument("--skip-fetch", action="store_true", help="Skip Etherscan tokenholders fetch")
     parser.add_argument("--skip-verify", action="store_true", help="Skip cast verification step")
+    parser.add_argument(
+        "--raw-final-balances",
+        action="store_true",
+        help="Write final balances using raw integer token amounts (18-decimal format)",
+    )
     parser.add_argument("--jobs", type=int, default=None, help="Concurrency for RPC calls")
     return parser.parse_args()
 
@@ -518,8 +525,21 @@ def write_final_balances(
     wallet_balances: dict[str, int],
     sablier_claimable: dict[str, int],
     gauge_claimable: dict[str, int],
+    decimal_adjust: bool,
     out_path: Path,
 ) -> None:
+    getcontext().prec = 80
+    decimals = TOKEN_DECIMALS if decimal_adjust else Decimal("1")
+
+    def format_amount(raw: int) -> str:
+        scaled = Decimal(raw) / decimals
+        if scaled == 0:
+            return "0"
+        text = format(scaled, "f")
+        if "." in text:
+            text = text.rstrip("0").rstrip(".")
+        return text
+
     rows = []
     for addr in addresses:
         wallet = wallet_balances.get(addr, 0)
@@ -553,7 +573,18 @@ def write_final_balances(
                 "total_calculated_cove_balance",
             ]
         )
-        writer.writerows(rows)
+        for row in rows:
+            writer.writerow(
+                (
+                    row[0],
+                    row[1],
+                    row[2],
+                    format_amount(int(row[3])),
+                    format_amount(int(row[4])),
+                    format_amount(int(row[5])),
+                    format_amount(int(row[6])),
+                )
+            )
 
 
 # Run the full pipeline end-to-end.
@@ -651,6 +682,7 @@ def main() -> int:
         wallet_balances=wallet_balances,
         sablier_claimable=sablier_claimable,
         gauge_claimable=gauge_claimable,
+        decimal_adjust=not args.raw_final_balances,
         out_path=final_path,
     )
     print("  Wrote final balances")
