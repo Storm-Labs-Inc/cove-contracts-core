@@ -39,6 +39,8 @@ COVE_YEARN_GAUGE_FACTORY = "0x842b22Eb2A1C1c54344eDdbE6959F787c2d15844"
 AUCTION_CONTRACT = "0x2f3715F710076Cfdb5AA872Bc8a4b965a07c3A08"
 TOKEN_DECIMALS = Decimal("1000000000000000000")
 DEFAULT_AUCTION_VESTING_DURATION = 0
+AUCTION_SUBSCRIBE_FROM_BLOCK = 19708838
+AUCTION_SUBSCRIBE_TO_BLOCK = 19733430
 
 
 # Parse CLI args for the unified pipeline.
@@ -437,10 +439,12 @@ def get_auction_unclaimed(
         if sub_end == 0:
             continue
         remaining = subs_snap.get(addr, 0)
+        if remaining == 0:
+            continue
         max_vested = (sub_end * total_proj) // denom if denom > 0 else 0
         time_since = max(0, min(snapshot_ts - auction_end_ts, vesting_duration_bi))
         vested = (max_vested * time_since) // vesting_duration_bi if vesting_duration_bi > 0 else max_vested
-        if remaining != 0:
+        if vested > 0:
             owed[addr] = owed.get(addr, 0) + vested
 
     return owed, {
@@ -451,6 +455,57 @@ def get_auction_unclaimed(
         "floor_quote": floor_quote,
         "snapshot_ts": snapshot_ts,
     }
+
+
+def get_auction_subscribers(
+    rpc_url: str,
+    auction_addr: str,
+    from_block: int,
+    to_block: int,
+) -> list[str]:
+    if to_block < from_block:
+        return []
+
+    topic = event_topic("Subscribed(address,uint256,uint256)")
+    subscribers: set[str] = set()
+    step = 5000
+    cursor = from_block
+
+    while cursor <= to_block:
+        end_block = min(cursor + step - 1, to_block)
+        params = [
+            {
+                "fromBlock": hex(cursor),
+                "toBlock": hex(end_block),
+                "address": auction_addr,
+                "topics": [topic],
+            }
+        ]
+        try:
+            res = rpc_call(rpc_url, "eth_getLogs", params)
+        except RuntimeError:
+            if step > 500:
+                step = max(500, step // 2)
+                continue
+            raise
+
+        if "error" in res:
+            if step > 500:
+                step = max(500, step // 2)
+                continue
+            raise RuntimeError(res["error"])
+
+        for log in res.get("result", []):
+            topics = log.get("topics", [])
+            if len(topics) < 2:
+                continue
+            subscriber = "0x" + topics[1][-40:]
+            if ADDRESS_RE.match(subscriber):
+                subscribers.add(subscriber.lower())
+
+        cursor = end_block + 1
+
+    return sorted(subscribers)
 
 
 # Sum claimable reward balances across gauges for each address.
@@ -662,7 +717,6 @@ def main() -> int:
     jobs = args.jobs or min(6, max(1, (os.cpu_count() or 2) // 2))
 
     holders_path = root / DEFAULT_HOLDERS_FILE
-    verify_path = root / DEFAULT_VERIFY_FILE
     final_path = root / DEFAULT_FINAL_FILE
     blacklist = load_blacklist(root / args.blacklist)
 
@@ -717,10 +771,18 @@ def main() -> int:
     print(f"  Gauge balances computed for {len(gauge_claimable)} addresses ({non_zero_gauge_users} non-zero)")
 
     print("Step 5: Compute claimable auction sales")
+    auction_subscribers = get_auction_subscribers(
+        rpc_url,
+        AUCTION_CONTRACT,
+        AUCTION_SUBSCRIBE_FROM_BLOCK,
+        AUCTION_SUBSCRIBE_TO_BLOCK,
+    )
+    print(f"  Found {len(auction_subscribers)} subscribed addresses from logs")
+
     auction_claimable, auction_meta = get_auction_unclaimed(
         rpc_url,
         AUCTION_CONTRACT,
-        addresses,
+        auction_subscribers,
         args.block,
         args.auction_vesting_duration,
         jobs,
