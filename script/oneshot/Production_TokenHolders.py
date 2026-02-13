@@ -6,10 +6,12 @@
 # 4) Discover reward gauges from CoveYearnGaugeFactory, discover gauge users from mint Transfer events,
 #    then sum claimableReward for those users.
 # 5) Scan Sablier V2 Lockup Linear logs from block 19594522 and sum streamedAmountOf per recipient.
-# 6) Classify addresses as EOAs vs contracts via eth_getCode.
-# 7) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
-# 8) Write final-balances.csv with per-address columns:
-#    is_contract, is_eligible, wallet_balance, sablier_claimable, gauge_claimable, total_calculated_cove_balance.
+# 6) Calculate claimable auction sales from `AUCTION_CONTRACT`.
+# 7) Classify addresses as EOAs vs contracts via eth_getCode.
+# 8) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
+# 9) Write final-balances.csv with per-address columns:
+#    is_contract, is_eligible, wallet_balance, sablier_claimable, gauge_claimable,
+#    auction_claimable, total_calculated_cove_balance.
 
 import argparse
 import csv
@@ -35,7 +37,9 @@ DEFAULT_HOLDERS_FILE = "tokenholders.csv"
 DEFAULT_VERIFY_FILE = "tokenholders.cast-check.csv"
 DEFAULT_FINAL_FILE = "final-balances.csv"
 COVE_YEARN_GAUGE_FACTORY = "0x842b22Eb2A1C1c54344eDdbE6959F787c2d15844"
+AUCTION_CONTRACT = "0x2f3715F710076Cfdb5AA872Bc8a4b965a07c3A08"
 TOKEN_DECIMALS = Decimal("1000000000000000000")
+DEFAULT_AUCTION_VESTING_DURATION = 0
 
 
 # Parse CLI args for the unified pipeline.
@@ -57,6 +61,12 @@ def parse_args() -> argparse.Namespace:
         "--raw-final-balances",
         action="store_true",
         help="Write final balances using raw integer token amounts (18-decimal format)",
+    )
+    parser.add_argument(
+        "--auction-vesting-duration",
+        type=int,
+        default=DEFAULT_AUCTION_VESTING_DURATION,
+        help="Auction vesting duration in seconds for claimable auction sales",
     )
     parser.add_argument("--jobs", type=int, default=None, help="Concurrency for RPC calls")
     return parser.parse_args()
@@ -212,6 +222,30 @@ def get_latest_block(rpc_url: str) -> int:
     return int(res["result"], 16)
 
 
+def get_block_timestamp(rpc_url: str, block: str | int) -> int:
+    block_id = hex(int(block)) if isinstance(block, int) else block
+    res = rpc_call(rpc_url, "eth_getBlockByNumber", [block_id, False])
+    if "error" in res:
+        raise RuntimeError(res["error"])
+    block_data = res.get("result")
+    if not block_data or "timestamp" not in block_data:
+        raise RuntimeError(f"Unable to load block data for {block}")
+    return int(block_data["timestamp"], 16)
+
+
+def get_block_before_timestamp(rpc_url: str, timestamp: int) -> int:
+    high = get_latest_block(rpc_url)
+    low = 0
+    while low < high:
+        mid = (low + high + 1) // 2
+        mid_ts = get_block_timestamp(rpc_url, mid)
+        if mid_ts <= timestamp:
+            low = mid
+        else:
+            high = mid - 1
+    return low
+
+
 # Perform eth_call and return raw hex result.
 def eth_call_raw(rpc_url: str, to: str, data: str, block: str | None) -> str:
     block_tag = hex(int(block)) if block is not None else "latest"
@@ -358,6 +392,72 @@ def get_vesting_balances(
         balances[recipient] = balances.get(recipient, 0) + streamed
 
     return balances
+
+
+def get_auction_unclaimed(
+    rpc_url: str,
+    auction_addr: str,
+    addresses: list[str],
+    block: str | None,
+    vesting_duration: int,
+    jobs: int,
+) -> tuple[dict[str, int], dict[str, int]]:
+    end_time_sel = function_selector("endTime()")
+    total_sub_sel = function_selector("totalSubscriptions()")
+    total_proj_sel = function_selector("totalProjectTokenAmount()")
+    floor_sel = function_selector("floorQuoteAmount()")
+    sub_sel = function_selector("subscriptions(address)")
+
+    auction_end_ts = eth_call(rpc_url, auction_addr, end_time_sel, block)
+    total_subs = eth_call(rpc_url, auction_addr, total_sub_sel, block)
+    total_proj = eth_call(rpc_url, auction_addr, total_proj_sel, block)
+    floor_quote = eth_call(rpc_url, auction_addr, floor_sel, block)
+
+    auction_end_block = get_block_before_timestamp(rpc_url, auction_end_ts)
+    snapshot_block = int(block) if block is not None else get_latest_block(rpc_url)
+    snapshot_ts = get_block_timestamp(rpc_url, snapshot_block)
+
+    denom = max(total_subs, floor_quote)
+    vesting_duration_bi = max(0, vesting_duration)
+
+    def fetch_sub_at(block_tag: str | int, addr: str) -> int:
+        data = sub_sel + addr.replace("0x", "").rjust(64, "0")
+        return eth_call(rpc_url, auction_addr, data, str(block_tag))
+
+    subs_end: dict[str, int] = {}
+    subs_snap: dict[str, int] = {}
+
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        futs_end = {ex.submit(fetch_sub_at, auction_end_block, addr): addr for addr in addresses}
+        for fut in as_completed(futs_end):
+            addr = futs_end[fut]
+            subs_end[addr] = fut.result()
+
+        futs_snap = {ex.submit(fetch_sub_at, snapshot_block, addr): addr for addr in addresses}
+        for fut in as_completed(futs_snap):
+            addr = futs_snap[fut]
+            subs_snap[addr] = fut.result()
+
+    owed: dict[str, int] = {}
+    for addr in addresses:
+        sub_end = subs_end.get(addr, 0)
+        if sub_end == 0:
+            continue
+        remaining = subs_snap.get(addr, 0)
+        max_vested = (sub_end * total_proj) // denom if denom > 0 else 0
+        time_since = max(0, min(snapshot_ts - auction_end_ts, vesting_duration_bi))
+        vested = (max_vested * time_since) // vesting_duration_bi if vesting_duration_bi > 0 else max_vested
+        if remaining != 0:
+            owed[addr] = owed.get(addr, 0) + vested
+
+    return owed, {
+        "auction_end_ts": auction_end_ts,
+        "auction_end_block": auction_end_block,
+        "total_subscriptions": total_subs,
+        "total_project_tokens": total_proj,
+        "floor_quote": floor_quote,
+        "snapshot_ts": snapshot_ts,
+    }
 
 
 # Sum claimable reward balances across gauges for each address.
@@ -525,6 +625,7 @@ def write_final_balances(
     wallet_balances: dict[str, int],
     sablier_claimable: dict[str, int],
     gauge_claimable: dict[str, int],
+    auction_claimable: dict[str, int],
     decimal_adjust: bool,
     out_path: Path,
 ) -> None:
@@ -545,7 +646,8 @@ def write_final_balances(
         wallet = wallet_balances.get(addr, 0)
         sablier = sablier_claimable.get(addr, 0)
         gauge = gauge_claimable.get(addr, 0)
-        total = wallet + sablier + gauge
+        auction = auction_claimable.get(addr, 0)
+        total = wallet + sablier + gauge + auction
         rows.append(
             (
                 addr,
@@ -554,11 +656,12 @@ def write_final_balances(
                 wallet,
                 sablier,
                 gauge,
+                auction,
                 total,
             )
         )
 
-    rows.sort(key=lambda r: r[6], reverse=True)
+    rows.sort(key=lambda r: r[7], reverse=True)
 
     with out_path.open("w", newline="") as f:
         writer = csv.writer(f)
@@ -570,6 +673,7 @@ def write_final_balances(
                 "wallet_balance",
                 "sablier_claimable",
                 "gauge_claimable",
+                "auction_claimable",
                 "total_calculated_cove_balance",
             ]
         )
@@ -583,6 +687,7 @@ def write_final_balances(
                     format_amount(int(row[4])),
                     format_amount(int(row[5])),
                     format_amount(int(row[6])),
+                    format_amount(int(row[7])),
                 )
             )
 
@@ -659,22 +764,39 @@ def main() -> int:
     non_zero_gauge_users = sum(1 for v in gauge_claimable.values() if v > 0)
     print(f"  Gauge balances computed for {len(gauge_claimable)} addresses ({non_zero_gauge_users} non-zero)")
 
-    all_addresses = sorted(set(addresses) | set(sablier_claimable) | set(gauge_claimable))
-    print(f"Step 5: Classify address types for final output ({len(all_addresses)} addresses)")
+    print("Step 5: Compute claimable auction sales")
+    auction_claimable, auction_meta = get_auction_unclaimed(
+        rpc_url,
+        AUCTION_CONTRACT,
+        addresses,
+        args.block,
+        args.auction_vesting_duration,
+        jobs,
+    )
+    print(f"  Auction recipients with subscriptions: {len(auction_claimable)}")
+    print(
+        f"  Auction end block: {auction_meta['auction_end_block']} | "
+        f"snapshot ts: {auction_meta['snapshot_ts']}"
+    )
+
+    all_addresses = sorted(
+        set(addresses) | set(sablier_claimable) | set(gauge_claimable) | set(auction_claimable)
+    )
+    print(f"Step 6: Classify address types for final output ({len(all_addresses)} addresses)")
     is_contract_map = classify_addresses(rpc_url, all_addresses, args.block, jobs)
     contract_count = sum(1 for _, is_ctr in is_contract_map.items() if is_ctr)
     print(f"  EOAs: {len(all_addresses) - contract_count} | Contracts: {contract_count}")
 
     if args.block:
-        print("Step 6: Fetch wallet balances at pinned block")
+        print("Step 7: Fetch wallet balances at pinned block")
         block_holders_path = root / f"tokenholders.block-{args.block}.csv"
         wallet_balances = fetch_wallet_balances_at_block(rpc_url, args.contract, all_addresses, args.block, block_holders_path, jobs)
         print("  Wrote pinned block balances")
     else:
-        print("Step 6: Load wallet balances from tokenholders.csv")
+        print("Step 7: Load wallet balances from tokenholders.csv")
         wallet_balances = load_wallet_balances_from_csv(holders_path, set(all_addresses))
 
-    print("Step 7: Write final balances with component columns")
+    print("Step 8: Write final balances with component columns")
     write_final_balances(
         addresses=all_addresses,
         is_contract_map=is_contract_map,
@@ -682,17 +804,18 @@ def main() -> int:
         wallet_balances=wallet_balances,
         sablier_claimable=sablier_claimable,
         gauge_claimable=gauge_claimable,
+        auction_claimable=auction_claimable,
         decimal_adjust=not args.raw_final_balances,
         out_path=final_path,
     )
     print("  Wrote final balances")
 
     if not args.skip_verify:
-        print("Step 8: Verify balances with cast")
+        print("Step 9: Verify balances with cast")
         verify_with_cast(rpc_url, args.contract, holders_path, verify_path, args.block)
         print("  Wrote verification report")
     else:
-        print("Step 8: Skipped cast verification")
+        print("Step 9: Skipped cast verification")
 
     return 0
 
