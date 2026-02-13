@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # Summary of work (end-to-end pipeline):
 # 1) Fetch tokenholder balances from Etherscan v2 using API_KEY_ETHERSCAN and write tokenholders.csv.
-# 2) Split blacklisted addresses (from blacklist.csv) into their own section at the bottom of tokenholders.csv.
+# 2) Keep all fetched holders in tokenholders.csv (no hidden/blacklist section split).
 # 3) (Optional) Verify tokenholder balances against mainnet RPC with cast and write tokenholders.cast-check.csv.
-# 4) Discover reward gauges from deployments + CoveYearnGaugeFactory, then sum claimableReward for each holder.
+# 4) Discover reward gauges from CoveYearnGaugeFactory, discover gauge users from mint Transfer events,
+#    then sum claimableReward for those users.
 # 5) Scan Sablier V2 Lockup Linear logs from block 19594522 and sum streamedAmountOf per recipient.
-# 6) Calculate unclaimed auction vesting from the Sablier auction contract and add it to hidden balances.
-# 7) Classify addresses as EOAs vs contracts via eth_getCode and keep both.
-# 8) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
-# 9) Merge wallet + hidden balances into final-balances.csv, with contracts in a separate section.
+# 6) Classify addresses as EOAs vs contracts via eth_getCode.
+# 7) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
+# 8) Write final-balances.csv with per-address columns:
+#    is_contract, is_eligible, wallet_balance, sablier_claimable, gauge_claimable, total_calculated_cove_balance.
 
 import argparse
 import csv
@@ -17,8 +18,8 @@ import os
 import re
 import subprocess
 import sys
-import urllib.error
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -26,27 +27,27 @@ from urllib.parse import urlencode
 
 ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 ZERO_ADDR = "0x0000000000000000000000000000000000000000"
+COVE_TOKEN_ADDRESS = "0x32fb7D6E0cBEb9433772689aA4647828Cc7cbBA8"
 DEFAULT_SABLIER_FROM_BLOCK = 19594522
-AUCTION_CONTRACT = "0x2f3715F710076Cfdb5AA872Bc8a4b965a07c3A08"
+DEFAULT_TOKEN_SNAPSHOT_BLOCK = 24448971
+DEFAULT_HOLDERS_FILE = "tokenholders.csv"
+DEFAULT_VERIFY_FILE = "tokenholders.cast-check.csv"
+DEFAULT_FINAL_FILE = "final-balances.csv"
+COVE_YEARN_GAUGE_FACTORY = "0x842b22Eb2A1C1c54344eDdbE6959F787c2d15844"
 
 
 # Parse CLI args for the unified pipeline.
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Cove balances pipeline")
-    parser.add_argument("--contract", default="0x32fb7D6E0cBEb9433772689aA4647828Cc7cbBA8")
-    parser.add_argument("--chainid", default="1")
+    parser.add_argument("--contract", default=COVE_TOKEN_ADDRESS)
     parser.add_argument("--rpc-url", default=None, help="RPC URL (defaults to MAINNET_RPC_URL)")
-    parser.add_argument("--block", default=None, help="Block number for pinned calculations")
+    parser.add_argument("--block", default=DEFAULT_TOKEN_SNAPSHOT_BLOCK, help="Block number for pinned calculations")
     parser.add_argument(
         "--from-block",
         default=str(DEFAULT_SABLIER_FROM_BLOCK),
         help=f"Start block for Sablier log scan (default: {DEFAULT_SABLIER_FROM_BLOCK})",
     )
     parser.add_argument("--offset", default="1000", help="Etherscan pagination offset")
-    parser.add_argument("--holders-out", default="tokenholders.csv")
-    parser.add_argument("--hidden-out", default="hidden-balances.csv")
-    parser.add_argument("--final-out", default="final-balances.csv")
-    parser.add_argument("--verify-out", default="tokenholders.cast-check.csv")
     parser.add_argument("--blacklist", default="blacklist.csv")
     parser.add_argument("--skip-fetch", action="store_true", help="Skip Etherscan tokenholders fetch")
     parser.add_argument("--skip-verify", action="store_true", help="Skip cast verification step")
@@ -70,30 +71,16 @@ def load_blacklist(path: Path) -> set[str]:
     return {a for a in addrs if ADDRESS_RE.match(a)}
 
 
-# Load auction vesting duration from script/vesting/vesting.json.
-def load_auction_vesting_duration(path: Path) -> int:
-    data = json.loads(path.read_text())
-    vesting_data = data.get("vestingData") or []
-    durations = {int(item.get("2_duration")) for item in vesting_data if item.get("2_duration") is not None}
-    if not durations:
-        raise RuntimeError("No vesting durations found in vesting.json")
-    if len(durations) > 1:
-        # Use the max duration to be conservative; log caller can surface this.
-        return max(durations)
-    return durations.pop()
-
-
-# Fetch all tokenholders via Etherscan and write to CSV, with a blacklist section.
+# Fetch all tokenholders via Etherscan and write to CSV.
 def fetch_tokenholders(
     api_key: str,
     contract: str,
-    chainid: str,
     offset: str,
     out_path: Path,
     blacklist: set[str],
 ) -> tuple[int, int]:
     base_params = {
-        "chainid": chainid,
+        "chainid": 1,
         "module": "token",
         "action": "tokenholderlist",
         "contractaddress": contract,
@@ -102,8 +89,8 @@ def fetch_tokenholders(
     }
 
     page = 1
-    rows = []
-    black_rows = []
+    rows: list[tuple[str, str]] = []
+    blacklisted_count = 0
 
     while True:
         params = dict(base_params)
@@ -122,11 +109,9 @@ def fetch_tokenholders(
             bal = item.get("TokenHolderQuantity")
             if not addr or bal is None:
                 continue
-            addr_l = addr.lower()
-            if addr_l in blacklist:
-                black_rows.append((addr, bal))
-            else:
-                rows.append((addr, bal))
+            rows.append((addr, bal))
+            if addr.lower() in blacklist:
+                blacklisted_count += 1
 
         if len(result) < int(offset):
             break
@@ -136,10 +121,7 @@ def fetch_tokenholders(
         writer = csv.writer(f)
         writer.writerow(["address", "token_balance"])
         writer.writerows(rows)
-        if black_rows:
-            writer.writerow(["blacklist------------------------------------------------------"])
-            writer.writerows(black_rows)
-    return len(rows), len(black_rows)
+    return len(rows), blacklisted_count
 
 
 # Load tokenholder addresses from CSV, ignoring non-address rows.
@@ -190,12 +172,7 @@ def run_cast(cmd: list[str]) -> tuple[bool, str]:
 
 # Compute a function selector from a signature using cast keccak.
 def function_selector(signature: str) -> str:
-    return (
-        "0x"
-        + subprocess.check_output(["cast", "keccak", signature], text=True)
-        .strip()
-        .replace("0x", "")[:8]
-    )
+    return "0x" + subprocess.check_output(["cast", "keccak", signature], text=True).strip().replace("0x", "")[:8]
 
 
 # Compute a full keccak hash for event topics.
@@ -228,34 +205,6 @@ def get_latest_block(rpc_url: str) -> int:
     return int(res["result"], 16)
 
 
-# Get block timestamp for a given block number or tag.
-def get_block_timestamp(rpc_url: str, block: str | int) -> int:
-    if isinstance(block, int):
-        block_tag = hex(block)
-    else:
-        block_tag = block
-    res = rpc_call(rpc_url, "eth_getBlockByNumber", [block_tag, False])
-    if "error" in res or not res.get("result"):
-        raise RuntimeError(res.get("error") or "Missing block result")
-    return int(res["result"]["timestamp"], 16)
-
-
-# Find the greatest block number with timestamp <= target timestamp.
-def get_block_before_timestamp(rpc_url: str, target_ts: int) -> int:
-    low = 0
-    high = get_latest_block(rpc_url)
-    best = 0
-    while low <= high:
-        mid = (low + high) // 2
-        ts = get_block_timestamp(rpc_url, mid)
-        if ts <= target_ts:
-            best = mid
-            low = mid + 1
-        else:
-            high = mid - 1
-    return best
-
-
 # Perform eth_call and return raw hex result.
 def eth_call_raw(rpc_url: str, to: str, data: str, block: str | None) -> str:
     block_tag = hex(int(block)) if block is not None else "latest"
@@ -279,12 +228,9 @@ def is_contract(rpc_url: str, address: str, block: str | None) -> bool:
     return res["result"] not in ("0x", "0x0")
 
 
-# Classify addresses as EOAs vs contracts.
-def classify_addresses(
-    rpc_url: str, addresses: list[str], block: str | None, jobs: int
-) -> tuple[list[str], list[str]]:
-    eoas: list[str] = []
-    contracts: list[str] = []
+# Classify addresses and return a map address -> is_contract.
+def classify_addresses(rpc_url: str, addresses: list[str], block: str | None, jobs: int) -> dict[str, bool]:
+    out: dict[str, bool] = {}
 
     def check(addr: str) -> tuple[str, bool]:
         return addr, is_contract(rpc_url, addr, block)
@@ -293,32 +239,16 @@ def classify_addresses(
         futures = {ex.submit(check, addr): addr for addr in addresses}
         for fut in as_completed(futures):
             addr, is_ctr = fut.result()
-            if is_ctr:
-                contracts.append(addr)
-            else:
-                eoas.append(addr)
+            out[addr] = is_ctr
 
-    return eoas, contracts
+    return out
 
 
-# Discover reward gauges from deployments + CoveYearnGaugeFactory.
-def get_reward_gauges(root: Path, rpc_url: str, block: str | None) -> list[str]:
+# Discover reward gauges CoveYearnGaugeFactory.
+def get_reward_gauges(rpc_url: str, block: str | None) -> list[str]:
     gauges: set[str] = set()
 
-    for file in (root / "deployments" / "1").glob("*.json"):
-        name = file.name.lower()
-        if "rewardsgauge" in name and "impl" not in name and "forwarder" not in name:
-            try:
-                addr = json.loads(file.read_text()).get("address")
-                if addr and ADDRESS_RE.match(addr):
-                    gauges.add(addr.lower())
-            except Exception:
-                pass
-
-    factory_path = root / "deployments" / "1" / "CoveYearnGaugeFactory.json"
-    factory_addr = json.loads(factory_path.read_text()).get("address")
-    if not factory_addr:
-        return sorted(gauges)
+    factory_addr = COVE_YEARN_GAUGE_FACTORY
 
     num_sel = function_selector("numOfSupportedYearnGauges()")
     supported_sel = function_selector("supportedYearnGauges(uint256)")
@@ -455,83 +385,57 @@ def get_gauge_claimable(
     return results
 
 
-# Calculate unclaimed auction vesting for addresses based on subscription amounts.
-def get_auction_unclaimed(
+# Discover addresses that used gauges by scanning ERC4626 mint Transfer events (from zero address).
+def get_gauge_users_from_mint_events(
     rpc_url: str,
-    auction_addr: str,
-    addresses: list[str],
-    block: str | None,
-    vesting_duration: int,
-    jobs: int,
-) -> tuple[dict[str, int], dict[str, int]]:
-    end_time_sel = function_selector("endTime()")
-    total_sub_sel = function_selector("totalSubscriptions()")
-    total_proj_sel = function_selector("totalProjectTokenAmount()")
-    floor_sel = function_selector("floorQuoteAmount()")
-    sub_sel = function_selector("subscriptions(address)")
+    gauges: list[str],
+    from_block: int,
+    to_block: int,
+) -> list[str]:
+    if not gauges:
+        return []
 
-    auction_end_ts = eth_call(rpc_url, auction_addr, end_time_sel, block)
-    total_subs = eth_call(rpc_url, auction_addr, total_sub_sel, block)
-    total_proj = eth_call(rpc_url, auction_addr, total_proj_sel, block)
-    floor_quote = eth_call(rpc_url, auction_addr, floor_sel, block)
+    transfer_topic = event_topic("Transfer(address,address,uint256)")
+    zero_topic = "0x" + "0" * 64
+    users: set[str] = set()
 
-    auction_end_block = get_block_before_timestamp(rpc_url, auction_end_ts)
-    snapshot_ts = (
-        get_block_timestamp(rpc_url, int(block))
-        if block is not None
-        else get_block_timestamp(rpc_url, "latest")
-    )
+    step = 50000
+    cursor = max(0, from_block)
+    while cursor <= to_block:
+        end_block = min(cursor + step - 1, to_block)
+        params = [
+            {
+                "fromBlock": hex(cursor),
+                "toBlock": hex(end_block),
+                "address": gauges,
+                "topics": [transfer_topic, zero_topic],
+            }
+        ]
+        try:
+            res = rpc_call(rpc_url, "eth_getLogs", params)
+        except RuntimeError:
+            if step > 500:
+                step = max(500, step // 2)
+                continue
+            raise
 
-    denom = max(total_subs, floor_quote)
-    vesting_duration_bi = max(0, vesting_duration)
+        if "error" in res:
+            if step > 500:
+                step = max(500, step // 2)
+                continue
+            raise RuntimeError(res["error"])
 
-    def fetch_sub_at(block_tag: str | int, addr: str) -> int:
-        data = sub_sel + addr.replace("0x", "").rjust(64, "0")
-        return eth_call(rpc_url, auction_addr, data, str(block_tag))
+        for log in res.get("result", []):
+            topics = log.get("topics", [])
+            if len(topics) < 3:
+                continue
+            recipient = ("0x" + topics[2][-40:]).lower()
+            if ADDRESS_RE.match(recipient):
+                users.add(recipient)
 
-    # subscription at auction end and at snapshot block
-    subs_end: dict[str, int] = {}
-    subs_snap: dict[str, int] = {}
+        cursor = end_block + 1
 
-    with ThreadPoolExecutor(max_workers=jobs) as ex:
-        futs_end = {
-            ex.submit(fetch_sub_at, auction_end_block, addr): addr for addr in addresses
-        }
-        for fut in as_completed(futs_end):
-            addr = futs_end[fut]
-            subs_end[addr] = fut.result()
-
-        snapshot_tag = int(block) if block is not None else "latest"
-        futs_snap = {
-            ex.submit(fetch_sub_at, snapshot_tag, addr): addr for addr in addresses
-        }
-        for fut in as_completed(futs_snap):
-            addr = futs_snap[fut]
-            subs_snap[addr] = fut.result()
-
-    owed: dict[str, int] = {}
-    debug: dict[str, int] = {}
-
-    for addr in addresses:
-        sub_end = subs_end.get(addr, 0)
-        if sub_end == 0:
-            continue
-        remaining = subs_snap.get(addr, 0)
-        max_vested = (sub_end * total_proj) // denom if denom > 0 else 0
-        time_since = max(0, min(snapshot_ts - auction_end_ts, vesting_duration_bi))
-        vested = (max_vested * time_since) // vesting_duration_bi if vesting_duration_bi > 0 else max_vested
-        if remaining != 0:
-            owed[addr] = owed.get(addr, 0) + vested
-        debug[addr] = vested
-
-    return owed, {
-        "auction_end_ts": auction_end_ts,
-        "auction_end_block": auction_end_block,
-        "total_subscriptions": total_subs,
-        "total_project_tokens": total_proj,
-        "floor_quote": floor_quote,
-        "snapshot_ts": snapshot_ts,
-    }
+    return sorted(users)
 
 
 # Verify balances via cast for an input CSV and write a report.
@@ -574,7 +478,7 @@ def verify_with_cast(rpc_url: str, token: str, in_csv: Path, out_csv: Path, bloc
             writer.writerow(row)
 
 
-# Fetch ERC20 balances via eth_call for EOAs at a specific block and write to CSV.
+# Fetch ERC20 balances via eth_call for addresses at a specific block and write to CSV.
 def fetch_wallet_balances_at_block(
     rpc_url: str,
     token: str,
@@ -606,36 +510,56 @@ def fetch_wallet_balances_at_block(
     return results
 
 
-# Merge wallet and hidden balances into final balances CSV.
+# Write final balances CSV with an explicit per-column component breakdown.
 def write_final_balances(
-    wallet: dict[str, int],
-    hidden: dict[str, int],
-    eoas: list[str],
-    contracts: list[str],
+    addresses: list[str],
+    is_contract_map: dict[str, bool],
+    blacklist: set[str],
+    wallet_balances: dict[str, int],
+    sablier_claimable: dict[str, int],
+    gauge_claimable: dict[str, int],
     out_path: Path,
 ) -> None:
-    def total_for(addr: str) -> int:
-        return wallet.get(addr, 0) + hidden.get(addr, 0)
+    rows = []
+    for addr in addresses:
+        wallet = wallet_balances.get(addr, 0)
+        sablier = sablier_claimable.get(addr, 0)
+        gauge = gauge_claimable.get(addr, 0)
+        total = wallet + sablier + gauge
+        rows.append(
+            (
+                addr,
+                "true" if is_contract_map.get(addr, False) else "false",
+                "false" if addr in blacklist else "true",
+                wallet,
+                sablier,
+                gauge,
+                total,
+            )
+        )
 
-    eoa_rows = [(addr, total_for(addr)) for addr in eoas]
-    contract_rows = [(addr, total_for(addr)) for addr in contracts]
-
-    eoa_rows.sort(key=lambda r: r[1], reverse=True)
-    contract_rows.sort(key=lambda r: r[1], reverse=True)
+    rows.sort(key=lambda r: r[6], reverse=True)
 
     with out_path.open("w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["address", "total_owed"])
-        writer.writerows(eoa_rows)
-        if contract_rows:
-            writer.writerow(["contracts------------------------------------------------------"])
-            writer.writerows(contract_rows)
+        writer.writerow(
+            [
+                "address",
+                "is_contract",
+                "is_eligible",
+                "wallet_balance",
+                "sablier_claimable",
+                "gauge_claimable",
+                "total_calculated_cove_balance",
+            ]
+        )
+        writer.writerows(rows)
 
 
 # Run the full pipeline end-to-end.
 def main() -> int:
     args = parse_args()
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parent
 
     rpc_url = args.rpc_url or os.environ.get("MAINNET_RPC_URL")
     if not rpc_url:
@@ -649,9 +573,10 @@ def main() -> int:
 
     jobs = args.jobs or min(6, max(1, (os.cpu_count() or 2) // 2))
 
-    holders_path = root / args.holders_out
-    hidden_path = root / args.hidden_out
-    final_path = root / args.final_out
+    holders_path = root / DEFAULT_HOLDERS_FILE
+    verify_path = root / DEFAULT_VERIFY_FILE
+    final_path = root / DEFAULT_FINAL_FILE
+    blacklist = load_blacklist(root / args.blacklist)
 
     print(f"Contract: {args.contract}")
     if args.block:
@@ -660,11 +585,8 @@ def main() -> int:
 
     if not args.skip_fetch:
         print("Step 1: Fetch tokenholders from Etherscan")
-        blacklist = load_blacklist(root / args.blacklist)
-        rows, black_rows = fetch_tokenholders(
-            api_key, args.contract, args.chainid, args.offset, holders_path, blacklist
-        )
-        print(f"  Wrote {rows} holder rows and {black_rows} blacklisted rows")
+        rows, black_rows = fetch_tokenholders(api_key, args.contract, args.offset, holders_path, blacklist)
+        print(f"  Wrote {rows} holder rows ({black_rows} blacklisted by eligibility flag)")
     else:
         print("Step 1: Skipped tokenholder fetch")
 
@@ -672,21 +594,13 @@ def main() -> int:
     addresses = load_tokenholder_addresses(holders_path)
     print(f"  Loaded {len(addresses)} addresses")
 
-    print("Step 3: Classify EOAs vs contracts")
-    eoa_addresses, contract_addresses = classify_addresses(rpc_url, addresses, args.block, jobs)
-    print(f"  EOAs: {len(eoa_addresses)} | Contracts: {len(contract_addresses)}")
-    if contract_addresses:
-        for addr in sorted(contract_addresses):
-            print(f"  contract: {addr}")
-
     lockup_addr = "0xafb979d9afad1ad27c5eff4e27226e3ab9e5dcc9"
     streamed_selector = function_selector("streamedAmountOf(uint256)")
     claimable_selector = function_selector("claimableReward(address,address)")
-
     from_block = int(args.from_block)
 
-    print("Step 4: Compute vesting (streamed) balances from Sablier")
-    vesting_balances = get_vesting_balances(
+    print("Step 3: Compute claimable vested balances from Sablier")
+    sablier_claimable = get_vesting_balances(
         rpc_url,
         lockup_addr,
         args.contract,
@@ -694,105 +608,59 @@ def main() -> int:
         from_block,
         streamed_selector,
     )
-    print(f"  Vesting recipients: {len(vesting_balances)}")
+    print(f"  Sablier recipients: {len(sablier_claimable)}")
 
-    print("Step 5: Discover gauges and compute claimable rewards")
-    gauges = get_reward_gauges(root, rpc_url, args.block)
+    print("Step 4: Discover gauges and compute claimable rewards")
+    gauges = get_reward_gauges(rpc_url, args.block)
     print(f"  Gauges discovered: {len(gauges)}")
-    gauge_balances = get_gauge_claimable(
+    gauge_to_block = int(args.block) if args.block is not None else get_latest_block(rpc_url)
+    gauge_users = get_gauge_users_from_mint_events(rpc_url, gauges, from_block, gauge_to_block)
+    print(f"  Gauge users discovered from mint Transfer events: {len(gauge_users)}")
+    gauge_claimable = get_gauge_claimable(
         rpc_url,
         gauges,
         args.contract,
-        addresses,
+        gauge_users,
         args.block,
         jobs,
         claimable_selector,
     )
-    print(f"  Gauge balances computed for {len(gauge_balances)} addresses")
+    non_zero_gauge_users = sum(1 for v in gauge_claimable.values() if v > 0)
+    print(f"  Gauge balances computed for {len(gauge_claimable)} addresses ({non_zero_gauge_users} non-zero)")
 
-    print("Step 6: Compute auction unclaimed vesting")
-    vesting_duration = load_auction_vesting_duration(root / "script" / "vesting" / "vesting.json")
-    auction_owed, auction_meta = get_auction_unclaimed(
-        rpc_url,
-        AUCTION_CONTRACT,
-        addresses,
-        args.block,
-        vesting_duration,
-        jobs,
-    )
-    print(f"  Auction vesting duration (seconds): {vesting_duration}")
-    print(f"  Auction end timestamp: {auction_meta['auction_end_ts']}")
-    print(f"  Auction end block: {auction_meta['auction_end_block']}")
-    print(
-        "  Auction totals: subscriptions="
-        f"{auction_meta['total_subscriptions']} "
-        f"projectTokens={auction_meta['total_project_tokens']} "
-        f"floorQuote={auction_meta['floor_quote']}"
-    )
-    print(f"  Auction snapshot timestamp: {auction_meta['snapshot_ts']}")
-    print(f"  Auction addresses with unclaimed vesting: {len(auction_owed)}")
-    if auction_owed:
-        for addr, amt in sorted(auction_owed.items(), key=lambda r: r[1], reverse=True):
-            print(f"  auction_unclaimed: {addr} {amt}")
+    all_addresses = sorted(set(addresses) | set(sablier_claimable) | set(gauge_claimable))
+    print(f"Step 5: Classify address types for final output ({len(all_addresses)} addresses)")
+    is_contract_map = classify_addresses(rpc_url, all_addresses, args.block, jobs)
+    contract_count = sum(1 for _, is_ctr in is_contract_map.items() if is_ctr)
+    print(f"  EOAs: {len(all_addresses) - contract_count} | Contracts: {contract_count}")
 
-    # merge hidden balances for all known addresses
-    hidden_balances: dict[str, int] = {}
-    hidden_addrs = sorted(
-        set(addresses) | set(vesting_balances) | set(gauge_balances) | set(auction_owed)
-    )
-    for addr in hidden_addrs:
-        hidden_balances[addr] = (
-            vesting_balances.get(addr, 0)
-            + gauge_balances.get(addr, 0)
-            + auction_owed.get(addr, 0)
-        )
-
-    with hidden_path.open("w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(
-            ["address", "vesting_streamed", "gauge_claimable", "auction_unclaimed", "total_hidden"]
-        )
-        rows = [
-            (
-                addr,
-                vesting_balances.get(addr, 0),
-                gauge_balances.get(addr, 0),
-                auction_owed.get(addr, 0),
-                hidden_balances.get(addr, 0),
-            )
-            for addr in hidden_addrs
-        ]
-        rows.sort(key=lambda r: r[3], reverse=True)
-        writer.writerows(rows)
-    print("Step 7: Wrote hidden balances")
-
-    # Wallet balances: use pinned block if provided, else use tokenholders.csv
     if args.block:
-        print("Step 8: Fetch wallet balances at pinned block")
+        print("Step 6: Fetch wallet balances at pinned block")
         block_holders_path = root / f"tokenholders.block-{args.block}.csv"
-        wallet_balances = fetch_wallet_balances_at_block(
-            rpc_url,
-            args.contract,
-            addresses,
-            args.block,
-            block_holders_path,
-            jobs,
-        )
+        wallet_balances = fetch_wallet_balances_at_block(rpc_url, args.contract, all_addresses, args.block, block_holders_path, jobs)
         print("  Wrote pinned block balances")
     else:
-        print("Step 8: Load wallet balances from tokenholders.csv")
-        wallet_balances = load_wallet_balances_from_csv(holders_path, set(addresses))
+        print("Step 6: Load wallet balances from tokenholders.csv")
+        wallet_balances = load_wallet_balances_from_csv(holders_path, set(all_addresses))
 
-    print("Step 9: Write final balances (EOA + contract sections)")
-    write_final_balances(wallet_balances, hidden_balances, eoa_addresses, contract_addresses, final_path)
+    print("Step 7: Write final balances with component columns")
+    write_final_balances(
+        addresses=all_addresses,
+        is_contract_map=is_contract_map,
+        blacklist=blacklist,
+        wallet_balances=wallet_balances,
+        sablier_claimable=sablier_claimable,
+        gauge_claimable=gauge_claimable,
+        out_path=final_path,
+    )
     print("  Wrote final balances")
 
     if not args.skip_verify:
-        print("Step 10: Verify balances with cast")
-        verify_with_cast(rpc_url, args.contract, holders_path, root / args.verify_out, args.block)
+        print("Step 8: Verify balances with cast")
+        verify_with_cast(rpc_url, args.contract, holders_path, verify_path, args.block)
         print("  Wrote verification report")
     else:
-        print("Step 10: Skipped cast verification")
+        print("Step 8: Skipped cast verification")
 
     return 0
 
