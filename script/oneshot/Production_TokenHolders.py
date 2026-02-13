@@ -2,7 +2,7 @@
 # Summary of work (end-to-end pipeline):
 # 1) Fetch tokenholder balances from Etherscan v2 using API_KEY_ETHERSCAN and write tokenholders.csv.
 # 2) Keep all fetched holders in tokenholders.csv (no hidden/blacklist section split).
-# 3) Discover reward gauges from CoveYearnGaugeFactory, discover gauge users from mint Transfer events,
+# 3) Discover reward gauges from CoveYearnGaugeFactory, discover gauge users from Transfer events,
 #    then sum claimableReward for those users.
 # 4) Scan Sablier V2 Lockup Linear logs from block 19594522 and sum streamedAmountOf per recipient.
 # 5) Calculate claimable auction sales from `AUCTION_CONTRACT`.
@@ -540,8 +540,8 @@ def get_gauge_claimable(
     return results
 
 
-# Discover addresses that used gauges by scanning ERC4626 mint Transfer events (from zero address).
-def get_gauge_users_from_mint_events(
+# Discover addresses that received gauge tokens by scanning Transfer events.
+def get_gauge_users_from_transfer_events(
     rpc_url: str,
     gauges: list[str],
     from_block: int,
@@ -551,7 +551,6 @@ def get_gauge_users_from_mint_events(
         return []
 
     transfer_topic = event_topic("Transfer(address,address,uint256)")
-    zero_topic = "0x" + "0" * 64
     users: set[str] = set()
 
     step = 50000
@@ -563,7 +562,7 @@ def get_gauge_users_from_mint_events(
                 "fromBlock": hex(cursor),
                 "toBlock": hex(end_block),
                 "address": gauges,
-                "topics": [transfer_topic, zero_topic],
+                "topics": [transfer_topic],
             }
         ]
         try:
@@ -585,7 +584,7 @@ def get_gauge_users_from_mint_events(
             if len(topics) < 3:
                 continue
             recipient = ("0x" + topics[2][-40:]).lower()
-            if ADDRESS_RE.match(recipient):
+            if ADDRESS_RE.match(recipient) and recipient != ZERO_ADDR:
                 users.add(recipient)
 
         cursor = end_block + 1
@@ -756,8 +755,8 @@ def main() -> int:
     gauges = get_reward_gauges(rpc_url, args.block)
     print(f"  Gauges discovered: {len(gauges)}")
     gauge_to_block = int(args.block) if args.block is not None else get_latest_block(rpc_url)
-    gauge_users = get_gauge_users_from_mint_events(rpc_url, gauges, from_block, gauge_to_block)
-    print(f"  Gauge users discovered from mint Transfer events: {len(gauge_users)}")
+    gauge_users = get_gauge_users_from_transfer_events(rpc_url, gauges, from_block, gauge_to_block)
+    print(f"  Gauge users discovered from Transfer events: {len(gauge_users)}")
     gauge_claimable = get_gauge_claimable(
         rpc_url,
         gauges,
