@@ -6,11 +6,12 @@
 #    then sum claimableReward for those users.
 # 4) Scan Sablier V2 Lockup Linear logs from block 19594522 and sum streamedAmountOf per recipient.
 # 5) Calculate claimable auction sales from `AUCTION_CONTRACT`.
-# 6) Classify addresses as EOAs vs contracts via eth_getCode.
-# 7) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
-# 8) Write final-balances.csv with per-address columns:
+# 6) Add hardcoded Echo allocations as an additional balance source.
+# 7) Classify addresses as EOAs vs contracts via eth_getCode.
+# 8) If a block is provided, recompute wallet balances at that block and write tokenholders.block-<block>.csv.
+# 9) Write final-balances.csv with per-holder columns:
 #    is_contract, is_eligible, wallet_balance, sablier_claimable, gauge_claimable,
-#    auction_claimable, total_calculated_cove_balance.
+#    auction_claimable, echo_balance, total_calculated_cove_balance.
 
 import argparse
 import csv
@@ -41,6 +42,18 @@ TOKEN_DECIMALS = Decimal("1000000000000000000")
 DEFAULT_AUCTION_VESTING_DURATION = 0
 AUCTION_SUBSCRIBE_FROM_BLOCK = 19708838
 AUCTION_SUBSCRIBE_TO_BLOCK = 19733430
+HARDCODED_ECHO_ALLOCATIONS = (
+    ("10710000.00", "0xdC817Ae90BE7cd5F9912dC750283BD7e2B65C7e9"),
+    ("17850000.00", "Echo P"),
+    ("8925000.00", "Echo B"),
+    ("7318500.00", "Echo M"),
+    ("2500000.00", "0x1a13C53d516f6E8321e9903F224861e74BBD7AA0"),
+    ("250000.00", "0xf39Ed30Cc51b65392911fEA9F33Ec1ccceEe1ed5"),
+    ("125000.00", "0xC4A61a87893Ca17186bf70194f9605E4E40Cccd1"),
+    ("625000.00", "Echo A"),
+    ("125000.00", "0xeB078B73480913DA1600dB247478dEd62FD0E3C4"),
+    ("10710000.00", "0x8e0EdAbeCF039e31fb8699cCd03a94c22A2Efc29"),
+)
 
 
 # Parse CLI args for the unified pipeline.
@@ -81,6 +94,27 @@ def load_blacklist(path: Path) -> set[str]:
     raw = path.read_text().strip()
     addrs = [a.strip().lower() for a in raw.split(",") if a.strip()]
     return {a for a in addrs if ADDRESS_RE.match(a)}
+
+
+def normalize_holder_identifier(identifier: str) -> str:
+    holder_id = identifier.strip()
+    if ADDRESS_RE.match(holder_id):
+        return holder_id.lower()
+    return holder_id
+
+
+def parse_token_amount(amount: str) -> int:
+    return int(Decimal(amount) * TOKEN_DECIMALS)
+
+
+def load_echo_allocations() -> dict[str, int]:
+    echo_balances: dict[str, int] = {}
+
+    for amount, identifier in HARDCODED_ECHO_ALLOCATIONS:
+        holder_id = normalize_holder_identifier(identifier)
+        echo_balances[holder_id] = echo_balances.get(holder_id, 0) + parse_token_amount(amount)
+
+    return echo_balances
 
 
 # Fetch all tokenholders via Etherscan and write to CSV.
@@ -625,13 +659,14 @@ def fetch_wallet_balances_at_block(
 
 # Write final balances CSV with an explicit per-column component breakdown.
 def write_final_balances(
-    addresses: list[str],
+    holder_ids: list[str],
     is_contract_map: dict[str, bool],
     blacklist: set[str],
     wallet_balances: dict[str, int],
     sablier_claimable: dict[str, int],
     gauge_claimable: dict[str, int],
     auction_claimable: dict[str, int],
+    echo_balances: dict[str, int],
     decimal_adjust: bool,
     out_path: Path,
 ) -> None:
@@ -648,26 +683,35 @@ def write_final_balances(
         return text
 
     rows = []
-    for addr in addresses:
-        wallet = wallet_balances.get(addr, 0)
-        sablier = sablier_claimable.get(addr, 0)
-        gauge = gauge_claimable.get(addr, 0)
-        auction = auction_claimable.get(addr, 0)
-        total = wallet + sablier + gauge + auction
+    for holder_id in holder_ids:
+        wallet = wallet_balances.get(holder_id, 0)
+        sablier = sablier_claimable.get(holder_id, 0)
+        gauge = gauge_claimable.get(holder_id, 0)
+        auction = auction_claimable.get(holder_id, 0)
+        echo = echo_balances.get(holder_id, 0)
+        total = wallet + sablier + gauge + auction + echo
+        is_onchain_address = bool(ADDRESS_RE.match(holder_id))
         rows.append(
-            (
-                addr,
-                "true" if is_contract_map.get(addr, False) else "false",
-                "false" if addr in blacklist else "true",
-                wallet,
-                sablier,
-                gauge,
-                auction,
-                total,
-            )
+            {
+                "address": holder_id,
+                "is_contract": (
+                    "true"
+                    if is_onchain_address and is_contract_map.get(holder_id, False)
+                    else "false"
+                    if is_onchain_address
+                    else ""
+                ),
+                "is_eligible": "false" if is_onchain_address and holder_id in blacklist else "true",
+                "wallet_balance": wallet,
+                "sablier_claimable": sablier,
+                "gauge_claimable": gauge,
+                "auction_claimable": auction,
+                "echo_balance": echo,
+                "total_calculated_cove_balance": total,
+            }
         )
 
-    rows.sort(key=lambda r: r[7], reverse=True)
+    rows.sort(key=lambda row: (-row["total_calculated_cove_balance"], row["address"].lower()))
 
     with out_path.open("w", newline="") as f:
         writer = csv.writer(f)
@@ -680,20 +724,22 @@ def write_final_balances(
                 "sablier_claimable",
                 "gauge_claimable",
                 "auction_claimable",
+                "echo_balance",
                 "total_calculated_cove_balance",
             ]
         )
         for row in rows:
             writer.writerow(
                 (
-                    row[0],
-                    row[1],
-                    row[2],
-                    format_amount(int(row[3])),
-                    format_amount(int(row[4])),
-                    format_amount(int(row[5])),
-                    format_amount(int(row[6])),
-                    format_amount(int(row[7])),
+                    row["address"],
+                    row["is_contract"],
+                    row["is_eligible"],
+                    format_amount(int(row["wallet_balance"])),
+                    format_amount(int(row["sablier_claimable"])),
+                    format_amount(int(row["gauge_claimable"])),
+                    format_amount(int(row["auction_claimable"])),
+                    format_amount(int(row["echo_balance"])),
+                    format_amount(int(row["total_calculated_cove_balance"])),
                 )
             )
 
@@ -792,32 +838,59 @@ def main() -> int:
         f"snapshot ts: {auction_meta['snapshot_ts']}"
     )
 
-    all_addresses = sorted(
-        set(addresses) | set(sablier_claimable) | set(gauge_claimable) | set(auction_claimable)
+    print("Step 6: Load hardcoded Echo balances")
+    echo_balances = load_echo_allocations()
+    placeholder_count = sum(1 for holder_id in echo_balances if not ADDRESS_RE.match(holder_id))
+    print(
+        f"  Echo allocations: {len(HARDCODED_ECHO_ALLOCATIONS)} | "
+        f"holders added or updated: {len(echo_balances)} | placeholders: {placeholder_count}"
     )
-    print(f"Step 6: Classify address types for final output ({len(all_addresses)} addresses)")
-    is_contract_map = classify_addresses(rpc_url, all_addresses, args.block, jobs)
-    contract_count = sum(1 for _, is_ctr in is_contract_map.items() if is_ctr)
-    print(f"  EOAs: {len(all_addresses) - contract_count} | Contracts: {contract_count}")
+
+    all_chain_addresses = sorted(
+        set(addresses)
+        | set(sablier_claimable)
+        | set(gauge_claimable)
+        | set(auction_claimable)
+        | {holder_id for holder_id in echo_balances if ADDRESS_RE.match(holder_id)}
+    )
+    all_holder_ids = sorted(set(all_chain_addresses) | set(echo_balances))
+    print(
+        f"Step 7: Classify address types for final output "
+        f"({len(all_holder_ids)} rows, {len(all_chain_addresses)} on-chain addresses)"
+    )
+    is_contract_map = classify_addresses(rpc_url, all_chain_addresses, args.block, jobs)
+    contract_count = sum(1 for is_ctr in is_contract_map.values() if is_ctr)
+    print(
+        f"  EOAs: {len(all_chain_addresses) - contract_count} | "
+        f"Contracts: {contract_count} | Name placeholders: {placeholder_count}"
+    )
 
     if args.block:
-        print("Step 7: Fetch wallet balances at pinned block")
+        print("Step 8: Fetch wallet balances at pinned block")
         block_holders_path = root / f"tokenholders.block-{args.block}.csv"
-        wallet_balances = fetch_wallet_balances_at_block(rpc_url, args.contract, all_addresses, args.block, block_holders_path, jobs)
+        wallet_balances = fetch_wallet_balances_at_block(
+            rpc_url,
+            args.contract,
+            all_chain_addresses,
+            args.block,
+            block_holders_path,
+            jobs,
+        )
         print("  Wrote pinned block balances")
     else:
-        print("Step 7: Load wallet balances from tokenholders.csv")
-        wallet_balances = load_wallet_balances_from_csv(holders_path, set(all_addresses))
+        print("Step 8: Load wallet balances from tokenholders.csv")
+        wallet_balances = load_wallet_balances_from_csv(holders_path, set(all_chain_addresses))
 
-    print("Step 8: Write final balances with component columns")
+    print("Step 9: Write final balances with component columns")
     write_final_balances(
-        addresses=all_addresses,
+        holder_ids=all_holder_ids,
         is_contract_map=is_contract_map,
         blacklist=blacklist,
         wallet_balances=wallet_balances,
         sablier_claimable=sablier_claimable,
         gauge_claimable=gauge_claimable,
         auction_claimable=auction_claimable,
+        echo_balances=echo_balances,
         decimal_adjust=not args.raw_final_balances,
         out_path=final_path,
     )
